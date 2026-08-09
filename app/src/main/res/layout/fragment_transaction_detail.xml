@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F8F9FA">
+
+        <!-- Status Bar Spacer -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <!-- Nav Header (常驻置顶) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="16dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/btnBack"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="←"
+                android:textColor="#0066FF"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingEnd="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="交易详情"
+                android:textColor="#1A1A1A"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/cardBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_badge"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/tvCardBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="深圳通 · 3821"
+                    android:textColor="#0066FF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Scrollable content -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F8F9FA">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+        <!-- Amount Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:id="@+id/tvAmountHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-¥3.00"
+                android:textColor="#FF3B30"
+                android:textSize="40sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+
+        <!-- Detail Fields Card -->
+        <LinearLayout
+            android:id="@+id/detailRowsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="24dp"
+            android:orientation="vertical"
+            android:background="@drawable/bg_content_card"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <!-- 交易时间 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 地点/站名 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 线路 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 交易类型 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 扣款金额 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 交易后余额 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 终端编号 -->
+            <include layout="@layout/item_detail_row" />
+        </LinearLayout>
+
+        <!-- Raw Data Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:id="@+id/btnToggleRaw"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▼ 查看原始数据"
+                    android:textColor="#0066FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <!-- Hex Panel -->
+            <LinearLayout
+                android:id="@+id/hexPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_hex_panel"
+                android:padding="16dp"
+                android:visibility="visible">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0000 01 02 03 04 05 06 07 08 09 0A 0B 0C"
+                    android:textColor="#8888AA"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="000C 02 00 03 E8 00 00 00 00 09 0F 00 00"
+                    android:textColor="#AAAAFF"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0018 08 17 00 00 FF FF FF FF 00 00 00 00"
+                    android:textColor="#AAAAFF"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0024 00 00 00 00 00 03 00 00 00 00 00 00"
+                    android:textColor="#AAAAFF"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="偏移 0x02: 交易类型 | 0x04: 金额 | 0x18: 终端编号"
+                    android:textColor="#666688"
+                    android:textSize="9sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
+        </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>

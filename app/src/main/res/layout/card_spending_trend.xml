@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 外层 FrameLayout：承载点击柱后浮出的信息小框（全宽定位，不受窄列约束） -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trendRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_content_card"
+    android:layout_marginBottom="16dp">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 标题行：消费趋势 + 上一期/下一期 + 日期范围 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="消费趋势"
+            android:textColor="#1A1A1A"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/btnPrevPeriod"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="◀"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/tvPeriodRange"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#8E8E93"
+            android:textSize="11sp"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp" />
+
+        <TextView
+            android:id="@+id/btnNextPeriod"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <!-- 回到当前周期（非当前期时显示） -->
+    <TextView
+        android:id="@+id/btnBackCurrent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="↻ 回到当前周期"
+        android:textColor="#0066FF"
+        android:textSize="11sp"
+        android:background="@drawable/bg_chip_default"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Bar Chart Area：柱子由代码按周期动态生成（本周/本月/本年） -->
+    <LinearLayout
+        android:id="@+id/chartContainer"
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:orientation="horizontal"
+        android:gravity="bottom|center"
+        android:paddingTop="20dp"
+        android:paddingBottom="4dp" />
+</LinearLayout>
+
+    <!-- 柱点击信息弹窗：全宽 overlay，点击柱子时定位到该柱上方 -->
+    <TextView
+        android:id="@+id/chartPopup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:background="@drawable/bg_chart_popup"
+        android:visibility="gone" />
+</FrameLayout>

@@ -1,0 +1,479 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8F9FA">
+
+    <!-- Empty State: shown when no card data -->
+    <LinearLayout
+        android:id="@+id/emptyState"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:text="📡"
+            android:textSize="64sp"
+            android:gravity="center"
+            android:background="@drawable/bg_action_circle"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="请将手机背面靠近交通卡"
+            android:textColor="#8E8E93"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="支持 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Content: shown when card data is available -->
+    <LinearLayout
+        android:id="@+id/contentWrapper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#F8F9FA"
+        android:visibility="gone">
+
+        <!-- Status Bar Spacer -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="24dp"
+            android:background="#F8F9FA" />
+
+        <!-- Nav Header (常驻置顶) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="12dp"
+            android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="我的卡片"
+                    android:textColor="#1A1A1A"
+                    android:textSize="28sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvCardCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#8E8E93"
+                    android:textSize="14sp"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:id="@+id/btnSettings"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙"
+                    android:textColor="#8E8E93"
+                    android:textSize="22sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="4dp" />
+            </LinearLayout>
+
+        <!-- Scrollable content -->
+        <ScrollView
+            android:id="@+id/contentScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F8F9FA"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+            <!-- Card Carousel -->
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/cardPager"
+                android:layout_width="match_parent"
+                android:layout_height="190dp"
+                android:clipToPadding="false"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp" />
+
+            <!-- Page Indicator (dots added dynamically) -->
+            <LinearLayout
+                android:id="@+id/pageIndicator"
+                android:layout_width="match_parent"
+                android:layout_height="20dp"
+                android:gravity="center"
+                android:orientation="horizontal" />
+
+            <!-- Quick Actions -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="16dp">
+
+                <LinearLayout
+                    android:id="@+id/actionTransactions"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
+                        android:gravity="center"
+                        android:background="@drawable/bg_action_circle">
+                        <TextView
+                            android:id="@+id/iconTransactions"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xF543;"
+                            android:textColor="#0066FF"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="交易记录"
+                        android:textColor="#555555"
+                        android:textSize="11sp"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/actionStats"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
+                        android:gravity="center"
+                        android:background="@drawable/bg_action_circle">
+                        <TextView
+                            android:id="@+id/iconStats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xF200;"
+                            android:textColor="#0066FF"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="数据统计"
+                        android:textColor="#555555"
+                        android:textSize="11sp"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/actionMapTrace"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
+                        android:gravity="center"
+                        android:background="@drawable/bg_action_circle">
+                        <TextView
+                            android:id="@+id/iconMapTrace"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xF5A0;"
+                            android:textColor="#0066FF"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="地图轨迹"
+                        android:textColor="#555555"
+                        android:textSize="11sp"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Section: 卡片详情 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="卡片详情"
+                android:textColor="#8E8E93"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp" />
+
+            <!-- Balance Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="16dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_content_card"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="当前余额"
+                    android:textColor="#8E8E93"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:id="@+id/tvBalance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="¥0.00"
+                    android:textColor="#1A1A1A"
+                    android:textSize="36sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvLastRead"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#8E8E93"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Discount Progress Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="16dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_content_card"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="月度优惠进度"
+                        android:textColor="#1A1A1A"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvProgress"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0/12 次"
+                        android:textColor="#0066FF"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <!-- Progress Bar -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="12dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:background="@drawable/bg_progress_track" />
+                    <View
+                        android:id="@+id/progressFill"
+                        android:layout_width="0dp"
+                        android:layout_height="8dp"
+                        android:background="@drawable/bg_progress_fill" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/tvDiscountHint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#8E8E93"
+                    android:textSize="11sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Recent Transactions Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="16dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_content_card"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="最近交易"
+                    android:textColor="#1A1A1A"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="4dp" />
+
+                <LinearLayout
+                    android:id="@+id/recentTxnContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/btnViewAll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="查看全部 >"
+                    android:textColor="#0066FF"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:paddingTop="8dp"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <!-- Spending Stats Mini Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_content_card"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="消费统计"
+                    android:textColor="#1A1A1A"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="12dp" />
+
+                <!-- Mini Bar Chart -->
+                <LinearLayout
+                    android:id="@+id/chartMiniArea"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:orientation="horizontal"
+                    android:gravity="bottom"
+                    android:paddingBottom="4dp">
+
+                    <View android:id="@+id/chartBar0" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar1" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar2" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar3" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar4" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar5" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
+                    <View android:id="@+id/chartBar6" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="10dp" android:background="@drawable/bg_bar_blue" />
+                </LinearLayout>
+
+                <!-- Day Labels -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="4dp">
+
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="一" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="二" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="三" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="四" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="五" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="6dp"
+                        android:layout_height="wrap_content"
+                        android:text="六" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                    <TextView android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="日" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
+                </LinearLayout>
+            </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+</FrameLayout>

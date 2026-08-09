@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginBottom="16dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_content_card"
+        android:padding="14dp"
+        android:layout_marginEnd="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="总消费"
+            android:textColor="#8E8E93"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/sumTotalSpending"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="¥308.00"
+            android:textColor="#FF3B30"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_content_card"
+        android:padding="14dp"
+        android:layout_marginEnd="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="乘车次数"
+            android:textColor="#8E8E93"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/sumRideCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="42 次"
+            android:textColor="#0066FF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_content_card"
+        android:padding="14dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="日均消费"
+            android:textColor="#8E8E93"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/sumAvgDaily"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="¥10.27"
+            android:textColor="#FF9500"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'androidx.navigation.safeargs.kotlin'
+}
+
+android {
+    namespace 'com.example.nfctransit'
+    compileSdk 37
+
+    defaultConfig {
+        applicationId "com.example.nfctransit"
+        minSdk 24
+        targetSdk 37
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.19.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'com.google.android.material:material:1.14.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
+
+    // Navigation
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.9.8'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.9.8'
+
+    // ViewModel + LiveData
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.11.0'
+
+    // Fragment
+    implementation 'androidx.fragment:fragment-ktx:1.8.9'
+
+    // ViewPager2 for card carousel
+    implementation 'androidx.viewpager2:viewpager2:1.1.0'
+
+    // JSON 序列化（持久化存储 / 数据导出）
+    implementation 'com.google.code.gson:gson:2.10.1'
+}

@@ -1,0 +1,88 @@
+<resources>
+    <string name="app_name">TU Reader</string>
+
+    <!-- Home -->
+    <string name="my_cards">我的卡片</string>
+    <string name="card_count_format">%d 张</string>
+    <string name="read_card">读取卡片</string>
+    <string name="transaction_records">交易记录</string>
+    <string name="spending_stats">消费统计</string>
+    <string name="recharge_records">充值记录</string>
+    <string name="card_details">卡片详情</string>
+    <string name="current_balance">当前余额</string>
+    <string name="last_read">上次读取：今天 09:41</string>
+    <string name="refresh">重新读取</string>
+    <string name="monthly_discount_progress">月度优惠进度</string>
+    <string name="recent_transactions">最近交易</string>
+    <string name="txn_desc_format">%1$s%2$s %3$s</string>
+    <string name="view_all">查看全部 ></string>
+    <string name="shenzhen_tong">深圳通</string>
+    <string name="lingnan_tong">岭南通</string>
+
+    <!-- Transaction List -->
+    <string name="filter_all">全部</string>
+    <string name="filter_metro">地铁</string>
+    <string name="filter_bus">公交</string>
+    <string name="filter_consumption">消费</string>
+    <string name="filter_recharge">充值</string>
+    <string name="balance_format">余额 ¥%s</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">交易详情</string>
+    <string name="view_raw_data">▼ 查看原始数据</string>
+    <string name="txn_time">交易时间</string>
+    <string name="location_station">地点/站名</string>
+    <string name="line">线路</string>
+    <string name="txn_type">交易类型</string>
+    <string name="deduct_amount">扣款金额</string>
+    <string name="balance_after">交易后余额</string>
+    <string name="terminal_code">终端编号</string>
+
+    <!-- Stats -->
+    <string name="data_stats">数据统计</string>
+    <string name="this_week">本周</string>
+    <string name="this_month">本月</string>
+    <string name="this_year">本年</string>
+    <string name="custom">自定义</string>
+    <string name="spending_trend">消费趋势</string>
+    <string name="total_spending">总消费</string>
+    <string name="ride_count">乘车次数</string>
+    <string name="avg_daily_spending">日均消费</string>
+    <string name="top_stations">最常去的车站 Top 5</string>
+    <string name="top_lines">最常坐的线路 Top 5</string>
+    <string name="ride_count_format">%d 次</string>
+
+    <!-- Map Trace -->
+    <string name="map_trace">地图轨迹</string>
+    <string name="playback_speed">播放速度:</string>
+    <string name="trip_info">行程信息</string>
+    <string name="map_placeholder">需集成高德地图 SDK 实现</string>
+
+    <!-- Settings -->
+    <string name="settings">设置</string>
+    <string name="card_management">卡片管理</string>
+    <string name="bound_cards">已绑定卡片</string>
+    <string name="station_map_update">站名映射表更新</string>
+    <string name="card_sorting">卡片排序</string>
+    <string name="data_and_privacy">数据与隐私</string>
+    <string name="local_data_storage">本地数据存储</string>
+    <string name="data_export">数据导出 (CSV/JSON)</string>
+    <string name="clear_all_data">清除全部本地数据</string>
+    <string name="privacy_policy">隐私说明</string>
+    <string name="display_and_experience">显示与体验</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="currency_unit">金额显示单位</string>
+    <string name="map_animation_speed">地图动画播放速度</string>
+    <string name="language_switch">语言切换</string>
+    <string name="about">关于</string>
+    <string name="version_number">版本号</string>
+    <string name="changelog">更新日志</string>
+    <string name="supported_cards">支持的卡种列表</string>
+    <string name="oss_acknowledgements">开源致谢</string>
+    <string name="feedback">反馈入口</string>
+
+    <!-- NFC -->
+    <string name="nfc_scan_hint">请将手机背面靠近交通卡</string>
+    <string name="nfc_not_supported">此设备不支持 NFC</string>
+    <string name="nfc_detecting">检测到卡片，正在读取…</string>
+</resources>

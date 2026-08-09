@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/txnRow"
+    android:layout_width="match_parent"
+    android:layout_height="40dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/txnIcon"
+            android:layout_width="24dp"
+            android:layout_height="wrap_content"
+            android:text="🚇"
+            android:textSize="18sp"
+            android:gravity="center" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <TextView
+                android:id="@+id/txnDesc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="地铁2号线 人民广场站"
+                android:textColor="#1A1A1A"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/txnTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="09-15 08:23"
+                android:textColor="#8E8E93"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/txnAmount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="-¥3.00"
+        android:textColor="#FF3B30"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:fontFamily="monospace" />
+</LinearLayout>

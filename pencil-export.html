@@ -1,0 +1,2677 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono%3Awght%40400%3B500%3B600%3B700&family=Inter%3Awght%40100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      *, ::before, ::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="height: 1260px; position: relative; width: 2740px">
+      <div
+        data-pencil-name="TransactionDetailScreen"
+        style="align-items: flex-start; background-color: #F8F9FA; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 940px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Nav Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 62px 20px 16px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Back"
+            style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ←
+          </div>
+          <div
+            data-pencil-name="Title"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            交易详情
+          </div>
+          <div
+            data-pencil-name="Card Indicator"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex: 1 1 0; gap: 8px; height: fit-content; justify-content: flex-start; padding: 4px 0px 0px 0px"
+          >
+            <div
+              data-pencil-name="Card Badge"
+              style="align-items: flex-start; background-color: #E3F2FD; border-radius: 10px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 10px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Card Name"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深圳通 · 3821
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Amount Header"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: center; padding: 0px 20px 24px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Amount"
+            style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 40px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+          >
+            -¥3.00
+          </div>
+        </div>
+        <div
+          data-pencil-name="Detail Fields"
+          style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 0px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Row 交易时间"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              交易时间
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              2024-09-15 08:23:15
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 地点/站名"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              地点/站名
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              地铁2号线 人民广场站
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 线路"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              线路
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              2号线
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 交易类型"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              交易类型
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              地铁出站
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 扣款金额"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              扣款金额
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              -¥3.00
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 交易后余额"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              交易后余额
+            </div>
+            <div
+              data-pencil-name="Value"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap"
+            >
+              ¥45.50
+            </div>
+          </div>
+          <div
+            data-pencil-name="Row 终端编号"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              终端编号
+            </div>
+            <div
+              data-pencil-name="Value"
+              style='box-sizing: border-box; color: #1A1A1A; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: right; white-space: nowrap'
+            >
+              SZ-MT-002381
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Raw Data Section"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 24px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Raw Header"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; width: 100%"
+          >
+            <div
+              data-pencil-name="Raw Title"
+              style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              ▼ 查看原始数据
+            </div>
+          </div>
+          <div
+            data-pencil-name="Hex Panel"
+            style="align-items: flex-start; background-color: #1A1A2E; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #333366; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Hex Offset"
+              style='box-sizing: border-box; color: #8888AA; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; width: 100%'
+            >
+              0000 01 02 03 04 05 06 07 08 09 0A 0B 0C
+            </div>
+            <div
+              data-pencil-name="Hex Line 1"
+              style='box-sizing: border-box; color: #AAAAFF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; width: 100%'
+            >
+              000C 02 00 03 E8 00 00 00 00 09 0F 00 00
+            </div>
+            <div
+              data-pencil-name="Hex Line 2"
+              style='box-sizing: border-box; color: #AAAAFF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; width: 100%'
+            >
+              0018 08 17 00 00 FF FF FF FF 00 00 00 00
+            </div>
+            <div
+              data-pencil-name="Hex Line 3"
+              style='box-sizing: border-box; color: #AAAAFF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; width: 100%'
+            >
+              0024 00 00 00 00 00 03 00 00 00 00 00 00
+            </div>
+            <div
+              data-pencil-name="Field Legend"
+              style='box-sizing: border-box; color: #666688; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 9px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              偏移 0x02: 交易类型 | 0x04: 金额 | 0x18: 终端编号
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        data-pencil-name="TransactionListScreen"
+        style="align-items: flex-start; background-color: #F8F9FA; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 470px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Status Bar"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 62px; justify-content: space-around; padding: 0px 16px; width: 100%"
+        ></div>
+        <div
+          data-pencil-name="Nav Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 0px 20px 12px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Back Button"
+            style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ←
+          </div>
+          <div
+            data-pencil-name="Screen Title"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            交易记录
+          </div>
+          <div
+            data-pencil-name="Card Indicator"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex: 1 1 0; gap: 8px; height: fit-content; justify-content: flex-start; padding: 4px 0px 0px 0px"
+          >
+            <div
+              data-pencil-name="Card Badge"
+              style="align-items: flex-start; background-color: #E3F2FD; border-radius: 10px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 10px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Card Name"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深圳通 · 3821
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Filter Bar"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 8px; height: fit-content; justify-content: flex-start; padding: 0px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Filter 全部"
+            style="align-items: flex-start; background-color: #0066FF; border-radius: 20px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 6px 14px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Chip 全部"
+              style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              全部
+            </div>
+          </div>
+          <div
+            data-pencil-name="Filter 地铁"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 20px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 6px 14px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Chip 地铁"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              地铁
+            </div>
+          </div>
+          <div
+            data-pencil-name="Filter 公交"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 20px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 6px 14px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Chip 公交"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              公交
+            </div>
+          </div>
+          <div
+            data-pencil-name="Filter 消费"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 20px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 6px 14px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Chip 消费"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              消费
+            </div>
+          </div>
+          <div
+            data-pencil-name="Filter 充值"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 20px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 6px 14px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Chip 充值"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              充值
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Transaction List"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; padding: 16px 16px 24px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E3F2FD; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  地铁2号线 人民广场站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-15 08:23:15
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥3.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥45.50
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #FFF3E0; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚌
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  公交M373 科技园站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-14 18:05:42
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥2.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥48.50
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E8F5E9; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  💳
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  充值
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-14 10:30:08
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #34C759; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                +¥50.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥50.50
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E3F2FD; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  地铁1号线 老街站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-13 07:55:33
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥3.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥0.50
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #FCE4EC; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🛒
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  便利店消费
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-12 12:15:20
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥5.50
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥3.50
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E3F2FD; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  地铁2号线 市民中心站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-12 08:10:05
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥3.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥9.00
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #FFF3E0; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚌
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  公交M191 华强北站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-11 17:45:30
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥2.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥12.00
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E3F2FD; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  地铁5号线 深圳北站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-10 09:30:00
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥4.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥14.00
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E8F5E9; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  💳
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  充值
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-10 08:00:00
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #34C759; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                +¥100.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥18.00
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Txn Row"
+            style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 12px 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Left"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Icon BG"
+                style="align-items: center; background-color: #E3F2FD; border-radius: 18px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 36px; justify-content: center; width: 36px"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+              </div>
+              <div
+                data-pencil-name="Info"
+                style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Desc"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  地铁1号线 罗湖站
+                </div>
+                <div
+                  data-pencil-name="Time"
+                  style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  2024-09-09 18:20:00
+                </div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn Right"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 15px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥2.00
+              </div>
+              <div
+                data-pencil-name="Balance"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                余额 ¥-82.00
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        data-pencil-name="StatsScreen"
+        style="align-items: flex-start; background-color: #F8F9FA; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 1410px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Nav Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 62px 20px 16px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Back"
+            style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ←
+          </div>
+          <div
+            data-pencil-name="Title"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            数据统计
+          </div>
+          <div
+            data-pencil-name="Card Indicator"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex: 1 1 0; gap: 8px; height: fit-content; justify-content: flex-start; padding: 4px 0px 0px 0px"
+          >
+            <div
+              data-pencil-name="Card Badge"
+              style="align-items: flex-start; background-color: #E3F2FD; border-radius: 10px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 10px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Card Name"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深圳通 · 3821
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Segmented Control"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 0px 20px 24px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Segment 本周"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 8px 0px 0px 8px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 8px 16px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Seg Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              本周
+            </div>
+          </div>
+          <div
+            data-pencil-name="Segment 本月"
+            style="align-items: flex-start; background-color: #0066FF; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 8px 16px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Seg Label"
+              style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              本月
+            </div>
+          </div>
+          <div
+            data-pencil-name="Segment 本年"
+            style="align-items: flex-start; background-color: #E5E5EA; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 8px 16px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Seg Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              本年
+            </div>
+          </div>
+          <div
+            data-pencil-name="Segment 自定义"
+            style="align-items: flex-start; background-color: #E5E5EA; border-radius: 0px 8px 8px 0px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 8px 16px; width: fit-content"
+          >
+            <div
+              data-pencil-name="Seg Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              自定义
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Stats Content"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; height: fit-content; justify-content: flex-start; padding: 0px 16px 24px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Spending Trend Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Card Title"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              消费趋势
+            </div>
+            <div
+              data-pencil-name="Chart Area"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 8px; height: 156px; justify-content: flex-start; padding: 16px 0px 8px 0px; width: 100%"
+            >
+              <div
+                data-pencil-name="Bar Col 0"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥35
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 67.742px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 1"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥52
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 100.645px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 2"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥28
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 54.194px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 3"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥45
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 87.097px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 4"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥38
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 73.548px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 5"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥62
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 120px; width: 36px"
+                ></div>
+              </div>
+              <div
+                data-pencil-name="Bar Col 6"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; height: fit-content; justify-content: flex-end; width: 36px"
+              >
+                <div
+                  data-pencil-name="Bar Value"
+                  style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  ¥48
+                </div>
+                <div
+                  data-pencil-name="Bar"
+                  style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 92.903px; width: 36px"
+                ></div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Day Labels"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 8px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周一
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周二
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周三
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周四
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周五
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周六
+              </div>
+              <div
+                data-pencil-name="Day"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                周日
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Summary Row"
+            style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; width: 100%"
+          >
+            <div
+              data-pencil-name="Summary 总消费"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; flex: 1 1 0; gap: 4px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 14px"
+            >
+              <div
+                data-pencil-name="Sum Label"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                总消费
+              </div>
+              <div
+                data-pencil-name="Sum Value"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                ¥308.00
+              </div>
+            </div>
+            <div
+              data-pencil-name="Summary 乘车次数"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; flex: 1 1 0; gap: 4px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 14px"
+            >
+              <div
+                data-pencil-name="Sum Label"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                乘车次数
+              </div>
+              <div
+                data-pencil-name="Sum Value"
+                style='box-sizing: border-box; color: #0066FF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                42 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Summary 日均消费"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; flex: 1 1 0; gap: 4px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 14px"
+            >
+              <div
+                data-pencil-name="Sum Label"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                日均消费
+              </div>
+              <div
+                data-pencil-name="Sum Value"
+                style='box-sizing: border-box; color: #FF9500; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                ¥10.27
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Top Stations Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Card Title"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              最常去的车站 Top 5
+            </div>
+            <div
+              data-pencil-name="Station 人民广场站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Rank Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                人民广场站
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 100px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                15 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Station 科技园站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Rank Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                科技园站
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 80px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                12 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Station 老街站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Rank Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                老街站
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 60px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                9 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Station 深圳北站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Rank Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深圳北站
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 47px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                7 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Station 市民中心站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Rank Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                市民中心站
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 33px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                5 次
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Top Lines Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Card Title"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              最常坐的线路 Top 5
+            </div>
+            <div
+              data-pencil-name="Line 2号线"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Line Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                2号线
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #34C759; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 100px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                18 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Line 1号线"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Line Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                1号线
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #34C759; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 78px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                14 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Line 5号线"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Line Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                5号线
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #34C759; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 56px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                10 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Line M373"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Line Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                M373
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #34C759; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 39px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                7 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Line M191"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Line Name"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                M191
+              </div>
+              <div
+                data-pencil-name="Bar"
+                style="background-color: #34C759; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 22px"
+              ></div>
+              <div
+                data-pencil-name="Count"
+                style='box-sizing: border-box; color: #555555; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                4 次
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        data-pencil-name="HomeScreen"
+        style="align-items: flex-start; background-color: #F8F9FA; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 0px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Status Bar"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 62px; justify-content: space-around; padding: 0px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Time"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 17px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            9:41
+          </div>
+          <div
+            data-pencil-name="Spacer"
+            style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 1px; justify-content: flex-start; width: 60px"
+          ></div>
+          <div
+            data-pencil-name="Status Icons"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 6px; height: fit-content; justify-content: flex-start; width: fit-content"
+          >
+            <div
+              data-pencil-name="Signal"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              ▮▮▮▮
+            </div>
+            <div
+              data-pencil-name="Wifi"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              📶
+            </div>
+            <div
+              data-pencil-name="Battery"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              🔋 85%
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Carousel Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; padding: 0px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Title"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            我的卡片
+          </div>
+          <div
+            data-pencil-name="Card Count"
+            style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            2 张
+          </div>
+          <div
+            data-pencil-name="Settings Icon"
+            style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ⚙
+          </div>
+        </div>
+        <div
+          data-pencil-name="Carousel Area"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 220px; justify-content: center; overflow: hidden; width: 100%"
+        >
+          <div
+            data-pencil-name="Card - Lingnan Tong"
+            style="align-items: flex-start; background-image: linear-gradient(-120.466deg, #2E7D32 14.645%, #1B5E20 85.355%); background-repeat: no-repeat; background-size: 100% 100%; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: 200px; justify-content: flex-end; padding: 20px; width: 340px"
+          >
+            <div
+              data-pencil-name="Card Type"
+              style="box-sizing: border-box; color: #FFFFFFCC; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              岭南通
+            </div>
+            <div
+              data-pencil-name="Card Number"
+              style='box-sizing: border-box; color: #FFFFFF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              •••• 7294
+            </div>
+          </div>
+          <div
+            data-pencil-name="Card - Shenzhen Tong"
+            style="align-items: flex-start; background-image: linear-gradient(-120.466deg, #1A73E8 14.645%, #0D47A1 85.355%); background-repeat: no-repeat; background-size: 100% 100%; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: 200px; justify-content: flex-end; padding: 20px; width: 340px"
+          >
+            <div
+              data-pencil-name="Card Type"
+              style="box-sizing: border-box; color: #FFFFFFCC; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              深圳通
+            </div>
+            <div
+              data-pencil-name="Card Number"
+              style='box-sizing: border-box; color: #FFFFFF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 16px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              •••• 3821
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Page Indicator"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 6px; height: 20px; justify-content: center; width: 100%"
+        >
+          <div
+            data-pencil-name="Dot Active"
+            style="background-color: #0066FF; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; height: 8px; width: 8px"
+          ></div>
+          <div
+            data-pencil-name="Dot Inactive"
+            style="background-color: #E5E5EA; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; height: 6px; width: 6px"
+          ></div>
+        </div>
+        <div
+          data-pencil-name="Quick Actions"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-around; padding: 24px 24px 16px 24px; width: 100%"
+        >
+          <div
+            data-pencil-name="Action 读取卡片"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+          >
+            <div
+              data-pencil-name="Icon Circle"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 25px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 50px; justify-content: center; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; width: 50px"
+            >
+              <div
+                data-pencil-name="Icon Symbol"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 300; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                ↻
+              </div>
+            </div>
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+            >
+              读取卡片
+            </div>
+          </div>
+          <div
+            data-pencil-name="Action 交易记录"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+          >
+            <div
+              data-pencil-name="Icon Circle"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 25px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 50px; justify-content: center; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; width: 50px"
+            >
+              <div
+                data-pencil-name="Icon Symbol"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 300; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                ≡
+              </div>
+            </div>
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+            >
+              交易记录
+            </div>
+          </div>
+          <div
+            data-pencil-name="Action 消费统计"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+          >
+            <div
+              data-pencil-name="Icon Circle"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 25px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 50px; justify-content: center; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; width: 50px"
+            >
+              <div
+                data-pencil-name="Icon Symbol"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 300; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                ▤
+              </div>
+            </div>
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+            >
+              消费统计
+            </div>
+          </div>
+          <div
+            data-pencil-name="Action 充值记录"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+          >
+            <div
+              data-pencil-name="Icon Circle"
+              style="align-items: center; background-color: #FFFFFF; border-radius: 25px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 50px; justify-content: center; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; width: 50px"
+            >
+              <div
+                data-pencil-name="Icon Symbol"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 300; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                ⊕
+              </div>
+            </div>
+            <div
+              data-pencil-name="Label"
+              style="box-sizing: border-box; color: #555555; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+            >
+              充值记录
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Content Wrapper"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; height: fit-content; justify-content: flex-start; padding: 0px 16px 24px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Section Label"
+            style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            卡片详情
+          </div>
+          <div
+            data-pencil-name="Balance Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 8px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Card Label"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              当前余额
+            </div>
+            <div
+              data-pencil-name="Balance Amount"
+              style='box-sizing: border-box; color: #1A1A1A; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 36px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              ¥186.50
+            </div>
+            <div
+              data-pencil-name="Balance Footer"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Last Read"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                上次读取：今天 09:41
+              </div>
+              <div
+                data-pencil-name="Refresh Link"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                重新读取
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Discount Plan Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Discount Header"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Discount Title 2"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                月度优惠进度
+              </div>
+              <div
+                data-pencil-name="Progress Text 2"
+                style='box-sizing: border-box; color: #0066FF; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                8/12 次
+              </div>
+            </div>
+            <div
+              data-pencil-name="Progress Track"
+              style="background-color: #E5E5EA; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 8px; position: relative; width: 100%"
+            >
+              <div
+                data-pencil-name="Progress Fill"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; height: 8px; left: 0px; position: absolute; top: 0px; width: 260px; z-index: 0"
+              ></div>
+            </div>
+            <div
+              data-pencil-name="Discount Hint"
+              style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              还差 4 次即可享受每次 ¥1.00 优惠
+            </div>
+          </div>
+          <div
+            data-pencil-name="Recent Transactions Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Txn Title"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              最近交易
+            </div>
+            <div
+              data-pencil-name="Txn 地铁2号线 人民广场站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 40px; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Txn Left"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+                <div
+                  data-pencil-name="Txn Text"
+                  style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+                >
+                  <div
+                    data-pencil-name="Txn Desc"
+                    style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    地铁2号线 人民广场站
+                  </div>
+                  <div
+                    data-pencil-name="Txn Time"
+                    style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    09-15 08:23
+                  </div>
+                </div>
+              </div>
+              <div
+                data-pencil-name="Txn Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥3.00
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn 公交M373 科技园站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 40px; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Txn Left"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚌
+                </div>
+                <div
+                  data-pencil-name="Txn Text"
+                  style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+                >
+                  <div
+                    data-pencil-name="Txn Desc"
+                    style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    公交M373 科技园站
+                  </div>
+                  <div
+                    data-pencil-name="Txn Time"
+                    style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    09-14 18:05
+                  </div>
+                </div>
+              </div>
+              <div
+                data-pencil-name="Txn Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥2.00
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn 充值"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 40px; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Txn Left"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  💳
+                </div>
+                <div
+                  data-pencil-name="Txn Text"
+                  style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+                >
+                  <div
+                    data-pencil-name="Txn Desc"
+                    style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    充值
+                  </div>
+                  <div
+                    data-pencil-name="Txn Time"
+                    style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    09-14 10:30
+                  </div>
+                </div>
+              </div>
+              <div
+                data-pencil-name="Txn Amount"
+                style='box-sizing: border-box; color: #34C759; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                +¥50.00
+              </div>
+            </div>
+            <div
+              data-pencil-name="Txn 地铁1号线 老街站"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 40px; justify-content: space-between; width: 100%"
+            >
+              <div
+                data-pencil-name="Txn Left"
+                style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 10px; height: fit-content; justify-content: flex-start; width: fit-content"
+              >
+                <div
+                  data-pencil-name="Icon"
+                  style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                >
+                  🚇
+                </div>
+                <div
+                  data-pencil-name="Txn Text"
+                  style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+                >
+                  <div
+                    data-pencil-name="Txn Desc"
+                    style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    地铁1号线 老街站
+                  </div>
+                  <div
+                    data-pencil-name="Txn Time"
+                    style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+                  >
+                    09-13 07:55
+                  </div>
+                </div>
+              </div>
+              <div
+                data-pencil-name="Txn Amount"
+                style='box-sizing: border-box; color: #FF3B30; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                -¥3.00
+              </div>
+            </div>
+            <div
+              data-pencil-name="View All Row"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: center; padding: 8px 0px 0px 0px; width: 100%"
+            >
+              <div
+                data-pencil-name="View All"
+                style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                查看全部 &gt;
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Statistics Card"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; padding: 16px; width: 100%"
+          >
+            <div
+              data-pencil-name="Stats Title"
+              style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              消费统计
+            </div>
+            <div
+              data-pencil-name="Mini Chart"
+              style="align-items: flex-end; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 6px; height: 80px; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Bar 0"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 48px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 1"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 32px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 2"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 65px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 3"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 28px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 4"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 55px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 5"
+                style="background-color: #D0D5DD; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 42px; width: 36px"
+              ></div>
+              <div
+                data-pencil-name="Bar 6"
+                style="background-color: #0066FF; border-radius: 4px; box-sizing: border-box; flex-shrink: 0; height: 70px; width: 36px"
+              ></div>
+            </div>
+            <div
+              data-pencil-name="Chart Labels"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 6px; height: fit-content; justify-content: flex-start; width: 100%"
+            >
+              <div
+                data-pencil-name="Day 一"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                一
+              </div>
+              <div
+                data-pencil-name="Day 二"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                二
+              </div>
+              <div
+                data-pencil-name="Day 三"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                三
+              </div>
+              <div
+                data-pencil-name="Day 四"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                四
+              </div>
+              <div
+                data-pencil-name="Day 五"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                五
+              </div>
+              <div
+                data-pencil-name="Day 六"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                六
+              </div>
+              <div
+                data-pencil-name="Day 日"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 10px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: center; white-space: nowrap"
+              >
+                日
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        data-pencil-name="MapTraceScreen"
+        style="align-items: flex-start; background-color: #1A1A2E; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 1880px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Nav Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 62px 20px 12px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Back"
+            style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ←
+          </div>
+          <div
+            data-pencil-name="Title"
+            style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            地图轨迹
+          </div>
+          <div
+            data-pencil-name="Card Indicator"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex: 1 1 0; gap: 8px; height: fit-content; justify-content: flex-start; padding: 4px 0px 0px 0px"
+          >
+            <div
+              data-pencil-name="Card Badge"
+              style="align-items: flex-start; background-color: #1B3A5C; border-radius: 10px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 10px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Card Name"
+                style="box-sizing: border-box; color: #4488CC; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深圳通 · 3821
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Map Area"
+          style="align-items: center; background-color: #0D1B2A; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: 400px; justify-content: center; outline-offset: -0.5px; outline: 1px solid #1B3A5C; width: 100%"
+        >
+          <div
+            data-pencil-name="Map Grid"
+            style='box-sizing: border-box; color: #4488CC; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: 18px; text-align: left; white-space: nowrap'
+          >
+            ┌─────────────────────┐
+            <br />
+            │&nbsp;&nbsp;∙ 人民广场&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;╲&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;╲&nbsp;&nbsp;○ 科技园&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;╲&nbsp;&nbsp;╱&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;深圳北∙─○ 老街&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;╱&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;市民中心○&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+            <br />
+            └─────────────────────┘
+          </div>
+          <div
+            data-pencil-name="Map Hint"
+            style="box-sizing: border-box; color: #4488CC80; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            需集成高德地图 SDK 实现
+          </div>
+        </div>
+        <div
+          data-pencil-name="Playback Panel"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 16px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Progress Bar"
+            style="background-color: #334466; border-radius: 2px; box-sizing: border-box; flex-shrink: 0; height: 4px; position: relative; width: 100%"
+          >
+            <div
+              data-pencil-name="Progress Fill"
+              style="background-color: #0066FF; border-radius: 2px; box-sizing: border-box; height: 4px; left: 0px; position: absolute; top: 0px; width: 140px; z-index: 0"
+            ></div>
+          </div>
+          <div
+            data-pencil-name="Play Controls"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 24px; height: fit-content; justify-content: center; width: 100%"
+          >
+            <div
+              data-pencil-name="Prev"
+              style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              ⏮
+            </div>
+            <div
+              data-pencil-name="Play Button"
+              style="align-items: center; background-color: #0066FF; border-radius: 24px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 48px; justify-content: center; width: 48px"
+            >
+              <div
+                data-pencil-name="Play Icon"
+                style="box-sizing: border-box; color: #000000; font-family: Inter, system-ui, sans-serif; font-size: 18px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                ▶
+              </div>
+            </div>
+            <div
+              data-pencil-name="Next"
+              style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              ⏭
+            </div>
+          </div>
+          <div
+            data-pencil-name="Speed Row"
+            style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 8px; height: fit-content; justify-content: center; width: 100%"
+          >
+            <div
+              data-pencil-name="Speed Label"
+              style="box-sizing: border-box; color: #8899AA; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+            >
+              播放速度:
+            </div>
+            <div
+              data-pencil-name="Speed 0.5x"
+              style="align-items: flex-start; background-color: #334466; border-radius: 4px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 8px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Label"
+                style='box-sizing: border-box; color: #8899AA; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                0.5x
+              </div>
+            </div>
+            <div
+              data-pencil-name="Speed 1x"
+              style="align-items: flex-start; background-color: #0066FF; border-radius: 4px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 8px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Label"
+                style='box-sizing: border-box; color: #000000; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                1x
+              </div>
+            </div>
+            <div
+              data-pencil-name="Speed 2x"
+              style="align-items: flex-start; background-color: #334466; border-radius: 4px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 8px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Label"
+                style='box-sizing: border-box; color: #8899AA; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                2x
+              </div>
+            </div>
+            <div
+              data-pencil-name="Speed 4x"
+              style="align-items: flex-start; background-color: #334466; border-radius: 4px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 4px 8px; width: fit-content"
+            >
+              <div
+                data-pencil-name="Label"
+                style='box-sizing: border-box; color: #8899AA; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+              >
+                4x
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Trip Info"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 16px 20px 24px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Info Title"
+            style="box-sizing: border-box; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            行程信息
+          </div>
+          <div
+            data-pencil-name="Trip Row"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #1B3A5C; padding: 10px 0px; width: 100%"
+          >
+            <div
+              data-pencil-name="Trip Left"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Trip Route"
+                style="box-sizing: border-box; color: #CCDDEE; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                人民广场 → 科技园
+              </div>
+              <div
+                data-pencil-name="Trip Time"
+                style="box-sizing: border-box; color: #668899; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                09-15 08:23 · 2号线
+              </div>
+            </div>
+            <div
+              data-pencil-name="Trip Amount"
+              style='box-sizing: border-box; color: #FF6B6B; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              ¥3.00
+            </div>
+          </div>
+          <div
+            data-pencil-name="Trip Row"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #1B3A5C; padding: 10px 0px; width: 100%"
+          >
+            <div
+              data-pencil-name="Trip Left"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Trip Route"
+                style="box-sizing: border-box; color: #CCDDEE; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                科技园 → 老街
+              </div>
+              <div
+                data-pencil-name="Trip Time"
+                style="box-sizing: border-box; color: #668899; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                09-14 18:05 · M373
+              </div>
+            </div>
+            <div
+              data-pencil-name="Trip Amount"
+              style='box-sizing: border-box; color: #FF6B6B; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              ¥2.00
+            </div>
+          </div>
+          <div
+            data-pencil-name="Trip Row"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #1B3A5C; padding: 10px 0px; width: 100%"
+          >
+            <div
+              data-pencil-name="Trip Left"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Trip Route"
+                style="box-sizing: border-box; color: #CCDDEE; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                充值
+              </div>
+              <div
+                data-pencil-name="Trip Time"
+                style="box-sizing: border-box; color: #668899; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                09-14 10:30 · —
+              </div>
+            </div>
+            <div
+              data-pencil-name="Trip Amount"
+              style='box-sizing: border-box; color: #34C759; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              +¥50.00
+            </div>
+          </div>
+          <div
+            data-pencil-name="Trip Row"
+            style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #1B3A5C; padding: 10px 0px; width: 100%"
+          >
+            <div
+              data-pencil-name="Trip Left"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 2px; height: fit-content; justify-content: flex-start; width: fit-content"
+            >
+              <div
+                data-pencil-name="Trip Route"
+                style="box-sizing: border-box; color: #CCDDEE; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 500; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                老街 → 深圳北
+              </div>
+              <div
+                data-pencil-name="Trip Time"
+                style="box-sizing: border-box; color: #668899; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                09-13 07:55 · 1号线
+              </div>
+            </div>
+            <div
+              data-pencil-name="Trip Amount"
+              style='box-sizing: border-box; color: #FF6B6B; font-family: "IBM Plex Mono", system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap'
+            >
+              ¥3.00
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        data-pencil-name="SettingsScreen"
+        style="align-items: flex-start; background-color: #F8F9FA; box-sizing: border-box; display: flex; flex-direction: column; gap: 0px; height: fit-content; justify-content: flex-start; left: 2350px; overflow: hidden; position: absolute; top: 0px; width: 390px"
+      >
+        <div
+          data-pencil-name="Nav Header"
+          style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 12px; height: fit-content; justify-content: flex-start; padding: 62px 20px 24px 20px; width: 100%"
+        >
+          <div
+            data-pencil-name="Back"
+            style="box-sizing: border-box; color: #0066FF; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            ←
+          </div>
+          <div
+            data-pencil-name="Title"
+            style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 28px; font-style: normal; font-weight: 700; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+          >
+            设置
+          </div>
+        </div>
+        <div
+          data-pencil-name="Settings Content"
+          style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 24px; height: fit-content; justify-content: flex-start; padding: 0px 16px 24px 16px; width: 100%"
+        >
+          <div
+            data-pencil-name="Section 卡片管理"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; width: 100%"
+          >
+            <div
+              data-pencil-name="Section Title Frame"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 14px 16px 8px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Section Title"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                卡片管理
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 已绑定卡片"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                已绑定卡片
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                2 张
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 站名映射表更新"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                站名映射表更新
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 卡片排序"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                卡片排序
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Section 数据与隐私"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; width: 100%"
+          >
+            <div
+              data-pencil-name="Section Title Frame"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 14px 16px 8px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Section Title"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                数据与隐私
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 本地数据存储"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                本地数据存储
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                12.8 MB
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 数据导出 (CSV/JSON)"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                数据导出 (CSV/JSON)
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 清除全部本地数据"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #FF3B30; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                清除全部本地数据
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 隐私说明"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                隐私说明
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Section 显示与体验"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; width: 100%"
+          >
+            <div
+              data-pencil-name="Section Title Frame"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 14px 16px 8px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Section Title"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                显示与体验
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 深色模式"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                深色模式
+              </div>
+              <div
+                data-pencil-name="Toggle"
+                style="align-items: center; background-color: #E5E5EA; border-radius: 14px; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: 28px; justify-content: flex-start; padding: 2px; width: 48px"
+              >
+                <div
+                  data-pencil-name="Toggle Knob"
+                  style="background-color: #FFFFFF; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; height: 24px; width: 24px"
+                ></div>
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 金额显示单位"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                金额显示单位
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                元
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 地图动画播放速度"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                地图动画播放速度
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                1x
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 语言切换"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                语言切换
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                中文
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Section 关于"
+            style="align-items: flex-start; background-color: #FFFFFF; border-radius: 16px; box-sizing: border-box; display: flex; flex-direction: column; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; outline-offset: -0.5px; outline: 1px solid #E5E5EA; width: 100%"
+          >
+            <div
+              data-pencil-name="Section Title Frame"
+              style="align-items: flex-start; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: flex-start; padding: 14px 16px 8px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Section Title"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-style: normal; font-weight: 600; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                关于
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 版本号"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                版本号
+              </div>
+              <div
+                data-pencil-name="Value"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                v1.0.0
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 更新日志"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                更新日志
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 支持的卡种列表"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                支持的卡种列表
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 开源致谢"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                开源致谢
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+            <div
+              data-pencil-name="Row 反馈入口"
+              style="align-items: center; box-sizing: border-box; display: flex; flex-direction: row; flex-shrink: 0; gap: 0px; height: fit-content; justify-content: space-between; outline-offset: -0.25px; outline: 0.5px solid #E5E5EA; padding: 14px 16px; width: 100%"
+            >
+              <div
+                data-pencil-name="Label"
+                style="box-sizing: border-box; color: #1A1A1A; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                反馈入口
+              </div>
+              <div
+                data-pencil-name="Arrow"
+                style="box-sizing: border-box; color: #8E8E93; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; letter-spacing: 0px; line-height: normal; text-align: left; white-space: nowrap"
+              >
+                &gt;
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

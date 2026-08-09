@@ -1,0 +1,5 @@
+app/build/*
+build/*
+.gradle
+.idea
+tripreader-data-master/

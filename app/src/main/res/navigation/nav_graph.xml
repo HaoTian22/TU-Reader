@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.nfctransit.ui.HomeFragment"
+        android:label="Home"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_home_to_transactionList"
+            app:destination="@id/transactionListFragment" />
+        <action
+            android:id="@+id/action_home_to_stats"
+            app:destination="@id/statsFragment" />
+        <action
+            android:id="@+id/action_home_to_settings"
+            app:destination="@id/settingsFragment" />
+        <action
+            android:id="@+id/action_home_to_mapTrace"
+            app:destination="@id/mapTraceFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/transactionListFragment"
+        android:name="com.example.nfctransit.ui.TransactionListFragment"
+        android:label="TransactionList"
+        tools:layout="@layout/fragment_transaction_list">
+        <action
+            android:id="@+id/action_transactionList_to_transactionDetail"
+            app:destination="@id/transactionDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/transactionDetailFragment"
+        android:name="com.example.nfctransit.ui.TransactionDetailFragment"
+        android:label="TransactionDetail"
+        tools:layout="@layout/fragment_transaction_detail">
+        <argument
+            android:name="transactionId"
+            app:argType="integer" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/statsFragment"
+        android:name="com.example.nfctransit.ui.StatsFragment"
+        android:label="Stats"
+        tools:layout="@layout/fragment_stats" />
+
+    <fragment
+        android:id="@+id/mapTraceFragment"
+        android:name="com.example.nfctransit.ui.MapTraceFragment"
+        android:label="MapTrace"
+        tools:layout="@layout/fragment_map_trace" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.example.nfctransit.ui.SettingsFragment"
+        android:label="Settings"
+        tools:layout="@layout/fragment_settings" />
+</navigation>

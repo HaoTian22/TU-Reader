@@ -1,0 +1,712 @@
+package com.example.nfctransit.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import com.example.nfctransit.CardProfile
+import com.example.nfctransit.TransactionRecord
+import com.example.nfctransit.TransitCardReader
+import com.example.nfctransit.data.PersistedCardData
+import com.example.nfctransit.data.PersistedState
+import com.example.nfctransit.data.TransitStore
+import com.example.nfctransit.model.*
+import com.google.gson.Gson
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    // ── Per-card data storage ──
+
+    private data class CardData(
+        val card: UiCard,
+        val transactions: List<UiTransaction>,
+        val nfcLog: List<String>,
+        val topStations: List<StationStat>,
+        val topLines: List<LineStat>,
+        val dailySpending: List<DailySpending>,
+        val statsSummary: StatsSummary
+    )
+
+    private val cardStore = mutableMapOf<String, CardData>()
+
+    // ── Observable state ──
+
+    private val _hasData = MutableLiveData(false)
+    val hasData: LiveData<Boolean> = _hasData
+
+    private val _cards = MutableLiveData<List<UiCard>>(emptyList())
+    val cards: LiveData<List<UiCard>> = _cards
+
+    private val _selectedIndex = MutableLiveData(-1)
+    val selectedIndex: LiveData<Int> = _selectedIndex
+
+    private val _selectedCard = MutableLiveData<UiCard?>()
+    val selectedCard: LiveData<UiCard?> = _selectedCard
+
+    // 新卡片加入时发出其下标，供首页自动滑动跳转
+    private val _cardAdded = MutableLiveData<Int?>()
+    val cardAdded: LiveData<Int?> = _cardAdded
+
+    private val _allTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
+    val allTransactions: LiveData<List<UiTransaction>> = _allTransactions
+
+    private val _currentFilter = MutableLiveData("全部")
+    val currentFilter: LiveData<String> = _currentFilter
+
+    private val _filteredTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
+    val filteredTransactions: LiveData<List<UiTransaction>> = _filteredTransactions
+
+    private val _nfcLog = MutableLiveData<List<String>>(emptyList())
+    val nfcLog: LiveData<List<String>> = _nfcLog
+
+    private val _topStations = MutableLiveData<List<StationStat>>(emptyList())
+    val topStations: LiveData<List<StationStat>> = _topStations
+
+    private val _topLines = MutableLiveData<List<LineStat>>(emptyList())
+    val topLines: LiveData<List<LineStat>> = _topLines
+
+    private val _dailySpending = MutableLiveData<List<DailySpending>>(emptyList())
+    val dailySpending: LiveData<List<DailySpending>> = _dailySpending
+
+    private val _statsSummary = MutableLiveData(StatsSummary(0.0, 0, 0.0))
+    val statsSummary: LiveData<StatsSummary> = _statsSummary
+
+    /** 当前选中卡片的主题色（渐变色起点），用于全站图标/按钮/进度条等主题色统一 */
+    private val _mainAccent = MutableLiveData<Long>(0xFF0066FF)
+    val mainAccent: LiveData<Long> = _mainAccent
+
+    // 当前统计周期（本周/本月/本年/自定义）与周期偏移（0=当前，-1=上一期，+1=下一期）
+    private var currentPeriod = "本周"
+    private var currentOffset = 0
+    private val _periodOffset = MutableLiveData(0)
+    val periodOffset: LiveData<Int> = _periodOffset
+    private val _periodRange = MutableLiveData("")
+    val periodRange: LiveData<String> = _periodRange
+    private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+    init {
+        restorePersistedState()
+    }
+
+    // ── NFC data loading (with merge + dedup) ──
+
+    /**
+     * 处理 NFC 读取结果。返回新卡片在列表中的下标，若为已存在卡片则返回 null。
+     */
+    fun onNfcDataLoaded(result: TransitCardReader.ReadResult): Int? {
+        val profile = result.matchedProfile ?: return null
+        val transactions = result.transactions
+        if (transactions.isEmpty()) return null
+
+        // Balance from latest SFI 0x1E record (offset 21-24, 单位分)
+        val balanceFen = result.stationInfo?.balanceFen ?: 0L
+        val balanceYuan = balanceFen / 100.0
+
+        val newCardId = cardId(profile, transactions)
+        val existing = cardStore[newCardId]
+        // 新卡从 20 色板里挑一个还没被用过的颜色；已存在卡保留原颜色
+        val (gradStart, gradEnd) = if (existing != null) {
+            existing.card.gradientStartColor to existing.card.gradientEndColor
+        } else {
+            nextCardColor()
+        }
+        val card = UiCard(
+            id = newCardId,
+            name = cardDisplayName(profile),
+            cardType = cardDisplayName(profile),
+            lastFour = lastFourFromTransactions(transactions),
+            balanceYuan = balanceYuan,
+            gradientStartColor = gradStart,
+            gradientEndColor = gradEnd
+        )
+
+        // SFI 0x18 records are newest-first
+        val newUiTxns = transactions.mapIndexed { idx, txn -> mapToUiTransaction(txn, idx) }
+
+        // 本次扫描的城市名，用于给旧记录回填（旧版本持久化数据没有 cityName 字段）
+        val scannedCity = newUiTxns.firstOrNull()?.cityName ?: ""
+
+        // 与已存交易合并去重（按 seq|日期|时间|终端 去重）
+        val rawMerged = if (existing != null) {
+            val existingKeys = existing.transactions.map { txnKey(it) }.toHashSet()
+            val fresh = newUiTxns.filter { txnKey(it) !in existingKeys }
+            (fresh + existing.transactions).distinctBy { txnKey(it) }
+        } else {
+            newUiTxns
+        }
+        // 城市名补全：同一张卡属于同一城市，用本次扫描结果回填；并修复旧数据的充值站点名
+        val mergedTxns = rawMerged.mapIndexed { idx, t ->
+            repairRechargeTxn(
+                t.copy(id = idx, cityName = (t.cityName ?: "").ifEmpty { scannedCity })
+            )
+        }
+
+        // 更新卡片余额（读取到的最新余额）
+        val updatedCard = if (existing != null) existing.card.copy(balanceYuan = balanceYuan) else card
+
+        val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
+        val data = CardData(
+            card = updatedCard,
+            transactions = mergedTxns,
+            nfcLog = result.rawLog,
+            topStations = computeTopStations(mergedTxns),
+            topLines = computeTopLines(mergedTxns),
+            dailySpending = computeDailySpending(mergedTxns, currentPeriod, winStart, winEnd),
+            statsSummary = computeStatsSummary(mergedTxns)
+        )
+
+        val isNew = !cardStore.containsKey(card.id)
+        cardStore[card.id] = data
+
+        val newIndex = (_cards.value ?: emptyList()).indexOfFirst { it.id == card.id }
+        val index = if (newIndex >= 0) newIndex else {
+            val updated = (_cards.value ?: emptyList()) + updatedCard
+            _cards.value = updated
+            updated.size - 1
+        }
+
+        _hasData.value = true
+        selectCardByIndex(index)
+        if (isNew) _cardAdded.value = index
+
+        persist()
+        return if (isNew) index else null
+    }
+
+    fun selectCardByIndex(index: Int) {
+        val list = _cards.value ?: return
+        if (index !in list.indices) return
+        _selectedIndex.value = index
+        // 持久化选中索引，应用重开时能恢复到之前选中的那张卡
+        persist()
+        val data = cardStore[list[index].id] ?: return
+        emitCardData(data)
+    }
+
+    fun clearCardAdded() {
+        _cardAdded.value = null
+    }
+
+    fun setFilter(filter: String) {
+        _currentFilter.value = filter
+        val all = _allTransactions.value ?: return
+        _filteredTransactions.value = filterTransactions(all, filter)
+    }
+
+    /** 切换统计周期（本周/本月/本年/自定义），重置到当前周期 */
+    fun setStatsPeriod(period: String) {
+        currentPeriod = period
+        currentOffset = 0
+        _periodOffset.value = 0
+        emitStatsForSelected()
+    }
+
+    /** 上一期/下一期（delta=±1），仅本周/本月/本年有意义 */
+    fun shiftPeriod(delta: Int) {
+        if (currentPeriod == "自定义") return
+        currentOffset += delta
+        _periodOffset.value = currentOffset
+        emitStatsForSelected()
+    }
+
+    /** 回到当前周期 */
+    fun backToCurrentPeriod() {
+        currentOffset = 0
+        _periodOffset.value = 0
+        emitStatsForSelected()
+    }
+
+    private fun emitStatsForSelected() {
+        val index = _selectedIndex.value ?: return
+        val list = _cards.value ?: return
+        if (index in list.indices) {
+            cardStore[list[index].id]?.let { emitStats(it) }
+        }
+    }
+
+    /** 某周期的日期窗口 [起, 止]，yyyy-MM-dd；自定义返回空串 */
+    private fun periodWindow(period: String, offset: Int): Pair<String, String> {
+        val cal = Calendar.getInstance()
+        return when (period) {
+            "本周" -> {
+                // 纯算术计算周一为起点的自然周，不受 firstDayOfWeek locale 影响（周日在欧美为每周最后一天）
+                val dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // 周一=0 … 周日=6
+                cal.add(Calendar.DAY_OF_YEAR, offset * 7 - dow)
+                val start = dayFmt.format(cal.time)
+                cal.add(Calendar.DAY_OF_YEAR, 6)
+                val end = dayFmt.format(cal.time)
+                start to end
+            }
+            "本月" -> {
+                cal.add(Calendar.MONTH, offset)
+                cal.set(Calendar.DAY_OF_MONTH, 1)
+                val start = dayFmt.format(cal.time)
+                cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                val end = dayFmt.format(cal.time)
+                start to end
+            }
+            "本年" -> {
+                cal.add(Calendar.YEAR, offset)
+                cal.set(Calendar.MONTH, Calendar.JANUARY)
+                cal.set(Calendar.DAY_OF_MONTH, 1)
+                val start = dayFmt.format(cal.time)
+                cal.set(Calendar.MONTH, Calendar.DECEMBER)
+                cal.set(Calendar.DAY_OF_MONTH, 31)
+                val end = dayFmt.format(cal.time)
+                start to end
+            }
+            else -> "" to ""
+        }
+    }
+
+    fun getTransactionById(id: Int): UiTransaction? {
+        return _allTransactions.value?.find { it.id == id }
+    }
+
+    // ── 数据管理 ──
+
+    /** 清除全部本地数据 */
+    fun clearAllData() {
+        cardStore.clear()
+        _hasData.value = false
+        _cards.value = emptyList()
+        _selectedIndex.value = -1
+        _selectedCard.value = null
+        _cardAdded.value = null
+        _allTransactions.value = emptyList()
+        _filteredTransactions.value = emptyList()
+        _nfcLog.value = emptyList()
+        _topStations.value = emptyList()
+        _topLines.value = emptyList()
+        _dailySpending.value = emptyList()
+        _statsSummary.value = StatsSummary(0.0, 0, 0.0)
+        TransitStore.clear(getApplication())
+    }
+
+    /** 导出数据为 CSV */
+    fun exportCsv(): String {
+        val sb = StringBuilder()
+        sb.appendLine("序号,交易时间,类型,线路,站点,金额,交易后余额,终端编号")
+        for (t in _allTransactions.value.orEmpty()) {
+            sb.appendLine(
+                "${t.seq},${t.displayDateTime},${t.transitType},${t.lineName}," +
+                "\"${t.stationName}\",${t.amountText},${t.balanceAfterText},${t.terminal}"
+            )
+        }
+        return sb.toString()
+    }
+
+    /** 导出数据为 JSON（完整持久化状态） */
+    fun exportJson(): String {
+        val state = buildPersistedState()
+        return Gson().toJson(state)
+    }
+
+    // ── Private ──
+
+    private fun restorePersistedState() {
+        val state = TransitStore.load(getApplication()) ?: return
+        state.dataMap.forEach { (id, d) ->
+            cardStore[id] = CardData(
+                card = d.card,
+                // 修复旧版本持久化数据：充值记录不显示站点名
+                transactions = d.transactions.map { repairRechargeTxn(it) },
+                nfcLog = d.nfcLog,
+                topStations = d.topStations,
+                topLines = d.topLines,
+                dailySpending = d.dailySpending,
+                statsSummary = d.statsSummary
+            )
+        }
+        if (state.cards.isNotEmpty()) {
+            _cards.value = state.cards
+            _hasData.value = true
+            val idx = state.selectedIndex.coerceIn(0, state.cards.size - 1)
+            selectCardByIndex(idx)
+        }
+    }
+
+    private fun persist() {
+        TransitStore.save(getApplication(), buildPersistedState())
+    }
+
+    private fun buildPersistedState(): PersistedState {
+        return PersistedState(
+            cards = _cards.value ?: emptyList(),
+            dataMap = cardStore.mapValues { (_, d) ->
+                PersistedCardData(
+                    card = d.card,
+                    transactions = d.transactions,
+                    nfcLog = d.nfcLog,
+                    topStations = d.topStations,
+                    topLines = d.topLines,
+                    dailySpending = d.dailySpending,
+                    statsSummary = d.statsSummary
+                )
+            },
+            selectedIndex = _selectedIndex.value ?: 0
+        )
+    }
+
+    private fun emitCardData(data: CardData) {
+        _selectedCard.value = data.card
+        _mainAccent.value = data.card.gradientStartColor
+        _allTransactions.value = data.transactions
+        _filteredTransactions.value = filterTransactions(data.transactions, _currentFilter.value ?: "全部")
+        _nfcLog.value = data.nfcLog
+        emitStats(data)
+    }
+
+    /**
+     * 按当前统计周期与偏移从交易记录重算并发布统计。
+     * 每次展示都重算，避免持久化的旧快照过期（例如充值混入消费）。
+     */
+    private fun emitStats(data: CardData) {
+        val (start, end) = periodWindow(currentPeriod, currentOffset)
+        val periodTxns = if (start.isEmpty()) {
+            _periodRange.value = ""
+            data.transactions
+        } else {
+            _periodRange.value = "$start ~ ${end.substring(5)}"
+            data.transactions.filter { it.date in start..end }
+        }
+        _topStations.value = computeTopStations(periodTxns)
+        _topLines.value = computeTopLines(periodTxns)
+        _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
+        _statsSummary.value = computeStatsSummary(periodTxns)
+    }
+
+    /** 在日期字符串上增加天数，返回 "yyyy-MM-dd" */
+    private fun addDays(date: String, days: Int): String {
+        return try {
+            val cal = Calendar.getInstance().apply { time = dayFmt.parse(date)!! }
+            cal.add(Calendar.DAY_OF_YEAR, days)
+            dayFmt.format(cal.time)
+        } catch (e: Exception) {
+            date
+        }
+    }
+
+    private fun filterTransactions(txns: List<UiTransaction>, filter: String): List<UiTransaction> {
+        return when (filter) {
+            "地铁" -> txns.filter { it.transitType == "地铁" }
+            "公交" -> txns.filter { it.transitType == "公交" }
+            "消费" -> txns.filter { it.transitType == "消费" }
+            "充值" -> txns.filter { it.transitType == "充值" }
+            else -> txns
+        }
+    }
+
+    /** 交易唯一键，用于去重 */
+    private fun txnKey(t: UiTransaction): String {
+        return "${t.seq}|${t.date}|${t.time}|${t.terminal}"
+    }
+
+    /** 充值不是乘车记录，不显示站点名（旧数据可能残留 "轨道交通 (TU终端:…)" 兜底文本） */
+    private fun repairRechargeTxn(t: UiTransaction): UiTransaction {
+        if (t.typeHex == "02" || t.amountYuan < 0) return t.copy(stationName = "")
+        return t
+    }
+
+    private fun cardId(profile: CardProfile, transactions: List<TransactionRecord>): String {
+        return "${cardDisplayName(profile)}|${lastFourFromTransactions(transactions)}"
+    }
+
+    private fun cardDisplayName(profile: CardProfile): String {
+        return when {
+            profile.name.contains("深圳通") -> "深圳通"
+            profile.name.contains("岭南通") || profile.name.contains("羊城通") -> "岭南通"
+            profile.name.contains("交通联合") -> "交通联合卡"
+            else -> profile.name.take(8)
+        }
+    }
+
+    /** 20 色卡面调色板（起色 → 止色），新卡按顺序分配一个未被占用的颜色 */
+    private val cardPalette: List<Pair<Long, Long>> = listOf(
+        0xFF1A73E8 to 0xFF0D47A1,  // 蓝
+        0xFF2E7D32 to 0xFF1B5E20,  // 绿
+        0xFFE65100 to 0xFFBF360C,  // 深橙
+        0xFF6A1B9A to 0xFF4A148C,  // 紫
+        0xFFC62828 to 0xFFB71C1C,  // 红
+        0xFF00838F to 0xFF006064,  // 青
+        0xFFF9A825 to 0xFFF57F17,  // 金黄
+        0xFF5D4037 to 0xFF3E2723,  // 棕
+        0xFF455A64 to 0xFF263238,  // 蓝灰
+        0xFFAD1457 to 0xFF880E4F,  // 玫红
+        0xFF00796B to 0xFF004D40,  // 翡翠
+        0xFF283593 to 0xFF1A237E,  // 靛蓝
+        0xFFD81B60 to 0xFFC2185B,  // 粉红
+        0xFFF4511E to 0xFFE64A19,  // 朱橙
+        0xFF3949AB to 0xFF303F9F,  // 蓝紫
+        0xFF43A047 to 0xFF2E7D32,  // 翠绿
+        0xFF00ACC1 to 0xFF00838F,  // 天青
+        0xFFE53935 to 0xFFD32F2F,  // 猩红
+        0xFF8E24AA to 0xFF7B1FA2,  // 紫红
+        0xFF00897B to 0xFF00695C   // 青绿
+    )
+
+    /** 为新卡挑一个尚未被现有卡片使用的颜色 */
+    private fun nextCardColor(): Pair<Long, Long> {
+        val used = (_cards.value ?: emptyList()).map { it.gradientStartColor }.toSet()
+        for (color in cardPalette) {
+            if (color.first !in used) return color
+        }
+        // 颜色用尽后按顺序循环
+        return cardPalette[(_cards.value?.size ?: 0) % cardPalette.size]
+    }
+
+    /** 删除某张卡及其全部数据 */
+    fun deleteCard(index: Int) {
+        val list = _cards.value ?: return
+        if (index !in list.indices) return
+        cardStore.remove(list[index].id)
+        val updated = list.toMutableList().apply { removeAt(index) }
+        _cards.value = updated
+        if (updated.isEmpty()) {
+            _hasData.value = false
+            _selectedIndex.value = -1
+            _selectedCard.value = null
+            _cardAdded.value = null
+            _allTransactions.value = emptyList()
+            _filteredTransactions.value = emptyList()
+            _nfcLog.value = emptyList()
+            _topStations.value = emptyList()
+            _topLines.value = emptyList()
+            _dailySpending.value = emptyList()
+            _statsSummary.value = StatsSummary(0.0, 0, 0.0)
+        } else {
+            selectCardByIndex(index.coerceAtMost(updated.size - 1))
+        }
+        persist()
+    }
+
+    private fun lastFourFromTransactions(transactions: List<TransactionRecord>): String {
+        val terminal = transactions.firstOrNull()?.terminal ?: return "----"
+        return if (terminal.length >= 4) terminal.takeLast(4) else terminal
+    }
+
+    private fun mapToUiTransaction(
+        txn: TransactionRecord,
+        index: Int
+    ): UiTransaction {
+        // TypeHex "02" = 充值, negative amountYuan = recharge
+        val isRecharge = txn.typeHex == "02" || txn.amountYuan < 0
+        val amountAbs = kotlin.math.abs(txn.amountYuan)
+
+        val (icon, iconBgColor, transitType, lineName) = when {
+            isRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
+            txn.transitType.contains("地铁") || txn.transitType.contains("Metro") ||
+                txn.transitType.contains("轨道交通") -> {
+                val parts = parseStationAndLine(txn.stationName)
+                Quad("🚇", 0xFFE3F2FD, "地铁", parts.first)
+            }
+            txn.transitType.contains("公交") || txn.transitType.contains("Bus") -> {
+                val parts = parseStationAndLine(txn.stationName)
+                Quad("🚌", 0xFFFFF3E0, "公交", parts.first)
+            }
+            txn.transitType.contains("消费") -> Quad("🛒", 0xFFFCE4EC, "消费", "—")
+            else -> {
+                val parts = parseStationAndLine(txn.stationName)
+                if (parts.first.isNotEmpty() && parts.first[0].isDigit())
+                    Quad("🚇", 0xFFE3F2FD, "地铁", parts.first)
+                else
+                    Quad("🚌", 0xFFFFF3E0, "公交", parts.first)
+            }
+        }
+
+        val formattedDate = formatBcdDate(txn.date)
+        val formattedTime = formatBcdTime(txn.time)
+        val balanceAfterYuan = txn.balanceAfterFen / 100.0
+
+        return UiTransaction(
+            id = index,
+            seq = txn.seq,
+            amountYuan = txn.amountYuan,
+            amountText = if (isRecharge) "+¥${String.format("%.2f", amountAbs)}"
+                         else "-¥${String.format("%.2f", amountAbs)}",
+            typeHex = txn.typeHex,
+            transitType = transitType,
+            terminal = txn.terminal,
+            // 充值不是乘车记录，不显示站点/兜底线路名（避免出现 "轨道交通 (TU终端:…)"）
+            stationName = if (isRecharge) "" else txn.stationName,
+            cityName = txn.cityName,
+            lineName = lineName,
+            date = formattedDate,
+            time = formattedTime,
+            displayDateTime = "$formattedDate $formattedTime",
+            balanceAfterYuan = balanceAfterYuan,
+            balanceAfterText = "余额 ¥${String.format("%.2f", balanceAfterYuan)}",
+            icon = icon,
+            iconBgColor = iconBgColor
+        )
+    }
+
+    private fun formatBcdDate(bcd: String): String {
+        if (bcd.length != 8) return bcd
+        return "${bcd.substring(0, 4)}-${bcd.substring(4, 6)}-${bcd.substring(6, 8)}"
+    }
+
+    private fun formatBcdTime(bcd: String): String {
+        if (bcd.length < 6) return bcd
+        return "${bcd.substring(0, 2)}:${bcd.substring(2, 4)}:${bcd.substring(4, 6)}"
+    }
+
+    private fun parseStationAndLine(raw: String): Pair<String, String> {
+        val parts = raw.split(" ", limit = 2)
+        return if (parts.size == 2) Pair(parts[0], parts[1]) else Pair("", raw)
+    }
+
+    private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
+        val counts = mutableMapOf<String, Int>()
+        for (t in uiTxns) {
+            // 充值不是乘车记录，不统计站点
+            if (t.typeHex == "02" || t.amountYuan < 0) continue
+            val name = t.stationName
+            if (name.isNotEmpty() && name != "未知" &&
+                !name.startsWith("轨道交通") && !name.startsWith("广州公交")) {
+                // 去掉末尾的方向箭头（"1号线 花地湾 ↑" -> "花地湾"）
+                val clean = name.replace(Regex(" [↑↓]$"), "")
+                val stationOnly = clean.substringAfterLast(" ").ifEmpty { clean }
+                counts[stationOnly] = (counts[stationOnly] ?: 0) + 1
+            }
+        }
+        val max = counts.values.maxOrNull() ?: 1
+        return counts.entries.sortedByDescending { it.value }
+            .take(5)
+            .map { StationStat(it.key, it.value, it.value.toFloat() / max) }
+    }
+
+    private fun computeTopLines(uiTxns: List<UiTransaction>): List<LineStat> {
+        val counts = mutableMapOf<String, Int>()
+        for (t in uiTxns) {
+            // 充值不是乘车记录，不统计线路
+            if (t.typeHex == "02" || t.amountYuan < 0) continue
+            val name = t.stationName
+            if (name.isNotEmpty() && name != "未知") {
+                val lineName = name.substringBefore(" ").ifEmpty { name }
+                if (lineName.isNotEmpty()) {
+                    counts[lineName] = (counts[lineName] ?: 0) + 1
+                }
+            }
+        }
+        val max = counts.values.maxOrNull() ?: 1
+        return counts.entries.sortedByDescending { it.value }
+            .take(5)
+            .map { LineStat(it.key, it.value, it.value.toFloat() / max) }
+    }
+
+    private fun computeStatsSummary(uiTxns: List<UiTransaction>): StatsSummary {
+        val totalSpending = uiTxns.filter { !it.amountText.startsWith("+") }.sumOf { it.amountYuan }
+        val rideCount = uiTxns.filter { it.transitType == "地铁" || it.transitType == "公交" }.size
+        val uniqueDays = uiTxns.map { it.date }.distinct().size.coerceAtLeast(1)
+        return StatsSummary(totalSpending, rideCount, totalSpending / uniqueDays)
+    }
+
+    private fun computeDailySpending(
+        uiTxns: List<UiTransaction>,
+        period: String,
+        winStart: String,
+        winEnd: String
+    ): List<DailySpending> {
+        // 充值金额也是正数，必须排除，否则会把充值算进每日消费
+        val dayMap = mutableMapOf<String, Double>() // "yyyy-MM-dd" -> 金额
+        for (t in uiTxns) {
+            if (t.typeHex == "02" || t.amountYuan < 0) continue
+            if (t.amountYuan > 0) {
+                dayMap[t.date] = (dayMap[t.date] ?: 0.0) + t.amountYuan
+            }
+        }
+        val today = dayFmt.format(Date())
+
+        // 本周：周一~周日完整 7 天，无数据补 0，标签为星期
+        if (period == "本周") {
+            val max = dayMap.values.maxOrNull() ?: 1.0
+            return (0 until 7).map { i ->
+                val date = addDays(winStart, i)
+                val amt = dayMap[date] ?: 0.0
+                DailySpending(
+                    dayLabel = weekdayLabel(date),
+                    amountYuan = amt,
+                    barHeightPercent = (amt / max).toFloat(),
+                    isToday = date == today,
+                    date = date
+                )
+            }
+        }
+
+        // 本月：整月 1号~最后一天，只标 1/7/14/21/28 等关键日期
+        if (period == "本月") {
+            val cal = Calendar.getInstance().apply { time = dayFmt.parse(winStart)!! }
+            val lastDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val max = dayMap.values.maxOrNull() ?: 1.0
+            val keyDays = setOf(1, 7, 14, 21, 28)
+            return (1..lastDay).map { d ->
+                val date = addDays(winStart, d - 1)
+                val amt = dayMap[date] ?: 0.0
+                DailySpending(
+                    dayLabel = if (d in keyDays) "${d}号" else "",
+                    amountYuan = amt,
+                    barHeightPercent = (amt / max).toFloat(),
+                    isToday = date == today,
+                    date = date
+                )
+            }
+        }
+
+        // 本年：1月~12月，按月汇总
+        if (period == "本年") {
+            val monthMap = mutableMapOf<String, Double>() // "yyyy-MM" -> 金额
+            for ((date, amt) in dayMap) {
+                monthMap[date.take(7)] = (monthMap[date.take(7)] ?: 0.0) + amt
+            }
+            val max = monthMap.values.maxOrNull() ?: 1.0
+            val year = winStart.take(4)
+            return (1..12).map { m ->
+                val key = "$year-${m.toString().padStart(2, '0')}"
+                val amt = monthMap[key] ?: 0.0
+                DailySpending(
+                    dayLabel = "${m}月",
+                    amountYuan = amt,
+                    barHeightPercent = (amt / max).toFloat(),
+                    date = "$key-01"
+                )
+            }
+        }
+
+        // 自定义等：近 7 个有消费的天，标签用日期号数
+        val max = dayMap.values.maxOrNull() ?: 1.0
+        val sorted = dayMap.entries.sortedBy { it.key }.takeLast(7)
+        return sorted.map { (date, amount) ->
+            DailySpending(
+                dayLabel = "${date.substring(8).toInt()}号",
+                amountYuan = amount,
+                barHeightPercent = (amount / max).toFloat(),
+                isToday = date == today,
+                date = date
+            )
+        }
+    }
+
+    private val weekdayNames = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+
+    /** 根据日期（"yyyy-MM-dd"）返回星期几标签 */
+    private fun weekdayLabel(date: String): String {
+        return try {
+            val cal = Calendar.getInstance().apply { time = dayFmt.parse(date)!! }
+            weekdayNames[cal.get(Calendar.DAY_OF_WEEK) - 1] // DAY_OF_WEEK: 1=周日…7=周六
+        } catch (e: Exception) {
+            date.substring(5)
+        }
+    }
+
+    private data class Quad(
+        val icon: String,
+        val bgColor: Long,
+        val transitType: String,
+        val lineName: String
+    )
+}
