@@ -389,8 +389,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else d.card
             cardStore[newId] = CardData(
                 card = upgradedCard,
-                // 修复旧版本持久化数据：充值记录不显示站点名
-                transactions = d.transactions.map { repairRechargeTxn(it) },
+                // 修复旧版本持久化数据：充值记录不显示站点名；按 "线路 站点" 组合串反查补回 lineId/stationId
+                // （旧版本曾把英文 "Line 1 Huadiwan" 按空格误拆成 line='Line', station='1 Huadiwan'）
+                transactions = d.transactions.map { resolveNamesById(it) }.map { repairRechargeTxn(it) },
                 nfcLog = d.nfcLog,
                 topStations = d.topStations,
                 topLines = d.topLines,
@@ -411,6 +412,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _hasData.value = true
             val idx = state.selectedIndex.coerceIn(0, ordered.size - 1)
             selectCardByIndex(idx)
+            // 修复后把补回的 ID 持久化，避免每次启动都重复反查
+            persist()
         }
     }
 
@@ -497,6 +500,79 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun repairRechargeTxn(t: UiTransaction): UiTransaction {
         if (t.typeHex == "02" || t.amountYuan < 0) return t.copy(stationName = "")
         return t
+    }
+
+    /**
+     * 切换语言后按 ID 重新解析名称。
+     * 线路/站点以数据库 ID 持久化；语言变化时据此重新解析，保持名称与界面语言一致。
+     * 旧数据缺 ID：优先用 "线路 站点" 组合串反查，退化为站名反查。
+     */
+    fun relocalize(): List<UiTransaction> {
+        return (_allTransactions.value ?: emptyList()).map { resolveNamesById(it) }
+    }
+
+    /**
+     * 显示语言切换后，按 ID 重新解析所有卡片的站名/线路名，刷新界面并持久化。
+     * 供设置页切换语言后调用。
+     */
+    fun reloadDisplayLanguage() {
+        val selectedId = _cards.value?.getOrNull(_selectedIndex.value ?: -1)?.id
+        val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
+        for ((id, d) in cardStore) {
+            val txns = d.transactions.map { resolveNamesById(it) }.map { repairRechargeTxn(it) }
+            cardStore[id] = d.copy(
+                transactions = txns,
+                topStations = computeTopStations(txns),
+                topLines = computeTopLines(txns),
+                dailySpending = computeDailySpending(txns, currentPeriod, winStart, winEnd),
+                statsSummary = computeStatsSummary(txns)
+            )
+        }
+        persist()
+        selectedId?.let { id -> cardStore[id]?.let { emitCardData(it) } }
+    }
+
+    /** 从 ID（或旧数据反查）重新解析一条交易的中文/英文站名与线路名 */
+    private fun resolveNamesById(t: UiTransaction): UiTransaction {
+        if (t.typeHex == "02" || t.amountYuan < 0) return t  // 充值无站点
+
+        // 记录方向箭头，解析后重新追加（旧数据修复时不丢失 入站/出站 标记）
+        val direction = when {
+            t.stationName.endsWith("↑") -> "↑"
+            t.stationName.endsWith("↓") -> "↓"
+            else -> ""
+        }
+        val base = t.stationName.removeSuffix("↑").removeSuffix("↓").trim()
+
+        var entry = if (t.lineId != null && t.stationId != null) {
+            TransitData.entryOf(t.lineId, t.stationId)
+        } else if (t.stationId != null) {
+            TransitData.entryOf(null, t.stationId)
+        } else null
+
+        // 旧数据（无 ID）：站名里可能残留完整 "线路 站点" 组合串
+        // （旧版本曾把英文 "Line 1 Huadiwan" 误存成 station，line 只留了 "Line"）
+        if (entry == null && base.contains(" ")) {
+            entry = TransitData.resolveByCombined(base)
+        }
+        // 旧数据：线路/站名被按空格误拆（line='Line', station='1 Huadiwan'），重组后反查
+        if (entry == null) {
+            entry = TransitData.resolveByCombined("${t.lineName} $base".trim())
+        }
+        // 旧数据：站名正确但无 ID，按站名反查补回 stationId
+        if (entry == null) {
+            entry = TransitData.resolveByStationName(base)
+        }
+        if (entry == null) return t
+
+        val line = entry.line
+        val station = entry.station
+        return t.copy(
+            lineName = line.ifEmpty { t.lineName },
+            stationName = if (direction.isNotEmpty()) "$station $direction" else station,
+            lineId = entry.lineId ?: t.lineId,
+            stationId = entry.stationId ?: t.stationId
+        )
     }
 
     private fun cardId(profile: CardProfile, cardNumber: String, lastFour: String): String {
@@ -595,21 +671,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val (icon, iconBgColor, transitType, lineName) = when {
             isRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
             txn.transitType.contains("地铁") || txn.transitType.contains("Metro") ||
-                txn.transitType.contains("轨道交通") -> {
-                val parts = parseStationAndLine(txn.stationName)
-                Quad("🚇", 0xFFE3F2FD, "地铁", parts.first)
-            }
-            txn.transitType.contains("公交") || txn.transitType.contains("Bus") -> {
-                val parts = parseStationAndLine(txn.stationName)
-                Quad("🚌", 0xFFFFF3E0, "公交", parts.first)
-            }
+                txn.transitType.contains("轨道交通") ->
+                Quad("🚇", 0xFFE3F2FD, "地铁", txn.lineName.ifEmpty { "—" })
+            txn.transitType.contains("公交") || txn.transitType.contains("Bus") ->
+                Quad("🚌", 0xFFFFF3E0, "公交", txn.lineName.ifEmpty { "—" })
             txn.transitType.contains("消费") -> Quad("🛒", 0xFFFCE4EC, "消费", "—")
             else -> {
-                val parts = parseStationAndLine(txn.stationName)
-                if (parts.first.isNotEmpty() && parts.first[0].isDigit())
-                    Quad("🚇", 0xFFE3F2FD, "地铁", parts.first)
+                if (txn.lineName.isNotEmpty() && txn.lineName[0].isDigit())
+                    Quad("🚇", 0xFFE3F2FD, "地铁", txn.lineName)
                 else
-                    Quad("🚌", 0xFFFFF3E0, "公交", parts.first)
+                    Quad("🚌", 0xFFFFF3E0, "公交", txn.lineName.ifEmpty { "—" })
             }
         }
 
@@ -630,6 +701,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             stationName = if (isRecharge) "" else txn.stationName,
             cityName = txn.cityName,
             lineName = lineName,
+            lineId = txn.lineId,
+            stationId = txn.stationId,
             date = formattedDate,
             time = formattedTime,
             displayDateTime = "$formattedDate $formattedTime",
@@ -650,23 +723,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return "${bcd.substring(0, 2)}:${bcd.substring(2, 4)}:${bcd.substring(4, 6)}"
     }
 
-    private fun parseStationAndLine(raw: String): Pair<String, String> {
-        val parts = raw.split(" ", limit = 2)
-        return if (parts.size == 2) Pair(parts[0], parts[1]) else Pair("", raw)
-    }
-
     private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
         val counts = mutableMapOf<String, Int>()
         for (t in uiTxns) {
             // 充值不是乘车记录，不统计站点
             if (t.typeHex == "02" || t.amountYuan < 0) continue
-            val name = t.stationName
+            // 去掉末尾的方向箭头（"花地湾 ↑" -> "花地湾"）
+            val name = t.stationName.replace(Regex(" [↑↓]$"), "")
             if (name.isNotEmpty() && name != "未知" &&
                 !name.startsWith("轨道交通") && !name.startsWith("广州公交")) {
-                // 去掉末尾的方向箭头（"1号线 花地湾 ↑" -> "花地湾"）
-                val clean = name.replace(Regex(" [↑↓]$"), "")
-                val stationOnly = clean.substringAfterLast(" ").ifEmpty { clean }
-                counts[stationOnly] = (counts[stationOnly] ?: 0) + 1
+                counts[name] = (counts[name] ?: 0) + 1
             }
         }
         val max = counts.values.maxOrNull() ?: 1
@@ -680,12 +746,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (t in uiTxns) {
             // 充值不是乘车记录，不统计线路
             if (t.typeHex == "02" || t.amountYuan < 0) continue
-            val name = t.stationName
-            if (name.isNotEmpty() && name != "未知") {
-                val lineName = name.substringBefore(" ").ifEmpty { name }
-                if (lineName.isNotEmpty()) {
-                    counts[lineName] = (counts[lineName] ?: 0) + 1
-                }
+            val lineName = t.lineName
+            if (lineName.isNotEmpty() && lineName != "—" && lineName != "未知") {
+                counts[lineName] = (counts[lineName] ?: 0) + 1
             }
         }
         val max = counts.values.maxOrNull() ?: 1

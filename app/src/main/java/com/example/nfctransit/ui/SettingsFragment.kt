@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.databinding.FragmentSettingsBinding
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
@@ -78,6 +79,49 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         binding.root.findViewById<View>(R.id.rowClearData)?.setOnClickListener {
             showClearDialog()
         }
+
+        // 语言切换：跟随系统 / 中文 / English
+        binding.root.findViewById<View>(R.id.rowLanguage)?.setOnClickListener {
+            showLanguageDialog()
+        }
+        updateLanguageRow()
+    }
+
+    // ── 显示语言 ──
+
+    private fun updateLanguageRow() {
+        val tv = binding.root.findViewById<TextView>(R.id.tvLanguageValue) ?: return
+        tv.text = when (TransitData.getDisplayLanguage()) {
+            "zh" -> "中文"
+            "en" -> "English"
+            else -> "跟随系统"
+        }
+    }
+
+    private fun showLanguageDialog() {
+        val options = arrayOf("跟随系统", "中文", "English")
+        val current = TransitData.getDisplayLanguage()
+        val checked = when (current) {
+            "zh" -> 1
+            "en" -> 2
+            else -> 0
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("语言切换")
+            .setSingleChoiceItems(options, checked) { dialog, which ->
+                when (which) {
+                    0 -> TransitData.setDisplayLanguage("system")
+                    1 -> TransitData.setDisplayLanguage("zh")
+                    2 -> TransitData.setDisplayLanguage("en")
+                }
+                dialog.dismiss()
+                updateLanguageRow()
+                // 语言已切换：按 ID 重新解析全部站点/线路名并刷新界面
+                viewModel.reloadDisplayLanguage()
+                showStatus("✓ 语言已切换")
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // ── 数据导出 ──
@@ -165,9 +209,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     }
 
     private fun showStatus(text: String) {
-        binding.tvCopyStatus.text = text
-        binding.tvCopyStatus.visibility = View.VISIBLE
-        binding.tvCopyStatus.postDelayed({ binding.tvCopyStatus.visibility = View.GONE }, 2500)
+        val tv = _binding?.tvCopyStatus ?: return
+        tv.text = text
+        tv.visibility = View.VISIBLE
+        // 只引用捕获的 View，避免 fragment 视图销毁后 _binding 为 null 时回调触发 NPE
+        tv.postDelayed({ tv.visibility = View.GONE }, 2500)
     }
 
     override fun onDestroyView() {

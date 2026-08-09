@@ -104,6 +104,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/rowLanguage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -112,7 +113,9 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+        android:paddingBottom="14dp"
+        android:clickable="true"
+        android:focusable="true">
 
         <TextView
             android:layout_width="0dp"
@@ -122,6 +125,7 @@
             android:textColor="#1A1A1A"
             android:textSize="14sp" />
         <TextView
+            android:id="@+id/tvLanguageValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="中文"

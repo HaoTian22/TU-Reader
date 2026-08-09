@@ -2,6 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'androidx.navigation.safeargs.kotlin'
+    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -18,6 +19,10 @@ android {
 
     buildFeatures {
         viewBinding true
+    }
+
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     buildTypes {
@@ -56,4 +61,9 @@ dependencies {
 
     // JSON 序列化（持久化存储 / 数据导出）
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Room（站点/线路映射数据库）
+    implementation 'androidx.room:room-runtime:2.8.4'
+    implementation 'androidx.room:room-ktx:2.8.4'
+    ksp 'androidx.room:room-compiler:2.8.4'
 }

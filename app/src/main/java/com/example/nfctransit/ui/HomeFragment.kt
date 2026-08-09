@@ -278,10 +278,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             // 站名末尾的方向箭头换成 FontAwesome 图标
             val isEntry = txn.stationName.endsWith("↓")
             val isExit = txn.stationName.endsWith("↑")
-            // 去掉方向箭头后的完整站名（"1号线 体育中心"），站名只取站点部分
-            val cleanStation = txn.stationName.replace(Regex(" [↑↓]$"), "")
-            val parts = cleanStation.split(" ", limit = 2)
-            val stationText = if (parts.size == 2) parts[1] else cleanStation
+            // 去掉方向箭头后的站名（线路名由列表页单独展示）
+            val stationText = txn.stationName.replace(Regex(" [↑↓]$"), "")
 
             icon.text = txn.icon
             // 第一行胶囊：城市 / 交通类型（两个独立胶囊）

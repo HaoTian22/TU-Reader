@@ -1,0 +1,340 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "d655117dc122c44ad0b193eacfbeb8a4",
+    "entities": [
+      {
+        "tableName": "city",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`city_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `city_code` TEXT NOT NULL, `city_name` TEXT NOT NULL, `city_name_en` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "cityId",
+            "columnName": "city_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityCode",
+            "columnName": "city_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityName",
+            "columnName": "city_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityNameEn",
+            "columnName": "city_name_en",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "city_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_city_city_code",
+            "unique": true,
+            "columnNames": [
+              "city_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_city_city_code` ON `${TABLE_NAME}` (`city_code`)"
+          }
+        ]
+      },
+      {
+        "tableName": "line",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`line_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `city_id` INTEGER NOT NULL, `line_code` TEXT NOT NULL, `line_name` TEXT NOT NULL, `line_name_en` TEXT, `line_color` TEXT, FOREIGN KEY(`city_id`) REFERENCES `city`(`city_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "lineId",
+            "columnName": "line_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityId",
+            "columnName": "city_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lineCode",
+            "columnName": "line_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lineName",
+            "columnName": "line_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lineNameEn",
+            "columnName": "line_name_en",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lineColor",
+            "columnName": "line_color",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "line_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_line_city_id",
+            "unique": false,
+            "columnNames": [
+              "city_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_line_city_id` ON `${TABLE_NAME}` (`city_id`)"
+          },
+          {
+            "name": "index_line_city_id_line_code",
+            "unique": true,
+            "columnNames": [
+              "city_id",
+              "line_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_line_city_id_line_code` ON `${TABLE_NAME}` (`city_id`, `line_code`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "city",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "city_id"
+            ],
+            "referencedColumns": [
+              "city_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "station",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`station_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `city_id` INTEGER NOT NULL, `station_name` TEXT NOT NULL, `station_name_en` TEXT, `longitude` REAL, `latitude` REAL, FOREIGN KEY(`city_id`) REFERENCES `city`(`city_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "stationId",
+            "columnName": "station_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityId",
+            "columnName": "city_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationName",
+            "columnName": "station_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationNameEn",
+            "columnName": "station_name_en",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "station_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_station_city_id",
+            "unique": false,
+            "columnNames": [
+              "city_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_station_city_id` ON `${TABLE_NAME}` (`city_id`)"
+          },
+          {
+            "name": "index_station_city_id_station_name",
+            "unique": true,
+            "columnNames": [
+              "city_id",
+              "station_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_station_city_id_station_name` ON `${TABLE_NAME}` (`city_id`, `station_name`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "city",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "city_id"
+            ],
+            "referencedColumns": [
+              "city_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "reader_device",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`device_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `standard` TEXT NOT NULL, `device_code` TEXT NOT NULL, `city_id` INTEGER NOT NULL, `line_id` INTEGER, `station_id` INTEGER, `transit_type` TEXT NOT NULL, `match_key` TEXT, `updated_at` TEXT, FOREIGN KEY(`city_id`) REFERENCES `city`(`city_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "deviceId",
+            "columnName": "device_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "standard",
+            "columnName": "standard",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceCode",
+            "columnName": "device_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cityId",
+            "columnName": "city_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lineId",
+            "columnName": "line_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stationId",
+            "columnName": "station_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "transitType",
+            "columnName": "transit_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "matchKey",
+            "columnName": "match_key",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "device_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_reader_device_device_code",
+            "unique": true,
+            "columnNames": [
+              "device_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_reader_device_device_code` ON `${TABLE_NAME}` (`device_code`)"
+          },
+          {
+            "name": "index_reader_device_match_key",
+            "unique": false,
+            "columnNames": [
+              "match_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reader_device_match_key` ON `${TABLE_NAME}` (`match_key`)"
+          },
+          {
+            "name": "index_reader_device_city_id",
+            "unique": false,
+            "columnNames": [
+              "city_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reader_device_city_id` ON `${TABLE_NAME}` (`city_id`)"
+          },
+          {
+            "name": "index_reader_device_line_id",
+            "unique": false,
+            "columnNames": [
+              "line_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reader_device_line_id` ON `${TABLE_NAME}` (`line_id`)"
+          },
+          {
+            "name": "index_reader_device_station_id",
+            "unique": false,
+            "columnNames": [
+              "station_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reader_device_station_id` ON `${TABLE_NAME}` (`station_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "city",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "city_id"
+            ],
+            "referencedColumns": [
+              "city_id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd655117dc122c44ad0b193eacfbeb8a4')"
+    ]
+  }
+}

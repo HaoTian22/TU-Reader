@@ -22,6 +22,18 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val rawLog: List<String>
     )
 
+    /** SFI 0x1E 终端映射表中的一条站点信息（线路/站名分开，供界面直接使用；ID 用于跨页面传递） */
+    private data class StationRef(
+        val station: String,
+        val line: String,
+        val transitType: String,
+        val direction: String,
+        val lineId: Long? = null,
+        val stationId: Long? = null
+    ) {
+        val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
+    }
+
     fun read(): ReadResult {
         val log = mutableListOf<String>()
         isoDep.connect()
@@ -46,7 +58,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         probeAllFiles(profile, log)
 
                         // TU 卡：先读 SFI 0x1E 建立 终端→站点+方向 映射表 和 余额映射表
-                        val terminalInfoMap = mutableMapOf<String, Triple<String, String, String>>()
+                        val terminalInfoMap = mutableMapOf<String, StationRef>()
                         val balanceMap = mutableMapOf<String, Long>()  // "terminal|timestamp" → balanceFen
                         var stationInfo: StationInfo? = null
 
@@ -56,7 +68,6 @@ class TransitCardReader(private val isoDep: IsoDep) {
                             terminalInfoMap.putAll(infoMap)
                             balanceMap.putAll(balMap)
                         }
-
                         val trades = readTransactions(profile, log, terminalInfoMap, balanceMap, stationInfo?.cityCode)
                         return ReadResult(profile, info, stationInfo, trades, log)
                     }
@@ -89,8 +100,8 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun buildTuTerminalStationMap(
         sfi: Int,
         log: MutableList<String>
-    ): Triple<StationInfo?, Map<String, Triple<String, String, String>>, Map<String, Long>> {
-        val map = mutableMapOf<String, Triple<String, String, String>>()
+    ): Triple<StationInfo?, Map<String, StationRef>, Map<String, Long>> {
+        val map = mutableMapOf<String, StationRef>()
         val balanceMap = mutableMapOf<String, Long>()
         var latestStationInfo: StationInfo? = null
         var latestTimestamp = ""
@@ -115,8 +126,11 @@ class TransitCardReader(private val isoDep: IsoDep) {
 
                 // 城市码 + 线路/站点码/终端号 → 从该城市 CSV 查询站名与交通类型
                 val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal)
-                val stationName = entry?.let { "${it.line} ${it.station}".trim() } ?: "未知"
+                val lineName = entry?.line ?: ""
+                val stationName = entry?.station ?: "未知"
                 val transitType = TransitData.transitTypeLabel(entry?.type)
+                val lineId = entry?.lineId
+                val stationId = entry?.stationId
 
                 // 方向: offset 0 → 03=入站(↓), 04=出站(↑)
                 val direction = when {
@@ -135,7 +149,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     ApduUtil.bcdToString(data.copyOfRange(25, 32))
                 } else ""
 
-                map[terminal] = Triple(stationName, transitType, direction)
+                map[terminal] = StationRef(stationName, lineName, transitType, direction, lineId, stationId)
 
                 // 余额映射表: key = "terminal|timestamp"，供交易记录按终端+时间匹配余额
                 if (terminal.isNotEmpty() && timestamp.isNotEmpty()) {
@@ -227,7 +241,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun readTransactions(
         profile: CardProfile,
         log: MutableList<String>,
-        terminalInfoMap: Map<String, Triple<String, String, String>> = emptyMap(),
+        terminalInfoMap: Map<String, StationRef> = emptyMap(),
         balanceMap: Map<String, Long> = emptyMap(),
         cardCityCode: String? = null
     ): List<TransactionRecord> {
@@ -256,7 +270,8 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 val timestamp = date + time  // YYYYMMDDHHMMSS, 匹配 SFI 0x1E 时间戳
 
                 // 优先用 TU 终端映射表，回退到通用映射
-                val (station, transitType) = resolveStation(terminal, profile, terminalInfoMap)
+                val ref = resolveStation(terminal, profile, terminalInfoMap)
+                val stationWithDir = ref.stationWithDir
 
                 // 从 SFI 0x1E 余额映射表按 终端+时间 精确匹配交易后余额
                 val balanceAfterFen = balanceMap["$terminal|$timestamp"]
@@ -267,9 +282,12 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         seq = seq,
                         amountYuan = amountFen / 100.0,
                         typeHex = typeHex,
-                        transitType = transitType,
+                        transitType = ref.transitType,
                         terminal = terminal,
-                        stationName = station,
+                        stationName = stationWithDir,
+                        lineName = ref.line,
+                        lineId = ref.lineId,
+                        stationId = ref.stationId,
                         cityName = cityName,
                         date = date,
                         time = time,
@@ -314,25 +332,21 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun resolveStation(
         terminal: String,
         profile: CardProfile,
-        tuMap: Map<String, Triple<String, String, String>>
-    ): Pair<String, String> {
-        // TU 卡：从映射表查找 (stationName, transitType, direction)
+        tuMap: Map<String, StationRef>
+    ): StationRef {
+        // TU 卡：从映射表查找 (station, line, transitType, direction)
         if (profile.cardType == "TU") {
-            tuMap[terminal]?.let { (station, transitType, direction) ->
-                val stationWithDir = if (direction.isNotEmpty()) "$station $direction" else station
-                return Pair(stationWithDir, transitType)
-            }
+            tuMap[terminal]?.let { return it }
             // 尝试终端号模糊匹配
             for ((key, value) in tuMap) {
                 if (terminal.endsWith(key) || key.endsWith(terminal)) {
-                    val stationWithDir = if (value.third.isNotEmpty()) "${value.first} ${value.third}" else value.first
-                    return Pair(stationWithDir, value.second)
+                    return value
                 }
             }
-            return Pair("轨道交通 (TU终端:$terminal)", "轨道交通 (Metro)")
+            return StationRef("轨道交通 (TU终端:$terminal)", "", "轨道交通 (Metro)", "")
         }
 
         // 其他卡种暂不支持
-        return Pair("暂不支持", "未知")
+        return StationRef("暂不支持", "", "未知", "")
     }
 }
