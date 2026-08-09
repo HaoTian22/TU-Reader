@@ -34,7 +34,7 @@
         android:orientation="vertical"
         android:layout_marginStart="10dp">
 
-        <!-- 第一行：城市胶囊 + 类型胶囊 -->
+        <!-- 第一行：城市胶囊 + 类型胶囊 + 线路胶囊（线路胶囊按数据库线路颜色着色） -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -67,9 +67,24 @@
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
                 android:layout_marginStart="6dp" />
+
+            <TextView
+                android:id="@+id/txnLine"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1号线"
+                android:textColor="#555555"
+                android:textSize="10sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginStart="6dp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- 第二行：出入站图标 + 站名 + 线路（线路紧跟站名） -->
+        <!-- 第二行：出入站图标 + 站名 -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -96,20 +111,6 @@
                 android:singleLine="true"
                 android:ellipsize="end"
                 android:maxWidth="200dp" />
-
-            <TextView
-                android:id="@+id/txnLine"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1号线"
-                android:textColor="#555555"
-                android:textSize="10sp"
-                android:background="@drawable/bg_chip_default"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
-                android:layout_marginStart="6dp" />
         </LinearLayout>
 
         <!-- 第三行：时间 -->

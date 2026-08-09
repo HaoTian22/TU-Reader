@@ -69,6 +69,7 @@ data class TransactionRecord(
     val terminal: String,
     val stationName: String = "未知",
     val lineName: String = "",       // 线路名（如 "2号线" / "Line 2"），与 stationName 分开传递
+    val lineColor: String? = null,   // 线路颜色（"#RRGGBB"，空白时界面保持灰色）
     val lineId: Long? = null,        // 线路数据库 ID（页面间以 ID 传递，名称按语言即时解析）
     val stationId: Long? = null,     // 站点数据库 ID
     val cityName: String = "",      // 城市中文名（从 citylist.csv 获取）

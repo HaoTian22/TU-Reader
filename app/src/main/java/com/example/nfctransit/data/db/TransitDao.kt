@@ -13,6 +13,7 @@ data class StationResolution(
     @ColumnInfo(name = "line_id") val lineId: Long?,
     @ColumnInfo(name = "line_name") val lineName: String?,
     @ColumnInfo(name = "line_name_en") val lineNameEn: String?,
+    @ColumnInfo(name = "line_color") val lineColor: String?,
     @ColumnInfo(name = "station_id") val stationId: Long,
     @ColumnInfo(name = "station_name") val stationName: String,
     @ColumnInfo(name = "station_name_en") val stationNameEn: String?,
@@ -38,7 +39,7 @@ interface TransitDao {
     @Query(
         """
         SELECT c.city_id, c.city_code, c.city_name, c.city_name_en,
-               l.line_id, l.line_name, l.line_name_en,
+               l.line_id, l.line_name, l.line_name_en, l.line_color,
                s.station_id, s.station_name, s.station_name_en,
                r.standard, r.transit_type, r.device_code, r.match_key
         FROM reader_device r

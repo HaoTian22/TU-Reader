@@ -32,6 +32,7 @@ object TransitData {
         val type: String,       // CSV 的 Type 列（地铁/公交/BRT/train/bike）
         val line: String,       // 线路名（如 "1号线" / "Line 1"）
         val station: String,    // 站名
+        val lineColor: String? = null,  // 线路颜色（"#RRGGBB"，空白时 UI 保持灰色）
         val lineId: Long? = null,
         val stationId: Long? = null
     )
@@ -200,7 +201,7 @@ object TransitData {
         val useEn = useEnglish()
         val line = if (useEn) lineNameEn ?: lineName else lineName ?: lineNameEn
         val station = if (useEn) stationNameEn ?: stationName else stationName
-        return StationEntry(deviceCode, transitType, line ?: "", station, lineId, stationId)
+        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId)
     }
 
     /** 首次访问时一次性载入 DB 数据（双检锁；失败则保持空索引，读卡链路降级为"未知"） */

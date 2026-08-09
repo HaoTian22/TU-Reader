@@ -144,11 +144,13 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             amount.text = txn.amountText
             balance.text = txn.balanceAfterText
 
-            // 第二行：出入站图标 + 站名 + 线路胶囊
+            // 第二行：出入站图标 + 站名
             station.text = stationText.ifEmpty { "未知" }
+            // 第一行：线路胶囊（用数据库线路颜色着色；空白保持灰色）
             if (lineText.isNotEmpty()) {
                 line.visibility = View.VISIBLE
                 line.text = lineText
+                applyLineColor(line, txn.lineColor)
             } else {
                 line.visibility = View.GONE
             }
@@ -185,6 +187,19 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             }
 
             binding.transactionListContainer.addView(itemView)
+        }
+    }
+
+    /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色 */
+    private fun applyLineColor(line: TextView, color: String?) {
+        val parsed = try {
+            android.graphics.Color.parseColor(color?.trim() ?: return)
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+        line.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 20f * resources.displayMetrics.density
+            setColor(parsed)
         }
     }
 

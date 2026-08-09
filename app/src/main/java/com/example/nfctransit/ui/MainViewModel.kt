@@ -569,6 +569,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val station = entry.station
         return t.copy(
             lineName = line.ifEmpty { t.lineName },
+            lineColor = entry.lineColor ?: t.lineColor,
             stationName = if (direction.isNotEmpty()) "$station $direction" else station,
             lineId = entry.lineId ?: t.lineId,
             stationId = entry.stationId ?: t.stationId
@@ -701,6 +702,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             stationName = if (isRecharge) "" else txn.stationName,
             cityName = txn.cityName,
             lineName = lineName,
+            lineColor = txn.lineColor,
             lineId = txn.lineId,
             stationId = txn.stationId,
             date = formattedDate,

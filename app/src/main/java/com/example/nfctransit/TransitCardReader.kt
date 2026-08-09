@@ -28,6 +28,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val line: String,
         val transitType: String,
         val direction: String,
+        val lineColor: String? = null,
         val lineId: Long? = null,
         val stationId: Long? = null
     ) {
@@ -129,6 +130,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 val lineName = entry?.line ?: ""
                 val stationName = entry?.station ?: "未知"
                 val transitType = TransitData.transitTypeLabel(entry?.type)
+                val lineColor = entry?.lineColor
                 val lineId = entry?.lineId
                 val stationId = entry?.stationId
 
@@ -149,7 +151,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     ApduUtil.bcdToString(data.copyOfRange(25, 32))
                 } else ""
 
-                map[terminal] = StationRef(stationName, lineName, transitType, direction, lineId, stationId)
+                map[terminal] = StationRef(stationName, lineName, transitType, direction, lineColor, lineId, stationId)
 
                 // 余额映射表: key = "terminal|timestamp"，供交易记录按终端+时间匹配余额
                 if (terminal.isNotEmpty() && timestamp.isNotEmpty()) {
@@ -286,6 +288,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         terminal = terminal,
                         stationName = stationWithDir,
                         lineName = ref.line,
+                        lineColor = ref.lineColor,
                         lineId = ref.lineId,
                         stationId = ref.stationId,
                         cityName = cityName,
