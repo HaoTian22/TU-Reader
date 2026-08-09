@@ -42,6 +42,8 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         }
 
                         val info = readCardInfo(profile, log)
+                        // 遍历手册列出的全部 SFI，读出原始数据用于分析文件结构
+                        probeAllFiles(profile, log)
 
                         // TU 卡：先读 SFI 0x1E 建立 终端→站点+方向 映射表 和 余额映射表
                         val terminalInfoMap = mutableMapOf<String, Triple<String, String, String>>()
@@ -162,6 +164,38 @@ class TransitCardReader(private val isoDep: IsoDep) {
         }
         log.add("TU 终端映射表: ${map.size} 条, 最新余额: ${latestStationInfo?.balanceFen ?: 0}分")
         return Triple(latestStationInfo, map, balanceMap)
+    }
+
+    /** 遍历手册列出的全部 SFI，先试 READ BINARY，失败再试 READ RECORD，读出原始数据用于分析文件结构 */
+    private fun probeAllFiles(profile: CardProfile, log: MutableList<String>) {
+        if (profile.cardType != "TU") return
+        // 手册文件映射（电子钱包 AID=010105 下）：
+        // 01-04 支付应用专用文件、0B 消费交易明细、0C 圈存交易明细、
+        // 05-08/19 发卡机构自定义、15 公共应用基本/余额、16 持卡人信息、
+        // 17 管理信息、18 交易明细、1A 公交过程信息变长记录、1E 公交过程信息循环记录
+        val sfis = listOf(
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x0B, 0x0C,
+            0x15, 0x16, 0x17, 0x18, 0x19,
+            0x1A, 0x1E
+        )
+        for (sfi in sfis) {
+            try {
+                // 1) READ BINARY
+                val resp = isoDep.transceive(ApduUtil.buildReadBinary(sfi, 0, 0x00))
+                log.add("PROBE SFI=${sfi.toString(16).uppercase()} BINARY -> ${ApduUtil.bytesToHex(resp)}")
+                if (ApduUtil.isSuccess(resp)) continue
+                // 2) READ RECORD 循环（变长/循环记录文件不支持 READ BINARY）
+                for (recordNo in 1..30) {
+                    val rresp = isoDep.transceive(ApduUtil.buildReadRecord(sfi, recordNo, 0x00))
+                    log.add("PROBE SFI=${sfi.toString(16).uppercase()} REC rec=$recordNo -> ${ApduUtil.bytesToHex(rresp)}")
+                    if (!ApduUtil.isSuccess(rresp)) break
+                }
+            } catch (e: Exception) {
+                log.add("PROBE SFI=${sfi.toString(16).uppercase()} 异常: ${e.message}")
+            }
+        }
+        log.add("PROBE 全部 SFI 探测完成")
     }
 
     private fun readCardInfo(profile: CardProfile, log: MutableList<String>): CardInfo? {

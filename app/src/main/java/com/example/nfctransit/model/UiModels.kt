@@ -8,6 +8,7 @@ data class UiCard(
     val name: String,
     val cardType: String,      // "深圳通" or "岭南通"
     val lastFour: String,
+    val cardNumber: String = "",  // 完整卡号（应用序列号），首页展示；其他页面用 lastFour
     val balanceYuan: Double,
     val gradientStartColor: Long,
     val gradientEndColor: Long

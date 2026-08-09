@@ -91,7 +91,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.btnToggleRaw.text = "▶ 查看原始数据"
 
         val detailContainer = binding.detailRowsContainer
-        val placeText = listOf(txn.cityName ?: "", txn.transitType, txn.stationName)
+        // 站名末尾的方向箭头只用于判定出入站，展示时去掉
+        val cleanStation = txn.stationName.removeSuffix("↑").removeSuffix("↓").trim()
+        val placeText = listOf(txn.cityName ?: "", txn.transitType, cleanStation)
             .filter { it.isNotEmpty() }
             .joinToString(" ")
         val isEntry = txn.stationName.endsWith("↓")

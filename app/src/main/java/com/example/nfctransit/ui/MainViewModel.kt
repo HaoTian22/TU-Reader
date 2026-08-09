@@ -113,7 +113,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // 卡号（应用序列号）-> 用 cardname-tu.csv 按 IIN 匹配卡名；读不到时退回通用名
         val cardNumber = result.cardInfo?.cardNumber ?: ""
-        val lastFour = lastFourFromTransactions(transactions)
+        // 卡号后四位用于各页面徽标；读不到卡号时退回交易终端号后四位
+        val lastFour = if (cardNumber.isNotEmpty()) cardNumber.takeLast(4)
+            else lastFourFromTransactions(transactions)
         val displayName = cardDisplayName(profile, cardNumber)
         val newCardId = cardId(profile, cardNumber, lastFour)
 
@@ -136,6 +138,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             name = displayName,
             cardType = displayName,
             lastFour = lastFour,
+            cardNumber = cardNumber,
             balanceYuan = balanceYuan,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd
@@ -372,8 +375,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else null
             val newName = mappedName ?: d.card.cardType
             val newId = if (cardNum.isNotEmpty()) cardNum else id
-            val upgradedCard = if (newId != id || newName != d.card.cardType) {
-                d.card.copy(id = newId, name = newName, cardType = newName)
+            // 旧版本 cardNumber 为 null/空、lastFour 取的是交易终端号：用卡号回填并修正后四位
+            val upgradedCard = if (newId != id || newName != d.card.cardType ||
+                d.card.cardNumber.isNullOrEmpty() || d.card.lastFour != cardNum.takeLast(4)
+            ) {
+                d.card.copy(
+                    id = newId,
+                    name = newName,
+                    cardType = newName,
+                    cardNumber = if (cardNum.isNotEmpty()) cardNum else (d.card.cardNumber ?: ""),
+                    lastFour = if (cardNum.isNotEmpty()) cardNum.takeLast(4) else d.card.lastFour
+                )
             } else d.card
             cardStore[newId] = CardData(
                 card = upgradedCard,

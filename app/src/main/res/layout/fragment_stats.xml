@@ -65,11 +65,13 @@
 
         <!-- Scrollable content -->
         <ScrollView
+            android:id="@+id/rootScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="#F8F9FA">
 
             <LinearLayout
+                android:id="@+id/contentContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">

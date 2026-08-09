@@ -8,7 +8,9 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -41,6 +43,24 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+
+        // 回到当前周期按钮的 ↻ 图标用 FontAwesome 渲染（汉字部分自动回退系统字体）
+        binding.cardTrend.btnBackCurrent.typeface =
+            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+
+        // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
+        // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认
+        // onTouchEvent，会调用 OnTouchListener）上：点击柱体时柱（clickable）消费 DOWN，
+        // 容器 onTouch 不触发，弹窗保持；点击其他区域时 DOWN 穿透到容器自身，onTouch 触发收起。
+        binding.contentContainer.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                val popup = binding.cardTrend.chartPopup
+                if (popup.visibility == View.VISIBLE) {
+                    popup.visibility = View.GONE
+                }
+            }
+            false
+        }
 
         setupSegments()
 
@@ -227,8 +247,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             col.addView(bar)
             col.addView(label)
 
-            // 点击该柱时，在柱上方弹出信息框（复用卡片根部的单个 overlay）
-            col.setOnClickListener {
+            // 点击柱体（实际柱体，而非铺满全高的列）时在柱上方弹出信息框
+            bar.setOnClickListener {
                 popup.text = buildPopupText(d)
                 popup.measure(
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),

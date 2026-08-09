@@ -293,8 +293,9 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Discount Progress Card -->
+            <!-- Discount Card -->
             <LinearLayout
+                android:id="@+id/discountCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
@@ -314,37 +315,38 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="月度优惠进度"
+                        android:text="优惠"
                         android:textColor="#1A1A1A"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
+                    <!-- 城市胶囊 -->
                     <TextView
-                        android:id="@+id/tvProgress"
+                        android:id="@+id/tvDiscountCity"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="0/12 次"
-                        android:textColor="#0066FF"
-                        android:textSize="13sp"
+                        android:text=""
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
                         android:textStyle="bold"
-                        android:fontFamily="monospace" />
+                        android:background="@drawable/bg_city_pill"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp" />
                 </LinearLayout>
 
-                <!-- Progress Bar -->
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="8dp"
-                    android:layout_marginTop="12dp">
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="8dp"
-                        android:background="@drawable/bg_progress_track" />
-                    <View
-                        android:id="@+id/progressFill"
-                        android:layout_width="0dp"
-                        android:layout_height="8dp"
-                        android:background="@drawable/bg_progress_fill" />
-                </FrameLayout>
+                <!-- 本月累计金额（大字号） -->
+                <TextView
+                    android:id="@+id/tvProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="¥0.00"
+                    android:textColor="#1A1A1A"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="8dp" />
 
                 <TextView
                     android:id="@+id/tvDiscountHint"
@@ -352,8 +354,8 @@
                     android:layout_height="wrap_content"
                     android:text=""
                     android:textColor="#8E8E93"
-                    android:textSize="11sp"
-                    android:layout_marginTop="8dp" />
+                    android:textSize="12sp"
+                    android:layout_marginTop="6dp" />
             </LinearLayout>
 
             <!-- Recent Transactions Card -->

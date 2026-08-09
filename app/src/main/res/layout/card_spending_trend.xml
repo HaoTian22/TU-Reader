@@ -74,7 +74,7 @@
         android:id="@+id/btnBackCurrent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="↻ 回到当前周期"
+        android:text="&#xF2EA; 回到当前周期"
         android:textColor="#0066FF"
         android:textSize="11sp"
         android:background="@drawable/bg_chip_default"

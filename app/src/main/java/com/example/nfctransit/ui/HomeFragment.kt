@@ -20,6 +20,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.DailySpending
+import com.example.nfctransit.model.DiscountPolicy
 import com.example.nfctransit.model.UiCard
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -159,9 +160,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.iconTransactions.setTextColor(accentColor)
             binding.iconStats.setTextColor(accentColor)
             binding.iconMapTrace.setTextColor(accentColor)
-            binding.tvProgress.setTextColor(accentColor)
-            binding.progressFill.setBackgroundColor(accentColor)
             binding.btnViewAll.setTextColor(accentColor)
+            binding.btnMiniStatsAll.setTextColor(accentColor)
             updatePageDots(activeIndexNow())
         }
 
@@ -203,28 +203,48 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
+    /**
+     * 城市累计票款优惠：按当月地铁/公交实际支出票款计算（广州政策自动识别，其他城市隐藏卡片）。
+     * 满 80 元部分享 8 折，超出 200 元部分享 5 折。
+     */
     private fun updateDiscountProgress() {
         val txns = viewModel.allTransactions.value ?: return
-        val thisMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-        val monthlyRides = txns.count {
-            (it.transitType == "地铁" || it.transitType == "公交") && it.date.startsWith(thisMonth)
+        val cityName = txns.firstNotNullOfOrNull { t ->
+            (t.cityName ?: "").takeIf { it.isNotBlank() && it.startsWith("广州") }
+        } ?: txns.firstNotNullOfOrNull { t -> (t.cityName ?: "").takeIf { it.isNotBlank() } }
+
+        val policy = DiscountPolicy.policyFor(cityName)
+        if (policy == null) {
+            binding.discountCard.visibility = View.GONE
+            return
         }
-        val target = 12
-        val progress = monthlyRides.coerceAtMost(target)
-        binding.tvProgress.text = "$progress/$target 次"
+        binding.discountCard.visibility = View.VISIBLE
 
-        val totalWidth = binding.root.width - 32.dpToPx()
-        val fillWidth = if (totalWidth > 0) (totalWidth * progress / target) else 0
-        val params = binding.progressFill.layoutParams
-        params.width = fillWidth
-        binding.progressFill.layoutParams = params
-        binding.progressFill.setBackgroundColor(accentColor)
+        // 当月实际支出票款 = 本月地铁/公交扣款（正数消费，不含充值）
+        val thisMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        val monthlyFen = txns
+            .filter {
+                it.date.startsWith(thisMonth) && (it.transitType == "地铁" || it.transitType == "公交") &&
+                    it.amountYuan > 0
+            }
+            .sumOf { (it.amountYuan * 100).toLong() }
 
-        val remaining = target - monthlyRides
-        binding.tvDiscountHint.text = if (remaining > 0) {
-            "还差 $remaining 次即可享受每次 ¥1.00 优惠"
-        } else {
-            "本月已达到优惠次数上限"
+        val t1 = policy.tier1ThresholdFen
+        val t2 = policy.tier2ThresholdFen
+        binding.tvDiscountCity.text = policy.cityZh
+        // 城市胶囊背景用卡片主题色，与快捷图标/按钮保持一致
+        binding.tvDiscountCity.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = resources.displayMetrics.density * 20
+            setColor(accentColor)
+        }
+        binding.tvProgress.text = "¥${String.format("%.2f", monthlyFen / 100.0)}"
+        binding.tvDiscountHint.text = when {
+            monthlyFen < t1 ->
+                "当月消费满 ¥${t1 / 100} 享 8 折 · 还差 ¥${String.format("%.2f", (t1 - monthlyFen) / 100.0)}"
+            monthlyFen < t2 ->
+                "已享 8 折 · 超 ¥${t2 / 100} 部分享 5 折，还差 ¥${String.format("%.2f", (t2 - monthlyFen) / 100.0)}"
+            else ->
+                "已超 ¥${t2 / 100}，超出部分享 5 折"
         }
     }
 
@@ -370,8 +390,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
             }
 
+            // 第一行标签始终为日期（M/d），下方静态行始终为星期（一~日）
+            val parts = d.date.split("-")
+            val dateLabel = if (parts.size == 3) "${parts[1].toInt()}/${parts[2].toInt()}" else d.dayLabel
             val label = TextView(requireContext()).apply {
-                text = d.dayLabel
+                text = dateLabel
                 setTextColor(0xFF8E8E93.toInt())
                 textSize = 8f
                 gravity = android.view.Gravity.CENTER
@@ -470,7 +493,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
 
                 val numberView = TextView(page.context).apply {
-                    text = "•••• ${card.lastFour}"
+                    // 首页展示完整卡号；读不到卡号时展示尾号
+                    text = if (!card.cardNumber.isNullOrEmpty()) card.cardNumber else "•••• ${card.lastFour}"
                     setTextColor(0xFFFFFFFF.toInt())
                     textSize = 14f
                     typeface = android.graphics.Typeface.MONOSPACE
