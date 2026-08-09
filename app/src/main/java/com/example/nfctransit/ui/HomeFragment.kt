@@ -140,6 +140,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.btnViewAll.setOnClickListener {
             findNavController().navigate(R.id.action_home_to_transactionList)
         }
+        binding.btnMiniStatsAll.setOnClickListener {
+            // 迷你图固定为"本周"，跳转统计页也默认"本周"视图，保持一致
+            viewModel.setStatsPeriod("本周")
+            findNavController().navigate(R.id.action_home_to_stats)
+        }
     }
 
     private fun observeViewModel() {
@@ -157,7 +162,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.tvProgress.setTextColor(accentColor)
             binding.progressFill.setBackgroundColor(accentColor)
             binding.btnViewAll.setTextColor(accentColor)
-            applyMiniChartTheme()
             updatePageDots(activeIndexNow())
         }
 
@@ -306,57 +310,82 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
-    private var miniChartCount = 0
-    private var miniChartTodayIdx = -1
-
     private fun activeIndexNow(): Int {
         val count = cardAdapter?.itemCount ?: 0
         if (count <= 0) return 0
         return viewModel.selectedIndex.value?.coerceIn(0, count - 1) ?: 0
     }
 
-    private fun applyMiniChartTheme() {
-        val bars = listOf(
-            binding.chartBar0, binding.chartBar1, binding.chartBar2,
-            binding.chartBar3, binding.chartBar4, binding.chartBar5, binding.chartBar6
-        )
-        for (i in 0 until bars.size) {
-            if (i < miniChartCount) {
-                bars[i].setBackgroundColor(if (i == miniChartTodayIdx) accentColor else 0xFFCCCCCC.toInt())
-            } else {
-                bars[i].setBackgroundColor(0xFFE5E5EA.toInt())
-            }
-        }
-    }
-
+    /** 构建迷你消费统计柱状图：样式与统计页周视图一致（数值+圆角渐变柱+星期标签） */
     private fun bindMiniChart(data: List<DailySpending>) {
-        val bars = listOf(
-            binding.chartBar0, binding.chartBar1, binding.chartBar2,
-            binding.chartBar3, binding.chartBar4, binding.chartBar5, binding.chartBar6
-        )
-        // data 就是本周（周一~周日）7 根柱，与下方固定标签一一对应，不再过滤零消费天
-        val recent = data.take(7)
-        // maxHeight 是 dp 值，必须转成 px，否则高密度屏上柱子只有几成高
-        val maxHeight = 70f.dpToPx()
-        // 以本周最大值为基准归一化，零消费天柱高为 0
-        val miniMax = recent.maxOfOrNull { it.amountYuan } ?: 1.0
-        miniChartTodayIdx = recent.indexOfFirst { it.isToday }
-        miniChartCount = recent.size
+        val area = binding.chartMiniArea
+        area.removeAllViews()
 
-        for (i in 0 until bars.size) {
-            val params = bars[i].layoutParams
-            if (i < recent.size) {
-                val d = recent[i]
-                params.height = ((d.amountYuan / miniMax) * maxHeight).toInt().coerceAtLeast(2)
-                // 除今天外也随高度在浅主题色~主题色之间渐变，保证柱子清晰可见
-                val color = if (i == miniChartTodayIdx) accentColor
-                    else ColorUtils.blendARGB(accentColor, 0xFFFFFFFF.toInt(), 0.75f)
-                bars[i].setBackgroundColor(color)
-            } else {
-                params.height = 4
-                bars[i].setBackgroundColor(0xFFE5E5EA.toInt())
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val recent = data.take(7)
+        if (recent.isEmpty()) return
+
+        val max = recent.maxOfOrNull { it.amountYuan } ?: 1.0
+        // 图表区可用高 150-16(padTop)-4(padBottom)=130，减去 value(13)+label(14)，最高柱占 ~103dp
+        val maxHeight = 103f.dpToPx()
+        val showValues = recent.size <= 12
+
+        for (d in recent) {
+            val col = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f
+                )
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
             }
-            bars[i].layoutParams = params
+
+            val value = TextView(requireContext()).apply {
+                text = if (showValues) "¥${d.amountYuan.toInt()}" else ""
+                setTextColor(0xFF555555.toInt())
+                textSize = 9f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    13.dpToPx()
+                )
+            }
+
+            // 颜色随相对最大值的比例从淡主题色渐变到深主题色，今天的柱固定深主题色
+            val lightAccent = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.55f)
+            val barColor = if (d.isToday) accentColor
+                else ColorUtils.blendARGB(lightAccent, accentColor, d.barHeightPercent.coerceIn(0f, 1f))
+            val bar = View(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (d.barHeightPercent * maxHeight).toInt().coerceAtLeast(2)
+                ).apply {
+                    marginStart = 2.dpToPx()
+                    marginEnd = 2.dpToPx()
+                }
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    val r = 4.dpToPx().toFloat()
+                    cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                    setColor(barColor)
+                }
+            }
+
+            val label = TextView(requireContext()).apply {
+                text = d.dayLabel
+                setTextColor(0xFF8E8E93.toInt())
+                textSize = 8f
+                gravity = android.view.Gravity.CENTER
+                setSingleLine(true)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    14.dpToPx()
+                )
+            }
+
+            col.addView(value)
+            col.addView(bar)
+            col.addView(label)
+            area.addView(col)
         }
     }
 

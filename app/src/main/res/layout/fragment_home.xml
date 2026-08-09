@@ -417,30 +417,15 @@
                     android:textStyle="bold"
                     android:paddingBottom="12dp" />
 
-                <!-- Mini Bar Chart -->
+                <!-- Mini Bar Chart（样式与统计页周视图一致，柱子由代码生成） -->
                 <LinearLayout
                     android:id="@+id/chartMiniArea"
                     android:layout_width="match_parent"
-                    android:layout_height="80dp"
+                    android:layout_height="150dp"
                     android:orientation="horizontal"
-                    android:gravity="bottom"
-                    android:paddingBottom="4dp">
-
-                    <View android:id="@+id/chartBar0" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar1" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar2" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar3" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar4" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar5" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:layout_marginEnd="6dp" android:background="@drawable/bg_bar_gray" />
-                    <View android:id="@+id/chartBar6" android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="10dp" android:background="@drawable/bg_bar_blue" />
-                </LinearLayout>
+                    android:gravity="bottom|center_horizontal"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="4dp" />
 
                 <!-- Day Labels -->
                 <LinearLayout
@@ -471,6 +456,20 @@
                         android:layout_height="wrap_content"
                         android:text="日" android:textColor="#8E8E93" android:textSize="10sp" android:gravity="center" />
                 </LinearLayout>
+
+                <!-- 查看全部：跳转到统计页本周视图 -->
+                <TextView
+                    android:id="@+id/btnMiniStatsAll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="查看全部 >"
+                    android:textColor="#0066FF"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:paddingTop="10dp"
+                    android:clickable="true"
+                    android:focusable="true" />
             </LinearLayout>
 
             </LinearLayout>
