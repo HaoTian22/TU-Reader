@@ -501,6 +501,17 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
                 textCol.addView(typeView)
                 textCol.addView(numberView)
+                // 双协议卡：第二行显示第二个卡号（如 TU 卡号）
+                if (!card.secondCardNumber.isNullOrEmpty()) {
+                    val secondNumberView = TextView(page.context).apply {
+                        text = card.secondCardNumber
+                        setTextColor(0xD9FFFFFF.toInt())
+                        textSize = 11f
+                        typeface = android.graphics.Typeface.MONOSPACE
+                        setPadding(0, 2.dpToPx(), 0, 0)
+                    }
+                    textCol.addView(secondNumberView)
+                }
                 page.addView(textCol)
 
                 // 右上角删除按钮

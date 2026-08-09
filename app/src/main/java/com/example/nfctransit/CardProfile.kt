@@ -3,8 +3,10 @@ package com.example.nfctransit
 /**
  * 交通卡卡种档案：AID / 关键 SFI / 交易记录字段布局
  * 数据来源：NFC Wiki 智能卡手册 (wiki.nfc.im) 交通卡章节
- * 覆盖：T-Union 交通联合卡电子钱包、深圳通、北京市政一卡通(BMAC)
- * 首版先做"通用交易明细文件"解析，即多数卡种共用的 0x18 循环记录结构
+ *        + tripreader-technical.md（Trip Reader 1.7.17 逆向：APDU 序列与识别顺序）
+ * 覆盖：岭南通(YCT1/PAY.APPY、YCT2/PAY.TICL)、深圳通(SZT)、苏州(SUXIN/SZTK)、
+ *       天津(TFT)、数字城市一卡通(CU)、交通联合卡(TU)
+ * 识别顺序（首个 SELECT 成功即判定卡型）见 CardProfiles.known 的排列顺序。
  */
 data class CardProfile(
     val name: String,
@@ -13,49 +15,77 @@ data class CardProfile(
     val tradeSfi: Int,         // 电子钱包交易明细记录文件 SFI
     val tradeRecordLen: Int = 0x17,
     val stationSfi: Int? = null,  // 线路+站点信息文件 SFI (TU 卡用 0x1E)
-    val cardType: String = "YCT", // "TU" = 交通联合, "YCT" = 羊城通/岭南通, "CU" = 数字城市一卡通
-    val supported: Boolean = true // false = 暂不支持，仅识别 AID 后提示
+    val cardType: String = "YCT"  // "TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"
 )
 
 object CardProfiles {
 
     val PSE_AID = "325041592E5359532E4444463031" // 2PAY.SYS.DDF01，PSE 目录
 
+    /**
+     * 卡型识别顺序（tripreader-technical.md §1.2）：
+     * YCT1(APPY) → YCT2(TICL) → SZT → SUXIN → SZTK → TFT → CU → 通用 TU。
+     * 除 TU 用 SFI 0x1E 终端映射表外，其余卡种共享 PBOC 电子钱包结构
+     * （信息文件 SFI 0x15 / BALANCE CHECK / 交易明细 SFI 0x18）。
+     */
     val known = listOf(
-        // 交通联合卡（TU）当前唯一支持的卡种，站点数据来自 assets/data/TU/<城市码>/*.csv
+        CardProfile(
+            name = "岭南通/羊城通 (YCT1)",
+            aidCandidates = listOf("5041592E41505059"), // PAY.APPY
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "YCT"
+        ),
+        CardProfile(
+            name = "岭南通/羊城通 (YCT2)",
+            aidCandidates = listOf("5041592E5449434C"), // PAY.TICL
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "YCT"
+        ),
+        CardProfile(
+            name = "深圳通 (SZT)",
+            aidCandidates = listOf("5041592E535A54"), // PAY.SZT
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "SZT"
+        ),
+        CardProfile(
+            name = "苏州通 (SUXIN)",
+            aidCandidates = listOf("535558494E2E4444463031"), // SUXIN.DDF01
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "SUXIN"
+        ),
+        CardProfile(
+            name = "苏州通 (SZTK)",
+            aidCandidates = listOf("535A504B5F5A5959"), // SZTK_ZY
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "SZTK"
+        ),
+        CardProfile(
+            name = "天津通 (TFT)",
+            aidCandidates = listOf("D156000015B9ABB9B2D3A6D3C3"),
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "TFT"
+        ),
+        CardProfile(
+            name = "数字城市一卡通 (CU)",
+            aidCandidates = listOf("A00000000386980701"), // 住建部 CPU 钱包
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "CU"
+        ),
+        // 交通联合卡（TU）：站点数据来自 transit.db standard='TU' 行，配合 SFI 0x1E 终端映射表
         CardProfile(
             name = "交通联合卡 (T-Union)",
             aidCandidates = listOf("A000000632010105", "A000000632010106"),
             infoSfi = 0x15,
             tradeSfi = 0x18,
             stationSfi = 0x1E,
-            cardType = "TU",
-            supported = true
-        ),
-        // 以下卡种先标注为暂不支持，后续版本逐个实现（数据已随 assets/data 一并拷贝）
-        CardProfile(
-            name = "深圳通 (Shenzhen Tong)",
-            aidCandidates = listOf("5041592E535A54"),
-            infoSfi = 0x15,
-            tradeSfi = 0x18,
-            supported = false
-        ),
-        CardProfile(
-            name = "数字城市一卡通 (City Union)",
-            aidCandidates = listOf("A00000000386980701"),
-            infoSfi = 0x15,
-            tradeSfi = 0x18,
-            cardType = "CU",
-            supported = false
-        ),
-        CardProfile(
-            name = "岭南通/羊城通 (Lingnan Pass)",
-            aidCandidates = listOf("5041592E41505059", "5041592E5449434C"),
-            infoSfi = 0x15,
-            tradeSfi = 0x18,
-            stationSfi = 0x18,  // 羊城通从交易明细的终端号提取站点
-            cardType = "YCT",
-            supported = false
+            cardType = "TU"
         )
     )
 }

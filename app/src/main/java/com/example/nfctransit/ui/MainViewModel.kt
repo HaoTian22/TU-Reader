@@ -113,6 +113,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // 卡号（应用序列号）-> 用 cardname-tu.csv 按 IIN 匹配卡名；读不到时退回通用名
         val cardNumber = result.cardInfo?.cardNumber ?: ""
+        val secondCardNumber = result.secondCardInfo?.cardNumber ?: ""
         // 卡号后四位用于各页面徽标；读不到卡号时退回交易终端号后四位
         val lastFour = if (cardNumber.isNotEmpty()) cardNumber.takeLast(4)
             else lastFourFromTransactions(transactions)
@@ -139,6 +140,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             cardType = displayName,
             lastFour = lastFour,
             cardNumber = cardNumber,
+            secondCardNumber = secondCardNumber,
             balanceYuan = balanceYuan,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd
@@ -591,6 +593,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return when {
             profile.name.contains("深圳通") -> "深圳通"
             profile.name.contains("岭南通") || profile.name.contains("羊城通") -> "岭南通"
+            profile.name.contains("苏州") -> "苏州通"
+            profile.name.contains("天津") -> "天津通"
+            profile.name.contains("数字城市") || profile.cardType == "CU" -> "数字城市一卡通"
             profile.name.contains("交通联合") -> "交通联合卡"
             else -> profile.name.take(8)
         }

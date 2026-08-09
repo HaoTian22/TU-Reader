@@ -134,6 +134,71 @@ object TransitData {
     }
 
     /**
+     * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析。
+     *
+     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"，仅用于兜底文案）
+     * @param cityCode 交易城市码（4 位十进制，来自记录 [10..12) 压缩 BCD，如 5180）
+     * @param code     记录 [10..16) 的 hex 串（12 位，含城市码前缀 [10..12)）
+     * @param terminal 记录 [10..16) 的 BCD 串（12 位终端号）
+     *
+     * 各卡种 device_code 形态不同（DB 由 CSV 生成，key = City/Prefix + Code 拼接）：
+     *   - CU（深圳/上海等）：device_code = 城市码 + 线路/站点码，如 518040011
+     *   - YCT（广州羊城通）：device_code = 0100 + 终端号，如 010000163423
+     * 且 DB 的 standard 标签来自 CSV 文件名，与卡 AID 类型可能不一致
+     * （深圳的 cu.csv → standard='CU'，但卡 AID 是 PAY.SZT）。
+     * 因此这里不按 standard 过滤，而是生成「城市码+位置码」「城市码+终端号」等候选 key
+     * 逐个试命中；未命中时对 in-memory 索引做一次有界的 后缀/前缀 扫描兜底。
+     */
+    fun resolveByStandard(
+        standard: String,
+        cityCode: String,
+        code: String,
+        terminal: String
+    ): StationEntry? {
+        ensureLoaded()
+        val city = cityCode.ifBlank { "" }
+        // [10..12) 是城市码（hex 前 4 位），[12..16) 是位置码；去掉前缀
+        val pos = if (code.length > 4) code.substring(4) else code
+
+        val candidates = linkedSetOf<String>()
+        if (city.isNotEmpty()) {
+            candidates.add(city + pos)
+            candidates.add(city + stripLeadingZeros(pos))
+            candidates.add(city + pos.trimEnd('0'))
+            if (terminal.isNotEmpty()) {
+                candidates.add(city + terminal)
+                candidates.add(city + stripLeadingZeros(terminal))
+            }
+        }
+        candidates.add(pos)
+        candidates.add(stripLeadingZeros(pos))
+        if (terminal.isNotEmpty()) {
+            candidates.add(terminal)
+            candidates.add(stripLeadingZeros(terminal))
+        }
+        for (c in candidates) {
+            byDeviceCode[c]?.let { return it.toEntry() }
+        }
+
+        // 兜底：有界后缀/前缀扫描（先短后长，命中第一个即返回）
+        var best: Pair<StationResolution, Int>? = null
+        for ((dev, r) in byDeviceCode) {
+            val dl = dev.length
+            if (dl < 5) continue
+            val matchLen = when {
+                dl <= code.length && dev.endsWith(pos) && code.endsWith(dev) -> dl
+                code.length <= dl && pos.endsWith(dev) && dev.length <= pos.length -> code.length
+                terminal.isNotEmpty() && dl <= terminal.length && terminal.endsWith(dev) -> dl
+                else -> 0
+            }
+            if (matchLen > 0 && (best == null || matchLen > best.second)) {
+                best = r to matchLen
+            }
+        }
+        return best?.first?.toEntry()
+    }
+
+    /**
      * 旧版本持久化数据修复：按 "线路 站点" 组合串（中或英）反查解析结果，
      * 用于恢复丢失的 lineId/stationId，并修正按空格误拆导致线路/站名错位的数据。
      */

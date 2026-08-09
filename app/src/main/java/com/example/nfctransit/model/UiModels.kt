@@ -9,6 +9,7 @@ data class UiCard(
     val cardType: String,      // "深圳通" or "岭南通"
     val lastFour: String,
     val cardNumber: String = "",  // 完整卡号（应用序列号），首页展示；其他页面用 lastFour
+    val secondCardNumber: String? = null,  // 双协议卡第二个卡号（如 LNT+TU 的 TU 卡号）；nullable 兼容旧版持久化数据（Gson 反序列化为 null）
     val balanceYuan: Double,
     val gradientStartColor: Long,
     val gradientEndColor: Long

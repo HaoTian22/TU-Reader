@@ -68,18 +68,14 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.nfc_detecting), Toast.LENGTH_SHORT).show()
         Thread {
             val result = TransitCardReader(isoDep).read()
+            // 调试：把完整读卡 APDU 日志输出到 logcat，便于真机排查
+            android.util.Log.d("TransitReader", result.rawLog.joinToString("\n"))
             runOnUiThread {
                 if (result.matchedProfile != null && result.transactions.isNotEmpty()) {
                     viewModel.onNfcDataLoaded(result)
                     Toast.makeText(
                         this,
                         "识别为：${result.matchedProfile.name}，读取到 ${result.transactions.size} 条记录",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else if (result.matchedProfile != null && !result.matchedProfile.supported) {
-                    Toast.makeText(
-                        this,
-                        "识别为：${result.matchedProfile.name}，该卡种暂不支持（当前仅支持交通联合卡）",
                         Toast.LENGTH_LONG
                     ).show()
                 } else if (result.matchedProfile != null) {
