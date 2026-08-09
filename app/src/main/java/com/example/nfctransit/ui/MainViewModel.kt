@@ -9,6 +9,7 @@ import com.example.nfctransit.TransactionRecord
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.data.PersistedCardData
 import com.example.nfctransit.data.PersistedState
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitStore
 import com.example.nfctransit.model.*
 import com.google.gson.Gson
@@ -72,6 +73,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _dailySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val dailySpending: LiveData<List<DailySpending>> = _dailySpending
 
+    // 首页迷你图专用：固定"本周（周一~周日）"7 根柱子，不受统计页周期切换影响
+    private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
+    val homeWeeklySpending: LiveData<List<DailySpending>> = _homeWeeklySpending
+
     private val _statsSummary = MutableLiveData(StatsSummary(0.0, 0, 0.0))
     val statsSummary: LiveData<StatsSummary> = _statsSummary
 
@@ -106,8 +111,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val balanceFen = result.stationInfo?.balanceFen ?: 0L
         val balanceYuan = balanceFen / 100.0
 
-        val newCardId = cardId(profile, transactions)
-        val existing = cardStore[newCardId]
+        // 卡号（应用序列号）-> 用 cardname-tu.csv 按 IIN 匹配卡名；读不到时退回通用名
+        val cardNumber = result.cardInfo?.cardNumber ?: ""
+        val lastFour = lastFourFromTransactions(transactions)
+        val displayName = cardDisplayName(profile, cardNumber)
+        val newCardId = cardId(profile, cardNumber, lastFour)
+
+        // 查找已有卡片：优先按新 id（卡号）；旧版本按 "名字|尾号" 存，用尾号兼容查找
+        var existing = cardStore[newCardId]
+        var legacyKey: String? = null
+        if (existing == null) {
+            legacyKey = cardStore.entries.firstOrNull { it.value.card.lastFour == lastFour }?.key
+            existing = legacyKey?.let { cardStore[it] }
+        }
+
         // 新卡从 20 色板里挑一个还没被用过的颜色；已存在卡保留原颜色
         val (gradStart, gradEnd) = if (existing != null) {
             existing.card.gradientStartColor to existing.card.gradientEndColor
@@ -116,9 +133,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val card = UiCard(
             id = newCardId,
-            name = cardDisplayName(profile),
-            cardType = cardDisplayName(profile),
-            lastFour = lastFourFromTransactions(transactions),
+            name = displayName,
+            cardType = displayName,
+            lastFour = lastFour,
             balanceYuan = balanceYuan,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd
@@ -145,12 +162,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        // 更新卡片余额（读取到的最新余额）
-        val updatedCard = if (existing != null) existing.card.copy(balanceYuan = balanceYuan) else card
-
         val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
         val data = CardData(
-            card = updatedCard,
+            card = card,
             transactions = mergedTxns,
             nfcLog = result.rawLog,
             topStations = computeTopStations(mergedTxns),
@@ -159,14 +173,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             statsSummary = computeStatsSummary(mergedTxns)
         )
 
-        val isNew = !cardStore.containsKey(card.id)
+        val isNew = !cardStore.containsKey(card.id) && legacyKey == null
+        // 旧版本用 "名字|尾号" 作 key：迁移到新的卡号 key，删掉旧条目避免残留
+        if (legacyKey != null && legacyKey != card.id) {
+            cardStore.remove(legacyKey)
+        }
         cardStore[card.id] = data
 
         val newIndex = (_cards.value ?: emptyList()).indexOfFirst { it.id == card.id }
-        val index = if (newIndex >= 0) newIndex else {
-            val updated = (_cards.value ?: emptyList()) + updatedCard
-            _cards.value = updated
-            updated.size - 1
+        // 列表里可能还留着旧 id（"名字|尾号"）的条目：按尾号找到它并原地替换
+        val legacyListIndex = if (newIndex < 0) {
+            (_cards.value ?: emptyList()).indexOfFirst { it.lastFour == lastFour }
+        } else -1
+        val index = when {
+            newIndex >= 0 -> {
+                // 已存在：更新列表中的卡（余额/卡名可能变化），保持原地顺序
+                val updated = (_cards.value ?: emptyList()).toMutableList()
+                updated[newIndex] = card
+                _cards.value = updated
+                newIndex
+            }
+            legacyListIndex >= 0 -> {
+                val updated = (_cards.value ?: emptyList()).toMutableList()
+                updated[legacyListIndex] = card
+                _cards.value = updated
+                legacyListIndex
+            }
+            else -> {
+                val updated = (_cards.value ?: emptyList()) + card
+                _cards.value = updated
+                updated.size - 1
+            }
         }
 
         _hasData.value = true
@@ -283,6 +320,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _topStations.value = emptyList()
         _topLines.value = emptyList()
         _dailySpending.value = emptyList()
+        _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         TransitStore.clear(getApplication())
     }
@@ -308,11 +346,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Private ──
 
+    /** 从 NFC 日志里提取卡号（应用序列号）：READ BINARY SFI=21 行的 bytes 10-19 BCD */
+    private fun cardNumberFromNfcLog(log: List<String>): String {
+        val line = log.firstOrNull { it.contains("READ BINARY") && it.contains("SFI=21") } ?: return ""
+        val hex = line.substringAfter("-> ").trim()
+        if (!hex.endsWith("9000") || hex.length < 44) return ""
+        val serialHex = hex.substring(20, 40) // data bytes 10-19
+        val digits = buildString {
+            for (i in 0 until serialHex.length step 2) {
+                val b = serialHex.substring(i, i + 2).toInt(16)
+                append((b shr 4) and 0xF)
+                append(b and 0xF)
+            }
+        }
+        return digits.trimStart('0')
+    }
+
     private fun restorePersistedState() {
         val state = TransitStore.load(getApplication()) ?: return
+        val upgraded = mutableMapOf<String, UiCard>() // newId -> card
         state.dataMap.forEach { (id, d) ->
-            cardStore[id] = CardData(
-                card = d.card,
+            val cardNum = cardNumberFromNfcLog(d.nfcLog)
+            val mappedName = if (cardNum.isNotEmpty()) {
+                TransitData.cardName(cardNum)?.takeIf { it.isNotEmpty() }
+            } else null
+            val newName = mappedName ?: d.card.cardType
+            val newId = if (cardNum.isNotEmpty()) cardNum else id
+            val upgradedCard = if (newId != id || newName != d.card.cardType) {
+                d.card.copy(id = newId, name = newName, cardType = newName)
+            } else d.card
+            cardStore[newId] = CardData(
+                card = upgradedCard,
                 // 修复旧版本持久化数据：充值记录不显示站点名
                 transactions = d.transactions.map { repairRechargeTxn(it) },
                 nfcLog = d.nfcLog,
@@ -321,11 +385,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 dailySpending = d.dailySpending,
                 statsSummary = d.statsSummary
             )
+            upgraded[newId] = upgradedCard
         }
         if (state.cards.isNotEmpty()) {
-            _cards.value = state.cards
+            // 保持持久化的卡顺序：旧 id 的条目替换为升级后的卡
+            val ordered = state.cards.map { c ->
+                val cardNum = cardNumberFromNfcLog(
+                    state.dataMap[c.id]?.nfcLog ?: emptyList()
+                )
+                upgraded[if (cardNum.isNotEmpty()) cardNum else c.id] ?: c
+            }
+            _cards.value = ordered
             _hasData.value = true
-            val idx = state.selectedIndex.coerceIn(0, state.cards.size - 1)
+            val idx = state.selectedIndex.coerceIn(0, ordered.size - 1)
             selectCardByIndex(idx)
         }
     }
@@ -359,6 +431,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _filteredTransactions.value = filterTransactions(data.transactions, _currentFilter.value ?: "全部")
         _nfcLog.value = data.nfcLog
         emitStats(data)
+        // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致
+        _homeWeeklySpending.value =
+            computeDailySpending(data.transactions, "本周", periodWindow("本周", 0).first, periodWindow("本周", 0).second)
     }
 
     /**
@@ -412,11 +487,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return t
     }
 
-    private fun cardId(profile: CardProfile, transactions: List<TransactionRecord>): String {
-        return "${cardDisplayName(profile)}|${lastFourFromTransactions(transactions)}"
+    private fun cardId(profile: CardProfile, cardNumber: String, lastFour: String): String {
+        // 卡号是稳定唯一标识；读不到卡号（旧卡/解析失败）时退回 "名字|尾号"
+        return if (cardNumber.isNotEmpty()) cardNumber else "${cardDisplayName(profile, cardNumber)}|$lastFour"
     }
 
-    private fun cardDisplayName(profile: CardProfile): String {
+    private fun cardDisplayName(profile: CardProfile, cardNumber: String): String {
+        // 优先用 cardname-tu.csv 按 IIN 最长前缀匹配出的卡名（如 羊城通 / 长安通 / 上海公共交通卡）
+        // 传入完整卡号，让 cardName() 能做 8/10/12 位等变长 IIN 的最长前缀匹配
+        if (cardNumber.isNotEmpty()) {
+            val name = TransitData.cardName(cardNumber)
+            if (!name.isNullOrEmpty()) return name
+        }
         return when {
             profile.name.contains("深圳通") -> "深圳通"
             profile.name.contains("岭南通") || profile.name.contains("羊城通") -> "岭南通"
@@ -477,6 +559,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _topStations.value = emptyList()
             _topLines.value = emptyList()
             _dailySpending.value = emptyList()
+            _homeWeeklySpending.value = emptyList()
             _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         } else {
             selectCardByIndex(index.coerceAtMost(updated.size - 1))

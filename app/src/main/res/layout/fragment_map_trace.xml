@@ -39,7 +39,7 @@
                 android:layout_weight="1"
                 android:text="地图轨迹"
                 android:textColor="#FFFFFF"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <LinearLayout

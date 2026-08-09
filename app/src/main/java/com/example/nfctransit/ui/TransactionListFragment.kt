@@ -119,24 +119,41 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 .inflate(R.layout.item_transaction_row, binding.transactionListContainer, false)
 
             val icon = itemView.findViewById<TextView>(R.id.txnIcon)
-            val desc = itemView.findViewById<TextView>(R.id.txnDesc)
+            val city = itemView.findViewById<TextView>(R.id.txnCity)
+            val type = itemView.findViewById<TextView>(R.id.txnType)
             val time = itemView.findViewById<TextView>(R.id.txnTime)
             val amount = itemView.findViewById<TextView>(R.id.txnAmount)
             val balance = itemView.findViewById<TextView>(R.id.txnBalance)
             val dirIcon = itemView.findViewById<TextView>(R.id.txnDirIcon)
+            val station = itemView.findViewById<TextView>(R.id.txnStation)
+            val line = itemView.findViewById<TextView>(R.id.txnLine)
 
-            // 站名末尾的方向箭头换成 FontAwesome 图标（跟在站名后面）
+            // 站名末尾的方向箭头换成 FontAwesome 图标
             val isEntry = txn.stationName.endsWith("↓")
             val isExit = txn.stationName.endsWith("↑")
-            val cleanStation = txn.stationName
-                .replace(Regex(" [↑↓]$"), "")
+            // 去掉方向箭头后的完整站名（"1号线 体育中心"），再拆出线路和站名
+            val cleanStation = txn.stationName.replace(Regex(" [↑↓]$"), "")
+            val parts = cleanStation.split(" ", limit = 2)
+            val lineText = if (parts.size == 2) parts[0] else ""
+            val stationText = if (parts.size == 2) parts[1] else cleanStation
+
             icon.text = txn.icon
-            desc.text = listOf(txn.cityName ?: "", txn.transitType, cleanStation)
-                .filter { it.isNotEmpty() }
-                .joinToString(" ")
-            time.text = txn.displayDateTime
+            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）
+            city.text = txn.cityName ?: "未知"
+            type.text = txn.transitType
+            // 第三行：时间（带年）
+            time.text = txn.date + " " + txn.time.substring(0, 5)
             amount.text = txn.amountText
             balance.text = txn.balanceAfterText
+
+            // 第二行：出入站图标 + 站名 + 线路胶囊
+            station.text = stationText.ifEmpty { "未知" }
+            if (lineText.isNotEmpty()) {
+                line.visibility = View.VISIBLE
+                line.text = lineText
+            } else {
+                line.visibility = View.GONE
+            }
 
             if (isEntry || isExit) {
                 dirIcon.visibility = View.VISIBLE

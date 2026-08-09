@@ -39,7 +39,7 @@
                 android:layout_weight="1"
                 android:text="数据统计"
                 android:textColor="#1A1A1A"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <LinearLayout

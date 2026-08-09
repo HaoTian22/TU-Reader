@@ -13,70 +13,114 @@
     android:clickable="true"
     android:focusable="true">
 
+    <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/bg_icon_circle_blue">
+
+        <TextView
+            android:id="@+id/txnIcon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="🚇"
+            android:textSize="16sp"
+            android:gravity="center" />
+    </FrameLayout>
+
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:layout_marginStart="10dp">
 
-        <FrameLayout
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_icon_circle_blue">
-
-            <TextView
-                android:id="@+id/txnIcon"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:text="🚇"
-                android:textSize="16sp"
-                android:gravity="center" />
-        </FrameLayout>
-
+        <!-- 第一行：城市胶囊 + 类型胶囊 -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:layout_marginStart="10dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:id="@+id/txnDesc"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="地铁2号线 人民广场站"
-                    android:textColor="#1A1A1A"
-                    android:textSize="14sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:singleLine="true"
-                    android:ellipsize="end" />
-
-                <!-- 进出站图标（FontAwesome，跟在站名后面） -->
-                <TextView
-                    android:id="@+id/txnDirIcon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="13sp"
-                    android:layout_marginStart="4dp"
-                    android:visibility="gone" />
-            </LinearLayout>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
-                android:id="@+id/txnTime"
+                android:id="@+id/txnCity"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="2024-09-15 08:23:15"
-                android:textColor="#8E8E93"
-                android:textSize="11sp" />
+                android:text="广州"
+                android:textColor="#555555"
+                android:textSize="10sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:id="@+id/txnType"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="地铁"
+                android:textColor="#555555"
+                android:textSize="10sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginStart="6dp" />
         </LinearLayout>
+
+        <!-- 第二行：出入站图标 + 站名 + 线路（线路紧跟站名） -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:id="@+id/txnDirIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:layout_marginEnd="4dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txnStation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="体育中心"
+                android:textColor="#1A1A1A"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif-medium"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:maxWidth="200dp" />
+
+            <TextView
+                android:id="@+id/txnLine"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1号线"
+                android:textColor="#555555"
+                android:textSize="10sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+
+        <!-- 第三行：时间 -->
+        <TextView
+            android:id="@+id/txnTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="09-15 08:23"
+            android:textColor="#8E8E93"
+            android:textSize="10sp"
+            android:layout_marginTop="3dp" />
     </LinearLayout>
 
     <LinearLayout

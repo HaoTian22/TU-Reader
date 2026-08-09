@@ -39,9 +39,26 @@ object TransitData {
     private val cityInfos = mutableMapOf<String, Triple<String, String, String>>() // code -> (province, cityEn, cityZh)
     private val cityCache = mutableMapOf<String, CityData>() // "协议/城市码" -> 站点表
 
+    // 交通联合卡 IIN -> 卡名（来自 assets/data/TU/cardname-tu.csv）
+    private val iinNames = mutableMapOf<String, String>()
+
     fun init(context: Context) {
         appContext = context.applicationContext
         loadCityInfos()
+        loadCardNames()
+    }
+
+    /** 卡号（PAN，来自应用序列号）-> 卡名。IIN = PAN 前 8 位，按最长前缀匹配。 */
+    fun cardName(iin: String): String? {
+        var best: String? = null
+        var bestLen = -1
+        for ((key, name) in iinNames) {
+            if (iin.startsWith(key) && key.length > bestLen) {
+                bestLen = key.length
+                best = name
+            }
+        }
+        return best
     }
 
     /** 城市码 -> 显示名（如 "广州 (Guangzhou)"），未知时返回 "城市码:xxxx" */
@@ -153,6 +170,18 @@ object TransitData {
             val code = row[0].trim()
             if (code.isEmpty() || code == "code") continue
             cityInfos[code] = Triple(row[1].trim(), row[2].trim(), row[3].trim())
+        }
+    }
+
+    /** 加载 IIN -> 卡名映射（cardname-tu.csv），Name 列非空的才入库 */
+    private fun loadCardNames() {
+        val ctx = appContext ?: return
+        for (row in readCsv("$ROOT/TU/cardname-tu.csv")) {
+            if (row.size < 3) continue
+            val iin = row[0].trim()
+            val name = row[2].trim()
+            if (iin.isEmpty() || iin == "IIN" || name.isEmpty()) continue
+            iinNames[iin] = name
         }
     }
 

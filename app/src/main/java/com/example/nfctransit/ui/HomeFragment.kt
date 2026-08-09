@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -192,7 +193,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             updateDiscountProgress()
         }
 
-        viewModel.dailySpending.observe(viewLifecycleOwner) { daily ->
+        // 首页迷你图固定用"本周"视图（周一~周日 7 根柱，与固定标签一一对应）
+        viewModel.homeWeeklySpending.observe(viewLifecycleOwner) { daily ->
             if (daily.isNotEmpty()) bindMiniChart(daily)
         }
     }
@@ -237,30 +239,70 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             return
         }
 
-        for (txn in transactions) {
+        transactions.forEachIndexed { idx, txn ->
             val itemView = LayoutInflater.from(requireContext())
                 .inflate(R.layout.item_home_transaction, binding.recentTxnContainer, false)
 
             val icon = itemView.findViewById<TextView>(R.id.txnIcon)
-            val desc = itemView.findViewById<TextView>(R.id.txnDesc)
-            val time = itemView.findViewById<TextView>(R.id.txnTime)
+            val city = itemView.findViewById<TextView>(R.id.txnCity)
+            val type = itemView.findViewById<TextView>(R.id.txnType)
             val amount = itemView.findViewById<TextView>(R.id.txnAmount)
+            val dirIcon = itemView.findViewById<TextView>(R.id.txnDirIcon)
+            val station = itemView.findViewById<TextView>(R.id.txnStation)
+            val time = itemView.findViewById<TextView>(R.id.txnTime)
+
+            // 站名末尾的方向箭头换成 FontAwesome 图标
+            val isEntry = txn.stationName.endsWith("↓")
+            val isExit = txn.stationName.endsWith("↑")
+            // 去掉方向箭头后的完整站名（"1号线 体育中心"），站名只取站点部分
+            val cleanStation = txn.stationName.replace(Regex(" [↑↓]$"), "")
+            val parts = cleanStation.split(" ", limit = 2)
+            val stationText = if (parts.size == 2) parts[1] else cleanStation
 
             icon.text = txn.icon
-            desc.text = listOf(txn.cityName ?: "", txn.transitType, txn.stationName)
-                .filter { it.isNotEmpty() }
-                .joinToString(" ")
-            time.text = "${txn.date.substring(5)} ${txn.time.substring(0, 5)}"
+            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）
+            city.text = txn.cityName ?: "未知"
+            type.text = txn.transitType
             amount.text = txn.amountText
             amount.setTextColor(
                 if (txn.amountText.startsWith("+")) 0xFF34C759.toInt() else 0xFFFF3B30.toInt()
             )
+
+            // 第一行：出入站图标 + 站名
+            station.text = stationText.ifEmpty { "未知" }
+            if (isEntry || isExit) {
+                dirIcon.visibility = View.VISIBLE
+                dirIcon.typeface =
+                    Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+                // 入站 = U+F090 箭头进框（绿），出站 = U+F08B 箭头出框（红）
+                dirIcon.text = if (isEntry) "" else ""
+                dirIcon.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+            } else {
+                dirIcon.visibility = View.GONE
+            }
+
+            // 第二行：时间（带年）
+            time.text = txn.date + " " + txn.time.substring(0, 5)
 
             itemView.setOnClickListener {
                 findNavController().navigate(R.id.action_home_to_transactionList)
             }
 
             binding.recentTxnContainer.addView(itemView)
+
+            // 每项之间用虚线 divider 隔开（带上下间距）
+            if (idx < transactions.lastIndex) {
+                binding.recentTxnContainer.addView(View(requireContext()).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        3.dpToPx()
+                    ).apply {
+                        topMargin = 6.dpToPx()
+                        bottomMargin = 6.dpToPx()
+                    }
+                    setBackgroundResource(R.drawable.bg_divider_dashed)
+                })
+            }
         }
     }
 
@@ -292,10 +334,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.chartBar0, binding.chartBar1, binding.chartBar2,
             binding.chartBar3, binding.chartBar4, binding.chartBar5, binding.chartBar6
         )
-        // 统计周期可能返回整月/整年的柱子，首页迷你图只取最近有消费的 7 天
-        val recent = data.filter { it.amountYuan > 0 }.takeLast(7)
-        val maxHeight = 70f
-        // 迷你图按自身最近 7 天的最大值为基准归一化，避免被整月/整年的 max 压低
+        // data 就是本周（周一~周日）7 根柱，与下方固定标签一一对应，不再过滤零消费天
+        val recent = data.take(7)
+        // maxHeight 是 dp 值，必须转成 px，否则高密度屏上柱子只有几成高
+        val maxHeight = 70f.dpToPx()
+        // 以本周最大值为基准归一化，零消费天柱高为 0
         val miniMax = recent.maxOfOrNull { it.amountYuan } ?: 1.0
         miniChartTodayIdx = recent.indexOfFirst { it.isToday }
         miniChartCount = recent.size
@@ -305,7 +348,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (i < recent.size) {
                 val d = recent[i]
                 params.height = ((d.amountYuan / miniMax) * maxHeight).toInt().coerceAtLeast(2)
-                bars[i].setBackgroundColor(if (i == miniChartTodayIdx) accentColor else 0xFFCCCCCC.toInt())
+                // 除今天外也随高度在浅主题色~主题色之间渐变，保证柱子清晰可见
+                val color = if (i == miniChartTodayIdx) accentColor
+                    else ColorUtils.blendARGB(accentColor, 0xFFFFFFFF.toInt(), 0.75f)
+                bars[i].setBackgroundColor(color)
             } else {
                 params.height = 4
                 bars[i].setBackgroundColor(0xFFE5E5EA.toInt())

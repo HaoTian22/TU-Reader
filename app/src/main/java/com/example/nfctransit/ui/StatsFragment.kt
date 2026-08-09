@@ -192,9 +192,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 else ColorUtils.blendARGB(lightAccent, accentColor, d.barHeightPercent.coerceIn(0f, 1f))
             val bar = View(requireContext()).apply {
                 // 柱体左右留边距，柱子之间产生空隙（标签仍全宽均匀分布）
+                // maxHeight 是 dp 值，必须转成 px，否则高密度屏上柱子只有几成高
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    (d.barHeightPercent * maxHeight).toInt().coerceAtLeast(2)
+                    (d.barHeightPercent * dpToPx(maxHeight)).toInt().coerceAtLeast(2)
                 ).apply {
                     marginStart = dpToPx(2)
                     marginEnd = dpToPx(2)
@@ -241,7 +242,9 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 col.getLocationInWindow(colLoc)
                 trendBinding.root.getLocationInWindow(rootLoc)
                 val px = (colLoc[0] + col.width / 2 - popupW / 2) - rootLoc[0]
-                val py = colLoc[1] - popupH - dpToPx(4) - rootLoc[1]
+                // 柱所在列顶往下移一些（图表区有 20dp padTop，数值文字也占 13dp），
+                // 弹窗底部贴近数值文字上方，避免浮到标题行上方
+                val py = colLoc[1] - popupH - dpToPx(4) - rootLoc[1] + dpToPx(16)
                 (popup.layoutParams as FrameLayout.LayoutParams).apply {
                     this.leftMargin = px
                     this.topMargin = py

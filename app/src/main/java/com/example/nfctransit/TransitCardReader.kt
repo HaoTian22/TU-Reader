@@ -179,7 +179,11 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 validFrom = ApduUtil.bcdToString(data.copyOfRange(20, 24))
                 validTo = ApduUtil.bcdToString(data.copyOfRange(24, 28))
             }
-            CardInfo(profile.name, validFrom, validTo, hex)
+            // 应用序列号（卡号）: offset 10-19 (10B BCD)，IIN 取前 8 位匹配卡名
+            val cardNumber = if (data.size >= 20) {
+                ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
+            } else ""
+            CardInfo(profile.name, validFrom, validTo, cardNumber, hex)
         } catch (e: Exception) {
             log.add("读取信息文件异常: ${e.message}")
             null
