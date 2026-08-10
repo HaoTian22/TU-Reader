@@ -106,7 +106,12 @@ class TransitCardReader(private val isoDep: IsoDep) {
                                 emptyMap(), null, null, rawRecs
                             )
                             val merged = mergeJourneyAndFare(tuMap.journeyTxns, fareTxns)
-                            return ReadResult(profile, info, stationInfo, merged, log, rawRecords = rawRecs)
+                            // 1E/18 合并后按时间倒序展示
+                            val sorted = merged.sortedWith(
+                                compareByDescending<TransactionRecord> { it.date + it.time }
+                                    .thenByDescending { it.seq }
+                            )
+                            return ReadResult(profile, info, stationInfo, sorted, log, rawRecords = rawRecs)
                         } else if (profile.cardType == "YCT") {
                             // 双协议卡：同一钱包（余额相同），LNT + TU 两套信息与交易记录
                             // 读取顺序关键：必须先读 LNT（PAY.APPY → PAY.TICL）再读 TU 钱包。
@@ -156,9 +161,29 @@ class TransitCardReader(private val isoDep: IsoDep) {
                             info = readCardInfo(profile, log)
                             val balance = readBalance(profile, log)
                             stationInfo = StationInfo(balanceFen = balance)
+                            // 交易区读全：主 0x18 + 各卡附加（CU 0x10/0x06/0x1A、天津 0x09），统一 23B 记录。
+                            // 不存在的 SFI 直接返回 6A82 被跳过，安全。读全后按 时间+终端+金额 去重、按时间倒序。
+                            val rawRecs = mutableListOf<RawRecord>()
+                            val extraSfis = when (profile.cardType) {
+                                "CU" -> listOf(0x10, 0x06, 0x1A)
+                                "TFT" -> listOf(0x10, 0x09)
+                                else -> emptyList()
+                            }
+                            val year = Calendar.getInstance().get(Calendar.YEAR)
+                            val allTrades = mutableListOf<TransactionRecord>()
+                            allTrades.addAll(
+                                readTransactions(profile, log, terminalInfoMap, balanceMap, stationInfo?.cityCode, tradeSfi, "TU", year, 0L, emptyMap(), null, null, rawRecs)
+                            )
+                            for (sfi in extraSfis) {
+                                allTrades.addAll(
+                                    readTransactions(profile, log, terminalInfoMap, balanceMap, stationInfo?.cityCode, sfi, "TU", year, 0L, emptyMap(), null, null, rawRecs)
+                                )
+                            }
+                            val trades = allTrades
+                                .distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountYuan}" }
+                                .sortedWith(compareByDescending<TransactionRecord> { it.date + it.time }.thenByDescending { it.seq })
+                            return ReadResult(profile, info, stationInfo, trades, log, rawRecords = rawRecs)
                         }
-                        val trades = readTransactions(profile, log, terminalInfoMap, balanceMap, stationInfo?.cityCode, tradeSfi)
-                        return ReadResult(profile, info, stationInfo, trades, log)
                     }
                 }
             }
