@@ -105,7 +105,10 @@ data class TransactionRecord(
     val cityName: String = "",      // 城市中文名（从 citylist.csv 获取）
     val date: String,
     val time: String,
-    val balanceAfterFen: Long = 0   // 交易后余额（分），从 SFI 0x1E 匹配
+    val balanceAfterFen: Long = 0,   // 交易后余额（分），从 SFI 0x1E 匹配
+    val sourceSfi: Int = 0x18,       // 交易来源区：0x18 主交易（23B）、0x1E 交联（48B）、附加区 0x10/0x09/0x06/0x1A
+    val sourceRecNo: Int = 0,        // 来源区记录号
+    val rawKey: String = ""          // 原始记录身份（重读去重）："SFI:记录号:hex"
 )
 
 /** 公共应用基本信息 */

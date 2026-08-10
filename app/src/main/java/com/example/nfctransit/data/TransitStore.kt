@@ -4,6 +4,16 @@ import android.content.Context
 import com.example.nfctransit.model.*
 import com.google.gson.Gson
 
+/** 一条原始 SFI 记录（持久化用，重读时按原始身份去重） */
+data class RawRecord(
+    val sfi: Int,          // 来源区（0x18 / 0x1E / …）
+    val recNo: Int,        // 记录号
+    val hex: String        // 原始字节 hex
+) {
+    /** 原始身份：同 SFI 同记录号同内容视为同一条记录 */
+    val identity: String get() = "$sfi:$recNo:$hex"
+}
+
 /** 单张卡片的持久化数据 */
 data class PersistedCardData(
     val card: UiCard,
@@ -12,7 +22,8 @@ data class PersistedCardData(
     val topStations: List<StationStat>,
     val topLines: List<LineStat>,
     val dailySpending: List<DailySpending>,
-    val statsSummary: StatsSummary
+    val statsSummary: StatsSummary,
+    val rawRecords: List<RawRecord>? = null  // 各交易区原始记录；nullable 兼容旧版持久化（Gson 反序列化为 null）
 )
 
 /** 应用持久化状态：所有卡片 + 每张卡的数据 + 上次选中的卡片下标 */

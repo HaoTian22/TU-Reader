@@ -2,6 +2,7 @@ package com.example.nfctransit
 
 import android.nfc.tech.IsoDep
 import android.util.Log
+import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.TransitData
 import java.util.Calendar
 
@@ -18,6 +19,14 @@ class TransitCardReader(private val isoDep: IsoDep) {
 
     private val TAG = "TransitCardReader"
 
+    /** YCT 卡读取结果：信息 + 余额 + 年份锚点 + 卡内折扣统计 */
+    private data class YctCardResult(
+        val info: CardInfo?,
+        val balance: Long,
+        val issueYear: Int,
+        val payMonth: Int?            // 统计月份 YYYYMM（LNT 交易年份锚点）
+    )
+
     data class ReadResult(
         val matchedProfile: CardProfile?,
         val cardInfo: CardInfo?,
@@ -25,7 +34,8 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val transactions: List<TransactionRecord>,
         val rawLog: List<String>,
         val secondCardInfo: CardInfo? = null,  // 双钱包卡（如 LNT+TU）的第二个钱包信息
-        val secondStationInfo: StationInfo? = null  // 第二个钱包的余额
+        val secondStationInfo: StationInfo? = null,  // 第二个钱包的余额
+        val rawRecords: List<RawRecord> = emptyList()  // 各交易区原始记录（持久化/重读去重用）
     )
 
     /** SFI 0x1E 终端映射表中的一条站点信息（线路/站名分开，供界面直接使用；ID 用于跨页面传递） */
@@ -40,6 +50,23 @@ class TransitCardReader(private val isoDep: IsoDep) {
     ) {
         val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
     }
+
+    /** SFI 0x1E 读取结果：最新站点信息 + 终端映射 + 余额映射 + 原始记录 + 1E 旅程交易 */
+    private data class TuMapResult(
+        val stationInfo: StationInfo?,
+        val stationMap: Map<String, StationRef>,
+        val balanceMap: Map<String, Long>,
+        val rawRecords: List<RawRecord>,
+        val journeyTxns: List<TransactionRecord>  // 1E 记录解析出的旅程交易（无金额，站点/方向/余额）
+    )
+
+    /** 双协议卡 TU 钱包读取结果：信息 + 站点信息 + 1E/18 合并交易 + 原始记录 */
+    private data class TuWalletResult(
+        val info: CardInfo?,
+        val stationInfo: StationInfo?,
+        val transactions: List<TransactionRecord>,
+        val rawRecords: List<RawRecord>
+    )
 
     fun read(): ReadResult {
         val log = mutableListOf<String>()
@@ -67,32 +94,63 @@ class TransitCardReader(private val isoDep: IsoDep) {
                             info = readCardInfo(profile, log)
                             // 遍历手册列出的全部 SFI，读出原始数据用于分析文件结构
                             probeAllFiles(profile, log)
-                            val (si, infoMap, balMap) = buildTuTerminalStationMap(profile.stationSfi, log)
-                            stationInfo = si
-                            terminalInfoMap.putAll(infoMap)
-                            balanceMap.putAll(balMap)
+                            val tuMap = buildTuTerminalStationMap(profile.stationSfi, log)
+                            stationInfo = tuMap.stationInfo
+                            terminalInfoMap.putAll(tuMap.stationMap)
+                            balanceMap.putAll(tuMap.balanceMap)
+                            val rawRecs = tuMap.rawRecords.toMutableList()
+                            val fareTxns = readTransactions(
+                                profile, log, terminalInfoMap, balanceMap,
+                                stationInfo?.cityCode, tradeSfi, "TU",
+                                Calendar.getInstance().get(Calendar.YEAR), 0L,
+                                emptyMap(), null, null, rawRecs
+                            )
+                            val merged = mergeJourneyAndFare(tuMap.journeyTxns, fareTxns)
+                            return ReadResult(profile, info, stationInfo, merged, log, rawRecords = rawRecs)
                         } else if (profile.cardType == "YCT") {
                             // 双协议卡：同一钱包（余额相同），LNT + TU 两套信息与交易记录
-                            //  LNT 协议（PAY.APPY / PAY.TICL）：SFI 0x15 信息文件 + SFI 0x18 交易（无年份，用发卡年）
-                            //  TU 协议（A000000632010105）：SFI 0x15 信息文件 + SFI 0x18 交易（带年份）
-                            // readYctCard 内部选中 PAY.TICL，随后读 LNT 交易；
-                            // 之后再 SELECT TU AID 读 TU 信息与交易，合并。
-                            val (yctInfo, yctBalance, issueYear) = readYctCard(profile, log)
-                            info = yctInfo
-                            stationInfo = StationInfo(balanceFen = yctBalance)
-                            val lntTrades = readTransactions(profile, log, emptyMap(), emptyMap(), null, profile.tradeSfi, "LNT", issueYear, yctBalance)
-                            // 第二协议：TU
+                            // 读取顺序关键：必须先读 LNT（PAY.APPY → PAY.TICL）再读 TU 钱包。
+                            // 实测先 SELECT TU AID 后，再重选 PAY.APPY 返回 6A82（无法切回），导致 LNT 读不出。
+                            // LNT 交易无年份，用统计月份（SFI 0x08 rec1）做锚点 + 记录间月份连续性推断。
+                            val yct = readYctCard(profile, log)
+                            info = yct.info
+                            stationInfo = StationInfo(balanceFen = yct.balance)
+                            val rawRecs = mutableListOf<RawRecord>()
+                            val lntTrades = readTransactions(
+                                profile, log, emptyMap(), emptyMap(), null,
+                                profile.tradeSfi, "LNT", yct.issueYear, yct.balance,
+                                emptyMap(), null, yct.payMonth, rawRecs
+                            )
+                            // 第二协议：TU 钱包（SELECT TU AID 必须在 LNT 之后）
                             val tu = readTuWallet(log)
-                            secondInfo = tu.first
-                            secondStationInfo = tu.second
-                            val allTrades = lntTrades + tu.third
+                            secondInfo = tu.info
+                            secondStationInfo = tu.stationInfo
+                            rawRecs.addAll(tu.rawRecords)
+                            // 统计月份缺失时，用 TU 交易锚点兜底 LNT 年份（mmdd 对齐，否则出现最多的年份）
+                            var finalLnt = lntTrades
+                            if (yct.payMonth == null && tu.transactions.isNotEmpty()) {
+                                val anchor = tu.transactions.mapNotNull { t ->
+                                    if (t.date.length >= 8) t.date.substring(4, 8) to t.date.take(4) else null
+                                }.toMap()
+                                val fallback = tu.transactions.mapNotNull { t ->
+                                    if (t.date.length >= 8) t.date.take(4) else null
+                                }.groupBy { it }.maxByOrNull { it.value.size }?.key
+                                if (anchor.isNotEmpty() || fallback != null) {
+                                    finalLnt = lntTrades.map { t ->
+                                        val mmdd = t.date.takeLast(4)
+                                        val y = anchor[mmdd] ?: fallback
+                                        if (y != null && y != t.date.take(4)) t.copy(date = y + mmdd) else t
+                                    }
+                                }
+                            }
+                            val allTrades = finalLnt + tu.transactions
                             // 双协议卡的 seq 是各协议文件内的序号（LNT 与 TU 各自从高到低），
                             // 按 seq 合并会把 LNT 全排前、TU 全排后（协议分组）。改为按交易时间倒序合并。
                             val trades = allTrades.sortedWith(
                                 compareByDescending<TransactionRecord> { it.date + it.time }
                                     .thenByDescending { it.seq }
                             )
-                            return ReadResult(profile, info, stationInfo, trades, log, secondInfo, secondStationInfo)
+                            return ReadResult(profile, info, stationInfo, trades, log, secondInfo, secondStationInfo, rawRecs)
                         } else {
                             // 非 TU 卡（CU/SZT/苏州/天津）：通用 SFI 0x15 + BALANCE CHECK
                             info = readCardInfo(profile, log)
@@ -115,25 +173,27 @@ class TransitCardReader(private val isoDep: IsoDep) {
     }
 
     /**
-     * TU 卡：遍历 SFI 0x1E 所有记录，建立「终端号 → (站名, 交通类型)」映射表
-     * 同时返回最新一条记录（按时间戳）作为 StationInfo 用于显示余额和方向
+     * TU 卡：遍历 SFI 0x1E 所有记录，建立「终端号 → (站名, 交通类型)」映射表，
+     * 同时返回最新一条记录（按时间戳）作为 StationInfo、余额映射表、
+     * 原始记录（持久化/重读去重）与 1E 旅程交易（进站/出站事件，无金额，用于与 18 合并去重）。
      *
      * SFI 0x1E 记录结构（48 字节）：
+     *   offset 0:     记录类型 03=入站(↓) 04=出站(↑)
      *   offset 3-8:   终端号 BCD (6B) → 如 413101330638
      *   offset 10-11: 线路编码 BCD (2B) → 如 0001
      *   offset 12-13: 站点编码 BCD (2B) → 如 0003
-     *   offset 17-20: 余额 Hex Long (4B) → 如 00000F4A = 3914分 = ¥39.14
+     *   offset 21-24: 余额 Hex Long (4B) → 如 00000F4A = 3914分 = ¥39.14
+     *   offset 25-31: 时间戳 BCD (7B YYYYMMDDHHMMSS)
      *   offset 32-33: 城市码 BCD (2B) → 如 5810
-     *
-     * 方向判定：通过 SFI 0x1E Type 字段 → Type 03=入站, Type 04=出站
-     *   offset 0 处可能是记录类型标识
      */
     private fun buildTuTerminalStationMap(
         sfi: Int,
         log: MutableList<String>
-    ): Triple<StationInfo?, Map<String, StationRef>, Map<String, Long>> {
+    ): TuMapResult {
         val map = mutableMapOf<String, StationRef>()
         val balanceMap = mutableMapOf<String, Long>()
+        val rawRecords = mutableListOf<RawRecord>()
+        val journeyTxns = mutableListOf<TransactionRecord>()
         var latestStationInfo: StationInfo? = null
         var latestTimestamp = ""
 
@@ -145,6 +205,10 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
                 if (data.size < 22) break
+                rawRecords.add(RawRecord(sfi, recordNo, ApduUtil.bytesToHex(data)))
+
+                // 循环记录文件的空槽：整条全 0，跳过（不生成旅程交易/映射条目）
+                if (data.all { it.toInt() == 0 }) continue
 
                 // 终端号: offset 3-8 (6 bytes BCD)
                 val terminal = ApduUtil.bcdToString(data.copyOfRange(3, 9))
@@ -176,6 +240,11 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     ApduUtil.hexToLong(data.copyOfRange(21, 25))
                 } else 0L
 
+                // 金额（票价）: offset 19-20 (2 bytes, big-endian hex, 单位: 分)；进站为 0，出站=本次票价
+                val amountFen = if (data.size >= 21) {
+                    ApduUtil.hexToLong(data.copyOfRange(19, 21))
+                } else 0L
+
                 // 时间戳: offset 25-31 (7 bytes BCD: YYYYMMDDHHMMSS) → 用于比较取最新记录
                 val timestamp = if (data.size >= 32) {
                     ApduUtil.bcdToString(data.copyOfRange(25, 32))
@@ -186,6 +255,31 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 // 余额映射表: key = "terminal|timestamp"，供交易记录按终端+时间匹配余额
                 if (terminal.isNotEmpty() && timestamp.isNotEmpty()) {
                     balanceMap["$terminal|$timestamp"] = balanceFen
+                }
+
+                // 1E 旅程交易：进站/出站事件（1E 记录自带票价[19..21)与余额[21..25)），用于与 18 合并去重
+                if (timestamp.length >= 14) {
+                    journeyTxns.add(
+                        TransactionRecord(
+                            seq = 0,
+                            amountYuan = amountFen / 100.0,
+                            typeHex = ApduUtil.bytesToHex(byteArrayOf(data[0])),
+                            transitType = transitType,
+                            terminal = terminal,
+                            stationName = StationRef(stationName, lineName, transitType, direction, lineColor, lineId, stationId).stationWithDir,
+                            lineName = lineName,
+                            lineColor = lineColor,
+                            lineId = lineId,
+                            stationId = stationId,
+                            cityName = if (cityCode.isNotEmpty()) TransitData.cityZh(cityCode) else "",
+                            date = timestamp.substring(0, 8),
+                            time = timestamp.substring(8, 14),
+                            balanceAfterFen = balanceFen,
+                            sourceSfi = sfi,
+                            sourceRecNo = recordNo,
+                            rawKey = "$sfi:$recordNo:${ApduUtil.bytesToHex(data)}"
+                        )
+                    )
                 }
 
                 // 选择时间戳最新的记录作为当前卡片信息
@@ -208,8 +302,8 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 break
             }
         }
-        log.add("TU 终端映射表: ${map.size} 条, 最新余额: ${latestStationInfo?.balanceFen ?: 0}分")
-        return Triple(latestStationInfo, map, balanceMap)
+        log.add("TU 终端映射表: ${map.size} 条, 1E 旅程 ${journeyTxns.size} 条, 最新余额: ${latestStationInfo?.balanceFen ?: 0}分")
+        return TuMapResult(latestStationInfo, map, balanceMap, rawRecords, journeyTxns)
     }
 
     /** 遍历手册列出的全部 SFI，先试 READ BINARY，失败再试 READ RECORD，读出原始数据用于分析文件结构 */
@@ -253,12 +347,15 @@ class TransitCardReader(private val isoDep: IsoDep) {
 
     /**
      * YCT（岭南通/羊城通）LNT 钱包读取（tripreader-technical.md §3.2 + 真卡文件结构）：
-     *  基本应用 PAY.APPY(DDF1) 下：READ BINARY SFI=0x15 P2=0x40 Le=0x46 读信息文件
+     *  基本应用 PAY.APPY(DDF1) 下：READ BINARY SFI=0x15 P2=0x40 Le=0x46 读信息文件；
+     *   同上下文读 SFI=0x08 rec1（00 B2 01 44 16）当月统计月份 → 作为 LNT 交易年份锚点
      *  钱包应用 PAY.TICL(ADF3) 下：BALANCE CHECK 查余额
      * 随后的交易明细（SFI=0x18）也必须在 PAY.TICL 上下文读取，因此这里选中 TICL 后不切回。
-     * 返回 (信息, 余额分, 发卡年份)——发卡年用于给无年份的 LNT 交易记录补年份。
      */
-    private fun readYctCard(profile: CardProfile, log: MutableList<String>): Triple<CardInfo?, Long, Int> {
+    private fun readYctCard(
+        profile: CardProfile,
+        log: MutableList<String>
+    ): YctCardResult {
         // 0) 若识别为 YCT2(PAY.TICL)，先重选基本应用 PAY.APPY，信息文件在其上下文中
         val appyAid = "5041592E41505059"
         val selectAppy = isoDep.transceive(ApduUtil.buildSelectByName(appyAid))
@@ -266,6 +363,22 @@ class TransitCardReader(private val isoDep: IsoDep) {
         // ① 信息文件（PAY.APPY 上下文）：SFI=0x15, P2=0x40, Le=0x46
         val info = readYctInfo(profile, log)
         val issueYear = info?.validFrom?.take(4)?.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+        // ①.5 统计月份（PAY.APPY 上下文）：SFI=0x08 rec1（00 B2 01 44 16，22B）[3]年BCD+2000、[4]月BCD。
+        //    LNT 交易记录无年份，用它做年份锚点（Trip Reader relYear 逻辑同源）
+        var payMonth: Int? = null
+        try {
+            val resp = isoDep.transceive(ApduUtil.buildReadRecord(0x08, 1, 0x16))
+            log.add("READ RECORD SFI=08 rec=1 (stats month) -> ${ApduUtil.bytesToHex(resp)}")
+            val d = ApduUtil.dataOnly(resp)
+            if (d.size >= 5) {
+                val year = 2000 + bcdNibble(d[3])
+                val month = bcdNibble(d[4])
+                if (month in 1..12) payMonth = year * 100 + month
+                log.add("统计月份: ${if (payMonth != null) payMonth else "无法解析"}")
+            }
+        } catch (e: Exception) {
+            log.add("读取统计月份异常: ${e.message}")
+        }
         // ② SELECT 钱包应用 PAY.TICL（AID=5041592E5449434C）
         val ticlAid = "5041592E5449434C"
         val selectTicl = isoDep.transceive(ApduUtil.buildSelectByName(ticlAid))
@@ -275,26 +388,38 @@ class TransitCardReader(private val isoDep: IsoDep) {
         }
         // ③ BALANCE CHECK 查余额（必须在 TICL 上下文）
         val balance = readBalance(profile, log)
-        return Triple(info, balance, issueYear)
+        return YctCardResult(info, balance, issueYear, payMonth)
     }
 
     /**
      * 双协议卡的 TU 协议钱包（A000000632010105）：信息文件 + 余额 + 交易记录。
-     * 与纯 TU 卡共享通用信息文件（SFI 0x15，卡号 [10..20) BCD）与 SFI 0x18 交易。
-     * 返回 (信息, 余额, 交易记录)。
+     * 与纯 TU 卡一致，先读 SFI 0x1E 建立 终端→站点+方向 映射表 与 余额映射表，
+     * 并把 1E 记录解析成旅程交易，与 SFI 0x18 主交易按时间戳合并去重。
+     * 返回信息、站点信息、合并后交易、原始记录。
      */
-    private fun readTuWallet(log: MutableList<String>): Triple<CardInfo?, StationInfo?, List<TransactionRecord>> {
-        val tuProfile = CardProfiles.known.firstOrNull { it.cardType == "TU" } ?: return Triple(null, null, emptyList())
+    private fun readTuWallet(log: MutableList<String>): TuWalletResult {
+        val tuProfile = CardProfiles.known.firstOrNull { it.cardType == "TU" }
+            ?: return TuWalletResult(null, null, emptyList(), emptyList())
         val selectTu = isoDep.transceive(ApduUtil.buildSelectByName(tuProfile.aidCandidates.first()))
         log.add("SELECT AID ${tuProfile.aidCandidates.first()} (dual TU) -> ${ApduUtil.bytesToHex(selectTu)}")
         if (!ApduUtil.isSuccess(selectTu)) {
             log.add("双协议卡 TU 协议选择失败")
-            return Triple(null, null, emptyList())
+            return TuWalletResult(null, null, emptyList(), emptyList())
         }
         val info = readCuInfo(tuProfile, log)
         val balance = readBalance(tuProfile, log)
-        val trades = readTransactions(tuProfile, log, emptyMap(), emptyMap(), null, tuProfile.tradeSfi, "TU", Calendar.getInstance().get(Calendar.YEAR))
-        return Triple(info, StationInfo(balanceFen = balance), trades)
+        // 与纯 TU 卡一致：先建 SFI 0x1E 终端映射表，交联交易按终端号解析站点
+        val tuMap = buildTuTerminalStationMap(tuProfile.stationSfi!!, log)
+        val station = tuMap.stationInfo ?: StationInfo(balanceFen = balance)
+        val cardCityCode = station.cityCode?.takeIf { it != "未知" }
+        val rawRecs = tuMap.rawRecords.toMutableList()
+        val fareTxns = readTransactions(
+            tuProfile, log, tuMap.stationMap, tuMap.balanceMap, cardCityCode,
+            tuProfile.tradeSfi, "TU", Calendar.getInstance().get(Calendar.YEAR), 0L,
+            emptyMap(), null, null, rawRecs
+        )
+        val merged = mergeJourneyAndFare(tuMap.journeyTxns, fareTxns)
+        return TuWalletResult(info, station, merged, rawRecs)
     }
 
     /**
@@ -424,9 +549,17 @@ class TransitCardReader(private val isoDep: IsoDep) {
         tradeSfi: Int = profile.tradeSfi,
         protocol: String = "TU",
         issueYear: Int = Calendar.getInstance().get(Calendar.YEAR),
-        defaultBalanceFen: Long = 0L
+        defaultBalanceFen: Long = 0L,
+        lntYearAnchor: Map<String, String> = emptyMap(),   // LNT mmdd → 年份（TU 记录对齐）
+        lntYearFallback: String? = null,                    // 兜底年份（TU 记录出现最多的年份）
+        lntPayMonth: Int? = null,                           // 统计月份 YYYYMM（SFI 0x08 rec1），LNT 年份锚点
+        rawCollector: MutableList<RawRecord>? = null        // 原始记录收集器（持久化/重读去重用）
     ): List<TransactionRecord> {
         val results = mutableListOf<TransactionRecord>()
+        // LNT 记录从文件读到的是倒序（新→旧），但记录号越旧 seq 越大。年份连续性推断：
+        // 从统计月份倒推，月份回退（跨年）则年份减 1。文件遍历方向（rec 从小到大）恰为时间从新到旧。
+        var relYear: Int? = lntPayMonth?.div(100)
+        var lastMonth: Int? = lntPayMonth?.mod(100)
         // 城市中文名：整个卡片属于同一城市，取 SFI 0x1E 城市码查询一次（仅 TU 有该字段）
         val cardCityName = if (!cardCityCode.isNullOrEmpty() && cardCityCode != "未知") {
             TransitData.cityZh(cardCityCode)
@@ -440,6 +573,10 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
                 if (data.size < 0x17) break
+                rawCollector?.add(RawRecord(tradeSfi, recordNo, ApduUtil.bytesToHex(data)))
+
+                // 循环记录文件的空槽：整条全 0（seq=0/时间全 0/金额 0），跳过不生成交易
+                if (data.all { it.toInt() == 0 }) continue
 
                 val seq = ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt()
                 val amountHex = data.copyOfRange(6, 9)
@@ -449,11 +586,21 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))  // [10..16) 6 字节 hex
 
                 // 日期：TU/CU 等 [16..20) 是 YYYYMMDD、[20..23) 是 HHMMSS；
-                // LNT 无年份字段，[18..23) = MMDDHHMMSS，年份用发卡年（卡片生命周期内，发卡后所有交易都在当年或次年）
+                // LNT 无年份字段，[18..23) = MMDDHHMMSS。年份用 relYear 连续性推断：
+                //  从统计月份（或回退锚点）倒推，月份回退（跨年）则年份减 1。
                 val (date, time) = if (protocol == "LNT") {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
-                    val year = lntYear(issueYear, mmdd, ApduUtil.bcdToString(data.copyOfRange(20, 23)))
-                    year + mmdd to ApduUtil.bcdToString(data.copyOfRange(20, 23))
+                    val hhmmss = ApduUtil.bcdToString(data.copyOfRange(20, 23))
+                    val thisMonth = mmdd.take(2).toIntOrNull()
+                    var year: String? = null
+                    if (relYear != null && thisMonth != null && lastMonth != null) {
+                        // 本记录月份比上一记录大（回退遍历到更早的跨年点）→ 年份减一
+                        if (thisMonth > lastMonth) relYear = relYear!! - 1
+                        year = relYear.toString()
+                        lastMonth = thisMonth
+                    }
+                    val resolvedYear = year ?: lntYearAnchor[mmdd] ?: lntYearFallback ?: issueYear.toString()
+                    resolvedYear + mmdd to hhmmss
                 } else {
                     ApduUtil.bcdToString(data.copyOfRange(16, 20)) to
                         ApduUtil.bcdToString(data.copyOfRange(20, 23))
@@ -506,7 +653,10 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         },
                         date = date,
                         time = time,
-                        balanceAfterFen = balanceAfterFen
+                        balanceAfterFen = balanceAfterFen,
+                        sourceSfi = tradeSfi,
+                        sourceRecNo = recordNo,
+                        rawKey = "$tradeSfi:$recordNo:${ApduUtil.bytesToHex(data)}"
                     )
                 )
             } catch (e: Exception) {
@@ -517,20 +667,49 @@ class TransitCardReader(private val isoDep: IsoDep) {
         return results
     }
 
+    /**
+     * 1E（旅程，48B，含站点/方向/余额）与 18（主交易，23B，含金额/类型）按时间戳去重合并：
+     *  - 同一时间戳两条都有 → 合并：取 18 的金额/类型/序号 + 1E 的站点/线路/方向/余额
+     *  - 只有 18 → 原样（站点已由终端映射解析）
+     *  - 只有 1E → 保留为旅程交易（进站/出站事件，金额 0），满足"只有 1E 也要展示"
+     */
+    private fun mergeJourneyAndFare(
+        journey: List<TransactionRecord>,
+        fare: List<TransactionRecord>
+    ): List<TransactionRecord> {
+        if (journey.isEmpty()) return fare
+        val fareByTs = fare.groupBy { it.date + it.time }
+        val out = mutableListOf<TransactionRecord>()
+        val consumed = mutableSetOf<String>()
+        for (f in fare) {
+            val ts = f.date + f.time
+            val j = fareByTs[ts]?.firstOrNull {
+                it.stationName.isNotEmpty() && it.stationName != "未知"
+            }
+            if (j != null && consumed.add(ts)) {
+                out.add(f.copy(
+                    stationName = j.stationName,
+                    lineName = j.lineName,
+                    lineColor = j.lineColor,
+                    lineId = j.lineId,
+                    stationId = j.stationId,
+                    balanceAfterFen = if (j.balanceAfterFen != 0L) j.balanceAfterFen else f.balanceAfterFen
+                ))
+            } else {
+                out.add(f)
+            }
+        }
+        for (j in journey) {
+            val ts = j.date + j.time
+            if (ts !in fareByTs && ts !in consumed) out.add(j)
+        }
+        return out
+    }
+
     /** BCD 半字节 → 十进制数（0x12 → 12） */
     private fun bcdNibble(b: Byte): Int {
         val v = b.toInt() and 0xFF
         return (v shr 4) * 10 + (v and 0x0F)
-    }
-
-    /**
-     * LNT 交易记录无年份字段（日期为 MMDD），无法逐条区分年份。
-     * 实测该卡全部交易都发生在发卡年（2024 发卡、2024-08~10 使用），故直接用发卡年。
-     * 相比"与今天比较推断今年/去年"：卡片可能已使用多年（如 2024 发卡、2026 读取），
-     * 用今天的年份会错推成 2025/2026，而发卡年是唯一可靠的下界。
-     */
-    private fun lntYear(issueYear: Int, mmdd: String, hhmmss: String): String {
-        return issueYear.toString()
     }
 
     /**
@@ -580,18 +759,19 @@ class TransitCardReader(private val isoDep: IsoDep) {
             // 回退到 DB 按城市+位置码解析
             val fallback = TransitData.resolveByStandard("TU", cityCode, posHex, terminal)
             if (fallback != null) return fallback.toStationRef()
-            return StationRef("轨道交通 (TU终端:$terminal)", "", "轨道交通 (Metro)", "")
+            return StationRef("轨道交通", "", "轨道交通 (Metro)", "")
         }
 
         // 非 TU 卡种：按 城市码 + 位置码/终端号 查 DB
         val entry = TransitData.resolveByStandard(profile.cardType, cityCode, posHex, terminal)
         if (entry != null) return entry.toStationRef()
+        // 站点未解析到时用友好兜底（城市已单独显示，站名不再带终端号等内部信息）
         return StationRef(
             when (profile.cardType) {
-                "CU" -> "轨道交通 (CU终端:$terminal)"
-                "YCT" -> "公共交通 (YCT终端:$terminal)"
-                "SZT" -> "深圳通 (SZT终端:$terminal)"
-                else -> "公共交通 (${profile.cardType}终端:$terminal)"
+                "CU" -> "轨道交通"
+                "YCT" -> "公共交通"
+                "SZT" -> "深圳通"
+                else -> "公共交通"
             },
             "",
             "公共交通",

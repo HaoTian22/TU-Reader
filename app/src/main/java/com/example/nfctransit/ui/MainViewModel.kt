@@ -9,6 +9,7 @@ import com.example.nfctransit.TransactionRecord
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.data.PersistedCardData
 import com.example.nfctransit.data.PersistedState
+import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitStore
 import com.example.nfctransit.model.*
@@ -29,7 +30,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val topStations: List<StationStat>,
         val topLines: List<LineStat>,
         val dailySpending: List<DailySpending>,
-        val statsSummary: StatsSummary
+        val statsSummary: StatsSummary,
+        val rawRecords: List<RawRecord> = emptyList()  // 各交易区原始记录（重读按原始身份去重）
     )
 
     private val cardStore = mutableMapOf<String, CardData>()
@@ -160,11 +162,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             newUiTxns
         }
+        // 过滤循环记录文件的全 0 空槽（既含本次新读到、也含旧持久化残留）
+        val filteredMerged = rawMerged.filterNot { isBlankSlotTxn(it) }
         // 城市名补全：同一张卡属于同一城市，用本次扫描结果回填；并修复旧数据的充值站点名
-        val mergedTxns = rawMerged.mapIndexed { idx, t ->
+        val mergedTxns = filteredMerged.mapIndexed { idx, t ->
             repairRechargeTxn(
                 t.copy(id = idx, cityName = (t.cityName ?: "").ifEmpty { scannedCity })
             )
+        }
+
+        // 原始记录与已存合并去重（按 SFI+记录号+内容 身份）
+        val mergedRaw = if (existing != null) {
+            val existingRawIds = existing.rawRecords.map { it.identity }.toHashSet()
+            (result.rawRecords.filter { it.identity !in existingRawIds } + existing.rawRecords)
+                .distinctBy { it.identity }
+        } else {
+            result.rawRecords
         }
 
         val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
@@ -175,7 +188,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             topStations = computeTopStations(mergedTxns),
             topLines = computeTopLines(mergedTxns),
             dailySpending = computeDailySpending(mergedTxns, currentPeriod, winStart, winEnd),
-            statsSummary = computeStatsSummary(mergedTxns)
+            statsSummary = computeStatsSummary(mergedTxns),
+            rawRecords = mergedRaw
         )
 
         val isNew = !cardStore.containsKey(card.id) && legacyKey == null
@@ -371,7 +385,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val state = TransitStore.load(getApplication()) ?: return
         val upgraded = mutableMapOf<String, UiCard>() // newId -> card
         state.dataMap.forEach { (id, d) ->
-            val cardNum = cardNumberFromNfcLog(d.nfcLog)
+            // 优先用已持久化的主卡号（双协议卡的 nfcLog 里可能有 LNT+TU 两条 SFI=0x21，
+            // 从日志反推会取到 TU 卡号导致重开 app 后卡片身份漂移）。
+            // 只有旧版本数据（cardNumber 为空）才回退到从 nfcLog 反推。
+            val persistedCardNumber = d.card.cardNumber ?: ""
+            val cardNum = if (persistedCardNumber.isNotEmpty()) {
+                persistedCardNumber
+            } else {
+                cardNumberFromNfcLog(d.nfcLog)
+            }
             val mappedName = if (cardNum.isNotEmpty()) {
                 TransitData.cardName(cardNum)?.takeIf { it.isNotEmpty() }
             } else null
@@ -393,21 +415,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 card = upgradedCard,
                 // 修复旧版本持久化数据：充值记录不显示站点名；按 "线路 站点" 组合串反查补回 lineId/stationId
                 // （旧版本曾把英文 "Line 1 Huadiwan" 按空格误拆成 line='Line', station='1 Huadiwan'）
-                transactions = d.transactions.map { resolveNamesById(it) }.map { repairRechargeTxn(it) },
+                // 并过滤循环记录文件的全 0 空槽（旧版本误当成交易持久化下来的垃圾记录）
+                transactions = d.transactions
+                    .filterNot { isBlankSlotTxn(it) }
+                    .map { resolveNamesById(it) }
+                    .map { repairRechargeTxn(it) },
                 nfcLog = d.nfcLog,
                 topStations = d.topStations,
                 topLines = d.topLines,
                 dailySpending = d.dailySpending,
-                statsSummary = d.statsSummary
+                statsSummary = d.statsSummary,
+                rawRecords = d.rawRecords ?: emptyList()
             )
             upgraded[newId] = upgradedCard
         }
         if (state.cards.isNotEmpty()) {
-            // 保持持久化的卡顺序：旧 id 的条目替换为升级后的卡
+            // 保持持久化的卡顺序：旧 id 的条目替换为升级后的卡。
+            // 卡号优先用已持久化的 cardNumber；双协议卡从 nfcLog 反推会取到 TU 号
             val ordered = state.cards.map { c ->
-                val cardNum = cardNumberFromNfcLog(
-                    state.dataMap[c.id]?.nfcLog ?: emptyList()
-                )
+                val cardNum = (c.cardNumber ?: "").ifEmpty {
+                    cardNumberFromNfcLog(state.dataMap[c.id]?.nfcLog ?: emptyList())
+                }
                 upgraded[if (cardNum.isNotEmpty()) cardNum else c.id] ?: c
             }
             _cards.value = ordered
@@ -434,7 +462,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     topStations = d.topStations,
                     topLines = d.topLines,
                     dailySpending = d.dailySpending,
-                    statsSummary = d.statsSummary
+                    statsSummary = d.statsSummary,
+                    rawRecords = d.rawRecords
                 )
             },
             selectedIndex = _selectedIndex.value ?: 0
@@ -505,6 +534,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * 循环记录文件（SFI 0x18）未使用的空槽：整条全 0（seq=0、时间 0000-00-00、
+     * 金额 0、终端空）会被误当交易读取并持久化，直接过滤掉。
+     */
+    private fun isBlankSlotTxn(t: UiTransaction): Boolean {
+        return t.seq == 0 && t.amountYuan == 0.0 &&
+            t.date.startsWith("0000-00-00") && t.time.startsWith("00:00:00")
+    }
+
+    /**
      * 切换语言后按 ID 重新解析名称。
      * 线路/站点以数据库 ID 持久化；语言变化时据此重新解析，保持名称与界面语言一致。
      * 旧数据缺 ID：优先用 "线路 站点" 组合串反查，退化为站名反查。
@@ -521,7 +559,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val selectedId = _cards.value?.getOrNull(_selectedIndex.value ?: -1)?.id
         val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
         for ((id, d) in cardStore) {
-            val txns = d.transactions.map { resolveNamesById(it) }.map { repairRechargeTxn(it) }
+            val txns = d.transactions
+                .filterNot { isBlankSlotTxn(it) }
+                .map { resolveNamesById(it) }
+                .map { repairRechargeTxn(it) }
             cardStore[id] = d.copy(
                 transactions = txns,
                 topStations = computeTopStations(txns),
@@ -693,13 +734,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val formattedDate = formatBcdDate(txn.date)
         val formattedTime = formatBcdTime(txn.time)
         val balanceAfterYuan = txn.balanceAfterFen / 100.0
+        // 1E 旅程记录（进站/出站事件）无金额：金额位显示 "进站/出站/乘车"，而不是 "-¥0.00"
+        val amountText = when {
+            isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
+            txn.amountYuan == 0.0 && transitType != "消费" -> when {
+                txn.stationName.contains("↓") -> "进站"
+                txn.stationName.contains("↑") -> "出站"
+                else -> "乘车"
+            }
+            else -> "-¥${String.format("%.2f", amountAbs)}"
+        }
 
         return UiTransaction(
             id = index,
             seq = txn.seq,
             amountYuan = txn.amountYuan,
-            amountText = if (isRecharge) "+¥${String.format("%.2f", amountAbs)}"
-                         else "-¥${String.format("%.2f", amountAbs)}",
+            amountText = amountText,
             typeHex = txn.typeHex,
             transitType = transitType,
             terminal = txn.terminal,
@@ -733,12 +783,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
         val counts = mutableMapOf<String, Int>()
         for (t in uiTxns) {
-            // 充值不是乘车记录，不统计站点
-            if (t.typeHex == "02" || t.amountYuan < 0) continue
+            // 充值/无金额旅程事件不是乘车记录，不统计站点
+            if (t.typeHex == "02" || t.amountYuan <= 0) continue
             // 去掉末尾的方向箭头（"花地湾 ↑" -> "花地湾"）
             val name = t.stationName.replace(Regex(" [↑↓]$"), "")
             if (name.isNotEmpty() && name != "未知" &&
-                !name.startsWith("轨道交通") && !name.startsWith("广州公交")) {
+                !name.startsWith("轨道交通") && !name.startsWith("公共交通") && !name.startsWith("广州公交")) {
                 counts[name] = (counts[name] ?: 0) + 1
             }
         }
@@ -751,8 +801,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun computeTopLines(uiTxns: List<UiTransaction>): List<LineStat> {
         val counts = mutableMapOf<String, Int>()
         for (t in uiTxns) {
-            // 充值不是乘车记录，不统计线路
-            if (t.typeHex == "02" || t.amountYuan < 0) continue
+            // 充值/无金额旅程事件不是乘车记录，不统计线路
+            if (t.typeHex == "02" || t.amountYuan <= 0) continue
             val lineName = t.lineName
             if (lineName.isNotEmpty() && lineName != "—" && lineName != "未知") {
                 counts[lineName] = (counts[lineName] ?: 0) + 1
@@ -766,7 +816,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun computeStatsSummary(uiTxns: List<UiTransaction>): StatsSummary {
         val totalSpending = uiTxns.filter { !it.amountText.startsWith("+") }.sumOf { it.amountYuan }
-        val rideCount = uiTxns.filter { it.transitType == "地铁" || it.transitType == "公交" }.size
+        // 乘车次数只统计有金额的乘车记录（1E 进站/出站事件 ¥0 不单独算一次）
+        val rideCount = uiTxns.filter {
+            (it.transitType == "地铁" || it.transitType == "公交") && it.amountYuan > 0
+        }.size
         val uniqueDays = uiTxns.map { it.date }.distinct().size.coerceAtLeast(1)
         return StatsSummary(totalSpending, rideCount, totalSpending / uniqueDays)
     }

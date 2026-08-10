@@ -1,7 +1,5 @@
 package com.example.nfctransit.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -62,14 +60,16 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
 
         binding.btnCopyData.setOnClickListener {
-            copyToClipboard(buildDataReport())
-            showStatus("✓ 已复制读取数据")
+            pendingExportContent = buildDataReport()
+            pendingExportName = "tu-reader-data.txt"
+            exportLauncher.launch("tu-reader-data.txt")
         }
 
         binding.btnCopyLog.setOnClickListener {
             val log = viewModel.nfcLog.value?.joinToString("\n") ?: "暂无数据"
-            copyToClipboard(log)
-            showStatus("✓ 已复制 APDU 日志")
+            pendingExportContent = log
+            pendingExportName = "tu-reader-apdu-log.txt"
+            exportLauncher.launch("tu-reader-apdu-log.txt")
         }
 
         binding.root.findViewById<View>(R.id.rowDataExport)?.setOnClickListener {
@@ -201,11 +201,6 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         (viewModel.nfcLog.value ?: emptyList()).forEach { sb.appendLine(it) }
 
         return sb.toString()
-    }
-
-    private fun copyToClipboard(text: String) {
-        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("TU Reader Data", text))
     }
 
     private fun showStatus(text: String) {
