@@ -13,6 +13,7 @@ import android.view.Window
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.nfctransit.R
+import com.example.nfctransit.model.UiCard
 
 /** 与应用整体风格一致的确认弹窗（白色圆角卡片 + 双按钮），替代系统 AlertDialog */
 object AppDialogs {
@@ -135,6 +136,116 @@ object AppDialogs {
         view.findViewById<TextView>(R.id.dialogOptionsCancel)?.apply {
             text = cancelLabel
             setOnClickListener { dialog.dismiss() }
+        }
+        dialog.show()
+    }
+
+    /** 卡片排序弹窗：每张卡一行，行尾 ↑↓ 箭头调整顺序，完成后回调新顺序的 cardId 列表 */
+    fun reorder(
+        context: Context,
+        cards: List<UiCard>,
+        accentColor: Int = 0xFF0066FF.toInt(),
+        onDone: (List<String>) -> Unit
+    ) {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_reorder, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+
+        view.findViewById<TextView>(R.id.dialogReorderTitle)?.text = "卡片排序"
+        val container = view.findViewById<LinearLayout>(R.id.dialogReorderContainer)
+            ?: return
+        val density = context.resources.displayMetrics.density
+        val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.ttf")
+        val order = cards.toMutableList()
+
+        fun arrowButton(chevron: String, enabled: Boolean): TextView =
+            TextView(context).apply {
+                text = chevron
+                typeface = fa
+                textSize = 16f
+                setTextColor(if (enabled) accentColor else 0xFFD1D1D6.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    (44 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                gravity = Gravity.CENTER
+                isClickable = enabled
+                isFocusable = enabled
+            }
+
+        fun render() {
+            container.removeAllViews()
+            order.forEachIndexed { i, card ->
+                val label = if (card.lastFour.isBlank() || card.lastFour == "----") {
+                    card.name
+                } else {
+                    "${card.name} (${card.lastFour})"
+                }
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, (52 * density).toInt()
+                    )
+                    setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
+                }
+                row.addView(
+                    TextView(context).apply {
+                        text = label
+                        setTextColor(0xFF1A1A1A.toInt())
+                        textSize = 15f
+                        layoutParams = LinearLayout.LayoutParams(
+                            0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
+                        )
+                        gravity = Gravity.CENTER_VERTICAL
+                    }
+                )
+                val up = arrowButton("", enabled = i > 0)
+                up.setOnClickListener {
+                    if (i > 0) {
+                        val item = order.removeAt(i)
+                        order.add(i - 1, item)
+                        render()
+                    }
+                }
+                val down = arrowButton("", enabled = i < order.lastIndex)
+                down.setOnClickListener {
+                    if (i < order.lastIndex) {
+                        val item = order.removeAt(i)
+                        order.add(i + 1, item)
+                        render()
+                    }
+                }
+                row.addView(up)
+                row.addView(down)
+                container.addView(row)
+                if (i < order.lastIndex) {
+                    container.addView(
+                        View(context).apply {
+                            layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT, (0.5 * density).toInt()
+                            )
+                            setBackgroundColor(0xFFE5E5EA.toInt())
+                        }
+                    )
+                }
+            }
+        }
+
+        render()
+
+        view.findViewById<TextView>(R.id.dialogReorderCancel)?.setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.dialogReorderDone)?.apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                dialog.dismiss()
+                onDone(order.map { it.id })
+            }
         }
         dialog.show()
     }

@@ -66,14 +66,21 @@
             <!-- Section: 卡片管理 -->
             <include layout="@layout/section_card_management" />
 
-            <!-- Copy NFC Data Button -->
+            <!-- Section: 数据与隐私 -->
+            <include layout="@layout/section_data_privacy" />
+
+            <!-- Section: 显示与体验 -->
+            <include layout="@layout/section_display" />
+
+            <!-- Section: 调试工具 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:background="@drawable/bg_content_card"
-                android:layout_marginBottom="24dp"
-                android:padding="16dp">
+                android:divider="@drawable/bg_row_divider"
+                android:showDividers="middle"
+                android:layout_marginBottom="24dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -82,35 +89,136 @@
                     android:textColor="#8E8E93"
                     android:textSize="12sp"
                     android:textStyle="bold"
+                    android:paddingStart="16dp"
+                    android:paddingTop="14dp"
                     android:paddingBottom="8dp" />
 
-                <TextView
-                    android:id="@+id/btnCopyData"
+                <LinearLayout
+                    android:id="@+id/rowExportData"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📋 复制所有读取数据"
-                    android:textColor="#0066FF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:background="@drawable/bg_chip_selected"
-                    android:padding="14dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
                     android:clickable="true"
-                    android:focusable="true"
-                    android:layout_marginBottom="12dp" />
+                    android:focusable="true">
 
-                <TextView
-                    android:id="@+id/btnCopyLog"
+                    <TextView
+                        android:id="@+id/iconExportData"
+                        android:layout_width="30dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:gravity="center"
+                        android:text="&#xf56e;"
+                        android:textColor="#0066FF"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="导出读取数据 (TXT)"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="&#xf054;"
+                        android:textColor="#8E8E93"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/rowExportLog"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📋 复制 APDU 日志"
-                    android:textColor="#555555"
-                    android:textSize="14sp"
-                    android:gravity="center"
-                    android:background="@drawable/bg_chip_default"
-                    android:padding="14dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:focusable="true">
+
+                    <TextView
+                        android:id="@+id/iconExportLog"
+                        android:layout_width="30dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:gravity="center"
+                        android:text="&#xf120;"
+                        android:textColor="#0066FF"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="导出 APDU 日志 (TXT)"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="&#xf054;"
+                        android:textColor="#8E8E93"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp">
+
+                    <TextView
+                        android:id="@+id/iconDebugLog"
+                        android:layout_width="30dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:gravity="center"
+                        android:text="&#xf188;"
+                        android:textColor="#0066FF"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="保留调试日志"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp" />
+
+                    <FrameLayout
+                        android:id="@+id/switchKeepDebugLogs"
+                        android:layout_width="48dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_toggle_off"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <View
+                            android:id="@+id/knobKeepDebugLogs"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_margin="2dp"
+                            android:layout_gravity="start|center_vertical"
+                            android:background="@drawable/bg_toggle_knob" />
+                    </FrameLayout>
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvCopyStatus"
@@ -120,15 +228,10 @@
                     android:textColor="#34C759"
                     android:textSize="11sp"
                     android:gravity="center"
-                    android:paddingTop="8dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="8dp"
                     android:visibility="gone" />
             </LinearLayout>
-
-            <!-- Section: 数据与隐私 -->
-            <include layout="@layout/section_data_privacy" />
-
-            <!-- Section: 显示与体验 -->
-            <include layout="@layout/section_display" />
 
             <!-- Section: 关于 -->
             <include layout="@layout/section_about" />
@@ -136,4 +239,3 @@
             </LinearLayout>
         </ScrollView>
     </LinearLayout>
-

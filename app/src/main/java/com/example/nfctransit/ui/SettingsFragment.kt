@@ -1,13 +1,16 @@
 package com.example.nfctransit.ui
 
 import android.content.Context
+import android.content.Intent
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
-import android.view.Gravity
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.view.animation.LinearInterpolator
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
@@ -81,29 +84,69 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
 
-        // 主题色跟随卡片：返回按钮、主操作按钮一起变
+        // FontAwesome 字体从 assets 加载，应用到所有带 fa 标记的图标/箭头
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        fun applyFaFont(view: View) {
+            if (view.tag == "fa" && view is TextView) view.typeface = fa
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) applyFaFont(view.getChildAt(i))
+            }
+        }
+        applyFaFont(binding.root)
+
+        // 主题色跟随卡片：返回按钮、各选项行首图标一起变
+        val optionIcons = intArrayOf(
+            R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
+            R.id.iconLocalStorage, R.id.iconDataExport, R.id.iconImportData,
+            R.id.iconClearData, R.id.iconPrivacy,
+            R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconMapSpeed, R.id.iconLanguage,
+            R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
+            R.id.iconVersion, R.id.iconChangelog, R.id.iconSupportedCards,
+            R.id.iconOpenSource, R.id.iconFeedback
+        )
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             val color = accent.toInt()
             binding.btnBack.setTextColor(color)
-            binding.btnCopyData.setTextColor(0xFFFFFFFF.toInt())
-            // 用圆角 GradientDrawable 填充主题色，保留按钮圆角
-            binding.btnCopyData.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 20f * resources.displayMetrics.density
-                setColor(color)
+            optionIcons.forEach { id ->
+                binding.root.findViewById<TextView>(id)?.setTextColor(color)
             }
         }
 
-        binding.btnCopyData.setOnClickListener {
+        // 导出读取数据
+        binding.rowExportData.setOnClickListener {
             pendingExportContent = buildDataReport()
             pendingExportName = "tu-reader-data.txt"
             exportLauncher.launch("tu-reader-data.txt")
         }
 
-        binding.btnCopyLog.setOnClickListener {
+        // 导出 APDU 日志
+        binding.rowExportLog.setOnClickListener {
             val log = viewModel.nfcLog.value?.joinToString("\n") ?: "暂无数据"
             pendingExportContent = log
             pendingExportName = "tu-reader-apdu-log.txt"
             exportLauncher.launch("tu-reader-apdu-log.txt")
+        }
+
+        // 已绑定卡片数量
+        binding.root.findViewById<TextView>(R.id.tvCardCount)?.let { tv ->
+            viewModel.cards.observe(viewLifecycleOwner) { list ->
+                tv.text = "${list.size} 张"
+            }
+        }
+
+        // 卡片排序：弹窗用 ↑↓ 调整顺序
+        binding.root.findViewById<View>(R.id.rowCardSort)?.setOnClickListener {
+            val cards = viewModel.cards.value.orEmpty()
+            if (cards.size < 2) {
+                showStatus("至少需要 2 张卡片才能排序")
+                return@setOnClickListener
+            }
+            AppDialogs.reorder(
+                context = requireContext(),
+                cards = cards,
+                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                onDone = { orderedIds -> viewModel.applyCardOrder(orderedIds) }
+            )
         }
 
         binding.root.findViewById<View>(R.id.rowDataExport)?.setOnClickListener {
@@ -124,42 +167,129 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
         updateLanguageRow()
 
-        // 站名映射表在线更新：下载最新 transit.db 并替换本地库
+        // 反馈入口 → GitHub Issues
+        binding.root.findViewById<View>(R.id.rowFeedback)?.setOnClickListener {
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/HaoTian22/TU-Reader/issues")
+            )
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                showStatus("无法打开浏览器")
+            }
+        }
+
+        // 站名映射表在线更新：行内右侧图标显示 加载/成功/失败，5 秒后恢复为箭头
+        val chevronMap = binding.root.findViewById<TextView>(R.id.chevronUpdateStationMap)!!
+        val mapStatusText = binding.root.findViewById<TextView>(R.id.tvStationMapStatus)!!
+        val spinner = ObjectAnimator.ofFloat(chevronMap, "rotation", 0f, 360f).apply {
+            duration = 800
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+        }
+        var pendingRevert: Runnable? = null
+
+        fun setUpdateState(state: String) {
+            spinner.cancel()
+            chevronMap.rotation = 0f
+            when (state) {
+                "loading" -> {
+                    chevronMap.text = ""                  // fa-spinner
+                    chevronMap.setTextColor(0xFF8E8E93.toInt())
+                    spinner.start()
+                }
+                "success" -> {
+                    chevronMap.text = ""                  // fa-circle-check
+                    chevronMap.setTextColor(0xFF34C759.toInt())
+                }
+                "error" -> {
+                    chevronMap.text = ""                  // fa-triangle-exclamation
+                    chevronMap.setTextColor(0xFFFF3B30.toInt())
+                }
+                else -> {                                           // idle
+                    chevronMap.text = ""                  // fa-chevron-right
+                    chevronMap.setTextColor(0xFF8E8E93.toInt())
+                }
+            }
+        }
+
         binding.root.findViewById<View>(R.id.rowUpdateStationMap)?.setOnClickListener {
+            pendingRevert?.let { chevronMap.removeCallbacks(it) }
             viewModel.updateStationDatabase()
         }
         viewModel.stationDbUpdating.observe(viewLifecycleOwner) { updating ->
-            if (updating) showStatus("正在下载并更新站名映射表…")
+            if (updating) {
+                setUpdateState("loading")
+                mapStatusText.text = "正在下载并更新站名映射表…"
+                mapStatusText.setTextColor(0xFF8E8E93.toInt())
+                mapStatusText.visibility = View.VISIBLE
+            }
         }
         viewModel.stationDbUpdateStatus.observe(viewLifecycleOwner) { msg ->
-            msg?.let { showStatus(it) }
+            if (msg != null) {
+                val success = msg.startsWith("✓")
+                setUpdateState(if (success) "success" else "error")
+                mapStatusText.text = msg
+                mapStatusText.setTextColor(if (success) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                mapStatusText.visibility = View.VISIBLE
+                pendingRevert = Runnable {
+                    setUpdateState("idle")
+                    mapStatusText.visibility = View.GONE
+                }
+                chevronMap.postDelayed(pendingRevert!!, 5000)
+            }
         }
 
-        // 保留调试日志开关：自绘开关，样式与深色模式一致，开启时轨道跟随卡片主题色
-        binding.root.findViewById<View>(R.id.switchKeepDebugLogs)?.let { toggle ->
-            val knob = binding.root.findViewById<View>(R.id.knobKeepDebugLogs)
+        // 保留调试日志开关：自绘开关 + 滑动/变色动画，开启时轨道跟随卡片主题色
+        binding.switchKeepDebugLogs.let { toggle ->
+            val knob = binding.knobKeepDebugLogs
+            val dp = resources.displayMetrics.density
+            // 轨道 48dp、旋钮 24dp、两侧各 2dp 边距 → 可滑动 20dp
+            val travel = 20f * dp
+            val track = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 14f * dp
+            }
+            toggle.background = track
             var checked = viewModel.keepDebugLogs.value ?: true
             var accent = 0xFF0066FF.toInt()
+            var currentColor = 0xFFE5E5EA.toInt()
 
-            fun renderToggle() {
-                toggle.background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 14f * resources.displayMetrics.density
-                    setColor(if (checked) accent else 0xFFE5E5EA.toInt())
-                }
-                knob?.let {
-                    val lp = it.layoutParams as FrameLayout.LayoutParams
-                    lp.gravity =
-                        (if (checked) Gravity.END else Gravity.START) or Gravity.CENTER_VERTICAL
-                    it.layoutParams = lp
+            fun render(checked: Boolean, accent: Int, animate: Boolean) {
+                val targetColor = if (checked) accent else 0xFFE5E5EA.toInt()
+                val targetX = if (checked) travel else 0f
+                if (animate) {
+                    ValueAnimator.ofArgb(currentColor, targetColor).apply {
+                        addUpdateListener { v ->
+                            currentColor = v.animatedValue as Int
+                            track.setColor(currentColor)
+                        }
+                        duration = 220
+                        start()
+                    }
+                    ValueAnimator.ofFloat(knob.translationX, targetX).apply {
+                        addUpdateListener { knob.translationX = it.animatedValue as Float }
+                        duration = 220
+                        start()
+                    }
+                } else {
+                    currentColor = targetColor
+                    track.setColor(currentColor)
+                    knob.translationX = targetX
                 }
             }
 
-            viewModel.mainAccent.observe(viewLifecycleOwner) { accent = it.toInt(); renderToggle() }
-            viewModel.keepDebugLogs.observe(viewLifecycleOwner) { checked = it; renderToggle() }
+            render(checked, accent, animate = false)
+            viewModel.keepDebugLogs.observe(viewLifecycleOwner) { v ->
+                if (v != checked) { checked = v; render(checked, accent, animate = false) }
+            }
+            viewModel.mainAccent.observe(viewLifecycleOwner) { c ->
+                if (c.toInt() != accent) { accent = c.toInt(); render(checked, accent, animate = false) }
+            }
             toggle.setOnClickListener {
                 checked = !checked
+                render(checked, accent, animate = true)
                 viewModel.setKeepDebugLogs(checked)
-                renderToggle()
             }
         }
     }

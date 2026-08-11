@@ -283,6 +283,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _cardAdded.value = null
     }
 
+    /** 卡片排序：按给定 cardId 顺序重排内存列表并持久化，保持当前选中卡不变 */
+    fun applyCardOrder(orderedIds: List<String>) {
+        if (cardEntities.size < 2) return
+        val byId = cardEntities.associateBy { it.cardId }
+        val reordered = mutableListOf<CardEntity>()
+        val seen = mutableSetOf<String>()
+        for (id in orderedIds) {
+            val e = byId[id] ?: continue
+            reordered.add(e)
+            seen.add(id)
+        }
+        // 兜底：未出现在新顺序里的卡排到最后
+        reordered.addAll(cardEntities.filter { it.cardId !in seen })
+        cardEntities.clear()
+        cardEntities.addAll(reordered)
+
+        val selectedId = _selectedCard.value?.id
+        val newIndex = reordered.indexOfFirst { it.cardId == selectedId }
+        if (newIndex >= 0) _selectedIndex.value = newIndex
+        _cards.value = reordered.map { it.toUiCard() }
+        viewModelScope.launch(Dispatchers.IO) { repo.setCardOrder(reordered.map { it.cardId }) }
+    }
+
     fun setFilter(filter: String) {
         _currentFilter.value = filter
         val all = _allTransactions.value ?: return

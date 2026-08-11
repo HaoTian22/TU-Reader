@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_content_card"
+    android:elevation="8dp">
+
+    <TextView
+        android:id="@+id/dialogOptionsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#1A1A1A"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="8dp" />
+
+    <LinearLayout
+        android:id="@+id/dialogOptionsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="#E5E5EA" />
+
+    <TextView
+        android:id="@+id/dialogOptionsCancel"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:textColor="#555555"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>

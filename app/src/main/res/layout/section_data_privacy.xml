@@ -4,6 +4,8 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/bg_content_card"
+    android:divider="@drawable/bg_row_divider"
+    android:showDividers="middle"
     android:layout_marginBottom="24dp">
 
     <TextView
@@ -22,11 +24,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconLocalStorage"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf1c0;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -49,7 +61,6 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
@@ -58,18 +69,70 @@
         android:focusable="true">
 
         <TextView
+            android:id="@+id/iconDataExport"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf019;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
+
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="数据导出 (CSV/JSON)"
+            android:text="数据导出 (CSV/JSON/DB)"
             android:textColor="#1A1A1A"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:tag="fa" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/rowImportData"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:id="@+id/iconImportData"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf56f;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="导入数据库 (DB)"
+            android:textColor="#1A1A1A"
             android:textSize="14sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#xf054;"
+            android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 
     <LinearLayout
@@ -78,13 +141,23 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp"
         android:clickable="true"
         android:focusable="true">
+
+        <TextView
+            android:id="@+id/iconClearData"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf2ed;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -96,9 +169,10 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 
     <LinearLayout
@@ -106,11 +180,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconPrivacy"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf3ed;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -122,8 +206,9 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 </LinearLayout>

@@ -4,6 +4,8 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/bg_content_card"
+    android:divider="@drawable/bg_row_divider"
+    android:showDividers="middle"
     android:layout_marginBottom="24dp">
 
     <TextView
@@ -22,11 +24,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconVersion"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf02b;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -48,11 +60,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconChangelog"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf1da;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -64,9 +86,10 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 
     <LinearLayout
@@ -74,11 +97,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconSupportedCards"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf0ae;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -90,9 +123,10 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 
     <LinearLayout
@@ -100,11 +134,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
         android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/iconOpenSource"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf004;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -116,21 +160,35 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf054;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/rowFeedback"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_detail_row_divider"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+        android:paddingBottom="14dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:id="@+id/iconFeedback"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf0e0;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
 
         <TextView
             android:layout_width="0dp"
@@ -142,8 +200,9 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=">"
+            android:text="&#xf0c1;"
             android:textColor="#8E8E93"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:tag="fa" />
     </LinearLayout>
 </LinearLayout>
