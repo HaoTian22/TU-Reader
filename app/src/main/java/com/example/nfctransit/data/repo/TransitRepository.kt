@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
+import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.db.RawRecordEntity
 import com.example.nfctransit.data.db.UserDatabase
@@ -100,6 +101,15 @@ class TransitRepository(private val context: Context) {
 
     suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =
         dao.getArchive(cardId)
+
+    // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
+
+    suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {
+        for (app in apps) dao.insertCardApp(app)
+    }
+
+    suspend fun loadCardApps(cardId: String): List<CardAppEntity> =
+        dao.getCardApps(cardId)
 
     // ── 删除 / 清空 ──
 

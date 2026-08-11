@@ -16,7 +16,29 @@ data class CardProfile(
     val tradeRecordLen: Int = 0x17,
     val stationSfi: Int? = null,  // 线路+站点信息文件 SFI (TU 卡用 0x1E)
     val cardType: String = "YCT"  // "TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"
-)
+) {
+    /** 各卡附加交易区 SFI（CU/TFT 专有），与主交易区一样参与交易解析 */
+    val extraTradeSfis: List<Int>
+        get() = when (cardType) {
+            "CU" -> listOf(0x10, 0x06, 0x1A)
+            "TFT" -> listOf(0x10, 0x09)
+            else -> emptyList()
+        }
+
+    /**
+     * 参与交易解析的全部 SFI（主交易区 + TU 站点映射 + 附加交易区）。
+     * 信息/统计/管理扇区（0x15/0x19/0x08/0x17…）只存 raw_records，不在此列、不做交易解析。
+     */
+    val transactionSfis: Set<Int>
+        get() {
+            val set = mutableSetOf(tradeSfi)
+            stationSfi?.let { set.add(it) }
+            // 0x1E 是 TU 旅程区：单协议 TU 卡与双协议 YCT 的 TU 钱包都有，参与交易解析
+            if (cardType == "TU" || cardType == "YCT") set.add(0x1E)
+            set.addAll(extraTradeSfis)
+            return set
+        }
+}
 
 object CardProfiles {
 

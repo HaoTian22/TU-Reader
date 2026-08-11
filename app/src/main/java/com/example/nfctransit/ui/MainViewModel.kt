@@ -8,12 +8,15 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.nfctransit.CardProfile
 import com.example.nfctransit.TransitCardReader
+import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.StationDbUpdater
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
+import com.example.nfctransit.data.TuDiscountStats
 import com.example.nfctransit.data.db.AppDatabase
+import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.model.CanonicalTransaction
@@ -43,6 +46,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val cardEntities = mutableListOf<CardEntity>()                 // 卡片列表（镜像 cards 表）
     private val canonicalByCard = mutableMapOf<String, List<CanonicalTransaction>>()  // 镜像 transactions_archive
+    /** 卡内折扣统计（SFI 0x19 rec1）快照，镜像 raw_records；用于首页优惠卡片（比交易累加权威、无重复计数） */
+    private val discountStatsByCard = mutableMapOf<String, TuDiscountStats?>()
 
     /** 本次会话 APDU 日志（仅内存，导出用；持久化走 SessionLogStore 文件） */
     private var currentSessionNfcLog: List<String> = emptyList()
@@ -71,6 +76,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _allTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
     val allTransactions: LiveData<List<UiTransaction>> = _allTransactions
+
+    /** 当前卡本月累计乘车金额（分），来自卡内 SFI 0x19 rec1 折扣统计；null = 无扇区数据/非本月 */
+    private val _selectedDiscountMonthlyFen = MutableLiveData<Long?>(null)
+    val selectedDiscountMonthlyFen: LiveData<Long?> = _selectedDiscountMonthlyFen
 
     private val _currentFilter = MutableLiveData("全部")
     val currentFilter: LiveData<String> = _currentFilter
@@ -143,6 +152,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (c in cardEntities) {
             val archive = repo.loadArchive(c.cardId)
             canonicalByCard[c.cardId] = RecordDecoder.decodeArchive(c.cardType, archive)
+            val rawRecs = repo.loadRawRecords(c.cardId)
+            discountStatsByCard[c.cardId] = RecordDecoder.parseTuDiscountStats(
+                rawRecs.map { RawRecord(it.sfi, it.recNo, it.protocol, it.hex) }
+            )
         }
 
         val uiCards = cardEntities.map { it.toUiCard() }
@@ -167,10 +180,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val balanceFen = result.balanceFen
         val displayName = cardDisplayName(profile, cardNumber)
 
-        // 解码（读卡展示与归档共用同一条解析路径）
-        val records = result.rawRecords.map {
-            RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex)
-        }
+        // 解码（读卡展示与归档共用同一条解析路径）。
+        // 只把交易 SFI（0x18/0x1E + 各卡附加区）交给解码器；raw_records 里的信息/统计扇区
+        // （0x15/0x19/0x08…）只存库不参与交易解析，否则会被 parseFareRecords 当交易误解析。
+        val records = result.rawRecords
+            .filter { it.sfi in profile.transactionSfis }
+            .map {
+                RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex)
+            }
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val decoded = RecordDecoder.decodeCard(
             profile.cardType, records, result.statsMonth, currentYear, balanceFen
@@ -185,10 +202,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else lastFourFromCanonical(decoded.display)
         val now = System.currentTimeMillis()
 
-        // 匹配已有卡：按卡号复用 UUID；读不到卡号时按尾号兜底
+        // 匹配已有卡：按卡号复用 UUID；双协议卡换协议识别时（如坏数据存的纯 TU → YCT）按第二个卡号兜底；最后按尾号
         var existing = if (cardNumber.isNotEmpty()) {
             cardEntities.firstOrNull { it.cardNumber == cardNumber }
         } else null
+        if (existing == null && secondCardNumber.isNotEmpty()) {
+            existing = cardEntities.firstOrNull {
+                it.cardNumber == secondCardNumber || it.secondCardNumber == secondCardNumber
+            }
+        }
         if (existing == null) existing = cardEntities.firstOrNull { it.lastFour == lastFour }
         val isNew = existing == null
         val cardId = existing?.cardId ?: UUID.randomUUID().toString()
@@ -198,6 +220,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // 内容去重合并进内存（identity = content_hash，不含 rec_no）
         canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
+        discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(result.rawRecords)
 
         val entity = CardEntity(
             cardId = cardId,
@@ -223,13 +246,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 无论新卡还是重复读同一张卡，都让首页滑动到该卡
         _cardAdded.value = index
 
-        // 异步持久化：卡片 + 槽位同步 + 内容去重归档（含 0x1E 旅程记录）+ 顺序 + 会话日志
+        // 异步持久化：卡片 + 槽位同步 + 内容去重归档（含 0x1E 旅程记录）+ 应用 SELECT/BALANCE + 顺序 + 会话日志
         val rawRecords = result.rawRecords
         val logLines = result.rawLog
+        val appRows = result.appReads.map { app ->
+            CardAppEntity(
+                cardId = cardId,
+                readAt = now,
+                selectedAid = app.selectedAid,
+                selectResp = app.selectResp,
+                balanceFen = app.balanceFen,
+                balanceResp = app.balanceResp
+            )
+        }
         viewModelScope.launch(Dispatchers.IO) {
             repo.upsertCard(entity)
             repo.syncRawRecords(cardId, rawRecords)
             repo.archiveTransactions(cardId, decoded.archive)
+            repo.syncCardApps(cardId, appRows)
             repo.setCardOrder(cardEntities.map { it.cardId })
             repo.writeSessionLog(cardId, logLines)
         }
@@ -343,6 +377,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCard.value = null
         _cardAdded.value = null
         _allTransactions.value = emptyList()
+        _selectedDiscountMonthlyFen.value = null
         _filteredTransactions.value = emptyList()
         _nfcLog.value = emptyList()
         _topStations.value = emptyList()
@@ -446,12 +481,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCard.value = card
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
+        _selectedDiscountMonthlyFen.value = usableMonthlyFen(discountStatsByCard[cardId])
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: "全部")
         _nfcLog.value = currentSessionNfcLog
         emitStats(txns)
         // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致
         _homeWeeklySpending.value =
             computeDailySpending(txns, "本周", periodWindow("本周", 0).first, periodWindow("本周", 0).second)
+    }
+
+    /** 折扣统计的"本月累计金额"：卡内统计月与当前月一致才采用，避免跨月陈旧值 */
+    private fun usableMonthlyFen(stats: TuDiscountStats?): Long? {
+        if (stats?.statsMonth == null) return null
+        val now = Calendar.getInstance()
+        val current = now.get(Calendar.YEAR) * 100 + (now.get(Calendar.MONTH) + 1)
+        return if (stats.statsMonth == current) stats.totalFen else null
     }
 
     /** 按当前统计周期与偏移从交易记录重算并发布统计（每次展示都重算，避免持久化旧快照过期） */
@@ -573,6 +617,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val cardId = cardEntities.getOrNull(index)?.cardId ?: return
         cardEntities.removeAt(index)
         canonicalByCard.remove(cardId)
+        discountStatsByCard.remove(cardId)
         val updated = cardEntities.map { it.toUiCard() }
         _cards.value = updated
         if (updated.isEmpty()) {
@@ -581,6 +626,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _selectedCard.value = null
             _cardAdded.value = null
             _allTransactions.value = emptyList()
+            _selectedDiscountMonthlyFen.value = null
             _filteredTransactions.value = emptyList()
             _nfcLog.value = emptyList()
             _topStations.value = emptyList()

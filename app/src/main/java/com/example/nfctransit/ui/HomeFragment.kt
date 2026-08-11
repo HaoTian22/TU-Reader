@@ -197,6 +197,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             updateDiscountProgress()
         }
 
+        // 卡内折扣统计（SFI 0x19 rec1）就绪后刷新优惠卡片
+        viewModel.selectedDiscountMonthlyFen.observe(viewLifecycleOwner) {
+            updateDiscountProgress()
+        }
+
         // 首页迷你图固定用"本周"视图（周一~周日 7 根柱，与固定标签一一对应）
         viewModel.homeWeeklySpending.observe(viewLifecycleOwner) { daily ->
             if (daily.isNotEmpty()) bindMiniChart(daily)
@@ -220,9 +225,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
         binding.discountCard.visibility = View.VISIBLE
 
-        // 当月实际支出票款 = 本月地铁/公交扣款（正数消费，不含充值）
+        // 当月实际支出票款：优先用卡内折扣统计（SFI 0x19 rec1，卡自行维护、无重复计数）；
+        // 未读到（非广州/尚未读卡）时回退本月地铁/公交扣款累加。
         val thisMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-        val monthlyFen = txns
+        val monthlyFen = viewModel.selectedDiscountMonthlyFen.value ?: txns
             .filter {
                 it.date.startsWith(thisMonth) && (it.transitType == "地铁" || it.transitType == "公交") &&
                     it.amountYuan > 0

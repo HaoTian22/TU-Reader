@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import java.io.File
+import kotlinx.coroutines.runBlocking
 
 /**
  * 站点/线路/城市映射数据库。
@@ -61,7 +62,7 @@ abstract class AppDatabase : RoomDatabase() {
                 appContext, AppDatabase::class.java, downloaded.absolutePath
             ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE).build()
             try {
-                validation.transitDao().countDevices()
+                runBlocking { validation.transitDao().countDevices() }
             } finally {
                 validation.close()
             }

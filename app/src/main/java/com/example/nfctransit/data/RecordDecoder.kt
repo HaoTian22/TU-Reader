@@ -470,4 +470,32 @@ object RecordDecoder {
             .digest(ApduUtil.hexToBytes(hex))
             .joinToString("") { String.format("%02x", it) }
     }
+
+    /**
+     * 从卡原始记录解析折扣统计；无 SFI 0x19 rec1 或数据过短返回 null。
+     * 字段偏移见 README「广州(5810)/佛山(5880) SFI 0x19 rec1 折扣统计」。
+     */
+    fun parseTuDiscountStats(records: List<RawRecord>): TuDiscountStats? {
+        val rec = records.firstOrNull { it.sfi == 0x19 && it.recNo == 1 } ?: return null
+        val data = ApduUtil.hexToBytes(rec.hex)
+        if (data.size < 14) return null
+        val year = 2000 + bcdNibble(data[3])
+        val month = bcdNibble(data[4])
+        return TuDiscountStats(
+            statsMonth = if (month in 1..12) year * 100 + month else null,
+            metroCount = data[6].toInt() and 0xFF,
+            totalCount = data[7].toInt() and 0xFF,
+            metroFen = ApduUtil.hexToLong(data.copyOfRange(10, 12)),
+            totalFen = ApduUtil.hexToLong(data.copyOfRange(12, 14))
+        )
+    }
 }
+
+/** 折扣统计（广州/佛山 TU 卡 SFI 0x19 rec1，48B）——卡内本月乘车汇总，乘车时由卡自行维护 */
+data class TuDiscountStats(
+    val statsMonth: Int?,   // YYYYMM（[3-4] BCD 年+月），null = 月份非法
+    val metroCount: Int,    // [6] 地铁次数（二进制）
+    val totalCount: Int,    // [7] 总乘车次数（二进制）
+    val metroFen: Long,     // [10-11] 地铁累计金额（分）
+    val totalFen: Long      // [12-13] 总累计金额（分）
+)

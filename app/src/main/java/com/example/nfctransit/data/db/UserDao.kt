@@ -82,4 +82,15 @@ interface UserDao {
 
     @Query("DELETE FROM transactions_archive WHERE card_id = :cardId")
     suspend fun clearArchive(cardId: String)
+
+    // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
+
+    @Insert
+    suspend fun insertCardApp(row: CardAppEntity): Long
+
+    @Query("SELECT * FROM card_app WHERE card_id = :cardId ORDER BY read_at DESC, row_id DESC")
+    suspend fun getCardApps(cardId: String): List<CardAppEntity>
+
+    @Query("DELETE FROM card_app WHERE card_id = :cardId")
+    suspend fun clearCardApps(cardId: String)
 }
