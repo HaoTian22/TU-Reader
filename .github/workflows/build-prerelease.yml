@@ -1,0 +1,75 @@
+name: Build & Update Prerelease
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 串行执行，避免并发构建在“删除旧 tag + 重建”时互相冲突
+concurrency:
+  group: prerelease
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 仓库没有 gradle wrapper jar，不能用 ./gradlew，直接装 9.6.1 调 gradle
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.1'
+
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --console=plain
+
+      - name: Collect version info
+        id: version
+        run: |
+          VN=$(grep 'versionName' app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')
+          VC=$(grep -m1 'versionCode' app/build.gradle | grep -oE '[0-9]+')
+          echo "version_name=$VN" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VC" >> "$GITHUB_OUTPUT"
+
+      - name: Create / update rolling prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VN="${{ steps.version.outputs.version_name }}"
+          VC="${{ steps.version.outputs.version_code }}"
+          SHA="${GITHUB_SHA::7}"
+          SRC=app/build/outputs/apk/release/app-release.apk
+          APK="TU-Reader-${VN}-${SHA}.apk"
+
+          if [ ! -f "$SRC" ]; then
+            echo "::error::release APK not found: $SRC"
+            exit 1
+          fi
+          cp "$SRC" "$APK"
+
+          LOG=$(git log --oneline -10)
+          NOTES=$(printf '## TU-Reader %s (%s)\nSHA: `%s`\n\n最新提交：\n%s' "$VN" "$VC" "$SHA" "$LOG")
+
+          # 单一滚动 prerelease：删除旧的 tag + release，再以同名 tag 重建
+          gh release delete prerelease --yes --cleanup-tag 2>/dev/null || true
+          gh release create prerelease "$APK" \
+            --title "TU-Reader prerelease ($VN)" \
+            --notes "$NOTES" \
+            --prerelease

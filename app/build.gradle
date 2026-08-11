@@ -28,6 +28,8 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            // 无独立签名库，release 先用 debug 签名以便安装；正式分发需换成 release keystore
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
