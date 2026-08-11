@@ -3,18 +3,21 @@ package com.example.nfctransit.ui
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.databinding.FragmentSettingsBinding
+import kotlinx.coroutines.launch
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
@@ -32,6 +35,37 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 showStatus("✓ 已导出 ${pendingExportName}")
             }
         }
+
+    private val dbExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    viewModel.exportDatabase(uri)
+                    showStatus("✓ 已导出数据库")
+                } catch (e: Exception) {
+                    showStatus("导出失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private val importLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                showStatus("正在导入…")
+                val msg = try {
+                    viewModel.importDatabase(uri)
+                } catch (e: Exception) {
+                    "导入失败: ${e.message}"
+                }
+                showStatus(msg)
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -80,11 +114,54 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             showClearDialog()
         }
 
+        binding.root.findViewById<View>(R.id.rowImportData)?.setOnClickListener {
+            importLauncher.launch(arrayOf("*/*"))
+        }
+
         // 语言切换：跟随系统 / 中文 / English
         binding.root.findViewById<View>(R.id.rowLanguage)?.setOnClickListener {
             showLanguageDialog()
         }
         updateLanguageRow()
+
+        // 站名映射表在线更新：下载最新 transit.db 并替换本地库
+        binding.root.findViewById<View>(R.id.rowUpdateStationMap)?.setOnClickListener {
+            viewModel.updateStationDatabase()
+        }
+        viewModel.stationDbUpdating.observe(viewLifecycleOwner) { updating ->
+            if (updating) showStatus("正在下载并更新站名映射表…")
+        }
+        viewModel.stationDbUpdateStatus.observe(viewLifecycleOwner) { msg ->
+            msg?.let { showStatus(it) }
+        }
+
+        // 保留调试日志开关：自绘开关，样式与深色模式一致，开启时轨道跟随卡片主题色
+        binding.root.findViewById<View>(R.id.switchKeepDebugLogs)?.let { toggle ->
+            val knob = binding.root.findViewById<View>(R.id.knobKeepDebugLogs)
+            var checked = viewModel.keepDebugLogs.value ?: true
+            var accent = 0xFF0066FF.toInt()
+
+            fun renderToggle() {
+                toggle.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 14f * resources.displayMetrics.density
+                    setColor(if (checked) accent else 0xFFE5E5EA.toInt())
+                }
+                knob?.let {
+                    val lp = it.layoutParams as FrameLayout.LayoutParams
+                    lp.gravity =
+                        (if (checked) Gravity.END else Gravity.START) or Gravity.CENTER_VERTICAL
+                    it.layoutParams = lp
+                }
+            }
+
+            viewModel.mainAccent.observe(viewLifecycleOwner) { accent = it.toInt(); renderToggle() }
+            viewModel.keepDebugLogs.observe(viewLifecycleOwner) { checked = it; renderToggle() }
+            toggle.setOnClickListener {
+                checked = !checked
+                viewModel.setKeepDebugLogs(checked)
+                renderToggle()
+            }
+        }
     }
 
     // ── 显示语言 ──
@@ -106,31 +183,35 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             "en" -> 2
             else -> 0
         }
-        AlertDialog.Builder(requireContext())
-            .setTitle("语言切换")
-            .setSingleChoiceItems(options, checked) { dialog, which ->
+        AppDialogs.options(
+            context = requireContext(),
+            title = "语言切换",
+            options = options.toList(),
+            selectedIndex = checked,
+            accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+            onSelect = { which ->
                 when (which) {
                     0 -> TransitData.setDisplayLanguage("system")
                     1 -> TransitData.setDisplayLanguage("zh")
                     2 -> TransitData.setDisplayLanguage("en")
                 }
-                dialog.dismiss()
                 updateLanguageRow()
                 // 语言已切换：按 ID 重新解析全部站点/线路名并刷新界面
                 viewModel.reloadDisplayLanguage()
                 showStatus("✓ 语言已切换")
             }
-            .setNegativeButton("取消", null)
-            .show()
+        )
     }
 
     // ── 数据导出 ──
 
     private fun showExportDialog() {
-        val options = arrayOf("CSV 文件", "JSON 文件")
-        AlertDialog.Builder(requireContext())
-            .setTitle("导出数据")
-            .setItems(options) { _, which ->
+        val options = arrayOf("CSV 文件", "JSON 文件", "SQLite 数据库 (.db)")
+        AppDialogs.options(
+            context = requireContext(),
+            title = "导出数据",
+            options = options.toList(),
+            onSelect = { which ->
                 when (which) {
                     0 -> {
                         pendingExportContent = viewModel.exportCsv()
@@ -142,10 +223,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                         pendingExportName = "transactions.json"
                         exportLauncher.launch("transactions.json")
                     }
+                    2 -> dbExportLauncher.launch("tu-reader-data.db")
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        )
     }
 
     private fun writeToUri(uri: Uri, content: String) {
@@ -161,17 +242,18 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     // ── 清除数据 ──
 
     private fun showClearDialog() {
-        AlertDialog.Builder(requireContext())
-            .setTitle("清除全部本地数据")
-            .setMessage("将删除所有已保存的卡片和交易记录，此操作不可恢复。确定要清除吗？")
-            .setPositiveButton("清除") { _, _ ->
+        AppDialogs.confirm(
+            context = requireContext(),
+            title = "清除全部本地数据",
+            message = "将删除所有已保存的卡片和交易记录，此操作不可恢复。确定要清除吗？",
+            confirmLabel = "清除",
+            onConfirm = {
                 viewModel.clearAllData()
                 showStatus("✓ 已清除全部本地数据")
                 // 回到首页显示空状态
                 findNavController().popBackStack()
             }
-            .setNegativeButton("取消", null)
-            .show()
+        )
     }
 
     // ── 复制工具 ──

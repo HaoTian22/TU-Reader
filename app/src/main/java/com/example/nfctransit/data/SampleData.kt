@@ -13,7 +13,7 @@ object SampleData {
         name = "深圳通",
         cardType = "深圳通",
         lastFour = "3821",
-        balanceYuan = 186.50,
+        balanceFen = 18650L,
         gradientStartColor = 0xFF1A73E8,
         gradientEndColor = 0xFF0D47A1
     )
@@ -23,7 +23,7 @@ object SampleData {
         name = "岭南通",
         cardType = "岭南通",
         lastFour = "7294",
-        balanceYuan = 89.30,
+        balanceFen = 8930L,
         gradientStartColor = 0xFF2E7D32,
         gradientEndColor = 0xFF1B5E20
     )

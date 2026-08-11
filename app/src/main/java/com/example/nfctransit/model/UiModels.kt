@@ -10,10 +10,14 @@ data class UiCard(
     val lastFour: String,
     val cardNumber: String = "",  // 完整卡号（应用序列号），首页展示；其他页面用 lastFour
     val secondCardNumber: String? = null,  // 双协议卡第二个卡号（如 LNT+TU 的 TU 卡号）；nullable 兼容旧版持久化数据（Gson 反序列化为 null）
-    val balanceYuan: Double,
+    val balanceFen: Long? = null,  // 余额（分），内部统一 Long；UI 层用 balanceYuan
     val gradientStartColor: Long,
-    val gradientEndColor: Long
-)
+    val gradientEndColor: Long,
+    val lastReadAt: Long = 0L  // 最近一次读卡时间（epoch millis），首页"上次读取"用数据库里的真实时间
+) {
+    /** 余额（元），仅 UI 展示用 */
+    val balanceYuan: Double get() = (balanceFen ?: 0L) / 100.0
+}
 
 data class UiTransaction(
     val id: Int,
@@ -57,6 +61,10 @@ data class DailySpending(
     val isToday: Boolean = false,
     val date: String = ""          // "yyyy-MM-dd"，用于柱点击弹窗与日期范围显示
 )
+
+/** 柱状图金额标签：3.0 -> ¥3，5.50 -> ¥5.5，5.55 -> ¥5.55（去掉多余的 ".00"） */
+fun DailySpending.amountLabel(): String =
+    "¥" + String.format("%.2f", amountYuan).trimEnd('0').trimEnd('.')
 
 data class StatsSummary(
     val totalSpendingYuan: Double,

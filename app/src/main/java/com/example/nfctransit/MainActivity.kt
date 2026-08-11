@@ -71,11 +71,11 @@ class MainActivity : AppCompatActivity() {
             // 调试：把完整读卡 APDU 日志输出到 logcat，便于真机排查
             android.util.Log.d("TransitReader", result.rawLog.joinToString("\n"))
             runOnUiThread {
-                if (result.matchedProfile != null && result.transactions.isNotEmpty()) {
-                    viewModel.onNfcDataLoaded(result)
+                viewModel.onNfcDataLoaded(result)
+                if (result.matchedProfile != null && viewModel.lastReadCount > 0) {
                     Toast.makeText(
                         this,
-                        "识别为：${result.matchedProfile.name}，读取到 ${result.transactions.size} 条记录",
+                        "识别为：${result.matchedProfile.name}，读取到 ${viewModel.lastReadCount} 条记录",
                         Toast.LENGTH_LONG
                     ).show()
                 } else if (result.matchedProfile != null) {

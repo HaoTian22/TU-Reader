@@ -1,40 +1,55 @@
 package com.example.nfctransit.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.nfctransit.CardProfile
-import com.example.nfctransit.TransactionRecord
 import com.example.nfctransit.TransitCardReader
-import com.example.nfctransit.data.PersistedCardData
-import com.example.nfctransit.data.PersistedState
-import com.example.nfctransit.data.RawRecord
+import com.example.nfctransit.data.RecordDecoder
+import com.example.nfctransit.data.StationDbUpdater
 import com.example.nfctransit.data.TransitData
-import com.example.nfctransit.data.TransitStore
-import com.example.nfctransit.model.*
-import com.google.gson.Gson
+import com.example.nfctransit.data.TransactionMapper.toUiCard
+import com.example.nfctransit.data.TransactionMapper.toUiTransaction
+import com.example.nfctransit.data.db.AppDatabase
+import com.example.nfctransit.data.db.CardEntity
+import com.example.nfctransit.data.repo.TransitRepository
+import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.DailySpending
+import com.example.nfctransit.model.LineStat
+import com.example.nfctransit.model.StationStat
+import com.example.nfctransit.model.StatsSummary
+import com.example.nfctransit.model.UiCard
+import com.example.nfctransit.model.UiTransaction
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // ── Per-card data storage ──
+    private val repo = TransitRepository(application)
 
-    private data class CardData(
-        val card: UiCard,
-        val transactions: List<UiTransaction>,
-        val nfcLog: List<String>,
-        val topStations: List<StationStat>,
-        val topLines: List<LineStat>,
-        val dailySpending: List<DailySpending>,
-        val statsSummary: StatsSummary,
-        val rawRecords: List<RawRecord> = emptyList()  // 各交易区原始记录（重读按原始身份去重）
-    )
+    // ── In-memory working set（镜像持久层；UI 派生的唯一来源）──
 
-    private val cardStore = mutableMapOf<String, CardData>()
+    private val cardEntities = mutableListOf<CardEntity>()                 // 卡片列表（镜像 cards 表）
+    private val canonicalByCard = mutableMapOf<String, List<CanonicalTransaction>>()  // 镜像 transactions_archive
+
+    /** 本次会话 APDU 日志（仅内存，导出用；持久化走 SessionLogStore 文件） */
+    private var currentSessionNfcLog: List<String> = emptyList()
+
+    /** 最近一次成功读卡解码出的交易条数（供 MainActivity Toast 显示） */
+    var lastReadCount: Int = 0
+        private set
 
     // ── Observable state ──
 
@@ -50,7 +65,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedCard = MutableLiveData<UiCard?>()
     val selectedCard: LiveData<UiCard?> = _selectedCard
 
-    // 新卡片加入时发出其下标，供首页自动滑动跳转
+    // 读卡后发出对应卡的下标，供首页自动滑动跳转到该卡（新卡或重复读同一张卡都会跳转）
     private val _cardAdded = MutableLiveData<Int?>()
     val cardAdded: LiveData<Int?> = _cardAdded
 
@@ -86,6 +101,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _mainAccent = MutableLiveData<Long>(0xFF0066FF)
     val mainAccent: LiveData<Long> = _mainAccent
 
+    /** 是否保留调试日志（关闭时不写会话日志文件，避免隐私与存储膨胀） */
+    private val _keepDebugLogs = MutableLiveData(true)
+    val keepDebugLogs: LiveData<Boolean> = _keepDebugLogs
+
+    /** 站名映射表在线更新：是否进行中 / 结果文案（供设置页状态提示） */
+    private val _stationDbUpdating = MutableLiveData(false)
+    val stationDbUpdating: LiveData<Boolean> = _stationDbUpdating
+
+    private val _stationDbUpdateStatus = MutableLiveData<String?>(null)
+    val stationDbUpdateStatus: LiveData<String?> = _stationDbUpdateStatus
+
     // 当前统计周期（本周/本月/本年/自定义）与周期偏移（0=当前，-1=上一期，+1=下一期）
     private var currentPeriod = "本周"
     private var currentOffset = 0
@@ -96,140 +122,117 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     init {
-        restorePersistedState()
+        viewModelScope.launch { restore() }
     }
 
-    // ── NFC data loading (with merge + dedup) ──
+    /** 启动加载：从 DataStore + Room 用户库恢复，用 RecordDecoder 从归档重建交易 */
+    private suspend fun restore() {
+        _keepDebugLogs.value = repo.isKeepDebugLogs()
+        val cards = repo.loadCards()
+        if (cards.isEmpty()) return
+        val order = repo.getCardOrder()
+        val selectedId = repo.getSelectedCardId()
+
+        // 按 cardOrder 排序（不在顺序里的放后面）
+        cardEntities.clear()
+        cardEntities.addAll(
+            cards.sortedBy { c ->
+                order.indexOf(c.cardId).let { if (it < 0) Int.MAX_VALUE else it }
+            }
+        )
+        for (c in cardEntities) {
+            val archive = repo.loadArchive(c.cardId)
+            canonicalByCard[c.cardId] = RecordDecoder.decodeArchive(c.cardType, archive)
+        }
+
+        val uiCards = cardEntities.map { it.toUiCard() }
+        _cards.value = uiCards
+        _hasData.value = true
+        val idx = if (selectedId != null) {
+            uiCards.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it }
+        } else 0
+        selectCardByIndex(idx)
+    }
+
+    // ── NFC 数据加载（解码 → 内容去重合并 → 渲染 + 异步持久化）──
 
     /**
-     * 处理 NFC 读取结果。返回新卡片在列表中的下标，若为已存在卡片则返回 null。
+     * 处理 NFC 读取结果。返回新卡片在列表中的下标，若为已存在卡片或未读取到数据则返回 null。
      */
     fun onNfcDataLoaded(result: TransitCardReader.ReadResult): Int? {
+        currentSessionNfcLog = result.rawLog
         val profile = result.matchedProfile ?: return null
-        val transactions = result.transactions
-        if (transactions.isEmpty()) return null
-
-        // Balance from latest SFI 0x1E record (offset 21-24, 单位分)
-        val balanceFen = result.stationInfo?.balanceFen ?: 0L
-        val balanceYuan = balanceFen / 100.0
-
-        // 卡号（应用序列号）-> 用 cardname-tu.csv 按 IIN 匹配卡名；读不到时退回通用名
         val cardNumber = result.cardInfo?.cardNumber ?: ""
         val secondCardNumber = result.secondCardInfo?.cardNumber ?: ""
-        // 卡号后四位用于各页面徽标；读不到卡号时退回交易终端号后四位
-        val lastFour = if (cardNumber.isNotEmpty()) cardNumber.takeLast(4)
-            else lastFourFromTransactions(transactions)
+        val balanceFen = result.balanceFen
         val displayName = cardDisplayName(profile, cardNumber)
-        val newCardId = cardId(profile, cardNumber, lastFour)
 
-        // 查找已有卡片：优先按新 id（卡号）；旧版本按 "名字|尾号" 存，用尾号兼容查找
-        var existing = cardStore[newCardId]
-        var legacyKey: String? = null
-        if (existing == null) {
-            legacyKey = cardStore.entries.firstOrNull { it.value.card.lastFour == lastFour }?.key
-            existing = legacyKey?.let { cardStore[it] }
+        // 解码（读卡展示与归档共用同一条解析路径）
+        val records = result.rawRecords.map {
+            RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex)
         }
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val decoded = RecordDecoder.decodeCard(
+            profile.cardType, records, result.statsMonth, currentYear, balanceFen
+        )
+        if (decoded.display.isEmpty()) {
+            lastReadCount = 0
+            return null
+        }
+        lastReadCount = decoded.display.size
 
-        // 新卡从 20 色板里挑一个还没被用过的颜色；已存在卡保留原颜色
-        val (gradStart, gradEnd) = if (existing != null) {
-            existing.card.gradientStartColor to existing.card.gradientEndColor
-        } else {
-            nextCardColor()
-        }
-        val card = UiCard(
-            id = newCardId,
-            name = displayName,
-            cardType = displayName,
-            lastFour = lastFour,
+        val lastFour = if (cardNumber.isNotEmpty()) cardNumber.takeLast(4)
+            else lastFourFromCanonical(decoded.display)
+        val now = System.currentTimeMillis()
+
+        // 匹配已有卡：按卡号复用 UUID；读不到卡号时按尾号兜底
+        var existing = if (cardNumber.isNotEmpty()) {
+            cardEntities.firstOrNull { it.cardNumber == cardNumber }
+        } else null
+        if (existing == null) existing = cardEntities.firstOrNull { it.lastFour == lastFour }
+        val isNew = existing == null
+        val cardId = existing?.cardId ?: UUID.randomUUID().toString()
+        val (gradStart, gradEnd) = existing?.let {
+            it.gradientStartColor to it.gradientEndColor
+        } ?: nextCardColor()
+
+        // 内容去重合并进内存（identity = content_hash，不含 rec_no）
+        canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
+
+        val entity = CardEntity(
+            cardId = cardId,
             cardNumber = cardNumber,
-            secondCardNumber = secondCardNumber,
-            balanceYuan = balanceYuan,
+            secondCardNumber = secondCardNumber.ifEmpty { null },
+            name = displayName,
+            cardType = profile.cardType,
+            lastFour = lastFour,
             gradientStartColor = gradStart,
-            gradientEndColor = gradEnd
+            gradientEndColor = gradEnd,
+            latestBalanceFen = balanceFen,
+            createdAt = existing?.createdAt ?: now,
+            lastReadAt = now
         )
+        val listIndex = cardEntities.indexOfFirst { it.cardId == cardId }
+        if (listIndex >= 0) cardEntities[listIndex] = entity else cardEntities.add(entity)
 
-        // SFI 0x18 records are newest-first
-        val newUiTxns = transactions.mapIndexed { idx, txn -> mapToUiTransaction(txn, idx) }
-
-        // 本次扫描的城市名，用于给旧记录回填（旧版本持久化数据没有 cityName 字段）
-        val scannedCity = newUiTxns.firstOrNull()?.cityName ?: ""
-
-        // 与已存交易合并去重（按 seq|日期|时间|终端 去重）
-        val rawMerged = if (existing != null) {
-            val existingKeys = existing.transactions.map { txnKey(it) }.toHashSet()
-            val fresh = newUiTxns.filter { txnKey(it) !in existingKeys }
-            (fresh + existing.transactions).distinctBy { txnKey(it) }
-        } else {
-            newUiTxns
-        }
-        // 过滤循环记录文件的全 0 空槽（既含本次新读到、也含旧持久化残留）
-        val filteredMerged = rawMerged.filterNot { isBlankSlotTxn(it) }
-        // 城市名补全：同一张卡属于同一城市，用本次扫描结果回填；并修复旧数据的充值站点名
-        val mergedTxns = filteredMerged.mapIndexed { idx, t ->
-            repairRechargeTxn(
-                t.copy(id = idx, cityName = (t.cityName ?: "").ifEmpty { scannedCity })
-            )
-        }
-
-        // 原始记录与已存合并去重（按 SFI+记录号+内容 身份）
-        val mergedRaw = if (existing != null) {
-            val existingRawIds = existing.rawRecords.map { it.identity }.toHashSet()
-            (result.rawRecords.filter { it.identity !in existingRawIds } + existing.rawRecords)
-                .distinctBy { it.identity }
-        } else {
-            result.rawRecords
-        }
-
-        val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
-        val data = CardData(
-            card = card,
-            transactions = mergedTxns,
-            nfcLog = result.rawLog,
-            topStations = computeTopStations(mergedTxns),
-            topLines = computeTopLines(mergedTxns),
-            dailySpending = computeDailySpending(mergedTxns, currentPeriod, winStart, winEnd),
-            statsSummary = computeStatsSummary(mergedTxns),
-            rawRecords = mergedRaw
-        )
-
-        val isNew = !cardStore.containsKey(card.id) && legacyKey == null
-        // 旧版本用 "名字|尾号" 作 key：迁移到新的卡号 key，删掉旧条目避免残留
-        if (legacyKey != null && legacyKey != card.id) {
-            cardStore.remove(legacyKey)
-        }
-        cardStore[card.id] = data
-
-        val newIndex = (_cards.value ?: emptyList()).indexOfFirst { it.id == card.id }
-        // 列表里可能还留着旧 id（"名字|尾号"）的条目：按尾号找到它并原地替换
-        val legacyListIndex = if (newIndex < 0) {
-            (_cards.value ?: emptyList()).indexOfFirst { it.lastFour == lastFour }
-        } else -1
-        val index = when {
-            newIndex >= 0 -> {
-                // 已存在：更新列表中的卡（余额/卡名可能变化），保持原地顺序
-                val updated = (_cards.value ?: emptyList()).toMutableList()
-                updated[newIndex] = card
-                _cards.value = updated
-                newIndex
-            }
-            legacyListIndex >= 0 -> {
-                val updated = (_cards.value ?: emptyList()).toMutableList()
-                updated[legacyListIndex] = card
-                _cards.value = updated
-                legacyListIndex
-            }
-            else -> {
-                val updated = (_cards.value ?: emptyList()) + card
-                _cards.value = updated
-                updated.size - 1
-            }
-        }
-
+        val updatedCards = cardEntities.map { it.toUiCard() }
+        _cards.value = updatedCards
         _hasData.value = true
+        val index = updatedCards.indexOfFirst { it.id == cardId }
         selectCardByIndex(index)
-        if (isNew) _cardAdded.value = index
+        // 无论新卡还是重复读同一张卡，都让首页滑动到该卡
+        _cardAdded.value = index
 
-        persist()
+        // 异步持久化：卡片 + 槽位同步 + 内容去重归档（含 0x1E 旅程记录）+ 顺序 + 会话日志
+        val rawRecords = result.rawRecords
+        val logLines = result.rawLog
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.upsertCard(entity)
+            repo.syncRawRecords(cardId, rawRecords)
+            repo.archiveTransactions(cardId, decoded.archive)
+            repo.setCardOrder(cardEntities.map { it.cardId })
+            repo.writeSessionLog(cardId, logLines)
+        }
         return if (isNew) index else null
     }
 
@@ -237,10 +240,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val list = _cards.value ?: return
         if (index !in list.indices) return
         _selectedIndex.value = index
-        // 持久化选中索引，应用重开时能恢复到之前选中的那张卡
-        persist()
-        val data = cardStore[list[index].id] ?: return
-        emitCardData(data)
+        val cardId = cardEntities.getOrNull(index)?.cardId ?: return
+        viewModelScope.launch(Dispatchers.IO) { repo.setSelectedCardId(cardId) }
+        emitCardData(cardId)
     }
 
     fun clearCardAdded() {
@@ -276,12 +278,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emitStatsForSelected()
     }
 
+    /** 设置是否保留调试日志（设置页开关） */
+    fun setKeepDebugLogs(keep: Boolean) {
+        _keepDebugLogs.value = keep
+        viewModelScope.launch(Dispatchers.IO) { repo.setKeepDebugLogs(keep) }
+    }
+
     private fun emitStatsForSelected() {
         val index = _selectedIndex.value ?: return
-        val list = _cards.value ?: return
-        if (index in list.indices) {
-            cardStore[list[index].id]?.let { emitStats(it) }
-        }
+        val cardId = cardEntities.getOrNull(index)?.cardId ?: return
+        canonicalByCard[cardId]?.let { emitStats(it.toUiTransactions()) }
     }
 
     /** 某周期的日期窗口 [起, 止]，yyyy-MM-dd；自定义返回空串 */
@@ -327,7 +333,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 清除全部本地数据 */
     fun clearAllData() {
-        cardStore.clear()
+        cardEntities.clear()
+        canonicalByCard.clear()
+        currentSessionNfcLog = emptyList()
+        lastReadCount = 0
         _hasData.value = false
         _cards.value = emptyList()
         _selectedIndex.value = -1
@@ -341,7 +350,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _dailySpending.value = emptyList()
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
-        TransitStore.clear(getApplication())
+        _keepDebugLogs.value = true  // DataStore 清空后恢复默认
+        viewModelScope.launch(Dispatchers.IO) { repo.clearAll() }
     }
 
     /** 导出数据为 CSV */
@@ -357,148 +367,135 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return sb.toString()
     }
 
-    /** 导出数据为 JSON（完整持久化状态） */
+    /** 导出数据为 JSON（当前选中卡的渲染交易） */
     fun exportJson(): String {
-        val state = buildPersistedState()
-        return Gson().toJson(state)
+        return com.google.gson.Gson().toJson(_allTransactions.value.orEmpty())
+    }
+
+    // ── 数据库导入 / 导出 ──
+
+    /** 导出用户库（user_data.db）为单文件到用户所选位置 */
+    suspend fun exportDatabase(uri: Uri) {
+        withContext(Dispatchers.IO) { repo.exportDatabase(uri) }
+    }
+
+    /** 导入用户库：复制所选文件到缓存 → 去重合并 → 重载界面，返回结果文案 */
+    suspend fun importDatabase(uri: Uri): String {
+        val tmp = withContext(Dispatchers.IO) { copyUriToCache(uri) }
+        val summary = withContext(Dispatchers.IO) {
+            try {
+                repo.importDatabase(tmp)
+            } finally {
+                tmp.delete()
+            }
+        }
+        restore()
+        return "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录"
+    }
+
+    private fun copyUriToCache(uri: Uri): File {
+        val app = getApplication<Application>()
+        val tmp = File(app.cacheDir, "import_${System.currentTimeMillis()}.db")
+        app.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(tmp).use { output -> input.copyTo(output) }
+        } ?: throw IOException("无法读取所选文件")
+        return tmp
+    }
+
+    // ── 站名映射表在线更新 ──
+
+    /**
+     * 下载最新 transit.db 并替换本地站名映射表，成功后重载内存索引并刷新界面。
+     * 下载或格式校验失败时原库保持不变。
+     */
+    fun updateStationDatabase() {
+        if (_stationDbUpdating.value == true) return
+        _stationDbUpdating.value = true
+        viewModelScope.launch {
+            try {
+                val downloaded = withContext(Dispatchers.IO) {
+                    StationDbUpdater.download(getApplication())
+                }
+                try {
+                    withContext(Dispatchers.IO) {
+                        AppDatabase.replaceWithDownloaded(getApplication(), downloaded)
+                        TransitData.reload()
+                    }
+                } finally {
+                    downloaded.delete()
+                }
+                _stationDbUpdateStatus.value = "✓ 站名映射表已更新"
+                reloadDisplayLanguage()
+            } catch (e: Exception) {
+                _stationDbUpdateStatus.value = "更新失败: ${e.message}"
+            } finally {
+                _stationDbUpdating.value = false
+            }
+        }
     }
 
     // ── Private ──
 
-    /** 从 NFC 日志里提取卡号（应用序列号）：READ BINARY SFI=21 行的 bytes 10-19 BCD */
-    private fun cardNumberFromNfcLog(log: List<String>): String {
-        val line = log.firstOrNull { it.contains("READ BINARY") && it.contains("SFI=21") } ?: return ""
-        val hex = line.substringAfter("-> ").trim()
-        if (!hex.endsWith("9000") || hex.length < 44) return ""
-        val serialHex = hex.substring(20, 40) // data bytes 10-19
-        val digits = buildString {
-            for (i in 0 until serialHex.length step 2) {
-                val b = serialHex.substring(i, i + 2).toInt(16)
-                append((b shr 4) and 0xF)
-                append(b and 0xF)
-            }
-        }
-        return digits.trimStart('0')
-    }
+    /** 从 canonical（镜像 archive）生成该卡的 UI 交易（名称按当前界面语言经 ID 解析） */
+    private fun List<CanonicalTransaction>.toUiTransactions(): List<UiTransaction> =
+        mapIndexed { idx, c -> c.toUiTransaction(idx) }
 
-    private fun restorePersistedState() {
-        val state = TransitStore.load(getApplication()) ?: return
-        val upgraded = mutableMapOf<String, UiCard>() // newId -> card
-        state.dataMap.forEach { (id, d) ->
-            // 优先用已持久化的主卡号（双协议卡的 nfcLog 里可能有 LNT+TU 两条 SFI=0x21，
-            // 从日志反推会取到 TU 卡号导致重开 app 后卡片身份漂移）。
-            // 只有旧版本数据（cardNumber 为空）才回退到从 nfcLog 反推。
-            val persistedCardNumber = d.card.cardNumber ?: ""
-            val cardNum = if (persistedCardNumber.isNotEmpty()) {
-                persistedCardNumber
-            } else {
-                cardNumberFromNfcLog(d.nfcLog)
-            }
-            val mappedName = if (cardNum.isNotEmpty()) {
-                TransitData.cardName(cardNum)?.takeIf { it.isNotEmpty() }
-            } else null
-            val newName = mappedName ?: d.card.cardType
-            val newId = if (cardNum.isNotEmpty()) cardNum else id
-            // 旧版本 cardNumber 为 null/空、lastFour 取的是交易终端号：用卡号回填并修正后四位
-            val upgradedCard = if (newId != id || newName != d.card.cardType ||
-                d.card.cardNumber.isNullOrEmpty() || d.card.lastFour != cardNum.takeLast(4)
-            ) {
-                d.card.copy(
-                    id = newId,
-                    name = newName,
-                    cardType = newName,
-                    cardNumber = if (cardNum.isNotEmpty()) cardNum else (d.card.cardNumber ?: ""),
-                    lastFour = if (cardNum.isNotEmpty()) cardNum.takeLast(4) else d.card.lastFour
-                )
-            } else d.card
-            cardStore[newId] = CardData(
-                card = upgradedCard,
-                // 修复旧版本持久化数据：充值记录不显示站点名；按 "线路 站点" 组合串反查补回 lineId/stationId
-                // （旧版本曾把英文 "Line 1 Huadiwan" 按空格误拆成 line='Line', station='1 Huadiwan'）
-                // 并过滤循环记录文件的全 0 空槽（旧版本误当成交易持久化下来的垃圾记录）
-                transactions = d.transactions
-                    .filterNot { isBlankSlotTxn(it) }
-                    .map { resolveNamesById(it) }
-                    .map { repairRechargeTxn(it) },
-                nfcLog = d.nfcLog,
-                topStations = d.topStations,
-                topLines = d.topLines,
-                dailySpending = d.dailySpending,
-                statsSummary = d.statsSummary,
-                rawRecords = d.rawRecords ?: emptyList()
-            )
-            upgraded[newId] = upgradedCard
-        }
-        if (state.cards.isNotEmpty()) {
-            // 保持持久化的卡顺序：旧 id 的条目替换为升级后的卡。
-            // 卡号优先用已持久化的 cardNumber；双协议卡从 nfcLog 反推会取到 TU 号
-            val ordered = state.cards.map { c ->
-                val cardNum = (c.cardNumber ?: "").ifEmpty {
-                    cardNumberFromNfcLog(state.dataMap[c.id]?.nfcLog ?: emptyList())
-                }
-                upgraded[if (cardNum.isNotEmpty()) cardNum else c.id] ?: c
-            }
-            _cards.value = ordered
-            _hasData.value = true
-            val idx = state.selectedIndex.coerceIn(0, ordered.size - 1)
-            selectCardByIndex(idx)
-            // 修复后把补回的 ID 持久化，避免每次启动都重复反查
-            persist()
-        }
-    }
-
-    private fun persist() {
-        TransitStore.save(getApplication(), buildPersistedState())
-    }
-
-    private fun buildPersistedState(): PersistedState {
-        return PersistedState(
-            cards = _cards.value ?: emptyList(),
-            dataMap = cardStore.mapValues { (_, d) ->
-                PersistedCardData(
-                    card = d.card,
-                    transactions = d.transactions,
-                    nfcLog = d.nfcLog,
-                    topStations = d.topStations,
-                    topLines = d.topLines,
-                    dailySpending = d.dailySpending,
-                    statsSummary = d.statsSummary,
-                    rawRecords = d.rawRecords
-                )
-            },
-            selectedIndex = _selectedIndex.value ?: 0
-        )
-    }
-
-    private fun emitCardData(data: CardData) {
-        _selectedCard.value = data.card
-        _mainAccent.value = data.card.gradientStartColor
-        _allTransactions.value = data.transactions
-        _filteredTransactions.value = filterTransactions(data.transactions, _currentFilter.value ?: "全部")
-        _nfcLog.value = data.nfcLog
-        emitStats(data)
+    private fun emitCardData(cardId: String) {
+        val card = cardEntities.firstOrNull { it.cardId == cardId }?.toUiCard() ?: return
+        val txns = canonicalByCard[cardId].orEmpty().toUiTransactions()
+        _selectedCard.value = card
+        _mainAccent.value = card.gradientStartColor
+        _allTransactions.value = txns
+        _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: "全部")
+        _nfcLog.value = currentSessionNfcLog
+        emitStats(txns)
         // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致
         _homeWeeklySpending.value =
-            computeDailySpending(data.transactions, "本周", periodWindow("本周", 0).first, periodWindow("本周", 0).second)
+            computeDailySpending(txns, "本周", periodWindow("本周", 0).first, periodWindow("本周", 0).second)
     }
 
-    /**
-     * 按当前统计周期与偏移从交易记录重算并发布统计。
-     * 每次展示都重算，避免持久化的旧快照过期（例如充值混入消费）。
-     */
-    private fun emitStats(data: CardData) {
+    /** 按当前统计周期与偏移从交易记录重算并发布统计（每次展示都重算，避免持久化旧快照过期） */
+    private fun emitStats(txns: List<UiTransaction>) {
         val (start, end) = periodWindow(currentPeriod, currentOffset)
         val periodTxns = if (start.isEmpty()) {
             _periodRange.value = ""
-            data.transactions
+            txns
         } else {
             _periodRange.value = "$start ~ ${end.substring(5)}"
-            data.transactions.filter { it.date in start..end }
+            txns.filter { it.date in start..end }
         }
         _topStations.value = computeTopStations(periodTxns)
         _topLines.value = computeTopLines(periodTxns)
         _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
         _statsSummary.value = computeStatsSummary(periodTxns)
+    }
+
+    /** 内容去重合并（identity = content_hash；内容相同跳过，不同追加为新 key） */
+    private fun mergeCanonical(
+        existing: List<CanonicalTransaction>,
+        fresh: List<CanonicalTransaction>
+    ): List<CanonicalTransaction> {
+        val seen = existing.map { it.identity }.toHashSet()
+        val merged = existing.toMutableList()
+        for (t in fresh) {
+            if (t.identity !in seen) {
+                merged.add(t)
+                seen.add(t.identity)
+            }
+        }
+        return merged.sortedWith(
+            compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
+        )
+    }
+
+    private fun filterTransactions(txns: List<UiTransaction>, filter: String): List<UiTransaction> {
+        return when (filter) {
+            "地铁" -> txns.filter { it.transitType == "地铁" }
+            "公交" -> txns.filter { it.transitType == "公交" }
+            "消费" -> txns.filter { it.transitType == "消费" }
+            "充值" -> txns.filter { it.transitType == "充值" }
+            else -> txns
+        }
     }
 
     /** 在日期字符串上增加天数，返回 "yyyy-MM-dd" */
@@ -512,121 +509,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun filterTransactions(txns: List<UiTransaction>, filter: String): List<UiTransaction> {
-        return when (filter) {
-            "地铁" -> txns.filter { it.transitType == "地铁" }
-            "公交" -> txns.filter { it.transitType == "公交" }
-            "消费" -> txns.filter { it.transitType == "消费" }
-            "充值" -> txns.filter { it.transitType == "充值" }
-            else -> txns
-        }
-    }
-
-    /** 交易唯一键，用于去重 */
-    private fun txnKey(t: UiTransaction): String {
-        return "${t.seq}|${t.date}|${t.time}|${t.terminal}"
-    }
-
-    /** 充值不是乘车记录，不显示站点名（旧数据可能残留 "轨道交通 (TU终端:…)" 兜底文本） */
-    private fun repairRechargeTxn(t: UiTransaction): UiTransaction {
-        if (t.typeHex == "02" || t.amountYuan < 0) return t.copy(stationName = "")
-        return t
-    }
-
-    /**
-     * 循环记录文件（SFI 0x18）未使用的空槽：整条全 0（seq=0、时间 0000-00-00、
-     * 金额 0、终端空）会被误当交易读取并持久化，直接过滤掉。
-     */
-    private fun isBlankSlotTxn(t: UiTransaction): Boolean {
-        return t.seq == 0 && t.amountYuan == 0.0 &&
-            t.date.startsWith("0000-00-00") && t.time.startsWith("00:00:00")
-    }
-
-    /**
-     * 切换语言后按 ID 重新解析名称。
-     * 线路/站点以数据库 ID 持久化；语言变化时据此重新解析，保持名称与界面语言一致。
-     * 旧数据缺 ID：优先用 "线路 站点" 组合串反查，退化为站名反查。
-     */
-    fun relocalize(): List<UiTransaction> {
-        return (_allTransactions.value ?: emptyList()).map { resolveNamesById(it) }
-    }
-
-    /**
-     * 显示语言切换后，按 ID 重新解析所有卡片的站名/线路名，刷新界面并持久化。
-     * 供设置页切换语言后调用。
-     */
+    /** 显示语言切换后，按 ID 重新解析当前卡的站名/线路名并刷新界面（名称由 ID 在映射时解析） */
     fun reloadDisplayLanguage() {
-        val selectedId = _cards.value?.getOrNull(_selectedIndex.value ?: -1)?.id
-        val (winStart, winEnd) = periodWindow(currentPeriod, currentOffset)
-        for ((id, d) in cardStore) {
-            val txns = d.transactions
-                .filterNot { isBlankSlotTxn(it) }
-                .map { resolveNamesById(it) }
-                .map { repairRechargeTxn(it) }
-            cardStore[id] = d.copy(
-                transactions = txns,
-                topStations = computeTopStations(txns),
-                topLines = computeTopLines(txns),
-                dailySpending = computeDailySpending(txns, currentPeriod, winStart, winEnd),
-                statsSummary = computeStatsSummary(txns)
-            )
-        }
-        persist()
-        selectedId?.let { id -> cardStore[id]?.let { emitCardData(it) } }
-    }
-
-    /** 从 ID（或旧数据反查）重新解析一条交易的中文/英文站名与线路名 */
-    private fun resolveNamesById(t: UiTransaction): UiTransaction {
-        if (t.typeHex == "02" || t.amountYuan < 0) return t  // 充值无站点
-
-        // 记录方向箭头，解析后重新追加（旧数据修复时不丢失 入站/出站 标记）
-        val direction = when {
-            t.stationName.endsWith("↑") -> "↑"
-            t.stationName.endsWith("↓") -> "↓"
-            else -> ""
-        }
-        val base = t.stationName.removeSuffix("↑").removeSuffix("↓").trim()
-
-        var entry = if (t.lineId != null && t.stationId != null) {
-            TransitData.entryOf(t.lineId, t.stationId)
-        } else if (t.stationId != null) {
-            TransitData.entryOf(null, t.stationId)
-        } else null
-
-        // 旧数据（无 ID）：站名里可能残留完整 "线路 站点" 组合串
-        // （旧版本曾把英文 "Line 1 Huadiwan" 误存成 station，line 只留了 "Line"）
-        if (entry == null && base.contains(" ")) {
-            entry = TransitData.resolveByCombined(base)
-        }
-        // 旧数据：线路/站名被按空格误拆（line='Line', station='1 Huadiwan'），重组后反查
-        if (entry == null) {
-            entry = TransitData.resolveByCombined("${t.lineName} $base".trim())
-        }
-        // 旧数据：站名正确但无 ID，按站名反查补回 stationId
-        if (entry == null) {
-            entry = TransitData.resolveByStationName(base)
-        }
-        if (entry == null) return t
-
-        val line = entry.line
-        val station = entry.station
-        return t.copy(
-            lineName = line.ifEmpty { t.lineName },
-            lineColor = entry.lineColor ?: t.lineColor,
-            stationName = if (direction.isNotEmpty()) "$station $direction" else station,
-            lineId = entry.lineId ?: t.lineId,
-            stationId = entry.stationId ?: t.stationId
-        )
-    }
-
-    private fun cardId(profile: CardProfile, cardNumber: String, lastFour: String): String {
-        // 卡号是稳定唯一标识；读不到卡号（旧卡/解析失败）时退回 "名字|尾号"
-        return if (cardNumber.isNotEmpty()) cardNumber else "${cardDisplayName(profile, cardNumber)}|$lastFour"
+        val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId ?: return
+        emitCardData(cardId)
     }
 
     private fun cardDisplayName(profile: CardProfile, cardNumber: String): String {
         // 优先用 cardname-tu.csv 按 IIN 最长前缀匹配出的卡名（如 羊城通 / 长安通 / 上海公共交通卡）
-        // 传入完整卡号，让 cardName() 能做 8/10/12 位等变长 IIN 的最长前缀匹配
         if (cardNumber.isNotEmpty()) {
             val name = TransitData.cardName(cardNumber)
             if (!name.isNullOrEmpty()) return name
@@ -680,8 +570,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCard(index: Int) {
         val list = _cards.value ?: return
         if (index !in list.indices) return
-        cardStore.remove(list[index].id)
-        val updated = list.toMutableList().apply { removeAt(index) }
+        val cardId = cardEntities.getOrNull(index)?.cardId ?: return
+        cardEntities.removeAt(index)
+        canonicalByCard.remove(cardId)
+        val updated = cardEntities.map { it.toUiCard() }
         _cards.value = updated
         if (updated.isEmpty()) {
             _hasData.value = false
@@ -699,85 +591,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             selectCardByIndex(index.coerceAtMost(updated.size - 1))
         }
-        persist()
+        viewModelScope.launch(Dispatchers.IO) { repo.deleteCard(cardId) }
     }
 
-    private fun lastFourFromTransactions(transactions: List<TransactionRecord>): String {
-        val terminal = transactions.firstOrNull()?.terminal ?: return "----"
+    private fun lastFourFromCanonical(canonical: List<CanonicalTransaction>): String {
+        val terminal = canonical.firstOrNull()?.terminal ?: return "----"
         return if (terminal.length >= 4) terminal.takeLast(4) else terminal
-    }
-
-    private fun mapToUiTransaction(
-        txn: TransactionRecord,
-        index: Int
-    ): UiTransaction {
-        // TypeHex "02" = 充值, negative amountYuan = recharge
-        val isRecharge = txn.typeHex == "02" || txn.amountYuan < 0
-        val amountAbs = kotlin.math.abs(txn.amountYuan)
-
-        val (icon, iconBgColor, transitType, lineName) = when {
-            isRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
-            txn.transitType.contains("地铁") || txn.transitType.contains("Metro") ||
-                txn.transitType.contains("轨道交通") ->
-                Quad("🚇", 0xFFE3F2FD, "地铁", txn.lineName.ifEmpty { "—" })
-            txn.transitType.contains("公交") || txn.transitType.contains("Bus") ->
-                Quad("🚌", 0xFFFFF3E0, "公交", txn.lineName.ifEmpty { "—" })
-            txn.transitType.contains("消费") -> Quad("🛒", 0xFFFCE4EC, "消费", "—")
-            else -> {
-                if (txn.lineName.isNotEmpty() && txn.lineName[0].isDigit())
-                    Quad("🚇", 0xFFE3F2FD, "地铁", txn.lineName)
-                else
-                    Quad("🚌", 0xFFFFF3E0, "公交", txn.lineName.ifEmpty { "—" })
-            }
-        }
-
-        val formattedDate = formatBcdDate(txn.date)
-        val formattedTime = formatBcdTime(txn.time)
-        val balanceAfterYuan = txn.balanceAfterFen / 100.0
-        // 1E 旅程记录（进站/出站事件）无金额：金额位显示 "进站/出站/乘车"，而不是 "-¥0.00"
-        val amountText = when {
-            isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
-            txn.amountYuan == 0.0 && transitType != "消费" -> when {
-                txn.stationName.contains("↓") -> "进站"
-                txn.stationName.contains("↑") -> "出站"
-                else -> "乘车"
-            }
-            else -> "-¥${String.format("%.2f", amountAbs)}"
-        }
-
-        return UiTransaction(
-            id = index,
-            seq = txn.seq,
-            amountYuan = txn.amountYuan,
-            amountText = amountText,
-            typeHex = txn.typeHex,
-            transitType = transitType,
-            terminal = txn.terminal,
-            // 充值不是乘车记录，不显示站点/兜底线路名（避免出现 "轨道交通 (TU终端:…)"）
-            stationName = if (isRecharge) "" else txn.stationName,
-            cityName = txn.cityName,
-            lineName = lineName,
-            lineColor = txn.lineColor,
-            lineId = txn.lineId,
-            stationId = txn.stationId,
-            date = formattedDate,
-            time = formattedTime,
-            displayDateTime = "$formattedDate $formattedTime",
-            balanceAfterYuan = balanceAfterYuan,
-            balanceAfterText = "余额 ¥${String.format("%.2f", balanceAfterYuan)}",
-            icon = icon,
-            iconBgColor = iconBgColor
-        )
-    }
-
-    private fun formatBcdDate(bcd: String): String {
-        if (bcd.length != 8) return bcd
-        return "${bcd.substring(0, 4)}-${bcd.substring(4, 6)}-${bcd.substring(6, 8)}"
-    }
-
-    private fun formatBcdTime(bcd: String): String {
-        if (bcd.length < 6) return bcd
-        return "${bcd.substring(0, 2)}:${bcd.substring(2, 4)}:${bcd.substring(4, 6)}"
     }
 
     private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
@@ -920,11 +739,4 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             date.substring(5)
         }
     }
-
-    private data class Quad(
-        val icon: String,
-        val bgColor: Long,
-        val transitType: String,
-        val lineName: String
-    )
 }

@@ -269,6 +269,23 @@ object TransitData {
         return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId)
     }
 
+    /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换） */
+    fun reload() {
+        synchronized(loadLock) {
+            cityInfos.clear()
+            byDeviceCode.clear()
+            byMatchKey.clear()
+            byStationId.clear()
+            byLineStationId.clear()
+            byCombinedZh.clear()
+            byCombinedEn.clear()
+            byStationNameZh.clear()
+            byStationNameEn.clear()
+            loaded = false
+            ensureLoaded()
+        }
+    }
+
     /** 首次访问时一次性载入 DB 数据（双检锁；失败则保持空索引，读卡链路降级为"未知"） */
     private fun ensureLoaded() {
         if (loaded) return

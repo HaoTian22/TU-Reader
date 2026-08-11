@@ -20,6 +20,7 @@ import com.example.nfctransit.databinding.FragmentStatsBinding
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
+import com.example.nfctransit.model.amountLabel
 
 class StatsFragment : Fragment(R.layout.fragment_stats) {
 
@@ -195,7 +196,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
 
             val value = TextView(requireContext()).apply {
-                text = if (showValues) "¥${d.amountYuan.toInt()}" else ""
+                text = if (showValues) d.amountLabel() else ""
                 setTextColor(0xFF555555.toInt())
                 textSize = 9f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -277,7 +278,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     }
 
     private fun buildPopupText(d: DailySpending): String {
-        val amount = "¥${d.amountYuan.toInt()}"
+        val amount = d.amountLabel()
         // 年视图的柱代表月份，用 "1月" 更直观；其余显示日期
         return if (d.dayLabel.endsWith("月")) {
             "${d.dayLabel} $amount"

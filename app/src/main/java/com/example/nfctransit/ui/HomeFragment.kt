@@ -1,6 +1,5 @@
 package com.example.nfctransit.ui
 
-import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.Rect
@@ -22,7 +21,9 @@ import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.DiscountPolicy
 import com.example.nfctransit.model.UiCard
+import com.example.nfctransit.model.amountLabel
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -186,8 +187,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvBalance.text = "¥${String.format("%.2f", card.balanceYuan)}"
-                binding.tvLastRead.text =
-                    "上次读取：今天 ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())}"
+                binding.tvLastRead.text = formatLastRead(card.lastReadAt)
                 updateDiscountProgress()
             }
         }
@@ -334,6 +334,27 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         return viewModel.selectedIndex.value?.coerceIn(0, count - 1) ?: 0
     }
 
+    /** 用卡片在数据库里记录的最近读卡时间格式化"上次读取"，而非当前时刻 */
+    private fun formatLastRead(lastReadAt: Long): String {
+        if (lastReadAt <= 0L) return "上次读取：—"
+        val cal = Calendar.getInstance().apply { timeInMillis = lastReadAt }
+        val now = Calendar.getInstance()
+        val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
+        if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+            cal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
+        ) {
+            return "上次读取：今天 $timeStr"
+        }
+        val yesterday = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+        if (cal.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) &&
+            cal.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
+        ) {
+            return "上次读取：昨天 $timeStr"
+        }
+        val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "M月d日" else "yyyy年M月d日"
+        return "上次读取：${SimpleDateFormat(datePattern, Locale.getDefault()).format(cal.time)} $timeStr"
+    }
+
     /** 构建迷你消费统计柱状图：样式与统计页周视图一致（数值+圆角渐变柱+星期标签） */
     private fun bindMiniChart(data: List<DailySpending>) {
         val area = binding.chartMiniArea
@@ -358,7 +379,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             }
 
             val value = TextView(requireContext()).apply {
-                text = if (showValues) "¥${d.amountYuan.toInt()}" else ""
+                text = if (showValues) d.amountLabel() else ""
                 setTextColor(0xFF555555.toInt())
                 textSize = 9f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -538,12 +559,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     /** 删除卡片前的确认弹窗 */
     private fun showDeleteConfirm(position: Int) {
-        AlertDialog.Builder(requireContext())
-            .setTitle("删除卡片")
-            .setMessage("确定删除这张卡及其全部交易数据吗？此操作无法撤销。")
-            .setPositiveButton("删除") { _, _ -> viewModel.deleteCard(position) }
-            .setNegativeButton("取消", null)
-            .show()
+        AppDialogs.confirm(
+            context = requireContext(),
+            title = "删除卡片",
+            message = "确定删除这张卡及其全部交易数据吗？此操作无法撤销。",
+            confirmLabel = "删除",
+            onConfirm = { viewModel.deleteCard(position) }
+        )
     }
 
     /** 在 ViewPager2 卡片之间增加空隙 */
