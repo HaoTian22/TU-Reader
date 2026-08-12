@@ -5,6 +5,14 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+// 签名：本地读根目录 keystore.properties，CI 读环境变量；两者都没有则退回 debug 签名
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def releaseKeystoreConfigured = keystorePropertiesFile.exists() || System.getenv('KEYSTORE_FILE') != null
+
 android {
     namespace 'com.example.nfctransit'
     compileSdk 37
@@ -25,11 +33,26 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
 
+    signingConfigs {
+        release {
+            if (releaseKeystoreConfigured) {
+                storeFile file(System.getenv('KEYSTORE_FILE') ?: keystoreProperties['storeFile'])
+                storePassword System.getenv('KEYSTORE_PASSWORD') ?: keystoreProperties['storePassword']
+                keyAlias System.getenv('KEY_ALIAS') ?: keystoreProperties['keyAlias']
+                keyPassword System.getenv('KEY_PASSWORD') ?: keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            // 无独立签名库，release 先用 debug 签名以便安装；正式分发需换成 release keystore
-            signingConfig signingConfigs.debug
+            if (releaseKeystoreConfigured) {
+                signingConfig signingConfigs.release
+            } else {
+                // 未配置 keystore：退回 debug 签名以便安装
+                signingConfig signingConfigs.debug
+            }
         }
     }
     compileOptions {

@@ -160,7 +160,32 @@ object RecordDecoder {
                 cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, 0L, storedDate, storedBalance
             ).distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
         }
-        return base.sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
+        return mergeByIdentity(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
+    }
+
+    /** 多个 canonical 的协议并集（优先用 protocols 集合，空则回退单 protocol），去重保持顺序 */
+    fun unionProtocols(vararg ts: CanonicalTransaction): Set<String> {
+        val set = LinkedHashSet<String>()
+        for (t in ts) {
+            if (t.protocols.isNotEmpty()) set.addAll(t.protocols)
+            else if (t.protocol.isNotBlank()) set.add(t.protocol)
+        }
+        return set
+    }
+
+    /**
+     * 同一内容（content_hash）在不同协议/扇区的变体合并为一条展示，协议取并集：
+     * 双协议卡同一条内容在 LNT 0x18 / TU 0x1E 等各存一行，渲染时合并显示。
+     */
+    fun mergeByIdentity(list: List<CanonicalTransaction>): List<CanonicalTransaction> {
+        if (list.size <= 1) return list
+        val byId = LinkedHashMap<String, MutableList<CanonicalTransaction>>()
+        for (t in list) byId.getOrPut(t.identity) { mutableListOf() }.add(t)
+        if (byId.size == list.size) return list
+        return byId.values.map { group ->
+            if (group.size == 1) group[0]
+            else group[0].copy(protocols = unionProtocols(*group.toTypedArray()))
+        }
     }
 
     /**

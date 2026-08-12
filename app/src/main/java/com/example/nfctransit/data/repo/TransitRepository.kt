@@ -93,8 +93,8 @@ class TransitRepository(private val context: Context) {
                 )
             )
             if (inserted == -1L) {
-                // 内容相同 → 跳过（只更新 last_seen_at）
-                dao.touchArchive(cardId, t.identity, now)
+                // 完全一样（同内容同协议同扇区）→ 只更新 last_seen_at；不同协议/扇区的变体已作为新行插入
+                dao.touchArchive(cardId, t.identity, t.protocol, t.sfi, now)
             }
         }
     }
@@ -142,7 +142,7 @@ class TransitRepository(private val context: Context) {
     /**
      * 导入另一份用户库：卡片按 card_number（空号按 last_four）匹配现有卡，已存在则复用其 card_id
      * 并合并记录（不覆盖卡片元数据）；新卡分配新 UUID 并追加到卡序。
-     * 交易按 (card_id, content_hash)、原始记录按 (card_id, protocol, sfi, rec_no) 去重，
+     * 交易按 (card_id, content_hash, protocol, sfi)、原始记录按 (card_id, protocol, sfi, rec_no) 去重，
      * 只插入现有库中没有的行。
      */
     suspend fun importDatabase(importFile: File): ImportSummary {
@@ -192,7 +192,7 @@ class TransitRepository(private val context: Context) {
         var newArchive = 0
         for (arc in importedArchives) {
             val targetId = idMap[arc.cardId] ?: continue
-            if (dao.getArchiveByContent(targetId, arc.contentHash) == null) {
+            if (dao.getArchiveSlot(targetId, arc.contentHash, arc.protocol, arc.sfi) == null) {
                 dao.insertArchiveRow(
                     arc.copy(cardId = targetId, rowId = 0, firstSeenAt = now, lastSeenAt = now)
                 )

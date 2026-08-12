@@ -119,6 +119,8 @@
             <include layout="@layout/item_detail_row" />
             <!-- 交易后余额 -->
             <include layout="@layout/item_detail_row" />
+            <!-- 协议 -->
+            <include layout="@layout/item_detail_row" />
             <!-- 终端编号 -->
             <include layout="@layout/item_detail_row" />
         </LinearLayout>

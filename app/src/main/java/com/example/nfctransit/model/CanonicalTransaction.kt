@@ -24,5 +24,7 @@ data class CanonicalTransaction(
     val time: String,   // "HHmmss"
     val sfi: Int,
     val protocol: String,  // "LNT"/"TU"/""
-    val hex: String
+    val hex: String,
+    /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
+    val protocols: Set<String> = emptySet()
 )

@@ -160,6 +160,7 @@
 
     <!-- Transaction List -->
     <ScrollView
+        android:id="@+id/transactionListScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 

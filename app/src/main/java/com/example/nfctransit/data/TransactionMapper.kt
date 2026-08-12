@@ -65,6 +65,7 @@ object TransactionMapper {
         return UiTransaction(
             id = index,
             seq = sequence ?: 0,
+            sfi = sfi,
             amountYuan = amountYuan,
             amountText = amountText,
             typeHex = typeHex,
@@ -82,7 +83,9 @@ object TransactionMapper {
             balanceAfterYuan = balanceAfterYuan,
             balanceAfterText = "余额 ¥${String.format("%.2f", balanceAfterYuan)}",
             icon = icon,
-            iconBgColor = iconBgColor
+            iconBgColor = iconBgColor,
+            protocols = if (protocols.isNotEmpty()) protocols.sorted()
+                else if (protocol.isBlank()) emptyList() else listOf(protocol)
         )
     }
 

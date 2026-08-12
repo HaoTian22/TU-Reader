@@ -140,7 +140,7 @@ object AppDialogs {
         dialog.show()
     }
 
-    /** 卡片排序弹窗：每张卡一行，行尾 ↑↓ 箭头调整顺序，完成后回调新顺序的 cardId 列表 */
+    /** 卡片排序弹窗：每张卡一行（行名前置主题色圆点，行名与箭头黑色），↑↓ 箭头调整顺序，切换时滑动动画，完成后回调新顺序的 cardId 列表 */
     fun reorder(
         context: Context,
         cards: List<UiCard>,
@@ -163,38 +163,54 @@ object AppDialogs {
         val density = context.resources.displayMetrics.density
         val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.ttf")
         val order = cards.toMutableList()
+        val rowViews = mutableMapOf<String, LinearLayout>()  // card.id -> 行 View
+        var animating = false
+        val rowHeightPx = 52f * density
+        val divHeightPx = 0.5f * density
 
-        fun arrowButton(chevron: String, enabled: Boolean): TextView =
-            TextView(context).apply {
+        fun divider(): View = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, divHeightPx.toInt()
+            )
+            setBackgroundColor(0xFFE5E5EA.toInt())
+        }
+
+        /** 构建一行：主题色圆点 + 黑色行名 + ↑↓ 箭头；箭头启用态颜色在 render 里按索引更新 */
+        fun buildRow(card: UiCard): LinearLayout {
+            val theme = card.gradientStartColor.toInt()
+            val label = if (card.lastFour.isBlank() || card.lastFour == "----") {
+                card.name
+            } else {
+                "${card.name} (${card.lastFour})"
+            }
+            fun arrow(chevron: String) = TextView(context).apply {
                 text = chevron
                 typeface = fa
                 textSize = 16f
-                setTextColor(if (enabled) accentColor else 0xFFD1D1D6.toInt())
                 layoutParams = LinearLayout.LayoutParams(
                     (44 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
                 )
                 gravity = Gravity.CENTER
-                isClickable = enabled
-                isFocusable = enabled
             }
-
-        fun render() {
-            container.removeAllViews()
-            order.forEachIndexed { i, card ->
-                val label = if (card.lastFour.isBlank() || card.lastFour == "----") {
-                    card.name
-                } else {
-                    "${card.name} (${card.lastFour})"
-                }
-                val row = LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, (52 * density).toInt()
-                    )
-                    setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
-                }
-                row.addView(
+            return LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, rowHeightPx.toInt()
+                )
+                setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
+                // 主题色圆点
+                addView(View(context).apply {
+                    val d = (10 * density).toInt()
+                    layoutParams = LinearLayout.LayoutParams(d, d).apply {
+                        marginEnd = (8 * density).toInt()
+                    }
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(theme)
+                    }
+                })
+                addView(
                     TextView(context).apply {
                         text = label
                         setTextColor(0xFF1A1A1A.toInt())
@@ -205,36 +221,62 @@ object AppDialogs {
                         gravity = Gravity.CENTER_VERTICAL
                     }
                 )
-                val up = arrowButton("", enabled = i > 0)
-                up.setOnClickListener {
-                    if (i > 0) {
-                        val item = order.removeAt(i)
-                        order.add(i - 1, item)
-                        render()
-                    }
-                }
-                val down = arrowButton("", enabled = i < order.lastIndex)
-                down.setOnClickListener {
-                    if (i < order.lastIndex) {
-                        val item = order.removeAt(i)
-                        order.add(i + 1, item)
-                        render()
-                    }
-                }
-                row.addView(up)
-                row.addView(down)
+                addView(arrow(""))
+                addView(arrow(""))
+            }
+        }
+
+        lateinit var swap: (Int, Int) -> Unit
+
+        fun render() {
+            container.removeAllViews()
+            rowViews.clear()
+            order.forEachIndexed { i, card ->
+                val row = buildRow(card)
+                rowViews[card.id] = row
                 container.addView(row)
-                if (i < order.lastIndex) {
-                    container.addView(
-                        View(context).apply {
-                            layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT, (0.5 * density).toInt()
-                            )
-                            setBackgroundColor(0xFFE5E5EA.toInt())
-                        }
-                    )
+                if (i < order.lastIndex) container.addView(divider())
+            }
+            // 按当前索引挂箭头事件与启用态颜色；动画期间禁用点击
+            order.forEachIndexed { i, card ->
+                val row = rowViews[card.id]!!
+                val up = row.getChildAt(row.childCount - 2) as TextView
+                val down = row.getChildAt(row.childCount - 1) as TextView
+                up.setTextColor(if (i > 0) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
+                down.setTextColor(if (i < order.lastIndex) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
+                up.isClickable = i > 0 && !animating
+                down.isClickable = i < order.lastIndex && !animating
+                up.isFocusable = up.isClickable
+                down.isFocusable = down.isClickable
+                up.setOnClickListener {
+                    if (i > 0 && !animating) swap(i, i - 1)
+                }
+                down.setOnClickListener {
+                    if (i < order.lastIndex && !animating) swap(i, i + 1)
                 }
             }
+        }
+
+        /** 相邻两行滑动交换：先平移动画，结束后按新顺序重建列表 */
+        swap = { from, to ->
+            val movedRow = rowViews[order[from].id]!!
+            val targetRow = rowViews[order[to].id]!!
+            animating = true
+            val step = rowHeightPx + divHeightPx
+            // from 在下方（上移）时上移一步，目标行下移一步；下移时反之
+            val movedOffset = if (to < from) -step else step
+            movedRow.animate().translationYBy(movedOffset)
+                .setDuration(180)
+                .withEndAction {
+                    val item = order.removeAt(from)
+                    order.add(to, item)
+                    animating = false
+                    render()
+                }
+                .start()
+            targetRow.animate().translationYBy(-movedOffset)
+                .setDuration(180)
+                .start()
         }
 
         render()

@@ -67,15 +67,15 @@ interface UserDao {
     @Query("SELECT * FROM transactions_archive")
     suspend fun getAllArchive(): List<ArchivedTransactionEntity>
 
-    @Query("SELECT * FROM transactions_archive WHERE card_id = :cardId AND content_hash = :contentHash LIMIT 1")
-    suspend fun getArchiveByContent(cardId: String, contentHash: String): ArchivedTransactionEntity?
+    @Query("SELECT * FROM transactions_archive WHERE card_id = :cardId AND content_hash = :contentHash AND protocol = :protocol AND sfi = :sfi LIMIT 1")
+    suspend fun getArchiveSlot(cardId: String, contentHash: String, protocol: String, sfi: Int): ArchivedTransactionEntity?
 
-    /** 内容相同 → IGNORE 跳过（去重）；内容不同 → 新行插入 */
+    /** 完全一样（同内容同协议同扇区）→ IGNORE 跳过；内容/协议/扇区任一不同 → 新行插入 */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArchiveRow(row: ArchivedTransactionEntity): Long
 
-    @Query("UPDATE transactions_archive SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND content_hash = :contentHash")
-    suspend fun touchArchive(cardId: String, contentHash: String, lastSeenAt: Long)
+    @Query("UPDATE transactions_archive SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND content_hash = :contentHash AND protocol = :protocol AND sfi = :sfi")
+    suspend fun touchArchive(cardId: String, contentHash: String, protocol: String, sfi: Int, lastSeenAt: Long)
 
     @Query("DELETE FROM raw_records WHERE card_id = :cardId")
     suspend fun clearRawRecords(cardId: String)

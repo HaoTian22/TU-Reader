@@ -22,6 +22,7 @@ data class UiCard(
 data class UiTransaction(
     val id: Int,
     val seq: Int,
+    val sfi: Int = 0,          // 来源文件 SFI（0x18/0x1E/附加区），详情页"原始数据"按此过滤
     val amountYuan: Double,
     val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"
     val typeHex: String,
@@ -39,7 +40,8 @@ data class UiTransaction(
     val balanceAfterYuan: Double,
     val balanceAfterText: String,  // "余额 ¥45.50"
     val icon: String,              // emoji: 🚇 🚌 💳 🛒
-    val iconBgColor: Long          // background color for icon circle
+    val iconBgColor: Long,         // background color for icon circle
+    val protocols: List<String> = emptyList()  // 该记录被哪些协议写入（LNT/TU），排序后展示
 )
 
 data class StationStat(

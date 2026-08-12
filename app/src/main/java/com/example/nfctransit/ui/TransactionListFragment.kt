@@ -26,6 +26,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     private val filterViews = mutableMapOf<String, TextView>()
     private var accentColor = 0xFF0066FF.toInt()
 
+    /** 离开页面（进详情/切后台）时记录的滚动位置，返回后恢复；-1 = 无需恢复 */
+    private var scrollToRestore = -1
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -124,6 +127,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             val time = itemView.findViewById<TextView>(R.id.txnTime)
             val amount = itemView.findViewById<TextView>(R.id.txnAmount)
             val balance = itemView.findViewById<TextView>(R.id.txnBalance)
+            val protocol = itemView.findViewById<TextView>(R.id.txnProtocol)
+            val protocol2 = itemView.findViewById<TextView>(R.id.txnProtocol2)
             val dirIcon = itemView.findViewById<TextView>(R.id.txnDirIcon)
             val station = itemView.findViewById<TextView>(R.id.txnStation)
             val line = itemView.findViewById<TextView>(R.id.txnLine)
@@ -136,23 +141,31 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             val lineText = txn.lineName
 
             icon.text = txn.icon
-            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）
-            city.text = txn.cityName ?: "未知"
+            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
+            val cityText = txn.cityName ?: "未知"
+            city.text = cityText
+            city.visibility = if (isPlaceholderPill(cityText)) View.GONE else View.VISIBLE
             type.text = txn.transitType
+            type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
             // 第三行：时间（带年）
             time.text = txn.date + " " + txn.time.substring(0, 5)
             amount.text = txn.amountText
             balance.text = txn.balanceAfterText
+            // 协议药丸：按 protocols 逐颗显示（最多两个）；空（单协议卡）隐藏
+            protocol.text = txn.protocols.getOrNull(0).orEmpty()
+            protocol.visibility = if (txn.protocols.size > 0) View.VISIBLE else View.GONE
+            protocol2.text = txn.protocols.getOrNull(1).orEmpty()
+            protocol2.visibility = if (txn.protocols.size > 1) View.VISIBLE else View.GONE
 
             // 第二行：出入站图标 + 站名
             station.text = stationText.ifEmpty { "未知" }
-            // 第一行：线路胶囊（用数据库线路颜色着色；空白保持灰色）
-            if (lineText.isNotEmpty()) {
+            // 第一行：线路胶囊（用数据库线路颜色着色；空白/占位符保持隐藏）
+            if (isPlaceholderPill(lineText)) {
+                line.visibility = View.GONE
+            } else {
                 line.visibility = View.VISIBLE
                 line.text = lineText
                 applyLineColor(line, txn.lineColor)
-            } else {
-                line.visibility = View.GONE
             }
 
             if (isEntry || isExit) {
@@ -188,6 +201,19 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
             binding.transactionListContainer.addView(itemView)
         }
+
+        // 返回本页时 observer 会再次触发绑定重建列表，滚动位置在重建后恢复
+        if (scrollToRestore >= 0) {
+            val target = scrollToRestore
+            scrollToRestore = -1
+            binding.transactionListScroll.post { binding.transactionListScroll.scrollTo(0, target) }
+        }
+    }
+
+    /** 药丸无有效内容（空白、"-"、"—" 占位）时整个隐藏 */
+    private fun isPlaceholderPill(text: String?): Boolean {
+        val t = text?.trim() ?: return true
+        return t.isEmpty() || t == "-" || t == "—"
     }
 
     /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色 */
@@ -213,6 +239,11 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     }
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
+
+    override fun onPause() {
+        super.onPause()
+        _binding?.let { scrollToRestore = it.transactionListScroll.scrollY }
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()

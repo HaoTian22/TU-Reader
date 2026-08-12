@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedTransactionEntity::class,
         CardAppEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -49,6 +49,17 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /** v2→v3：transactions_archive 去重键放宽为 (content_hash, protocol, sfi)，保留同内容不同协议/扇区的变体 */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_transactions_archive_card_id_content_hash`")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_archive_card_id_content_hash_protocol_sfi` " +
+                        "ON `transactions_archive` (`card_id`, `content_hash`, `protocol`, `sfi`)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: UserDatabase? = null
 
@@ -58,7 +69,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
         }
     }

@@ -52,7 +52,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:paddingTop="2dp"
-                android:paddingBottom="2dp" />
+                android:paddingBottom="2dp"
+                android:layout_marginEnd="6dp" />
 
             <TextView
                 android:id="@+id/txnType"
@@ -66,7 +67,7 @@
                 android:paddingEnd="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
-                android:layout_marginStart="6dp" />
+                android:layout_marginEnd="6dp" />
 
             <TextView
                 android:id="@+id/txnLine"
@@ -80,7 +81,6 @@
                 android:paddingEnd="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
-                android:layout_marginStart="6dp"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -147,5 +147,43 @@
             android:text="余额 ¥45.50"
             android:textColor="#8E8E93"
             android:textSize="11sp" />
+
+        <!-- 协议药丸：该记录被哪些协议写入（LNT/TU），最多两个；空则隐藏 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="2dp">
+
+            <TextView
+                android:id="@+id/txnProtocol"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TU"
+                android:textColor="#555555"
+                android:textSize="8sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txnProtocol2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LNT"
+                android:textColor="#555555"
+                android:textSize="8sp"
+                android:background="@drawable/bg_chip_default"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:layout_marginStart="4dp"
+                android:visibility="gone" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

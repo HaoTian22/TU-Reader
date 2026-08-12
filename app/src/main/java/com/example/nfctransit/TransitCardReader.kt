@@ -111,7 +111,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 "TU" -> {
                     val info = readCuInfo(profile, log)
                     val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "TU")
+                    probeAllFiles(log, rawRecs, "TU", profile.transactionSfis)
                     val lntBalance = collectTuWallet(profile, log, rawRecs)
                     val bc = readBalance(profile, log)
                     val balance = if (bc.respHex != null) bc.fen else lntBalance
@@ -122,7 +122,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 "YCT" -> {
                     val yct = readYctCard(profile, log)
                     val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "LNT")
+                    probeAllFiles(log, rawRecs, "LNT", profile.transactionSfis)
                     collectFareZone(profile, log, profile.tradeSfi, "LNT", rawRecs)
                     val tu = readTuWallet(log, rawRecs)
                     appReads.add(
@@ -139,7 +139,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     val info = readCuInfo(profile, log)
                     val bc = readBalance(profile, log)
                     val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "")
+                    probeAllFiles(log, rawRecs, "", profile.transactionSfis)
                     collectFareZone(profile, log, profile.tradeSfi, "", rawRecs)
                     for (sfi in profile.extraTradeSfis) {
                         collectFareZone(profile, log, sfi, "", rawRecs)
@@ -266,9 +266,18 @@ class TransitCardReader(private val isoDep: IsoDep) {
      * 遍历全部 SFI（0x01..0x1F），先试 READ BINARY，失败再试 READ RECORD。
      * 读到的有内容文件全部收进 raw_records（信息/统计/折扣等扇区都保留，供后续按需解析）；
      * 交易解析由 RecordDecoder 按 cardType 的交易 SFI 白名单过滤，不会误解析这些扇区。
+     *
+     * @param skipSfis 跳过的 SFI（交易区）：这些区由 collectTuWallet/collectFareZone 专门读取，
+     *                 probe 再读一遍会让同一记录进 raw_records 两次，decodeCard 收到重复输入。
      */
-    private fun probeAllFiles(log: MutableList<String>, collector: MutableList<RawRecord>, protocol: String) {
+    private fun probeAllFiles(
+        log: MutableList<String>,
+        collector: MutableList<RawRecord>,
+        protocol: String,
+        skipSfis: Set<Int> = emptySet()
+    ) {
         for (sfi in 0x01..0x1F) {
+            if (sfi in skipSfis) continue
             try {
                 // 1) READ BINARY（线性 EF）
                 val resp = isoDep.transceive(ApduUtil.buildReadBinary(sfi, 0, 0x00))

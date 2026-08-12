@@ -49,6 +49,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 卡内折扣统计（SFI 0x19 rec1）快照，镜像 raw_records；用于首页优惠卡片（比交易累加权威、无重复计数） */
     private val discountStatsByCard = mutableMapOf<String, TuDiscountStats?>()
 
+    /** 每卡原始记录快照（镜像 raw_records），交易详情页按 SFI 展示原始数据 */
+    private val rawRecordsByCard = mutableMapOf<String, List<RawRecord>>()
+
     /** 本次会话 APDU 日志（仅内存，导出用；持久化走 SessionLogStore 文件） */
     private var currentSessionNfcLog: List<String> = emptyList()
 
@@ -152,10 +155,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (c in cardEntities) {
             val archive = repo.loadArchive(c.cardId)
             canonicalByCard[c.cardId] = RecordDecoder.decodeArchive(c.cardType, archive)
-            val rawRecs = repo.loadRawRecords(c.cardId)
-            discountStatsByCard[c.cardId] = RecordDecoder.parseTuDiscountStats(
-                rawRecs.map { RawRecord(it.sfi, it.recNo, it.protocol, it.hex) }
-            )
+            val rawRecs = repo.loadRawRecords(c.cardId).map {
+                RawRecord(it.sfi, it.recNo, it.protocol, it.hex)
+            }
+            rawRecordsByCard[c.cardId] = rawRecs
+            discountStatsByCard[c.cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
         }
 
         val uiCards = cardEntities.map { it.toUiCard() }
@@ -220,6 +224,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // 内容去重合并进内存（identity = content_hash，不含 rec_no）
         canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
+        rawRecordsByCard[cardId] = result.rawRecords
         discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(result.rawRecords)
 
         val entity = CardEntity(
@@ -266,6 +271,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repo.syncCardApps(cardId, appRows)
             repo.setCardOrder(cardEntities.map { it.cardId })
             repo.writeSessionLog(cardId, logLines)
+            // 写库完成后以数据库为唯一来源重建内存与 UI（读卡后与重启走同一条 decodeArchive 路径，
+            // 保证界面与重启一致，不依赖读卡时的内存解码结果）
+            val archive = repo.loadArchive(cardId)
+            val rawRecs = repo.loadRawRecords(cardId).map {
+                RawRecord(it.sfi, it.recNo, it.protocol, it.hex)
+            }
+            withContext(Dispatchers.Main) {
+                canonicalByCard[cardId] = RecordDecoder.decodeArchive(profile.cardType, archive)
+                rawRecordsByCard[cardId] = rawRecs
+                discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
+                val idx = cardEntities.indexOfFirst { it.cardId == cardId }
+                if (idx >= 0 && _selectedIndex.value == idx) {
+                    emitCardData(cardId)
+                }
+            }
         }
         return if (isNew) index else null
     }
@@ -386,12 +406,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _allTransactions.value?.find { it.id == id }
     }
 
+    /** 当前选中卡某 SFI 的原始记录（recNo 升序），供交易详情页"原始数据"按 SFI 过滤 */
+    fun rawRecordsForSfi(sfi: Int): List<RawRecord> {
+        val index = _selectedIndex.value ?: return emptyList()
+        val cardId = cardEntities.getOrNull(index)?.cardId ?: return emptyList()
+        return rawRecordsByCard[cardId].orEmpty().filter { it.sfi == sfi }.sortedBy { it.recNo }
+    }
+
     // ── 数据管理 ──
 
     /** 清除全部本地数据 */
     fun clearAllData() {
         cardEntities.clear()
         canonicalByCard.clear()
+        rawRecordsByCard.clear()
         currentSessionNfcLog = emptyList()
         lastReadCount = 0
         _hasData.value = false
@@ -498,9 +526,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun List<CanonicalTransaction>.toUiTransactions(): List<UiTransaction> =
         mapIndexed { idx, c -> c.toUiTransaction(idx) }
 
+    /**
+     * 用 raw_records 反查 contentHash → 协议集合，回填 canonical.protocols（仅归档未合并出并集时兜底）：
+     * 归档已按 (content_hash, protocol, sfi) 存全部变体并由 decodeArchive 合并，这里只补旧版单协议归档的数据。
+     */
+    private fun enrichProtocols(
+        canonicals: List<CanonicalTransaction>,
+        raws: List<RawRecord>
+    ): List<CanonicalTransaction> {
+        if (raws.isEmpty()) return canonicals
+        val protocolsByHash = raws.groupBy { RecordDecoder.contentHash(it.hex) }
+            .mapValues { (_, recs) -> recs.mapNotNull { it.protocol.ifBlank { null } }.distinct().toSet() }
+        return canonicals.map { c ->
+            if (c.protocols.isNotEmpty()) return@map c
+            val union = protocolsByHash[c.identity].orEmpty()
+            if (union.isNotEmpty() && union != setOf(c.protocol)) c.copy(protocols = union) else c
+        }
+    }
+
     private fun emitCardData(cardId: String) {
         val card = cardEntities.firstOrNull { it.cardId == cardId }?.toUiCard() ?: return
-        val txns = canonicalByCard[cardId].orEmpty().toUiTransactions()
+        val canonicals = enrichProtocols(
+            canonicalByCard[cardId].orEmpty(),
+            rawRecordsByCard[cardId].orEmpty()
+        )
+        val txns = canonicals.toUiTransactions()
         _selectedCard.value = card
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
@@ -537,20 +587,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _statsSummary.value = computeStatsSummary(periodTxns)
     }
 
-    /** 内容去重合并（identity = content_hash；内容相同跳过，不同追加为新 key） */
+    /** 内容去重合并（identity = content_hash；同内容变体合并为一条并保留协议并集，内容不同追加为新 key） */
     private fun mergeCanonical(
         existing: List<CanonicalTransaction>,
         fresh: List<CanonicalTransaction>
     ): List<CanonicalTransaction> {
-        val seen = existing.map { it.identity }.toHashSet()
-        val merged = existing.toMutableList()
+        val byId = existing.associateBy { it.identity }.toMutableMap()
+        val order = existing.map { it.identity }.toMutableList()
         for (t in fresh) {
-            if (t.identity !in seen) {
-                merged.add(t)
-                seen.add(t.identity)
+            val prev = byId[t.identity]
+            if (prev == null) {
+                byId[t.identity] = t
+                order.add(t.identity)
+            } else {
+                val union = RecordDecoder.unionProtocols(prev, t)
+                if (union.isNotEmpty() && union != prev.protocols) {
+                    byId[t.identity] = prev.copy(protocols = union)
+                }
             }
         }
-        return merged.sortedWith(
+        return order.map { byId[it]!! }.sortedWith(
             compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
         )
     }
@@ -640,6 +696,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val cardId = cardEntities.getOrNull(index)?.cardId ?: return
         cardEntities.removeAt(index)
         canonicalByCard.remove(cardId)
+        rawRecordsByCard.remove(cardId)
         discountStatsByCard.remove(cardId)
         val updated = cardEntities.map { it.toUiCard() }
         _cards.value = updated

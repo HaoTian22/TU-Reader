@@ -102,6 +102,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         for (i in 0 until count) {
             val dot = View(requireContext()).apply {
                 val size = if (i == activeIndex) 8.dpToPx() else 6.dpToPx()
+                // 纯 View 无 intrinsic 尺寸，ScrollView 内 UNSPECIFIED 测量下会量成 0；设最小宽高兜底
+                setMinimumWidth(size)
+                setMinimumHeight(size)
                 layoutParams = LinearLayout.LayoutParams(size, size).apply {
                     marginStart = 3.dpToPx()
                     marginEnd = 3.dpToPx()
@@ -113,6 +116,20 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
             }
             binding.pageIndicator.addView(dot)
+        }
+        // 确保新增圆点触发重排：ScrollView 内动态 addView 后容器不重新测量子视图，
+        // 纯 View 圆点保持 0 尺寸；forceLayout 强制 onMeasure 重跑
+        binding.pageIndicator.requestLayout()
+        val pi = binding.pageIndicator
+        pi.post {
+            if (pi.isAttachedToWindow && pi.measuredWidth > 0) {
+                pi.forceLayout()
+                pi.measure(
+                    View.MeasureSpec.makeMeasureSpec(pi.measuredWidth, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(pi.measuredHeight, View.MeasureSpec.EXACTLY)
+                )
+                pi.layout(pi.left, pi.top, pi.right, pi.bottom)
+            }
         }
     }
 
@@ -172,6 +189,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val active = if (cards.isEmpty()) 0
                 else (viewModel.selectedIndex.value?.coerceIn(0, cards.size - 1) ?: 0)
             updatePageDots(active)
+            // 首次启动数据晚于 UI 就绪：布局完成后补渲染一次圆点，避免指示点缺失
+            binding.pageIndicator.post { updatePageDots(active) }
         }
 
         // 新卡读取后自动滑动跳转到新卡片

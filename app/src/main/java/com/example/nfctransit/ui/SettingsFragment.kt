@@ -59,13 +59,69 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     ) { uri ->
         if (uri != null) {
             viewLifecycleOwner.lifecycleScope.launch {
-                showStatus("正在导入…")
-                val msg = try {
-                    viewModel.importDatabase(uri)
-                } catch (e: Exception) {
-                    "导入失败: ${e.message}"
+                val chevron = _binding?.root?.findViewById<TextView>(R.id.chevronImportData)
+                val statusText = _binding?.root?.findViewById<TextView>(R.id.tvImportDataStatus)
+                if (chevron == null || statusText == null) {
+                    // 视图不可用：仅兜底执行导入并提示
+                    val fallback = try {
+                        viewModel.importDatabase(uri)
+                    } catch (e: Exception) {
+                        "导入失败: ${e.message}"
+                    }
+                    showStatus(fallback)
+                    return@launch
                 }
-                showStatus(msg)
+                // 导入反馈与「站名映射表更新」一致：加载转圈 → 成功✓ / 失败✗，5 秒恢复箭头
+                val spinner = ObjectAnimator.ofFloat(chevron, "rotation", 0f, 360f).apply {
+                    duration = 800
+                    repeatCount = ValueAnimator.INFINITE
+                    interpolator = LinearInterpolator()
+                }
+                var pendingRevert: Runnable? = null
+                fun feedback(state: String, msg: String) {
+                    spinner.cancel()
+                    chevron.rotation = 0f
+                    when (state) {
+                        "loading" -> {
+                            chevron.text = ""                  // fa-spinner
+                            chevron.setTextColor(0xFF8E8E93.toInt())
+                            spinner.start()
+                        }
+                        "success" -> {
+                            chevron.text = ""                  // fa-circle-check
+                            chevron.setTextColor(0xFF34C759.toInt())
+                        }
+                        "error" -> {
+                            chevron.text = ""                  // fa-xmark
+                            chevron.setTextColor(0xFFFF3B30.toInt())
+                        }
+                    }
+                    statusText.text = msg
+                    statusText.setTextColor(
+                        when (state) {
+                            "success" -> 0xFF34C759.toInt()
+                            "error" -> 0xFFFF3B30.toInt()
+                            else -> 0xFF8E8E93.toInt()
+                        }
+                    )
+                    statusText.visibility = View.VISIBLE
+                    pendingRevert?.let { chevron.removeCallbacks(it) }
+                    pendingRevert = Runnable {
+                        spinner.cancel()
+                        chevron.rotation = 0f
+                        chevron.text = ""                      // fa-chevron-right
+                        chevron.setTextColor(0xFF8E8E93.toInt())
+                        statusText.visibility = View.GONE
+                    }
+                    chevron.postDelayed(pendingRevert!!, 5000)
+                }
+                feedback("loading", "正在导入…")
+                val (state, msg) = try {
+                    "success" to viewModel.importDatabase(uri)
+                } catch (e: Exception) {
+                    "error" to "导入失败: ${e.message}"
+                }
+                feedback(state, msg)
             }
         }
     }

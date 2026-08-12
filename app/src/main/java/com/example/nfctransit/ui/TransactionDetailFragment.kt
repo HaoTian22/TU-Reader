@@ -74,7 +74,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             } else {
                 binding.hexPanel.visibility = View.VISIBLE
                 binding.btnToggleRaw.text = "▼ 查看原始数据"
-                bindNfcLog()
+                bindNfcLog(txn)
             }
         }
     }
@@ -114,6 +114,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             "交易类型" to transactionType,
             "扣款金额" to txn.amountText,
             "交易后余额" to "¥${String.format("%.2f", txn.balanceAfterYuan)}",
+            "协议" to txn.protocols.joinToString(" / "),
             "终端编号" to txn.terminal
         )
 
@@ -128,6 +129,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 value?.setTextColor(0xFF1A1A1A.toInt())
                 icon?.visibility = View.GONE
                 icon?.typeface = fa
+                // 协议行为空（单协议卡）时整行隐藏
+                if (fields[i].first == "协议") {
+                    row.visibility = if (fields[i].second.isEmpty()) View.GONE else View.VISIBLE
+                }
                 // 交易类型行：入站绿色 ↓ 进框、出站红色 ↑ 出框
                 if (fields[i].first == "交易类型" && (isEntry || isExit)) {
                     icon?.visibility = View.VISIBLE
@@ -145,23 +150,47 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    private fun bindNfcLog() {
-        val log = viewModel.nfcLog.value ?: return
-        // Find the hex lines container and update with real data
+    /** 原始数据：只展示对应该交易 SFI（0x18/0x1E/附加区）的原始记录 */
+    private fun bindNfcLog(txn: UiTransaction?) {
         val hexContainer = binding.hexPanel
-        // Replace existing children with real log data
         hexContainer.removeAllViews()
 
-        for (line in log.take(15)) {
-            val lineView = TextView(requireContext()).apply {
-                text = line
-                textSize = 10f
-                setTextColor(0xFFAAAAFF.toInt())
-                typeface = Typeface.MONOSPACE
-                setPadding(0, dpToPx(2), 0, dpToPx(2))
-            }
-            hexContainer.addView(lineView)
+        val sfi = txn?.sfi ?: run {
+            addRawLine("无该交易原始数据", dim = true)
+            return
         }
+        val sfiHex = sfi.toString(16).uppercase()
+
+        // 优先取本次会话 APDU 日志中该 SFI 的读取记录（带读取上下文）；无则回退到库内原始记录。
+        // 日志格式与 TransitCardReader 一致：SFI=<大写 hex 不补零>，如 "READ RECORD SFI=18 rec=1 -> ..."
+        val sessionLines = viewModel.nfcLog.value.orEmpty()
+            .filter { Regex("SFI=$sfiHex\\b").containsMatchIn(it) }
+        val storedRecords = viewModel.rawRecordsForSfi(sfi)
+
+        if (sessionLines.isEmpty() && storedRecords.isEmpty()) {
+            addRawLine("无 SFI $sfiHex 的原始数据", dim = true)
+            return
+        }
+
+        if (sessionLines.isNotEmpty()) {
+            sessionLines.forEach { addRawLine(it) }
+        } else {
+            storedRecords.forEach { rec ->
+                val proto = if (rec.protocol.isEmpty()) "" else " [${rec.protocol}]"
+                addRawLine("SFI=$sfiHex rec=${rec.recNo}$proto -> ${rec.hex}")
+            }
+        }
+    }
+
+    private fun addRawLine(text: String, dim: Boolean = false) {
+        val lineView = TextView(requireContext()).apply {
+            this.text = text
+            textSize = 10f
+            setTextColor(if (dim) 0xFF666688.toInt() else 0xFFAAAAFF.toInt())
+            typeface = Typeface.MONOSPACE
+            setPadding(0, dpToPx(2), 0, dpToPx(2))
+        }
+        binding.hexPanel.addView(lineView)
     }
 
     private fun updateCardBadgeBg() {
