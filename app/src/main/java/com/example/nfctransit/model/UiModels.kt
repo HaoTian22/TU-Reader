@@ -22,7 +22,8 @@ data class UiCard(
 data class UiTransaction(
     val id: Int,
     val seq: Int,
-    val sfi: Int = 0,          // 来源文件 SFI（0x18/0x1E/附加区），详情页"原始数据"按此过滤
+    val sfi: Int = 0,          // 来源文件 SFI（0x18/0x1E/附加区）
+    val hex: String = "",      // transactions_archive 中该条原始 hex，详情页直接展示
     val amountYuan: Double,
     val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"
     val typeHex: String,

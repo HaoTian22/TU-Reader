@@ -42,13 +42,12 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
 
-        // 主题色跟随卡片：返回按钮、badge、原始数据开关一起变
+        // 主题色跟随卡片：返回按钮、badge 一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             val color = accent.toInt()
             accentColor = color
             binding.btnBack.setTextColor(color)
             binding.tvCardBadge.setTextColor(color)
-            binding.btnToggleRaw.setTextColor(color)
             updateCardBadgeBg()
         }
 
@@ -64,18 +63,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val txn = viewModel.getTransactionById(args.transactionId)
         if (txn != null) {
             bindTransactionData(txn)
-        }
-
-        // Toggle raw data - show real NFC log
-        binding.btnToggleRaw.setOnClickListener {
-            if (binding.hexPanel.visibility == View.VISIBLE) {
-                binding.hexPanel.visibility = View.GONE
-                binding.btnToggleRaw.text = "▶ 查看原始数据"
-            } else {
-                binding.hexPanel.visibility = View.VISIBLE
-                binding.btnToggleRaw.text = "▼ 查看原始数据"
-                bindNfcLog(txn)
-            }
+            bindRawHex(txn)
         }
     }
 
@@ -86,9 +74,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         } else {
             binding.tvAmountHeader.setTextColor(0xFFFF3B30.toInt())
         }
-
-        binding.hexPanel.visibility = View.GONE
-        binding.btnToggleRaw.text = "▶ 查看原始数据"
 
         val detailContainer = binding.detailRowsContainer
         // 站名末尾的方向箭头只用于判定出入站，展示时去掉
@@ -150,36 +135,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    /** 原始数据：只展示对应该交易 SFI（0x18/0x1E/附加区）的原始记录 */
-    private fun bindNfcLog(txn: UiTransaction?) {
+    /** 原始数据：直接展示该交易在 transactions_archive 中的 hex（默认可见，无展开逻辑） */
+    private fun bindRawHex(txn: UiTransaction) {
         val hexContainer = binding.hexPanel
         hexContainer.removeAllViews()
-
-        val sfi = txn?.sfi ?: run {
+        if (txn.hex.isBlank()) {
             addRawLine("无该交易原始数据", dim = true)
             return
         }
-        val sfiHex = sfi.toString(16).uppercase()
-
-        // 优先取本次会话 APDU 日志中该 SFI 的读取记录（带读取上下文）；无则回退到库内原始记录。
-        // 日志格式与 TransitCardReader 一致：SFI=<大写 hex 不补零>，如 "READ RECORD SFI=18 rec=1 -> ..."
-        val sessionLines = viewModel.nfcLog.value.orEmpty()
-            .filter { Regex("SFI=$sfiHex\\b").containsMatchIn(it) }
-        val storedRecords = viewModel.rawRecordsForSfi(sfi)
-
-        if (sessionLines.isEmpty() && storedRecords.isEmpty()) {
-            addRawLine("无 SFI $sfiHex 的原始数据", dim = true)
-            return
-        }
-
-        if (sessionLines.isNotEmpty()) {
-            sessionLines.forEach { addRawLine(it) }
-        } else {
-            storedRecords.forEach { rec ->
-                val proto = if (rec.protocol.isEmpty()) "" else " [${rec.protocol}]"
-                addRawLine("SFI=$sfiHex rec=${rec.recNo}$proto -> ${rec.hex}")
-            }
-        }
+        addRawLine(txn.hex)
     }
 
     private fun addRawLine(text: String, dim: Boolean = false) {

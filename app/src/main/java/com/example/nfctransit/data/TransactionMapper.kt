@@ -66,6 +66,7 @@ object TransactionMapper {
             id = index,
             seq = sequence ?: 0,
             sfi = sfi,
+            hex = hex,
             amountYuan = amountYuan,
             amountText = amountText,
             typeHex = typeHex,

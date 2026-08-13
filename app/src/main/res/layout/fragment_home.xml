@@ -320,20 +320,41 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <!-- 城市胶囊 -->
-                    <TextView
-                        android:id="@+id/tvDiscountCity"
+                    <!-- 城市胶囊（广州/佛山） -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:background="@drawable/bg_city_pill"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="3dp"
-                        android:paddingBottom="3dp" />
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvDiscountCity"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:background="@drawable/bg_city_pill"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp" />
+
+                        <TextView
+                            android:id="@+id/tvDiscountCityFoshan"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:background="@drawable/bg_city_pill"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- 本月累计金额（大字号） -->
@@ -355,6 +376,15 @@
                     android:text=""
                     android:textColor="#8E8E93"
                     android:textSize="12sp"
+                    android:layout_marginTop="6dp" />
+
+                <TextView
+                    android:id="@+id/tvDiscountHintFoshan"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#8E8E93"
+                    android:textSize="11sp"
                     android:layout_marginTop="6dp" />
             </LinearLayout>
 

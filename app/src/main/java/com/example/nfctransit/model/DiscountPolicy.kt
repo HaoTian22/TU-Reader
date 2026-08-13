@@ -7,9 +7,10 @@ package com.example.nfctransit.model
  *   - 第一档起始门槛 reachAfter，达到后该档区间内享受 8 折
  *   - 超出高门槛的部分享受 5 折
  *
- * 目前仅有广州政策（参考广州公共交通票价优惠规则）：
- *   当月累计实际支出票款满 80 元（不含满 200 元）部分享受 8 折；
- *   超出 200 元部分享受 5 折。
+ * 目前仅有广州/佛山政策（参考两地公共交通票价优惠规则）：
+ *   广州：当月累计实际支出票款满 80 元（不含满 200 元）部分享受 8 折；超出 200 元部分享受 5 折。
+ *   佛山：自然月内乘坐佛山/广州两市公交、地铁、有轨电车累计满 60 元（不含满 150 元）后再乘佛山公交享 8 折；
+ *        满 150 元及以上再乘佛山公交享 5 折。
  * 其他城市未定义时返回 null（首页不展示优惠卡片）。
  */
 data class DiscountPolicy(
@@ -37,6 +38,13 @@ data class DiscountPolicy(
                     cityZh = "广州",
                     tier1ThresholdFen = 8000,
                     tier2ThresholdFen = 20000,
+                    tier1Discount = 80,
+                    tier2Discount = 50
+                )
+                "佛山" -> DiscountPolicy(
+                    cityZh = "佛山",
+                    tier1ThresholdFen = 6000,
+                    tier2ThresholdFen = 15000,
                     tier1Discount = 80,
                     tier2Discount = 50
                 )

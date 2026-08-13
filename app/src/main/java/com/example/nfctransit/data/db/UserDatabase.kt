@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * 用户数据数据库（全新库，无迁移；旧数据由用户自行清除）。
- * 与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离。
+ * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
+ * 版本迁移见 MIGRATIONS：当前 v4，sfi 列以 hex 字符串（"0x19"）存储。
  */
 @Database(
     entities = [
@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedTransactionEntity::class,
         CardAppEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -60,6 +60,67 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /** v3→v4：raw_records / transactions_archive 的 sfi 列改存 hex 字符串（"0x19"），INTEGER 迁移为 TEXT */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `raw_records_new` (
+                        `row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `card_id` TEXT NOT NULL,
+                        `sfi` TEXT NOT NULL,
+                        `rec_no` INTEGER NOT NULL,
+                        `protocol` TEXT NOT NULL,
+                        `hex` TEXT NOT NULL,
+                        `content_hash` TEXT NOT NULL,
+                        `first_seen_at` INTEGER NOT NULL,
+                        `last_seen_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`card_id`) REFERENCES `cards`(`card_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )"""
+                )
+                db.execSQL(
+                    """INSERT INTO `raw_records_new` (`row_id`,`card_id`,`sfi`,`rec_no`,`protocol`,`hex`,`content_hash`,`first_seen_at`,`last_seen_at`)
+                        SELECT `row_id`,`card_id`, printf('0x%02X',`sfi`), `rec_no`,`protocol`,`hex`,`content_hash`,`first_seen_at`,`last_seen_at` FROM `raw_records`"""
+                )
+                db.execSQL("DROP TABLE `raw_records`")
+                db.execSQL("ALTER TABLE `raw_records_new` RENAME TO `raw_records`")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_raw_records_card_id_protocol_sfi_rec_no` " +
+                        "ON `raw_records` (`card_id`,`protocol`,`sfi`,`rec_no`)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_raw_records_card_id` ON `raw_records` (`card_id`)")
+
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `transactions_archive_new` (
+                        `row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `card_id` TEXT NOT NULL,
+                        `sfi` TEXT NOT NULL,
+                        `protocol` TEXT NOT NULL,
+                        `hex` TEXT NOT NULL,
+                        `content_hash` TEXT NOT NULL,
+                        `resolved_date` TEXT NOT NULL,
+                        `balance_after_fen` INTEGER,
+                        `first_seen_at` INTEGER NOT NULL,
+                        `last_seen_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`card_id`) REFERENCES `cards`(`card_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )"""
+                )
+                db.execSQL(
+                    """INSERT INTO `transactions_archive_new` (`row_id`,`card_id`,`sfi`,`protocol`,`hex`,`content_hash`,`resolved_date`,`balance_after_fen`,`first_seen_at`,`last_seen_at`)
+                        SELECT `row_id`,`card_id`, printf('0x%02X',`sfi`), `protocol`,`hex`,`content_hash`,`resolved_date`,`balance_after_fen`,`first_seen_at`,`last_seen_at` FROM `transactions_archive`"""
+                )
+                db.execSQL("DROP TABLE `transactions_archive`")
+                db.execSQL("ALTER TABLE `transactions_archive_new` RENAME TO `transactions_archive`")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_archive_card_id_content_hash_protocol_sfi` " +
+                        "ON `transactions_archive` (`card_id`,`content_hash`,`protocol`,`sfi`)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_archive_card_id` ON `transactions_archive` (`card_id`)")
+            }
+        }
+
+        /** 全部迁移：主库打开与导入旧库共用 */
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+
         @Volatile
         private var instance: UserDatabase? = null
 
@@ -69,7 +130,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(*MIGRATIONS).build().also { instance = it }
             }
         }
     }

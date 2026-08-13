@@ -35,7 +35,7 @@ data class ArchivedTransactionEntity(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "row_id") val rowId: Long = 0,
     @ColumnInfo(name = "card_id") val cardId: String,
-    @ColumnInfo(name = "sfi") val sfi: Int,
+    @ColumnInfo(name = "sfi") val sfi: String,  // hex 字符串（"0x19"），与 README/日志格式一致
     @ColumnInfo(name = "protocol") val protocol: String,  // "LNT"/"TU"/"" — 双协议卡区分钱包
     @ColumnInfo(name = "hex") val hex: String,
     @ColumnInfo(name = "content_hash") val contentHash: String,  // SHA-256(hex)，去重键

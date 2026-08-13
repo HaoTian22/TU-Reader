@@ -132,7 +132,7 @@ object RecordDecoder {
      */
     fun decodeArchive(cardType: String, rows: List<ArchivedTransactionEntity>): List<CanonicalTransaction> {
         if (rows.isEmpty()) return emptyList()
-        val records = rows.map { ZoneRecord(it.sfi, 0, it.protocol, it.hex) }
+        val records = rows.map { ZoneRecord(it.sfi.toSfiInt(), 0, it.protocol, it.hex) }
         val storedDate = rows.associate { it.contentHash to it.resolvedDate }      // 归档：contentHash → 日期
         val storedBalance = rows.associate { it.contentHash to it.balanceAfterFen }  // 归档：contentHash → 余额（null = 该记录无余额数据）
 
@@ -497,11 +497,15 @@ object RecordDecoder {
     }
 
     /**
-     * 从卡原始记录解析折扣统计；无 SFI 0x19 rec1 或数据过短返回 null。
-     * 字段偏移见 README「广州(5810)/佛山(5880) SFI 0x19 rec1 折扣统计」。
+     * 从卡原始记录解析折扣统计，两种来源共用一套字段偏移（[3-4] 年月 / [6] 地铁次 / [7] 总次 / [10-12) 地铁金额 / [12-14) 总金额）：
+     *  - 广州(5810)/佛山(5880) TU 卡：SFI 0x19 rec1
+     *  - 岭南通 YCT 卡：LNT 钱包 SFI 0x08 rec1
+     * 无对应记录或数据过短返回 null。
      */
     fun parseTuDiscountStats(records: List<RawRecord>): TuDiscountStats? {
-        val rec = records.firstOrNull { it.sfi == 0x19 && it.recNo == 1 } ?: return null
+        val rec = records.firstOrNull { it.sfi == 0x19 && it.recNo == 1 }
+            ?: records.firstOrNull { it.sfi == 0x08 && it.recNo == 1 && it.protocol == "LNT" }
+            ?: return null
         val data = ApduUtil.hexToBytes(rec.hex)
         if (data.size < 14) return null
         val year = 2000 + bcdNibble(data[3])
@@ -516,7 +520,7 @@ object RecordDecoder {
     }
 }
 
-/** 折扣统计（广州/佛山 TU 卡 SFI 0x19 rec1，48B）——卡内本月乘车汇总，乘车时由卡自行维护 */
+/** 折扣统计（广州/佛山 TU 卡 SFI 0x19 rec1 或岭南通 YCT LNT 钱包 SFI 0x08 rec1）——卡内本月乘车汇总，乘车时由卡自行维护 */
 data class TuDiscountStats(
     val statsMonth: Int?,   // YYYYMM（[3-4] BCD 年+月），null = 月份非法
     val metroCount: Int,    // [6] 地铁次数（二进制）

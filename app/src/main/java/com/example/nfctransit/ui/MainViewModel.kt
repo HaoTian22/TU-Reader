@@ -15,6 +15,7 @@ import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
 import com.example.nfctransit.data.TuDiscountStats
+import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
@@ -156,7 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val archive = repo.loadArchive(c.cardId)
             canonicalByCard[c.cardId] = RecordDecoder.decodeArchive(c.cardType, archive)
             val rawRecs = repo.loadRawRecords(c.cardId).map {
-                RawRecord(it.sfi, it.recNo, it.protocol, it.hex)
+                RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
             }
             rawRecordsByCard[c.cardId] = rawRecs
             discountStatsByCard[c.cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
@@ -275,7 +276,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 保证界面与重启一致，不依赖读卡时的内存解码结果）
             val archive = repo.loadArchive(cardId)
             val rawRecs = repo.loadRawRecords(cardId).map {
-                RawRecord(it.sfi, it.recNo, it.protocol, it.hex)
+                RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
             }
             withContext(Dispatchers.Main) {
                 canonicalByCard[cardId] = RecordDecoder.decodeArchive(profile.cardType, archive)
@@ -404,13 +405,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getTransactionById(id: Int): UiTransaction? {
         return _allTransactions.value?.find { it.id == id }
-    }
-
-    /** 当前选中卡某 SFI 的原始记录（recNo 升序），供交易详情页"原始数据"按 SFI 过滤 */
-    fun rawRecordsForSfi(sfi: Int): List<RawRecord> {
-        val index = _selectedIndex.value ?: return emptyList()
-        val cardId = cardEntities.getOrNull(index)?.cardId ?: return emptyList()
-        return rawRecordsByCard[cardId].orEmpty().filter { it.sfi == sfi }.sortedBy { it.recNo }
     }
 
     // ── 数据管理 ──

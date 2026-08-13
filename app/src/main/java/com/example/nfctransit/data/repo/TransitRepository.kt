@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
+import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
@@ -53,20 +54,20 @@ class TransitRepository(private val context: Context) {
         val now = System.currentTimeMillis()
         for (rec in records) {
             val hash = RecordDecoder.contentHash(rec.hex)
-            val existing = dao.getRawSlot(cardId, rec.protocol, rec.sfi, rec.recNo)
+            val existing = dao.getRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo)
             when {
                 existing == null ->
                     dao.insertRawRecord(
                         RawRecordEntity(
-                            cardId = cardId, sfi = rec.sfi, recNo = rec.recNo,
+                            cardId = cardId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
                             protocol = rec.protocol, hex = rec.hex, contentHash = hash,
                             firstSeenAt = now, lastSeenAt = now
                         )
                     )
                 existing.hex == rec.hex ->
-                    dao.touchRawSlot(cardId, rec.protocol, rec.sfi, rec.recNo, now)
+                    dao.touchRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo, now)
                 else ->
-                    dao.overwriteRawSlot(cardId, rec.protocol, rec.sfi, rec.recNo, rec.hex, hash, now)
+                    dao.overwriteRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo, rec.hex, hash, now)
             }
         }
     }
@@ -82,7 +83,7 @@ class TransitRepository(private val context: Context) {
             val inserted = dao.insertArchiveRow(
                 ArchivedTransactionEntity(
                     cardId = cardId,
-                    sfi = t.sfi,
+                    sfi = t.sfi.toSfiHex(),
                     protocol = t.protocol,
                     hex = t.hex,
                     contentHash = t.identity,
@@ -94,7 +95,7 @@ class TransitRepository(private val context: Context) {
             )
             if (inserted == -1L) {
                 // 完全一样（同内容同协议同扇区）→ 只更新 last_seen_at；不同协议/扇区的变体已作为新行插入
-                dao.touchArchive(cardId, t.identity, t.protocol, t.sfi, now)
+                dao.touchArchive(cardId, t.identity, t.protocol, t.sfi.toSfiHex(), now)
             }
         }
     }
@@ -148,7 +149,7 @@ class TransitRepository(private val context: Context) {
     suspend fun importDatabase(importFile: File): ImportSummary {
         val src = Room.databaseBuilder(
             context.applicationContext, UserDatabase::class.java, importFile.absolutePath
-        ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE).build()
+        ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE).addMigrations(*UserDatabase.MIGRATIONS).build()
         val srcDao = src.userDao()
         val importedCards = srcDao.getAllCards()
         val importedRaws = srcDao.getAllRawRecords()
