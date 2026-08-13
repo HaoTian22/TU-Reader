@@ -49,6 +49,8 @@ object TripReaderDatabase {
                 val iBal = c.getColumnIndex("cdBalance")
                 val iTitle = c.getColumnIndex("cdTitle")
                 while (c.moveToNext()) {
+                    // 缺 cdRawNo/cdNo 的异常版本直接跳过，避免后续无法归属交易
+                    if (iRaw < 0 || iNo < 0) continue
                     val rawNo = c.getString(iRaw)
                     val transactions = mutableListOf<TripReaderTransaction>()
                     db.rawQuery(
@@ -59,12 +61,12 @@ object TripReaderDatabase {
                         val iCu = t.getColumnIndex("txCUResult")
                         val iTu = t.getColumnIndex("txTUResult")
                         while (t.moveToNext()) {
-                            val cuHex = t.getString(iCu)
-                            val tuHex = t.getString(iTu)
+                            val cuHex = if (iCu >= 0) t.getString(iCu) else ""
+                            val tuHex = if (iTu >= 0) t.getString(iTu) else ""
                             if (cuHex.isEmpty() && tuHex.isEmpty()) continue
                             transactions.add(
                                 TripReaderTransaction(
-                                    dateMs = t.getLong(iDate),
+                                    dateMs = if (iDate >= 0) t.getLong(iDate) else 0L,
                                     cuHex = cuHex,
                                     tuHex = tuHex
                                 )
@@ -74,9 +76,9 @@ object TripReaderDatabase {
                     cards.add(
                         TripReaderCard(
                             cdNo = c.getString(iNo),
-                            cdNo2 = c.getString(iNo2),
-                            cdBalance = c.getLong(iBal),
-                            cdTitle = c.getString(iTitle),
+                            cdNo2 = if (iNo2 >= 0) c.getString(iNo2) else "",
+                            cdBalance = if (iBal >= 0) c.getLong(iBal) else -99999999L,
+                            cdTitle = if (iTitle >= 0) c.getString(iTitle) else "",
                             transactions = transactions
                         )
                     )

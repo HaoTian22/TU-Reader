@@ -158,20 +158,29 @@
             android:focusable="true" />
     </LinearLayout>
 
-    <!-- Transaction List -->
-    <ScrollView
-        android:id="@+id/transactionListScroll"
+    <!-- Transaction List：RecyclerView 虚拟化，只渲染可见行（大记录量不再全量建 View） -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <LinearLayout
-            android:id="@+id/transactionListContainer"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/transactionList"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:layout_height="match_parent"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="24dp" />
-    </ScrollView>
+            android:paddingBottom="24dp"
+            android:clipToPadding="false" />
+
+        <TextView
+            android:id="@+id/tvListEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="暂无交易记录"
+            android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </FrameLayout>
 </LinearLayout>

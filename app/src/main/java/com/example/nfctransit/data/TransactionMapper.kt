@@ -86,7 +86,8 @@ object TransactionMapper {
             icon = icon,
             iconBgColor = iconBgColor,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
-                else if (protocol.isBlank()) emptyList() else listOf(protocol)
+                else if (protocol.isBlank()) emptyList() else listOf(protocol),
+            journeyHex = journeyHex
         )
     }
 

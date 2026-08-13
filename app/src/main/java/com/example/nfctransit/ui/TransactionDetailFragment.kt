@@ -15,6 +15,7 @@ import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.R
+import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
 import com.example.nfctransit.model.UiTransaction
 
@@ -135,15 +136,24 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    /** 原始数据：直接展示该交易在 transactions_archive 中的 hex（默认可见，无展开逻辑） */
+    /** 原始数据：展示该交易在 transactions_archive 中的 hex；TU 卡同时有 0x18 主交易与 0x1E 旅程记录时两份都显示 */
     private fun bindRawHex(txn: UiTransaction) {
         val hexContainer = binding.hexPanel
         hexContainer.removeAllViews()
-        if (txn.hex.isBlank()) {
+        val mainHex = txn.hex
+        val journeyHex = txn.journeyHex
+        if (mainHex.isBlank() && journeyHex.isNullOrBlank()) {
             addRawLine("无该交易原始数据", dim = true)
             return
         }
-        addRawLine(txn.hex)
+        if (mainHex.isNotBlank()) {
+            addRawLine("SFI ${txn.sfi.toSfiHex()}", dim = true)
+            addRawLine(mainHex)
+        }
+        if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
+            addRawLine("SFI 0x1E（旅程）", dim = true)
+            addRawLine(journeyHex)
+        }
     }
 
     private fun addRawLine(text: String, dim: Boolean = false) {

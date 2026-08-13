@@ -416,7 +416,8 @@ object RecordDecoder {
                     lineColor = j.lineColor,
                     lineId = j.lineId,
                     stationId = j.stationId,
-                    balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen
+                    balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
+                    journeyHex = j.hex   // 携带 1E 旅程原始记录，详情页原始数据显示两份
                 ))
             } else {
                 out.add(f)

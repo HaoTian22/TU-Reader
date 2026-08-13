@@ -42,7 +42,8 @@ data class UiTransaction(
     val balanceAfterText: String?, // "余额 ¥45.50"；无余额数据为 null（列表行隐藏）
     val icon: String,              // emoji: 🚇 🚌 💳 🛒
     val iconBgColor: Long,         // background color for icon circle
-    val protocols: List<String> = emptyList()  // 该记录被哪些协议写入（LNT/TU），排序后展示
+    val protocols: List<String> = emptyList(),  // 该记录被哪些协议写入（LNT/TU），排序后展示
+    val journeyHex: String? = null // TU 卡同笔交易的 1E 旅程原始 hex（详情页原始数据显示两份）；null=无配对 1E
 )
 
 data class StationStat(
