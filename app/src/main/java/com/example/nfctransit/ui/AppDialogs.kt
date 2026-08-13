@@ -140,6 +140,94 @@ object AppDialogs {
         dialog.show()
     }
 
+    /** 与应用风格一致的多选弹窗：每项一行 + 勾选标记，底部「清除 / 确定」 */
+    fun multiSelect(
+        context: Context,
+        title: String,
+        options: List<String>,
+        selected: Set<String>,
+        accentColor: Int = 0xFF0066FF.toInt(),
+        onClear: () -> Unit,
+        onDone: (Set<String>) -> Unit
+    ) {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_filter, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+
+        view.findViewById<TextView>(R.id.dialogFilterTitle)?.text = title
+        val container = view.findViewById<LinearLayout>(R.id.dialogFilterContainer) ?: return
+        val density = context.resources.displayMetrics.density
+        val current = selected.toMutableSet()
+
+        fun renderRow(row: LinearLayout, check: TextView, checked: Boolean) {
+            check.text = if (checked) "✓" else "○"
+            check.setTextColor(if (checked) accentColor else 0xFFC7C7CC.toInt())
+            check.typeface = if (checked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
+
+        options.forEachIndexed { i, label ->
+            val check = TextView(context).apply {
+                textSize = 18f
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams((28 * density).toInt(), (28 * density).toInt())
+            }
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, (48 * density).toInt()
+                )
+                setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    if (!current.remove(label)) current.add(label)
+                    renderRow(this, check, label in current)
+                }
+            }
+            row.addView(
+                TextView(context).apply {
+                    text = label
+                    setTextColor(0xFF1A1A1A.toInt())
+                    textSize = 15f
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
+                    )
+                }
+            )
+            row.addView(check)
+            renderRow(row, check, label in current)
+            container.addView(row)
+            if (i < options.lastIndex) {
+                container.addView(
+                    View(context).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, (0.5 * density).toInt()
+                        )
+                        setBackgroundColor(0xFFE5E5EA.toInt())
+                    }
+                )
+            }
+        }
+
+        view.findViewById<TextView>(R.id.dialogFilterClear)?.setOnClickListener {
+            dialog.dismiss()
+            onClear()
+        }
+        view.findViewById<TextView>(R.id.dialogFilterConfirm)?.setOnClickListener {
+            dialog.dismiss()
+            onDone(current.toSet())
+        }
+        dialog.show()
+    }
+
     /** 卡片排序弹窗：每张卡一行（行名前置主题色圆点，行名与箭头黑色），↑↓ 箭头调整顺序，切换时滑动动画，完成后回调新顺序的 cardId 列表 */
     fun reorder(
         context: Context,

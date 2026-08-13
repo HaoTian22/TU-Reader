@@ -205,8 +205,11 @@ object RecordDecoder {
             val lineCode = ApduUtil.bcdToString(data.copyOfRange(10, 12))
             val stationCode = ApduUtil.bcdToString(data.copyOfRange(12, 14))
             val cityCode = if (data.size >= 34) ApduUtil.bcdToString(data.copyOfRange(32, 34)) else ""
+            // 原始代码切片 [10..17)：line+station+city+类型等连续片段，直接交给匹配层做最长重叠匹配，
+            // 避免硬拆 line/station 位宽差异（如 16180101602009 → bus 618 / metro 01001B00 → 坝头）
+            val rawCode = if (data.size >= 17) ApduUtil.bcdToString(data.copyOfRange(10, 17)) else ""
 
-            val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal)
+            val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal, rawCode)
             val direction = when {
                 data[0] == 0x03.toByte() -> "↓"
                 data[0] == 0x04.toByte() -> "↑"

@@ -24,8 +24,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
-    private var currentFilter = "全部"
-    private val filterViews = mutableMapOf<String, TextView>()
+    /** 多选筛选中已勾选的类别（空 = 全部显示） */
+    private val selectedFilters = mutableSetOf<String>()
     private var accentColor = 0xFF0066FF.toInt()
 
     private val adapter = TransactionAdapter()
@@ -51,13 +51,14 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         binding.transactionList.layoutManager = LinearLayoutManager(requireContext())
         binding.transactionList.adapter = adapter
 
-        // 主题色跟随卡片：返回按钮、badge、选中的筛选 chip 一起变
+        // 主题色跟随卡片：返回按钮、badge、漏斗图标一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
             binding.btnBack.setTextColor(accentColor)
             binding.tvCardBadge.setTextColor(accentColor)
+            binding.filterButton.setTextColor(accentColor)
             updateCardBadgeBg()
-            refreshFilterChips()
+            updateFilterButton()
         }
 
         // Update card badge from ViewModel
@@ -68,7 +69,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             }
         }
 
-        setupFilters()
+        setupSearchAndFilter()
         viewModel.filteredTransactions.observe(viewLifecycleOwner) { txns ->
             adapter.submit(txns)
             binding.tvListEmpty.visibility = if (txns.isEmpty()) View.VISIBLE else View.GONE
@@ -80,39 +81,53 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         }
     }
 
-    private fun setupFilters() {
-        filterViews["全部"] = binding.filterAll
-        filterViews["地铁"] = binding.filterMetro
-        filterViews["公交"] = binding.filterBus
-        filterViews["消费"] = binding.filterConsumption
-        filterViews["充值"] = binding.filterRecharge
-
-        filterViews.forEach { (type, view) ->
-            view.setOnClickListener {
-                selectFilter(type)
+    private fun setupSearchAndFilter() {
+        // 漏斗/搜索图标用 FontAwesome（fa-filter / fa-magnifying-glass）
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        binding.filterButton.typeface = fa
+        binding.searchIcon.typeface = fa
+        // 搜索框：输入即过滤（时间/站点/类型/城市/金额/协议/原始值等）
+        binding.searchInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
+                viewModel.setSearchQuery(s?.toString() ?: "")
             }
-        }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        binding.filterButton.setOnClickListener { showFilterDialog() }
+        updateFilterButton()
     }
 
-    private fun selectFilter(type: String) {
-        currentFilter = type
-        refreshFilterChips()
-        viewModel.setFilter(type)
+    /** 漏斗 → App 风格多选类别弹窗 */
+    private fun showFilterDialog() {
+        val categories = listOf("地铁", "公交", "充值", "消费", "城际", "有轨电车")
+        AppDialogs.multiSelect(
+            context = requireContext(),
+            title = "筛选类别",
+            options = categories,
+            selected = selectedFilters,
+            accentColor = accentColor,
+            onClear = { selectedFilters.clear(); applyFilterAndButton() },
+            onDone = { result -> selectedFilters.clear(); selectedFilters.addAll(result); applyFilterAndButton() }
+        )
     }
 
-    private fun refreshFilterChips() {
-        filterViews.forEach { (t, view) ->
-            if (t == currentFilter) {
-                // 用圆角 GradientDrawable 填充主题色，避免 setBackgroundColor 丢失圆角
-                view.background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 20.dpToPx().toFloat()
-                    setColor(accentColor)
-                }
-                view.setTextColor(0xFFFFFFFF.toInt())
-            } else {
-                view.setBackgroundResource(R.drawable.bg_chip_default)
-                view.setTextColor(0xFF555555.toInt())
+    private fun applyFilterAndButton() {
+        viewModel.setFilter(selectedFilters.toSet())
+        updateFilterButton()
+    }
+
+    /** 漏斗图标：有筛选时主题色实底 + 白字 */
+    private fun updateFilterButton() {
+        if (selectedFilters.isNotEmpty()) {
+            binding.filterButton.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 21.dpToPx().toFloat()
+                setColor(accentColor)
             }
+            binding.filterButton.setTextColor(0xFFFFFFFF.toInt())
+        } else {
+            binding.filterButton.setBackgroundResource(R.drawable.bg_chip_default)
+            binding.filterButton.setTextColor(accentColor)
         }
     }
 
@@ -123,11 +138,21 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     }
 
     /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色；
-     *  深色背景自动改白字，避免深色底 + 深灰字难读。 */
+     *  深色背景自动改白字，避免深色底 + 深灰字难读。
+     *  无有效颜色时必须重置为默认灰色，否则 RecyclerView 复用时会残留上一行的线路色。 */
     private fun applyLineColor(line: TextView, color: String?) {
-        val parsed = try {
-            android.graphics.Color.parseColor(color?.trim() ?: return)
-        } catch (e: IllegalArgumentException) {
+        val trimmed = color?.trim()
+        val parsed = if (trimmed.isNullOrEmpty()) {
+            null
+        } else {
+            try {
+                android.graphics.Color.parseColor(trimmed)
+            } catch (e: RuntimeException) {
+                null
+            }
+        } ?: run {
+            line.setBackgroundResource(R.drawable.bg_chip_default)
+            line.setTextColor(0xFF555555.toInt())
             return
         }
         line.background = android.graphics.drawable.GradientDrawable().apply {
@@ -137,12 +162,12 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         line.setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
     }
 
-    /** 感知亮度（Rec. 601）低于 0.4 视为深色背景 → 需要白字 */
+    /** 感知亮度需要白字 */
     private fun isDarkColor(color: Int): Boolean {
         val r = android.graphics.Color.red(color)
         val g = android.graphics.Color.green(color)
         val b = android.graphics.Color.blue(color)
-        return (0.2126*r + 0.7152*g + 0.0722*b) < 128
+        return (0.2126*r + 0.7152*g + 0.0722*b) < 160
     }
 
     private fun updateCardBadgeBg() {
@@ -164,6 +189,13 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    /** 离开列表页（退回主页）时清空搜索与筛选状态；进详情不触发 onDestroy，状态保留 */
+    override fun onDestroy() {
+        super.onDestroy()
+        viewModel.setSearchQuery("")
+        viewModel.setFilter(emptySet())
     }
 
     /**

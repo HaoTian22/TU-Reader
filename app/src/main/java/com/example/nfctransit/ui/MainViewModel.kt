@@ -89,8 +89,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedDiscountStatsMonth = MutableLiveData<String?>(null)
     val selectedDiscountStatsMonth: LiveData<String?> = _selectedDiscountStatsMonth
 
-    private val _currentFilter = MutableLiveData("全部")
-    val currentFilter: LiveData<String> = _currentFilter
+    /** 多选筛选：空集合 = 显示全部；非空 = 只显示 transitType 命中的类别 */
+    private val _currentFilter = MutableLiveData<Set<String>>(emptySet())
+    val currentFilter: LiveData<Set<String>> = _currentFilter
+
+    /** 全文搜索：匹配时间/站点/原始值/类型/城市/金额/余额/协议等字段 */
+    private val _searchQuery = MutableLiveData("")
+    val searchQuery: LiveData<String> = _searchQuery
 
     private val _filteredTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
     val filteredTransactions: LiveData<List<UiTransaction>> = _filteredTransactions
@@ -331,10 +336,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.setCardOrder(reordered.map { it.cardId }) }
     }
 
-    fun setFilter(filter: String) {
-        _currentFilter.value = filter
+    fun setFilter(selected: Set<String>) {
+        _currentFilter.value = selected
+        applyTransactionFilter()
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        applyTransactionFilter()
+    }
+
+    private fun applyTransactionFilter() {
         val all = _allTransactions.value ?: return
-        _filteredTransactions.value = filterTransactions(all, filter)
+        _filteredTransactions.value =
+            filterTransactions(all, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
     }
 
     /** 切换统计周期（本周/本月/本年/自定义），重置到当前周期 */
@@ -565,7 +580,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val monthlyFen = usableMonthlyFen(stats)
         _selectedDiscountMonthlyFen.value = monthlyFen
         _selectedDiscountStatsMonth.value = if (monthlyFen != null) statsMonthLabel(stats) else null
-        _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: "全部")
+        _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
         _nfcLog.value = currentSessionNfcLog
         emitStats(txns)
         // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致
@@ -627,14 +642,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun filterTransactions(txns: List<UiTransaction>, filter: String): List<UiTransaction> {
-        return when (filter) {
-            "地铁" -> txns.filter { it.transitType == "地铁" }
-            "公交" -> txns.filter { it.transitType == "公交" }
-            "消费" -> txns.filter { it.transitType == "消费" }
-            "充值" -> txns.filter { it.transitType == "充值" }
-            else -> txns
+    private fun filterTransactions(
+        txns: List<UiTransaction>,
+        selected: Set<String>,
+        query: String
+    ): List<UiTransaction> {
+        var result = if (selected.isEmpty()) txns else txns.filter { it.transitType in selected }
+        val q = query.trim()
+        if (q.isNotEmpty()) result = result.filter { it.matchesSearch(q) }
+        return result
+    }
+
+    /** 全文搜索：匹配时间/站点/城市/线路/类型/金额/余额/原始值(hex)/协议/终端 */
+    private fun UiTransaction.matchesSearch(query: String): Boolean {
+        val haystack = buildString {
+            append(displayDateTime).append(' ')
+            append(stationName).append(' ')
+            append(cityName).append(' ')
+            append(lineName).append(' ')
+            append(transitType).append(' ')
+            append(amountText).append(' ')
+            append(balanceAfterText.orEmpty()).append(' ')
+            append(hex).append(' ')
+            append(journeyHex.orEmpty()).append(' ')
+            append(protocols.joinToString(" ")).append(' ')
+            append(terminal).append(' ')
         }
+        return haystack.contains(query, ignoreCase = true)
     }
 
     /** 在日期字符串上增加天数，返回 "yyyy-MM-dd" */

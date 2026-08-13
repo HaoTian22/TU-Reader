@@ -40,6 +40,10 @@ object TransactionMapper {
                 Quad("🚇", 0xFFE3F2FD, "地铁", resolved.lineName.ifEmpty { "—" })
             resolved.transitType.contains("公交") || resolved.transitType.contains("Bus") ->
                 Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
+            resolved.transitType.contains("有轨电车") || resolved.transitType.contains("Tram") ->
+                Quad("🚊", 0xFFE0F7FA, "有轨电车", resolved.lineName.ifEmpty { "—" })
+            resolved.transitType.contains("城际") || resolved.transitType.contains("Intercity") ->
+                Quad("🚄", 0xFFE8EAF6, "城际", resolved.lineName.ifEmpty { "—" })
             resolved.transitType.contains("消费") -> Quad("🛒", 0xFFFCE4EC, "消费", "—")
             else -> {
                 if (resolved.lineName.isNotEmpty() && resolved.lineName[0].isDigit())

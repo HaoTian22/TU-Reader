@@ -5,3 +5,5 @@ build/*
 tripreader-data-master/
 release.jks
 keystore.properties
+*.pyc
+*bak*

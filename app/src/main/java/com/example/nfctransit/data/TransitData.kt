@@ -110,7 +110,8 @@ object TransitData {
         cityCode: String,
         lineCode: String,
         stationCode: String,
-        terminal: String
+        terminal: String,
+        rawCode: String? = null
     ): StationEntry? {
         ensureLoaded()
         // 深圳 TU：卡片 1E 城市码 5840 无独立站点数据（city_id 200 空），重定向到 5180（深圳数据所在）
@@ -136,18 +137,45 @@ object TransitData {
                 byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it.toEntry() }
             }
         }
-        // 大类 fallback：具体站未命中时，按最长前缀匹配已有 device_code
-        // （如 5180xxxx 未匹配到站 → 518040=10号线 / 51804=地铁，只显示交通类型/线路）
-        val fallbackCandidates = buildList {
-            if (terminal.isNotEmpty()) add(effectiveCity + terminal)
-            if (effectiveCity == "5180" && terminal.isNotEmpty()) {
-                val s = stripLeadingZeros(terminal)
-                if (s.length >= 6) add("5180" + s.substring(1, 3) + s.substring(3, 6))
+        // 统一最长匹配 fallback：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
+        // 找同城 device_code 的最长重叠（整码或线路码部分作为候选子串，取最大）。不硬拆 line+station，
+        // 自然覆盖 4 位 vs 3 位线路码（1618+0101 → 6180101 → bus 618）与站点填充（01001B00 → 01001B → 坝头）。
+        var best: StationResolution? = null
+        var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
+        val rawCand = if (!rawCode.isNullOrEmpty()) effectiveCity + rawCode else null
+        if (rawCand != null) {
+            for ((dev, r) in byDeviceCode) {
+                if (r.cityCode != effectiveCity || !dev.startsWith(effectiveCity)) continue
+                val devCode = dev.removePrefix(effectiveCity)
+                val ov = when {
+                    rawCand.contains(dev) -> dev.length            // 整码是候选子串（metro 坝头 602001001B）
+                    !devCode.isEmpty() && rawCand.contains(devCode) -> devCode.length  // 线路码是子串（bus 618）
+                    else -> 0
+                }
+                if (ov > bestLen) { bestLen = ov; best = r }
             }
         }
-        for (cand in fallbackCandidates) {
-            longestPrefixMatch(cand)?.let { return it.toEntry() }
+        // 深圳提取码前缀（未知站 → 4号线/13号线 大类）
+        if (effectiveCity == "5180" && terminal.isNotEmpty()) {
+            val s = stripLeadingZeros(terminal)
+            if (s.length >= 6) {
+                val codeRegion = s.substring(1, 3) + s.substring(3, 6)  // "62099"
+                for ((dev, r) in byDeviceCode) {
+                    if (r.cityCode != effectiveCity || !dev.startsWith(effectiveCity)) continue
+                    val devCode = dev.removePrefix(effectiveCity)
+                    if (devCode.isNotEmpty() && codeRegion.startsWith(devCode) && devCode.length > bestLen) {
+                        bestLen = devCode.length; best = r
+                    }
+                }
+            }
         }
+        // 终端整体前缀（大类：51804=地铁）
+        if (terminal.isNotEmpty()) {
+            longestPrefixMatch(effectiveCity + terminal)?.let { r ->
+                if (r.deviceCode.length > bestLen) { bestLen = r.deviceCode.length; best = r }
+            }
+        }
+        best?.let { return it.toEntry() }
         return null
     }
 
@@ -262,6 +290,13 @@ object TransitData {
             useEnglish() -> when (type) {
                 "地铁" -> "Metro"
                 "BRT", "公交", "bus" -> "Bus"
+                "有轨电车" -> "Tram"
+                "城际" -> "Intercity"
+                "单轨" -> "Monorail"
+                "轻轨" -> "Light Rail"
+                "快轨" -> "Express Rail"
+                "铁路" -> "Railway"
+                "磁浮" -> "Maglev"
                 "train" -> "Rail"
                 "bike" -> "Bike"
                 else -> "Other"
@@ -269,6 +304,13 @@ object TransitData {
             else -> when (type) {
                 "地铁" -> "地铁 (Metro)"
                 "BRT", "公交", "bus" -> "公交 (Bus)"
+                "有轨电车" -> "有轨电车 (Tram)"
+                "城际" -> "城际 (Intercity)"
+                "单轨" -> "单轨 (Monorail)"
+                "轻轨" -> "轻轨 (Light Rail)"
+                "快轨" -> "快轨 (Express Rail)"
+                "铁路" -> "铁路 (Railway)"
+                "磁浮" -> "磁浮 (Maglev)"
                 "train" -> "轨道交通 (Rail)"
                 "bike" -> "公共自行车 (Bike)"
                 else -> "其他 (Other)"
@@ -299,12 +341,15 @@ object TransitData {
     }
 
     /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID。
-     *  空站名的大类 fallback 设备（station_name=NULL）→ 站名回退到线路名或交通类型 */
+     *  空站名/空线路名的大类 fallback 设备 → 站名回退到线路名或交通类型（空串也要兜底，不能用 ?: 只对 null 生效） */
     private fun StationResolution.toEntry(): StationEntry {
         val useEn = useEnglish()
         val line = if (useEn) lineNameEn ?: lineName else lineName ?: lineNameEn
-        val station = (if (useEn) stationNameEn ?: stationName else stationName)
-            ?: line ?: transitType
+        val station = sequenceOf(
+            if (useEn) stationNameEn ?: stationName else stationName,
+            line,
+            transitType
+        ).firstOrNull { !it.isNullOrEmpty() } ?: ""
         return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId)
     }
 

@@ -22,6 +22,7 @@
 import argparse
 import collections
 import csv
+import datetime
 import os
 import shutil
 import sqlite3
@@ -74,11 +75,14 @@ class Loader:
         self.db = sqlite3.connect(db_path)
         self.db.row_factory = sqlite3.Row
         self.city_by_code = {r["city_code"]: r for r in self.db.execute("SELECT * FROM city")}
+        self.city_name_by_id = {r["city_id"]: (r["city_name"] or "") for r in self.db.execute("SELECT * FROM city")}
         self.line_by_city_code = {}
         self.line_by_city_name = {}
-        for r in self.db.execute("SELECT l.*, c.city_code FROM line l JOIN city c ON c.city_id=l.city_id"):
+        self.line_by_name = {}  # line_name -> [line rows]（跨 city_code，用于同城市名复用）
+        for r in self.db.execute("SELECT l.*, c.city_code, c.city_name FROM line l JOIN city c ON c.city_id=l.city_id"):
             self.line_by_city_code[(r["city_code"], r["line_code"])] = r
             self.line_by_city_name[(r["city_code"], r["line_name"])] = r
+            self.line_by_name.setdefault(r["line_name"] or "", []).append(r)
         self.station_by_city_name = {}
         for r in self.db.execute("SELECT s.*, c.city_code FROM station s JOIN city c ON c.city_id=s.city_id"):
             self.station_by_city_name[(r["city_code"], r["station_name"])] = r
@@ -149,10 +153,11 @@ def build_update(loader, only_files=None):
     add_device, upd_device = [], []
     add_station, add_line = [], []
     skipped = 0
+    # 第一遍：收集各 (city, line_name) 组的站点行、表头码与推导的 line_code
+    line_groups = []  # (city, line_name, std, has_en, line_code, station_rows)
     for rel, std, prefix_mode, has_en, rows in scan_csvs():
         if only_files and rel not in only_files:
             continue
-        # 按 (city, line_name) 分组
         groups = collections.defaultdict(list)
         for r in rows:
             city, code, type_, line, station = r[0], r[1], r[2], r[3], r[4]
@@ -162,46 +167,62 @@ def build_update(loader, only_files=None):
         for (city, line_name), grp in groups.items():
             header_codes = [r[1] for r in grp if not r[4]]
             station_rows = [r for r in grp if r[4]]
-            if not station_rows:
-                skipped += len(grp)
-                continue
-            # 确定 line_code
+            # 空站名行（如 51804=地铁 / 518020=公交 东部公交）作为大类 fallback 也加入，不跳过
             existing_line = loader.line(city, None, line_name) if line_name else None
             line_code = existing_line["line_code"] if existing_line is not None else None
-            if not line_code and header_codes:
+            if not line_code and station_rows:
                 stn_codes = [r[1] for r in station_rows]
-                line_code = ""
                 for hc in sorted(set(header_codes), key=len, reverse=True):
                     if hc and all(c.startswith(hc) for c in stn_codes):
                         line_code = hc
                         break
-                if not line_code:
+                if not line_code and stn_codes:
                     line_code = common_prefix(stn_codes)
-            for r in station_rows:
-                city, code, type_, lname, station = r[0], r[1], r[2], r[3], r[4]
-                station_en = r[5] if has_en and len(r) > 5 and r[5] else None
-                dev = city + code
-                if loader.device_by_code.get(dev) is not None:
-                    # 已存在：按名称比较（站名/线路名/类型/标准），避免同线路多个 line_id 的误报
-                    old = loader.device_by_code[dev]
-                    old_line = loader.db.execute(
-                        "SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
-                    old_stn = loader.db.execute(
-                        "SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
-                    old_lname = old_line[0] if old_line else None
-                    old_sname = old_stn[0] if old_stn else None
-                    if ((old_lname or "") != (lname or "")
-                            or (old_sname or "") != (station or "")
-                            or old["transit_type"] != type_
-                            or old["standard"] != std):
-                        upd_device.append((dev, city, line_code, lname, station, type_, std))
-                    continue
-                # 新 device
-                station_code = code[len(line_code):] if line_code and code.startswith(line_code) else None
-                mk = f"{city}|{strip0(line_code)}|{strip0(station_code)}" if line_code and station_code else None
-                add_device.append((dev, city, line_code, lname, station, station_en, type_, std, mk))
-                if station_en:
-                    pass
+            line_groups.append((city, line_name, std, has_en, line_code, grp))
+
+    # 冲突消解：同城多个线路推导出同一个 line_code（如广州 YCT 终端码都共享 '00' 前缀）或
+    # 推导为空 → 改用线路名作 code（YCT 是终端型，line_code 只是存储键，不影响解析）
+    code_by_line = collections.defaultdict(dict)  # city -> {line_name: line_code}
+    for city, line_name, _, _, lc, _ in line_groups:
+        code_by_line[city][line_name] = lc
+    for city, names in code_by_line.items():
+        used = collections.Counter(names.values())
+        for line_name, lc in names.items():
+            if not lc or used[lc] > 1:
+                names[line_name] = line_name  # 冲突/为空 → 用线路名
+
+    # 第二遍：按最终 line_code 构建设备增改列表
+    seen_added = set()
+    for city, line_name, std, has_en, line_code, all_rows in line_groups:
+        lc = code_by_line[city][line_name]
+        for r in all_rows:
+            code, type_, lname, station = r[1], r[2], r[3], r[4]
+            station_en = r[5] if has_en and len(r) > 5 and r[5] else None
+            dev = city + code
+            if dev in seen_added:
+                continue  # CSV 内同 device_code 多行（如 518050 地铁/公交 都有空站名行）只取第一个
+            if loader.device_by_code.get(dev) is not None:
+                seen_added.add(dev)
+                old = loader.device_by_code[dev]
+                old_line = loader.db.execute(
+                    "SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
+                old_stn = loader.db.execute(
+                    "SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
+                old_lname = old_line[0] if old_line else None
+                old_sname = old_stn[0] if old_stn else None
+                if ((old_lname or "") != (lname or "")
+                        or (old_sname or "") != (station or "")
+                        or old["transit_type"] != type_
+                        or old["standard"] != std):
+                    upd_device.append((dev, city, lc, lname, station, type_, std))
+                continue
+            if station:
+                station_code = code[len(lc):] if lc and code.startswith(lc) else None
+                mk = f"{city}|{strip0(lc)}|{strip0(station_code)}" if lc and station_code else None
+            else:
+                mk = None  # 大类 fallback（空站名）：不参与 match_key，按 device_code 前缀匹配
+            seen_added.add(dev)
+            add_device.append((dev, city, lc, lname, station, station_en, type_, std, mk))
     return add_device, upd_device, add_station, add_line, skipped
 
 
@@ -243,6 +264,7 @@ def main():
     db = loader.db
     cur = db.cursor()
     added_stations, added_lines = 0, 0
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 与原始构建的 updated_at 时间戳格式一致
 
     def ensure_line(city, line_code, lname, cid):
         nonlocal added_lines
@@ -253,6 +275,12 @@ def main():
             by_name = loader.line_by_city_name.get((city, lname))
             if by_name is not None:
                 return by_name["line_id"]
+            # 同城市名跨 city_code 复用已有线路（如 0100 YCT → 5810 广州的 1号线），不新建
+            if cid is not None:
+                my_city_name = loader.city_name_by_id.get(cid, "")
+                for cand in loader.line_by_name.get(lname, []):
+                    if cand["city_id"] != cid and loader.city_name_by_id.get(cand["city_id"], "") == my_city_name:
+                        return cand["line_id"]
         if line_code:
             by_code = loader.line_by_city_code.get((city, line_code))
             if by_code is not None:
@@ -296,7 +324,7 @@ def main():
         cur.execute(
             "INSERT INTO reader_device (standard, device_code, city_id, line_id, station_id, transit_type, match_key, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?)",
-            (std, dev, cid, lid, sid, type_, mk, "update"))
+            (std, dev, cid, lid, sid, type_, mk, ts))
     for dev, city, line_code, lname, station, type_, std in upd_device:
         old = loader.device_by_code[dev]
         cid = old["city_id"]
@@ -304,8 +332,8 @@ def main():
         sid = ensure_station(city, station, cid, None) or old["station_id"]
         if lid != old["line_id"] or sid != old["station_id"] or type_ != old["transit_type"] or std != old["standard"]:
             cur.execute(
-                "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, updated_at='update' WHERE device_code=?",
-                (lid, sid, type_, std, dev))
+                "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, updated_at=? WHERE device_code=?",
+                (lid, sid, type_, std, ts, dev))
     db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (IDENTITY_HASH,))
     db.commit()
     print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射")
