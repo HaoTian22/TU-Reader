@@ -228,7 +228,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     /**
-     * 城市累计票款优惠：按当月地铁/公交实际支出票款计算（广州政策自动识别，其他城市隐藏卡片）。
+     * 城市累计票款优惠：按卡内折扣统计（SFI 0x19 rec1）当月累计金额计算
+     * （广州政策自动识别；其他城市或未读到折扣统计时隐藏卡片，不做交易累加回退）。
      * 满 80 元部分享 8 折，超出 200 元部分享 5 折。
      */
     private fun updateDiscountProgress() {
@@ -242,17 +243,14 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.discountCard.visibility = View.GONE
             return
         }
+        // 当月实际支出票款取自卡内折扣统计（SFI 0x19 rec1，卡自行维护、无重复计数）。
+        // 未读到（非广州/尚未读卡）时直接隐藏优惠卡片，不做本月交易累加回退。
+        val monthlyFen = viewModel.selectedDiscountMonthlyFen.value
+        if (monthlyFen == null) {
+            binding.discountCard.visibility = View.GONE
+            return
+        }
         binding.discountCard.visibility = View.VISIBLE
-
-        // 当月实际支出票款：优先用卡内折扣统计（SFI 0x19 rec1，卡自行维护、无重复计数）；
-        // 未读到（非广州/尚未读卡）时回退本月地铁/公交扣款累加。
-        val thisMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-        val monthlyFen = viewModel.selectedDiscountMonthlyFen.value ?: txns
-            .filter {
-                it.date.startsWith(thisMonth) && (it.transitType == "地铁" || it.transitType == "公交") &&
-                    it.amountYuan > 0
-            }
-            .sumOf { (it.amountYuan * 100).toLong() }
 
         val t1 = policy.tier1ThresholdFen
         val t2 = policy.tier2ThresholdFen
