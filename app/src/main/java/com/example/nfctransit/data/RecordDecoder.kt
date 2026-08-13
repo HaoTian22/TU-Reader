@@ -36,10 +36,10 @@ object RecordDecoder {
         val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
     }
 
-    /** TU 1E 建表结果 */
+    /** TU 1E 建表结果；balanceMap 值为 null = 该记录无余额数据 */
     private class TuMap(
         val stationMap: Map<String, StationRef>,
-        val balanceMap: Map<String, Long>,
+        val balanceMap: Map<String, Long?>,
         val journey: List<CanonicalTransaction>,
         /** 卡所在城市码（取时间戳最新的一条 0x1E 记录 [32..34)）；TU 0x18 记录城市码无效（其 [10..12) 是终端号前缀） */
         val cardCityCode: String? = null
@@ -58,20 +58,18 @@ object RecordDecoder {
 
     /**
      * 读卡时解码：从本次读到的原始记录生成交易（含 LNT 年份推断与余额匹配）。
-     * @param statsMonth    LNT 统计月份 YYYYMM（SFI 08 rec1），年份锚点
-     * @param lntBalanceFen LNT 钱包当前余额（分），作为 LNT 记录交易后余额兜底
+     * @param statsMonth LNT 统计月份 YYYYMM（SFI 08 rec1），年份锚点
      */
     fun decodeCard(
         cardType: String,
         records: List<ZoneRecord>,
         statsMonth: Int?,
-        currentYear: Int,
-        lntBalanceFen: Long = 0L
+        currentYear: Int
     ): DecodeResult {
         return when (cardType) {
             "TU" -> {
                 val tu = buildTuMap(records)
-                val fare = parseFareRecords(cardType, records, "TU", tu, currentYear, null, 0L)
+                val fare = parseFareRecords(cardType, records, "TU", tu, currentYear, null)
                 val display = mergeJourneyAndFare(tu.journey, fare).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
@@ -85,13 +83,13 @@ object RecordDecoder {
                 // LNT 交易（无年份，年份用统计月份/连续性推断）
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
                     cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyMap(), emptyList()),
-                    currentYear, statsMonth, lntBalanceFen
+                    currentYear, statsMonth
                 )
 
                 // TU 钱包：1E 映射表 + 18 主交易 + 旅程合并
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, currentYear, null, 0L
+                    cardType, tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
 
@@ -119,7 +117,7 @@ object RecordDecoder {
             }
             else -> {
                 // 通用（CU/SZT/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
-                val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null, 0L)
+                val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null)
                 val display = fare.distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
                     .sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
                 DecodeResult(display, fare)
@@ -136,28 +134,28 @@ object RecordDecoder {
         if (rows.isEmpty()) return emptyList()
         val records = rows.map { ZoneRecord(it.sfi, 0, it.protocol, it.hex) }
         val storedDate = rows.associate { it.contentHash to it.resolvedDate }      // 归档：contentHash → 日期
-        val storedBalance = rows.associate { it.contentHash to (it.balanceAfterFen ?: 0L) }  // 归档：contentHash → 余额
+        val storedBalance = rows.associate { it.contentHash to it.balanceAfterFen }  // 归档：contentHash → 余额（null = 该记录无余额数据）
 
         val base = when (cardType) {
             "TU" -> {
                 val tu = buildTuMap(records)
-                val fare = parseFareRecords(cardType, records, "TU", tu, 0, null, 0L, storedDate, storedBalance)
+                val fare = parseFareRecords(cardType, records, "TU", tu, 0, null, storedDate, storedBalance)
                 mergeJourneyAndFare(tu.journey, fare)
             }
             "YCT" -> {
                 val lntRecords = records.filter { it.protocol == "LNT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, 0L, storedDate, storedBalance
+                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, 0, null, 0L, storedDate, storedBalance
+                    cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             else -> parseFareRecords(
-                cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, 0L, storedDate, storedBalance
+                cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
             ).distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
         }
         return mergeByIdentity(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
@@ -194,7 +192,7 @@ object RecordDecoder {
      */
     private fun buildTuMap(records: List<ZoneRecord>): TuMap {
         val stationMap = mutableMapOf<String, StationRef>()
-        val balanceMap = mutableMapOf<String, Long>()
+        val balanceMap = mutableMapOf<String, Long?>()
         val journey = mutableListOf<CanonicalTransaction>()
         var latestTs = ""
         var latestCity = ""
@@ -223,7 +221,7 @@ object RecordDecoder {
                 lineId = entry?.lineId,
                 stationId = entry?.stationId
             )
-            val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else 0L
+            val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(19, 21)) else 0L
             val timestamp = if (data.size >= 32) ApduUtil.bcdToString(data.copyOfRange(25, 32)) else ""
 
@@ -258,9 +256,8 @@ object RecordDecoder {
     /**
      * 解析 18（+附加区）主交易记录。
      * @param lntStatsMonth  LNT 统计月份锚点（年份推断起点）
-     * @param lntBalanceFen  LNT 钱包余额（分），作为 LNT 记录交易后余额（钱包级快照，读卡时固化）
      * @param storedDateByHash 归档：contentHash → 已解析日期（yyyyMMdd），覆盖 hex 内日期（decodeArchive 用）
-     * @param storedBalance    归档：contentHash → 已解析余额（decodeArchive 用）
+     * @param storedBalance    归档：contentHash → 已解析余额（null = 无余额数据，decodeArchive 用）
      */
     private fun parseFareRecords(
         cardType: String,
@@ -269,9 +266,8 @@ object RecordDecoder {
         tu: TuMap,
         currentYear: Int,
         lntStatsMonth: Int?,
-        lntBalanceFen: Long,
         storedDateByHash: Map<String, String>? = null,
-        storedBalance: Map<String, Long>? = null
+        storedBalance: Map<String, Long?>? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
         var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) else null
@@ -326,10 +322,13 @@ object RecordDecoder {
                 resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
 
-            val balanceAfterFen = storedBalance?.get(hash) ?: if (isLnt) {
-                lntBalanceFen
-            } else {
-                tu.balanceMap["$terminal|$timestamp"]
+            // 无余额数据 = null（区别于真实的 ¥0.00）：
+            // LNT 记录本身不含余额字段（旧实现把钱包级快照套到每条历史交易上，属捏造），一律 null；
+            // 归档优先用已解析值（含 null，不重新推导）；TU 用 1E 嵌入余额匹配，匹配不到为 null
+            val balanceAfterFen = when {
+                isLnt -> null
+                storedBalance != null && storedBalance.containsKey(hash) -> storedBalance[hash]
+                else -> tu.balanceMap["$terminal|$timestamp"]
                     ?: findBalanceByTerminal(terminal, tu.balanceMap)
             }
 
@@ -367,7 +366,7 @@ object RecordDecoder {
         cityCode: String?,
         date: String,
         time: String,
-        balanceAfterFen: Long
+        balanceAfterFen: Long?
     ): CanonicalTransaction {
         return CanonicalTransaction(
             identity = contentHash(hex),
@@ -417,7 +416,7 @@ object RecordDecoder {
                     lineColor = j.lineColor,
                     lineId = j.lineId,
                     stationId = j.stationId,
-                    balanceAfterFen = if (j.balanceAfterFen != 0L) j.balanceAfterFen else f.balanceAfterFen
+                    balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen
                 ))
             } else {
                 out.add(f)
@@ -466,11 +465,12 @@ object RecordDecoder {
         return StationRef(station, line, TransitData.transitTypeLabel(type), "", lineColor, lineId, stationId)
     }
 
-    /** 按终端号模糊匹配余额（1E 与 18 终端号长度不一致时的兜底） */
-    private fun findBalanceByTerminal(terminal: String, balanceMap: Map<String, Long>): Long {
-        var best = 0L
+    /** 按终端号模糊匹配余额（1E 与 18 终端号长度不一致时的兜底）；匹配不到返回 null（该记录无余额数据） */
+    private fun findBalanceByTerminal(terminal: String, balanceMap: Map<String, Long?>): Long? {
+        var best: Long? = null
         var bestTs = ""
         for ((key, value) in balanceMap) {
+            if (value == null) continue
             val keyTerminal = key.substringBefore("|")
             if (keyTerminal == terminal || keyTerminal.endsWith(terminal) || terminal.endsWith(keyTerminal)) {
                 val ts = key.substringAfter("|")

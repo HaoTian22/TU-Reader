@@ -151,6 +151,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             time.text = txn.date + " " + txn.time.substring(0, 5)
             amount.text = txn.amountText
             balance.text = txn.balanceAfterText
+            // 无余额数据（null）时整行隐藏余额，避免误显示 ¥0.00
+            balance.visibility = if (txn.balanceAfterText == null) View.GONE else View.VISIBLE
             // 协议药丸：按 protocols 逐颗显示（最多两个）；空（单协议卡）隐藏
             protocol.text = txn.protocols.getOrNull(0).orEmpty()
             protocol.visibility = if (txn.protocols.size > 0) View.VISIBLE else View.GONE

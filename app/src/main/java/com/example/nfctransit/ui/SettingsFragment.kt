@@ -20,6 +20,7 @@ import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.databinding.FragmentSettingsBinding
+import java.io.File
 import kotlinx.coroutines.launch
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
@@ -122,6 +123,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     "error" to "导入失败: ${e.message}"
                 }
                 feedback(state, msg)
+                if (state == "success") updateLocalStorageSize()
             }
         }
     }
@@ -461,7 +463,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             sb.appendLine("  类型: ${txn.transitType}  金额: ${txn.amountText}")
             sb.appendLine("  站点: ${txn.stationName}  线路: ${txn.lineName}")
             sb.appendLine("  终端: ${txn.terminal}  TypeHex: ${txn.typeHex}")
-            sb.appendLine("  余额: ${txn.balanceAfterText}")
+            sb.appendLine("  余额: ${txn.balanceAfterText ?: "无"}")
         }
 
         sb.appendLine()
@@ -477,6 +479,26 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         tv.visibility = View.VISIBLE
         // 只引用捕获的 View，避免 fragment 视图销毁后 _binding 为 null 时回调触发 NPE
         tv.postDelayed({ tv.visibility = View.GONE }, 2500)
+    }
+
+    /** 本地数据存储大小 = 应用私有数据目录（databases/shared_prefs/files/cache）实际占用 */
+    private fun updateLocalStorageSize() {
+        val tv = _binding?.root?.findViewById<TextView>(R.id.tvLocalStorageValue) ?: return
+        val bytes = requireContext().dataDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        tv.text = formatBytes(bytes)
+    }
+
+    private fun formatBytes(bytes: Long): String = when {
+        bytes >= 1L shl 30 -> String.format("%.2f GB", bytes / (1L shl 30).toDouble())
+        bytes >= 1L shl 20 -> String.format("%.2f MB", bytes / (1L shl 20).toDouble())
+        bytes >= 1L shl 10 -> String.format("%.1f KB", bytes / (1L shl 10).toDouble())
+        else -> "$bytes B"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次回到设置页时刷新本地数据大小，反映新增读卡/导入等变化
+        updateLocalStorageSize()
     }
 
     override fun onDestroyView() {

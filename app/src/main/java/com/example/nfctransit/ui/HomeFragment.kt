@@ -307,9 +307,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val stationText = txn.stationName.replace(Regex(" [↑↓]$"), "")
 
             icon.text = txn.icon
-            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）
-            city.text = txn.cityName ?: "未知"
+            // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
+            val cityText = txn.cityName ?: "未知"
+            city.text = cityText
+            city.visibility = if (isPlaceholderPill(cityText)) View.GONE else View.VISIBLE
             type.text = txn.transitType
+            type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
             amount.text = txn.amountText
             amount.setTextColor(
                 if (txn.amountText.startsWith("+")) 0xFF34C759.toInt() else 0xFFFF3B30.toInt()
@@ -351,6 +354,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 })
             }
         }
+    }
+
+    /** 药丸无有效内容（空白、"-"、"—" 占位）时整个隐藏 */
+    private fun isPlaceholderPill(text: String?): Boolean {
+        val t = text?.trim() ?: return true
+        return t.isEmpty() || t == "-" || t == "—"
     }
 
     private fun activeIndexNow(): Int {

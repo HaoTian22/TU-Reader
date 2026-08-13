@@ -51,7 +51,7 @@ object TransactionMapper {
 
         val formattedDate = formatBcdDate(date)
         val formattedTime = formatBcdTime(time)
-        val balanceAfterYuan = (balanceAfterFen ?: 0L) / 100.0
+        val balanceAfterYuan = balanceAfterFen?.div(100.0)   // 无余额数据为 null（区别于真实的 ¥0.00）
         val amountText = when {
             isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
             amountYuan == 0.0 && transitType != "消费" -> when {
@@ -81,7 +81,7 @@ object TransactionMapper {
             time = formattedTime,
             displayDateTime = "$formattedDate $formattedTime",
             balanceAfterYuan = balanceAfterYuan,
-            balanceAfterText = "余额 ¥${String.format("%.2f", balanceAfterYuan)}",
+            balanceAfterText = balanceAfterFen?.let { "余额 ¥${String.format("%.2f", it / 100.0)}" },
             icon = icon,
             iconBgColor = iconBgColor,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()

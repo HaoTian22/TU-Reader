@@ -194,7 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val decoded = RecordDecoder.decodeCard(
-            profile.cardType, records, result.statsMonth, currentYear, balanceFen
+            profile.cardType, records, result.statsMonth, currentYear
         )
         if (decoded.display.isEmpty()) {
             lastReadCount = 0
@@ -447,7 +447,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (t in _allTransactions.value.orEmpty()) {
             sb.appendLine(
                 "${t.seq},${t.displayDateTime},${t.transitType},${t.lineName}," +
-                "\"${t.stationName}\",${t.amountText},${t.balanceAfterText},${t.terminal}"
+                "\"${t.stationName}\",${t.amountText},${t.balanceAfterText ?: "无"},${t.terminal}"
             )
         }
         return sb.toString()

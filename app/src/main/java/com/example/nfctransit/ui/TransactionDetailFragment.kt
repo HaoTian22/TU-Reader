@@ -113,7 +113,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             "线路" to txn.lineName,
             "交易类型" to transactionType,
             "扣款金额" to txn.amountText,
-            "交易后余额" to "¥${String.format("%.2f", txn.balanceAfterYuan)}",
+            "交易后余额" to (txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "无"),
             "协议" to txn.protocols.joinToString(" / "),
             "终端编号" to txn.terminal
         )
