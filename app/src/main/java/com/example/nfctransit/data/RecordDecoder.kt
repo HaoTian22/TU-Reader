@@ -402,11 +402,14 @@ object RecordDecoder {
     ): List<CanonicalTransaction> {
         if (journey.isEmpty()) return fare
         val fareByTs = fare.groupBy { it.date + it.time }
+        // 1E 旅程是 TU 站点权威来源：0x18 终端号是卡发行前缀（如广州卡 4131…），在外地（如深圳）时
+        // 无法定位站，必须用同时间戳的 1E 记录取站点/线路/余额。journeyHex 也取 1E 的原始记录。
+        val journeyByTs = journey.groupBy { it.date + it.time }
         val out = mutableListOf<CanonicalTransaction>()
         val consumed = mutableSetOf<String>()
         for (f in fare) {
             val ts = f.date + f.time
-            val j = fareByTs[ts]?.firstOrNull {
+            val j = journeyByTs[ts]?.firstOrNull {
                 it.stationName.isNotEmpty() && it.stationName != "未知"
             }
             if (j != null && consumed.add(ts)) {
@@ -417,7 +420,7 @@ object RecordDecoder {
                     lineId = j.lineId,
                     stationId = j.stationId,
                     balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                    journeyHex = j.hex   // 携带 1E 旅程原始记录，详情页原始数据显示两份
+                    journeyHex = j.hex
                 ))
             } else {
                 out.add(f)

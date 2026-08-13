@@ -480,7 +480,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         restore()
         return if (fromTripReader) {
-            "已从 TripReader 导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易"
+            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易"
         } else {
             "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录"
         }

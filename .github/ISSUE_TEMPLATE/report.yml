@@ -1,0 +1,104 @@
+name: TU-Reader 问题反馈 / 数据请求
+description: 反馈 Bug、建议新功能或提交交通卡数据问题。发布后会自动为 issue 打上类型 / 协议 / 版本 / 城市 / 交通工具标签。
+title: "[Bug] 一句话描述问题"
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## TU-Reader Issue 模板
+
+        请如实填写带 <kbd>*</kbd> 的必选项。提交后 GitHub Actions 会根据你的选择自动打标签：
+        **类型 / 协议 / 版本 / 城市 / 交通工具**，无需手动添加。
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 类型
+      description: 本 issue 属于哪一类？
+      options:
+        - Bug
+        - Feature
+        - Data
+    validations:
+      required: true
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: 协议
+      description: 涉及哪种互联互通协议？
+      options:
+        - TU（交通联合）
+        - CU（住建部）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 版本
+      description: 使用的 App 版本（可在设置页查看）
+      options:
+        - 1.0.0
+        - 其他（请在正文注明）
+    validations:
+      required: true
+
+  - type: input
+    id: city
+    attributes:
+      label: 城市
+      description: 涉及的卡片城市，例如：深圳、广州、苏州
+      placeholder: 请输入城市名称
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: 交通工具
+      description: 涉及哪种交通工具？
+      options:
+        - 地铁
+        - 公交
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: card-info
+    attributes:
+      label: 卡片信息（可选）
+      description: 卡类型 / 卡号前几位 / 卡面标识，例如：深圳通、卡号 3104 开头
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 详细描述
+      description: 具体描述问题或请求
+      placeholder: |
+        - Bug：现象 + 期望结果
+        - Feature：使用场景 + 想要的能力
+        - Data：缺失/错误的线路或站名
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤 / 数据来源（可选）
+      description: Bug 请给出复现步骤；Data 请给出数据来源（如官网线路图、站牌照片、卡号段等）
+    validations:
+      required: false
+
+  - type: textarea
+    id: raw-records
+    attributes:
+      label: 原始记录（可选）
+      description: 如有 App 内的原始卡数据 / 日志，请粘贴在此，便于排查
+      render: shell
+    validations:
+      required: false

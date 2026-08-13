@@ -122,7 +122,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         return t.isEmpty() || t == "-" || t == "—"
     }
 
-    /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色 */
+    /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色；
+     *  深色背景自动改白字，避免深色底 + 深灰字难读。 */
     private fun applyLineColor(line: TextView, color: String?) {
         val parsed = try {
             android.graphics.Color.parseColor(color?.trim() ?: return)
@@ -133,6 +134,15 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             cornerRadius = 20f * resources.displayMetrics.density
             setColor(parsed)
         }
+        line.setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
+    }
+
+    /** 感知亮度（Rec. 601）低于 0.5 视为深色背景 → 需要白字 */
+    private fun isDarkColor(color: Int): Boolean {
+        val r = android.graphics.Color.red(color)
+        val g = android.graphics.Color.green(color)
+        val b = android.graphics.Color.blue(color)
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255.0 < 0.5
     }
 
     private fun updateCardBadgeBg() {
@@ -163,7 +173,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     private inner class TransactionAdapter : RecyclerView.Adapter<TransactionAdapter.Holder>() {
 
         private val items = mutableListOf<UiTransaction>()
-        private val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        // lazy：适配器在 Fragment 构造时即创建（字段初始化，见 onViewCreated 前 adapter 字段），此时尚未 attach，
+        // requireContext() 会抛 IllegalStateException；首次 bind（已 attach）时才真正加载字体
+        private val fa by lazy { Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf") }
 
         fun submit(list: List<UiTransaction>) {
             items.clear()
@@ -212,7 +224,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 type.text = txn.transitType
                 type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
                 // 第三行：时间（带年）
-                time.text = txn.date + " " + txn.time.substring(0, 5)
+                time.text = txn.date + " " + txn.time.take(5)
                 amount.text = txn.amountText
                 balance.text = txn.balanceAfterText
                 // 无余额数据（null）时整行隐藏余额，避免误显示 ¥0.00

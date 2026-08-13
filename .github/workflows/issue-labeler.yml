@@ -1,0 +1,77 @@
+name: Issue Auto-label
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 根据模板答案自动打标签
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.issue.number;
+
+            // 解析表单生成的 Markdown：按 "### 标题" 分段
+            const sections = {};
+            for (const part of body.split(/^### /m).slice(1)) {
+              const [title, ...rest] = part.split('\n');
+              sections[title.trim()] = rest.join('\n').trim();
+            }
+
+            const labels = [];
+            const add = (name) => {
+              if (name && !labels.includes(name)) labels.push(name);
+            };
+
+            // 类型（单选）：Bug / Feature / Data
+            const type = sections['类型'];
+            if (type === 'Bug') add('类型: Bug');
+            else if (type === 'Feature') add('类型: Feature');
+            else if (type === 'Data') add('类型: Data');
+
+            // 协议（单选，正文可能渲染为 "- [x] TU"）
+            const proto = sections['协议'] || '';
+            if (proto.includes('TU')) add('协议: TU');
+            if (proto.includes('CU')) add('协议: CU');
+
+            // 版本（单选）
+            const ver = sections['版本'];
+            if (ver && ver !== '其他（请在正文注明）') add(`版本: ${ver}`);
+
+            // 城市为手动输入，值不可枚举，不打标签
+
+            // 交通工具（单选）
+            const transport = sections['交通工具'];
+            if (transport === '地铁') add('交通: 地铁');
+            else if (transport === '公交') add('交通: 公交');
+            else if (transport === '其他') add('交通: 其他');
+
+            if (labels.length === 0) {
+              console.log('未从模板解析到标签，跳过。');
+              return;
+            }
+
+            // 不存在的标签先创建（已存在时忽略 422）
+            for (const name of labels) {
+              try {
+                await github.rest.issues.createLabel({ owner, repo, name });
+              } catch (e) {
+                console.log(`标签已存在或创建失败: ${name}`);
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              labels,
+            });
+            console.log(`已为 issue #${issueNumber} 打标签: ${labels.join(', ')}`);

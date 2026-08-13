@@ -111,14 +111,28 @@ object TransitData {
         terminal: String
     ): StationEntry? {
         ensureLoaded()
+        // 深圳 TU：卡片 1E 城市码 5840 无独立站点数据（city_id 200 空），重定向到 5180（深圳数据所在）
+        val effectiveCity = if (cityCode == "5840") "5180" else cityCode
         if (terminal.isNotEmpty()) {
-            byDeviceCode[cityCode + terminal]?.let { return it.toEntry() }
+            byDeviceCode[effectiveCity + terminal]?.let { return it.toEntry() }
             byDeviceCode[terminal]?.let { return it.toEntry() }
         }
         if (lineCode.isNotEmpty()) {
-            byDeviceCode[cityCode + lineCode + stationCode]?.let { return it.toEntry() }
-            byMatchKey["$cityCode|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
+            byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it.toEntry() }
+            byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
                 ?.let { return it.toEntry() }
+        }
+        // 深圳 TU 轨道交通：按 1E 终端号匹配（cu.csv 格式同 CU）。卡片终端号 "000262016106"
+        // 去前导 0 后第 1-2 位为线路码（62=4号线）、3-5 位为站点码（016=深圳北站），
+        // 对应 device_code "5180"+线路+站点（如 518062016）
+        if (effectiveCity == "5180" && terminal.isNotEmpty()) {
+            val s = stripLeadingZeros(terminal)
+            if (s.length >= 6) {
+                val line = s.substring(1, 3)
+                val station = s.substring(3, 6)
+                byDeviceCode["5180$line$station"]?.let { return it.toEntry() }
+                byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it.toEntry() }
+            }
         }
         return null
     }
