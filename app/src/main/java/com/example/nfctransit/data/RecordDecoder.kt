@@ -409,7 +409,13 @@ object RecordDecoder {
         val consumed = mutableSetOf<String>()
         for (f in fare) {
             val ts = f.date + f.time
-            val j = journeyByTs[ts]?.firstOrNull {
+            val journeyAtTs = journeyByTs[ts]
+            // 城市/原始数据独立于站名解析：只要有 1E 就用它的城市码与 hex（公交/异地行程的 18 城市码是卡归属城市，不可靠）
+            val journeyCity = journeyAtTs?.firstOrNull()?.cityCode
+            val journeyHex = journeyAtTs?.firstOrNull()?.hex
+            val city = journeyCity ?: f.cityCode
+            // 站名解析单独处理：只取解析成功的旅程覆盖站名；城市与 hex 已在上方独立决定
+            val j = journeyAtTs?.firstOrNull {
                 it.stationName.isNotEmpty() && it.stationName != "未知"
             }
             if (j != null && consumed.add(ts)) {
@@ -419,11 +425,12 @@ object RecordDecoder {
                     lineColor = j.lineColor,
                     lineId = j.lineId,
                     stationId = j.stationId,
+                    cityCode = city,
                     balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                    journeyHex = j.hex
+                    journeyHex = journeyHex ?: j.hex
                 ))
             } else {
-                out.add(f)
+                out.add(f.copy(journeyHex = journeyHex, cityCode = city))
             }
         }
         for (j in journey) {

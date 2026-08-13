@@ -47,6 +47,8 @@ object TransitData {
     private val byMatchKey = mutableMapOf<String, StationResolution>()   // 去前导0 match_key -> 解析结果
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
+    // 大类 fallback 用：device_code 按长度降序，供最长前缀匹配（如 5180xxxx 未命中 → 51804=地铁 / 518040=10号线）
+    private val deviceCodesByLen = mutableListOf<String>()
     // "线路 站点" 组合串 -> 解析结果（中/英各一），用于修复旧版本按空格误拆线路/站名的持久化数据
     private val byCombinedZh = mutableMapOf<String, StationResolution>()
     private val byCombinedEn = mutableMapOf<String, StationResolution>()
@@ -133,6 +135,27 @@ object TransitData {
                 byDeviceCode["5180$line$station"]?.let { return it.toEntry() }
                 byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it.toEntry() }
             }
+        }
+        // 大类 fallback：具体站未命中时，按最长前缀匹配已有 device_code
+        // （如 5180xxxx 未匹配到站 → 518040=10号线 / 51804=地铁，只显示交通类型/线路）
+        val fallbackCandidates = buildList {
+            if (terminal.isNotEmpty()) add(effectiveCity + terminal)
+            if (effectiveCity == "5180" && terminal.isNotEmpty()) {
+                val s = stripLeadingZeros(terminal)
+                if (s.length >= 6) add("5180" + s.substring(1, 3) + s.substring(3, 6))
+            }
+        }
+        for (cand in fallbackCandidates) {
+            longestPrefixMatch(cand)?.let { return it.toEntry() }
+        }
+        return null
+    }
+
+    /** 大类 fallback：找 candidate 的最长前缀 device_code（按长度降序，首个命中即最长前缀） */
+    private fun longestPrefixMatch(candidate: String): StationResolution? {
+        for (dev in deviceCodesByLen) {
+            if (dev.length < 5) continue
+            if (candidate.startsWith(dev)) return byDeviceCode[dev]
         }
         return null
     }
@@ -275,11 +298,13 @@ object TransitData {
         }
     }
 
-    /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID */
+    /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID。
+     *  空站名的大类 fallback 设备（station_name=NULL）→ 站名回退到线路名或交通类型 */
     private fun StationResolution.toEntry(): StationEntry {
         val useEn = useEnglish()
         val line = if (useEn) lineNameEn ?: lineName else lineName ?: lineNameEn
-        val station = if (useEn) stationNameEn ?: stationName else stationName
+        val station = (if (useEn) stationNameEn ?: stationName else stationName)
+            ?: line ?: transitType
         return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId)
     }
 
@@ -295,6 +320,7 @@ object TransitData {
             byCombinedEn.clear()
             byStationNameZh.clear()
             byStationNameEn.clear()
+            deviceCodesByLen.clear()
             loaded = false
             ensureLoaded()
         }
@@ -315,11 +341,11 @@ object TransitData {
                     for (r in dao.getAllResolutions()) {
                         byDeviceCode[r.deviceCode] = r
                         r.matchKey?.let { byMatchKey[it] = r }
-                        byStationId[r.stationId] = r
-                        r.lineId?.let { byLineStationId[it to r.stationId] = r }
-                        byCombinedZh["${r.lineName ?: ""} ${r.stationName}".trim()] = r
+                        r.stationId?.let { byStationId[it] = r }
+                        r.lineId?.let { lid -> r.stationId?.let { byLineStationId[lid to it] = r } }
+                        byCombinedZh["${r.lineName ?: ""} ${r.stationName ?: ""}".trim()] = r
                         byCombinedEn[
-                            "${r.lineNameEn ?: r.lineName ?: ""} ${r.stationNameEn ?: r.stationName}".trim()
+                            "${r.lineNameEn ?: r.lineName ?: ""} ${r.stationNameEn ?: r.stationName ?: ""}".trim()
                         ] = r
                         // 同名站多线路时优先保留带线路的一例（旧数据无线路时也能反查）
                         if (!r.stationName.isNullOrEmpty()) {
@@ -329,6 +355,8 @@ object TransitData {
                             byStationNameEn.putIfAbsent(r.stationNameEn, r)
                         }
                     }
+                    deviceCodesByLen.clear()
+                    deviceCodesByLen.addAll(byDeviceCode.keys.sortedByDescending { it.length })
                 }
             } catch (e: Exception) {
                 Log.e("TransitData", "DB load failed", e)

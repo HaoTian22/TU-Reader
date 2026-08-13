@@ -4,7 +4,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 
-/** 站名解析结果：device_code 命中的城市/线路/站点（含英文，缺省回退中文由调用方处理） */
+/** 站名解析结果：device_code 命中的城市/线路/站点（含英文，缺省回退中文由调用方处理）。
+ *  站名字段可空——大类 fallback 设备（空站名的类别行，如 51804=地铁）station_id/station_name 为 NULL。 */
 data class StationResolution(
     @ColumnInfo(name = "city_id") val cityId: Long,
     @ColumnInfo(name = "city_code") val cityCode: String,
@@ -14,8 +15,8 @@ data class StationResolution(
     @ColumnInfo(name = "line_name") val lineName: String?,
     @ColumnInfo(name = "line_name_en") val lineNameEn: String?,
     @ColumnInfo(name = "line_color") val lineColor: String?,
-    @ColumnInfo(name = "station_id") val stationId: Long,
-    @ColumnInfo(name = "station_name") val stationName: String,
+    @ColumnInfo(name = "station_id") val stationId: Long?,
+    @ColumnInfo(name = "station_name") val stationName: String?,
     @ColumnInfo(name = "station_name_en") val stationNameEn: String?,
     @ColumnInfo(name = "standard") val standard: String,
     @ColumnInfo(name = "transit_type") val transitType: String,
@@ -34,6 +35,8 @@ interface TransitDao {
 
     /**
      * 全部站点解析结果（城市/线路/站点 + 英文 + match_key）。
+     * LEFT JOIN station：空站名的大类 fallback 设备（如 51804=地铁）也载入，
+     * 供最长前缀匹配兜底显示交通类型/线路。
      * 数据量为参考数据集（约 2.7 万行），首次读取时一次性载入内存缓存。
      */
     @Query(
@@ -45,7 +48,7 @@ interface TransitDao {
         FROM reader_device r
         JOIN city c ON c.city_id = r.city_id
         LEFT JOIN line l ON l.line_id = r.line_id
-        JOIN station s ON s.station_id = r.station_id
+        LEFT JOIN station s ON s.station_id = r.station_id
         """
     )
     suspend fun getAllResolutions(): List<StationResolution>

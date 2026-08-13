@@ -137,12 +137,12 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         line.setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
     }
 
-    /** 感知亮度（Rec. 601）低于 0.5 视为深色背景 → 需要白字 */
+    /** 感知亮度（Rec. 601）低于 0.4 视为深色背景 → 需要白字 */
     private fun isDarkColor(color: Int): Boolean {
         val r = android.graphics.Color.red(color)
         val g = android.graphics.Color.green(color)
         val b = android.graphics.Color.blue(color)
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255.0 < 0.5
+        return (0.2126*r + 0.7152*g + 0.0722*b) < 128
     }
 
     private fun updateCardBadgeBg() {
