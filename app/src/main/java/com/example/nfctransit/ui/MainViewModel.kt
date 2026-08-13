@@ -81,9 +81,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _allTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
     val allTransactions: LiveData<List<UiTransaction>> = _allTransactions
 
-    /** 当前卡本月累计乘车金额（分），来自卡内 SFI 0x19 rec1 折扣统计；null = 无扇区数据/非本月 */
+    /** 当前卡本月累计乘车金额（分），来自卡内折扣统计（SFI 0x19 / LNT 0x08）；null = 无扇区数据/非本月 */
     private val _selectedDiscountMonthlyFen = MutableLiveData<Long?>(null)
     val selectedDiscountMonthlyFen: LiveData<Long?> = _selectedDiscountMonthlyFen
+
+    /** 当前卡折扣统计对应月份（"2026-08"），首页优惠标题旁展示；null = 无折扣统计/非本月 */
+    private val _selectedDiscountStatsMonth = MutableLiveData<String?>(null)
+    val selectedDiscountStatsMonth: LiveData<String?> = _selectedDiscountStatsMonth
 
     private val _currentFilter = MutableLiveData("全部")
     val currentFilter: LiveData<String> = _currentFilter
@@ -423,6 +427,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _cardAdded.value = null
         _allTransactions.value = emptyList()
         _selectedDiscountMonthlyFen.value = null
+        _selectedDiscountStatsMonth.value = null
         _filteredTransactions.value = emptyList()
         _nfcLog.value = emptyList()
         _topStations.value = emptyList()
@@ -459,18 +464,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         withContext(Dispatchers.IO) { repo.exportDatabase(uri) }
     }
 
-    /** 导入用户库：复制所选文件到缓存 → 去重合并 → 重载界面，返回结果文案 */
+    /**
+     * 导入数据库：自动识别 TripReader（card_table/tran_table）与本应用导出库（cards/…）两种格式，
+     * 复制所选文件到缓存 → 去重合并 → 重载界面，返回结果文案。
+     */
     suspend fun importDatabase(uri: Uri): String {
         val tmp = withContext(Dispatchers.IO) { copyUriToCache(uri) }
-        val summary = withContext(Dispatchers.IO) {
+        val (summary, fromTripReader) = withContext(Dispatchers.IO) {
             try {
-                repo.importDatabase(tmp)
+                if (repo.isTripReaderDatabase(tmp)) repo.importTripReaderDatabase(tmp) to true
+                else repo.importDatabase(tmp) to false
             } finally {
                 tmp.delete()
             }
         }
         restore()
-        return "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录"
+        return if (fromTripReader) {
+            "已从 TripReader 导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易"
+        } else {
+            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录"
+        }
     }
 
     private fun copyUriToCache(uri: Uri): File {
@@ -548,7 +561,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCard.value = card
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
-        _selectedDiscountMonthlyFen.value = usableMonthlyFen(discountStatsByCard[cardId])
+        val stats = discountStatsByCard[cardId]
+        val monthlyFen = usableMonthlyFen(stats)
+        _selectedDiscountMonthlyFen.value = monthlyFen
+        _selectedDiscountStatsMonth.value = if (monthlyFen != null) statsMonthLabel(stats) else null
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: "全部")
         _nfcLog.value = currentSessionNfcLog
         emitStats(txns)
@@ -563,6 +579,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val now = Calendar.getInstance()
         val current = now.get(Calendar.YEAR) * 100 + (now.get(Calendar.MONTH) + 1)
         return if (stats.statsMonth == current) stats.totalFen else null
+    }
+
+    /** 折扣统计月份 → "2026-08"；无数据返回 null */
+    private fun statsMonthLabel(stats: TuDiscountStats?): String? {
+        val m = stats?.statsMonth ?: return null
+        return "${m / 100}-${String.format("%02d", m % 100)}"
     }
 
     /** 按当前统计周期与偏移从交易记录重算并发布统计（每次展示都重算，避免持久化旧快照过期） */

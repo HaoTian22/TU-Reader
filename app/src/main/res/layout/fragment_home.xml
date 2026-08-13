@@ -311,14 +311,30 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="优惠"
-                        android:textColor="#1A1A1A"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="优惠"
+                            android:textColor="#1A1A1A"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvDiscountMonth"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="#8E8E93"
+                            android:textSize="10sp"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
 
                     <!-- 城市胶囊（广州/佛山） -->
                     <LinearLayout
@@ -375,7 +391,7 @@
                     android:layout_height="wrap_content"
                     android:text=""
                     android:textColor="#8E8E93"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:layout_marginTop="6dp" />
 
                 <TextView

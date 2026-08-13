@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import com.example.nfctransit.data.db.CardAppEntity
@@ -17,6 +19,10 @@ import com.example.nfctransit.model.CanonicalTransaction
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 /** 导入数据库的结果统计（新增卡片/原始记录/交易行数） */
@@ -203,6 +209,157 @@ class TransitRepository(private val context: Context) {
 
         return ImportSummary(newCardIds.size, newRaw, newArchive)
     }
+
+    /**
+     * 导入 TripReader（card_table / tran_table）数据库：
+     * 卡片按 cdNo / cdNo2（交通联合 19 位 / 岭南通 10 位应用序列号）匹配现有卡（card_number /
+     * second_card_number），已存在则复用其 card_id 合并交易；新卡按记录内容推断卡型并分配新 UUID。
+     * 交易记录去重沿用 (card_id, content_hash, protocol, sfi)：
+     *  - TU 钱包记录（0x1E 旅程 + 全日期 0x18）走 RecordDecoder.decodeCard 复原日期/余额/站点；
+     *  - LNT 记录（岭南通，年份字段 0000）直接用源库 txDate 复原年份，resolved_date 落库。
+     */
+    suspend fun importTripReaderDatabase(importFile: File): ImportSummary {
+        val source = TripReaderDatabase.read(importFile)
+        val existingCards = dao.getAllCards()
+        val now = System.currentTimeMillis()
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val newCardIds = mutableListOf<String>()
+        val usedColors = existingCards.map { it.gradientStartColor }.toMutableSet()
+        var newArchive = 0
+
+        for (src in source.cards) {
+            val tuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
+            val lntRows = mutableListOf<Pair<String, Long>>()  // (0x18 hex, 源库 txDate 毫秒)
+            var recNo = 0
+            for (tx in src.transactions) {
+                if (tx.cuHex.isNotEmpty()) {
+                    val data = ApduUtil.hexToBytes(tx.cuHex)
+                    // 0x18 主交易：日期字段以 20 开头 → 交通联合钱包（自含完整年份）；否则岭南通 LNT（需补年份）
+                    val fullYear = data.size >= 20 &&
+                        ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
+                    if (fullYear) {
+                        tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                    } else {
+                        lntRows.add(tx.cuHex to tx.dateMs)
+                    }
+                }
+                if (tx.tuHex.isNotEmpty()) {
+                    tuRecords.add(RecordDecoder.ZoneRecord(0x1E, recNo++, "TU", tx.tuHex))
+                }
+            }
+
+            val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
+            val cardId = existing?.cardId ?: run {
+                val id = UUID.randomUUID().toString()
+                val gradient = importCardPalette.firstOrNull { it.first !in usedColors }
+                    ?: importCardPalette[newCardIds.size % importCardPalette.size]
+                usedColors.add(gradient.first)
+                dao.upsertCard(
+                    buildTripReaderCard(id, src, hasLnt = lntRows.isNotEmpty(), gradient)
+                )
+                newCardIds.add(id)
+                id
+            }
+
+            // TU 钱包：与读卡同一条解码路径（含 1E→18 余额匹配），归档按内容去重
+            if (tuRecords.isNotEmpty()) {
+                val decoded = RecordDecoder.decodeCard("TU", tuRecords, null, currentYear)
+                for (t in decoded.archive) {
+                    val sfiHex = t.sfi.toSfiHex()
+                    if (dao.getArchiveSlot(cardId, t.identity, t.protocol, sfiHex) == null) {
+                        dao.insertArchiveRow(
+                            ArchivedTransactionEntity(
+                                cardId = cardId, sfi = sfiHex, protocol = t.protocol, hex = t.hex,
+                                contentHash = t.identity, resolvedDate = t.date,
+                                balanceAfterFen = t.balanceAfterFen,
+                                firstSeenAt = now, lastSeenAt = now
+                            )
+                        )
+                        newArchive++
+                    }
+                }
+            }
+            // LNT：年份来自源库绝对时间，渲染时由归档的 resolved_date 覆盖 hex 内 0000 年份
+            for ((hex, dateMs) in lntRows) {
+                val hash = RecordDecoder.contentHash(hex)
+                if (dao.getArchiveSlot(cardId, hash, "LNT", "0x18") == null) {
+                    dao.insertArchiveRow(
+                        ArchivedTransactionEntity(
+                            cardId = cardId, sfi = "0x18", protocol = "LNT", hex = hex,
+                            contentHash = hash, resolvedDate = yyyyMMdd(dateMs),
+                            balanceAfterFen = null, firstSeenAt = now, lastSeenAt = now
+                        )
+                    )
+                    newArchive++
+                }
+            }
+        }
+
+        if (newCardIds.isNotEmpty()) {
+            val order = AppPreferences.getCardOrder(context)
+            AppPreferences.setCardOrder(context, order + newCardIds)
+        }
+        return ImportSummary(newCardIds.size, 0, newArchive)
+    }
+
+    /** 判断所选文件是否为 TripReader 库（含 card_table 且非本应用 user_data 库） */
+    fun isTripReaderDatabase(file: File): Boolean = TripReaderDatabase.isTripReaderDatabase(file)
+
+    private fun matchTripReaderCard(
+        existing: List<CardEntity>,
+        cdNo: String,
+        cdNo2: String
+    ): CardEntity? {
+        val numbers = buildSet {
+            if (cdNo.isNotEmpty()) add(cdNo)
+            if (cdNo2.isNotEmpty()) add(cdNo2)
+        }
+        if (numbers.isNotEmpty()) {
+            for (e in existing) {
+                if (e.cardNumber in numbers || e.secondCardNumber in numbers) return e
+            }
+        }
+        val lastFour = cdNo.takeLast(4).ifEmpty { cdNo2.takeLast(4) }
+        return if (lastFour.isNotEmpty()) existing.firstOrNull { it.lastFour == lastFour } else null
+    }
+
+    private fun buildTripReaderCard(
+        cardId: String,
+        src: TripReaderCard,
+        hasLnt: Boolean,
+        gradient: Pair<Long, Long>
+    ): CardEntity {
+        val now = System.currentTimeMillis()
+        return CardEntity(
+            cardId = cardId,
+            cardNumber = src.cdNo,
+            secondCardNumber = src.cdNo2.ifEmpty { null },
+            name = TransitData.cardName(src.cdNo) ?: src.cdTitle,
+            cardType = if (hasLnt) "YCT" else "TU",
+            lastFour = src.cdNo.takeLast(4).ifEmpty { src.cdNo2.takeLast(4) },
+            gradientStartColor = gradient.first,
+            gradientEndColor = gradient.second,
+            latestBalanceFen = if (src.cdBalance >= 0) src.cdBalance else null,
+            createdAt = now,
+            lastReadAt = now
+        )
+    }
+
+    private fun yyyyMMdd(epochMs: Long): String =
+        SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(epochMs))
+
+    private val importCardPalette: List<Pair<Long, Long>> = listOf(
+        0xFF1A73E8 to 0xFF0D47A1,
+        0xFF2E7D32 to 0xFF1B5E20,
+        0xFFE65100 to 0xFFBF360C,
+        0xFF6A1B9A to 0xFF4A148C,
+        0xFFC62828 to 0xFFB71C1C,
+        0xFF00838F to 0xFF006064,
+        0xFFF9A825 to 0xFFF57F17,
+        0xFF5D4037 to 0xFF3E2723,
+        0xFF455A64 to 0xFF263238,
+        0xFFAD1457 to 0xFF880E4F
+    )
 
     // ── 日志文件 ──
 

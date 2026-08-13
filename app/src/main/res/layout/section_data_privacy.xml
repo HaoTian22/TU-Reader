@@ -129,7 +129,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="导入数据库 (DB)"
+                android:text="导入数据库 (DB / TripReader)"
                 android:textColor="#1A1A1A"
                 android:textSize="14sp" />
             <TextView

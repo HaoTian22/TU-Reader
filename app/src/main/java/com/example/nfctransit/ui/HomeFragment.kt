@@ -216,9 +216,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             updateDiscountProgress()
         }
 
-        // 卡内折扣统计（SFI 0x19 rec1）就绪后刷新优惠卡片
+        // 卡内折扣统计（SFI 0x19 / LNT 0x08）就绪后刷新优惠卡片
         viewModel.selectedDiscountMonthlyFen.observe(viewLifecycleOwner) {
             updateDiscountProgress()
+        }
+        // 优惠标题旁展示统计月份
+        viewModel.selectedDiscountStatsMonth.observe(viewLifecycleOwner) {
+            binding.tvDiscountMonth.text = it ?: ""
         }
 
         // 首页迷你图固定用"本周"视图（周一~周日 7 根柱，与固定标签一一对应）
