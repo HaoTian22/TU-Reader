@@ -109,6 +109,8 @@ class TransitRepository(private val context: Context) {
     suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =
         dao.getArchive(cardId)
 
+    suspend fun maxArchiveRowId(cardId: String): Long? = dao.maxArchiveRowId(cardId)
+
     // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
 
     suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {

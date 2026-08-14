@@ -34,11 +34,10 @@
         android:orientation="vertical"
         android:layout_marginStart="10dp">
 
-        <!-- 第一行：城市胶囊 + 类型胶囊 + 线路胶囊（线路胶囊按数据库线路颜色着色） -->
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <!-- 药丸列表：城市/类型/线路，任一放不下就整个换行（FlowLayout 自动 wrap） -->
+        <com.example.nfctransit.ui.FlowLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <TextView
@@ -48,6 +47,7 @@
                 android:text="广州"
                 android:textColor="#555555"
                 android:textSize="10sp"
+                android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
@@ -62,6 +62,7 @@
                 android:text="地铁"
                 android:textColor="#555555"
                 android:textSize="10sp"
+                android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
@@ -76,28 +77,14 @@
                 android:text="1号线"
                 android:textColor="#555555"
                 android:textSize="10sp"
+                android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
                 android:visibility="gone" />
-        </LinearLayout>
-
-        <!-- 线路过长时整个线路药丸换到这一行 -->
-        <TextView
-            android:id="@+id/txnLineWrapped"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#555555"
-            android:textSize="10sp"
-            android:background="@drawable/bg_chip_default"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:layout_marginTop="4dp"
-            android:visibility="gone" />
+        </com.example.nfctransit.ui.FlowLayout>
 
         <!-- 第二行：出入站图标 + 站名 -->
         <LinearLayout

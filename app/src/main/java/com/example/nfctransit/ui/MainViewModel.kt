@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.nfctransit.CardProfile
 import com.example.nfctransit.TransitCardReader
+import com.example.nfctransit.data.CardUiCache
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.StationDbUpdater
@@ -15,6 +16,7 @@ import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
 import com.example.nfctransit.data.TuDiscountStats
+import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.CardAppEntity
@@ -52,6 +54,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 每卡原始记录快照（镜像 raw_records），交易详情页按 SFI 展示原始数据 */
     private val rawRecordsByCard = mutableMapOf<String, List<RawRecord>>()
+
+    /**
+     * 每卡已构建的 UI 交易（启动从 UiCache 恢复或构建后派生）。
+     * emitCardData 优先用它渲染，避免每次切卡/筛选都重跑 toUiTransaction（并触发 27k 行站名索引加载）；
+     * 任何 canonicalByCard 被改写的点都必须同步清掉对应项（重派生出最新 UI）。
+     */
+    private val cachedTxnsByCard = mutableMapOf<String, List<UiTransaction>>()
 
     /** 本次会话 APDU 日志（仅内存，导出用；持久化走 SessionLogStore 文件） */
     private var currentSessionNfcLog: List<String> = emptyList()
@@ -134,6 +143,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationDbUpdateStatus = MutableLiveData<String?>(null)
     val stationDbUpdateStatus: LiveData<String?> = _stationDbUpdateStatus
 
+    /** 清理缓存（UI 构建缓存 + transit.db 重置为内置版）：是否进行中 / 结果文案 */
+    private val _cacheClearing = MutableLiveData(false)
+    val cacheClearing: LiveData<Boolean> = _cacheClearing
+
+    private val _cacheClearStatus = MutableLiveData<String?>(null)
+    val cacheClearStatus: LiveData<String?> = _cacheClearStatus
+
     // 当前统计周期（本周/本月/本年/自定义）与周期偏移（0=当前，-1=上一期，+1=下一期）
     private var currentPeriod = "本周"
     private var currentOffset = 0
@@ -147,7 +163,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { restore() }
     }
 
-    /** 启动加载：从 DataStore + Room 用户库恢复，用 RecordDecoder 从归档重建交易 */
+    /** 启动加载：从 DataStore + Room 用户库恢复；每张卡优先读上次的 UI 构建缓存，无缓存/失效再重建 */
     private suspend fun restore() {
         _keepDebugLogs.value = repo.isKeepDebugLogs()
         val cards = repo.loadCards()
@@ -162,14 +178,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 order.indexOf(c.cardId).let { if (it < 0) Int.MAX_VALUE else it }
             }
         )
-        for (c in cardEntities) {
-            val archive = repo.loadArchive(c.cardId)
-            canonicalByCard[c.cardId] = RecordDecoder.decodeArchive(c.cardType, archive)
-            val rawRecs = repo.loadRawRecords(c.cardId).map {
-                RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
-            }
-            rawRecordsByCard[c.cardId] = rawRecs
-            discountStatsByCard[c.cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
+        // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存
+        cachedTxnsByCard.clear()
+        cardEntities.forEach { card ->
+            val state = withContext(Dispatchers.Default) { loadCardState(card) }
+            applyCardState(card.cardId, state)
         }
 
         val uiCards = cardEntities.map { it.toUiCard() }
@@ -179,6 +192,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uiCards.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it }
         } else 0
         selectCardByIndex(idx)
+    }
+
+    /** 一张卡构建完成的全部渲染状态（在后台线程组装，回主线程经 applyCardState 落内存） */
+    private data class BuiltCardState(
+        val canonicals: List<CanonicalTransaction>,
+        val txns: List<UiTransaction>,
+        val raws: List<RawRecord>,
+        val discountStats: TuDiscountStats?
+    )
+
+    private fun applyCardState(cardId: String, state: BuiltCardState) {
+        canonicalByCard[cardId] = state.canonicals
+        cachedTxnsByCard[cardId] = state.txns
+        rawRecordsByCard[cardId] = state.raws
+        discountStatsByCard[cardId] = state.discountStats
+    }
+
+    /**
+     * 载入一张卡的渲染状态：缓存命中（archive row_id 未变）→ 直接恢复已构建的 canonical + UI 交易；
+     * 否则重建（decodeArchive → toUiTransaction）并回写缓存。raw_records 总是现读（折扣统计现算，
+     * 避免跨月/重读后的陈旧快照），CPU 密集部分在调用方线程执行。不直接改内存 map，由调用方回主线程应用。
+     *
+     * @param forceRebuild 忽略缓存强制重建（站名映射表更新/清缓存后站名与 ID 可能变化，须重新解析）
+     */
+    private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false): BuiltCardState {
+        val ctx = getApplication<Application>()
+        val cardId = card.cardId
+        val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
+        val rawRecs = repo.loadRawRecords(cardId).map {
+            RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+        }
+        val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId)
+        return if (cached != null) {
+            BuiltCardState(
+                cached.canonicals, cached.txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs)
+            )
+        } else {
+            val archive = repo.loadArchive(cardId)
+            val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
+            val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions()
+            UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns))
+            BuiltCardState(canonicals, txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs))
+        }
+    }
+
+    /** 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存，刷新当前选中卡 */
+    private suspend fun rebuildAllCardsAndRefresh() {
+        cachedTxnsByCard.clear()
+        cardEntities.forEach { card ->
+            val state = withContext(Dispatchers.Default) { loadCardState(card, forceRebuild = true) }
+            applyCardState(card.cardId, state)
+        }
+        val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId
+        if (cardId != null) emitCardData(cardId)
     }
 
     // ── NFC 数据加载（解码 → 内容去重合并 → 渲染 + 异步持久化）──
@@ -234,6 +301,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // 内容去重合并进内存（identity = content_hash，不含 rec_no）
         canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
+        cachedTxnsByCard.remove(cardId)  // canonical 已更新 → 让 emitCardData 立刻从新 canonical 重派生
         rawRecordsByCard[cardId] = result.rawRecords
         discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(result.rawRecords)
 
@@ -287,15 +355,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val rawRecs = repo.loadRawRecords(cardId).map {
                 RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
             }
+            val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
+            var canon: List<CanonicalTransaction> = emptyList()
+            var txns: List<UiTransaction> = emptyList()
             withContext(Dispatchers.Main) {
-                canonicalByCard[cardId] = RecordDecoder.decodeArchive(profile.cardType, archive)
+                canon = RecordDecoder.decodeArchive(profile.cardType, archive)
+                canonicalByCard[cardId] = canon
                 rawRecordsByCard[cardId] = rawRecs
                 discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
+                txns = enrichProtocols(canon, rawRecs).toUiTransactions()
+                cachedTxnsByCard[cardId] = txns
                 val idx = cardEntities.indexOfFirst { it.cardId == cardId }
                 if (idx >= 0 && _selectedIndex.value == idx) {
                     emitCardData(cardId)
                 }
             }
+            // 以数据库为准重建完成 → 回写磁盘缓存（下次启动直接命中）
+            UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns))
         }
         return if (isNew) index else null
     }
@@ -384,7 +460,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun emitStatsForSelected() {
         val index = _selectedIndex.value ?: return
         val cardId = cardEntities.getOrNull(index)?.cardId ?: return
-        canonicalByCard[cardId]?.let { emitStats(it.toUiTransactions()) }
+        val txns = cachedTxnsByCard[cardId] ?: canonicalByCard[cardId]?.toUiTransactions() ?: return
+        emitStats(txns)
     }
 
     /** 某周期的日期窗口 [起, 止]，yyyy-MM-dd；自定义返回空串 */
@@ -451,7 +528,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
-        viewModelScope.launch(Dispatchers.IO) { repo.clearAll() }
+        cachedTxnsByCard.clear()
+        viewModelScope.launch(Dispatchers.IO) {
+            UiCache.clearAll(getApplication())
+            repo.clearAll()
+        }
     }
 
     /** 导出数据为 CSV */
@@ -533,11 +614,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     downloaded.delete()
                 }
                 _stationDbUpdateStatus.value = "✓ 站名映射表已更新"
-                reloadDisplayLanguage()
+                // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
+                rebuildAllCardsAndRefresh()
             } catch (e: Exception) {
                 _stationDbUpdateStatus.value = "更新失败: ${e.message}"
             } finally {
                 _stationDbUpdating.value = false
+            }
+        }
+    }
+
+    /**
+     * 清理缓存：删除 UI 构建缓存，并把 transit.db 重置为打包 assets 内置版（清掉在线更新的站名映射表），
+     * 随后全部卡片重解码刷新界面。不影响用户数据（卡片/交易/原始记录）。
+     */
+    fun clearCache() {
+        if (_cacheClearing.value == true) return
+        _cacheClearing.value = true
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    UiCache.clearAll(getApplication())
+                    AppDatabase.resetToAsset(getApplication())
+                    TransitData.reload()
+                }
+                rebuildAllCardsAndRefresh()
+                _cacheClearStatus.value = "✓ 已清理缓存并重置站名映射表"
+            } catch (e: Exception) {
+                _cacheClearStatus.value = "清理失败: ${e.message}"
+            } finally {
+                _cacheClearing.value = false
             }
         }
     }
@@ -568,11 +674,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun emitCardData(cardId: String) {
         val card = cardEntities.firstOrNull { it.cardId == cardId }?.toUiCard() ?: return
-        val canonicals = enrichProtocols(
-            canonicalByCard[cardId].orEmpty(),
-            rawRecordsByCard[cardId].orEmpty()
-        )
-        val txns = canonicals.toUiTransactions()
+        // 优先用已构建的 UI 交易（启动缓存命中/读卡后已回写），避免切卡/筛选/统计时重跑 toUiTransaction
+        // 并触发 27k 行站名索引加载；缺失（语言切换、数据变化的失效点）时从 canonical 重派生并回写内存
+        val txns = cachedTxnsByCard[cardId]
+            ?: enrichProtocols(canonicalByCard[cardId].orEmpty(), rawRecordsByCard[cardId].orEmpty())
+                .toUiTransactions()
+                .also { cachedTxnsByCard[cardId] = it }
         _selectedCard.value = card
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
@@ -684,6 +791,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 显示语言切换后，按 ID 重新解析当前卡的站名/线路名并刷新界面（名称由 ID 在映射时解析） */
     fun reloadDisplayLanguage() {
+        // 已构建的 UI 交易名按旧语言缓存 → 全部丢弃，让 emit 按当前语言从 canonical 重派生
+        cachedTxnsByCard.clear()
         val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId ?: return
         emitCardData(cardId)
     }
@@ -748,6 +857,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         canonicalByCard.remove(cardId)
         rawRecordsByCard.remove(cardId)
         discountStatsByCard.remove(cardId)
+        cachedTxnsByCard.remove(cardId)
         val updated = cardEntities.map { it.toUiCard() }
         _cards.value = updated
         if (updated.isEmpty()) {
@@ -767,7 +877,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             selectCardByIndex(index.coerceAtMost(updated.size - 1))
         }
-        viewModelScope.launch(Dispatchers.IO) { repo.deleteCard(cardId) }
+        viewModelScope.launch(Dispatchers.IO) {
+            UiCache.delete(getApplication(), cardId)
+            repo.deleteCard(cardId)
+        }
     }
 
     private fun lastFourFromCanonical(canonical: List<CanonicalTransaction>): String {

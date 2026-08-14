@@ -156,7 +156,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         val optionIcons = intArrayOf(
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
             R.id.iconLocalStorage, R.id.iconDataExport, R.id.iconImportData,
-            R.id.iconClearData, R.id.iconPrivacy,
+            R.id.iconClearCache, R.id.iconClearData, R.id.iconPrivacy,
             R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconChangelog, R.id.iconSupportedCards,
@@ -296,6 +296,19 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     mapStatusText.visibility = View.GONE
                 }
                 chevronMap.postDelayed(pendingRevert!!, 5000)
+            }
+        }
+
+        // 清理缓存：确认弹窗 → viewModel.clearCache()（删 UI 构建缓存 + transit.db 重置为内置版）
+        binding.root.findViewById<View>(R.id.rowClearCache)?.setOnClickListener { showClearCacheDialog() }
+        viewModel.cacheClearing.observe(viewLifecycleOwner) { clearing ->
+            if (clearing) showCacheClearStatus("正在清理缓存…", 0xFF8E8E93.toInt())
+        }
+        viewModel.cacheClearStatus.observe(viewLifecycleOwner) { msg ->
+            if (msg != null) {
+                val ok = msg.startsWith("✓")
+                showCacheClearStatus(msg, if (ok) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                updateLocalStorageSize()  // 清理后占用变小，刷新本地存储大小显示
             }
         }
 
@@ -442,6 +455,25 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 findNavController().popBackStack()
             }
         )
+    }
+
+    private fun showClearCacheDialog() {
+        AppDialogs.confirm(
+            context = requireContext(),
+            title = "清理缓存",
+            message = "将清除界面构建缓存，并把站名映射表重置为内置版本（如需最新站名请重新联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
+            confirmLabel = "清理",
+            confirmColor = 0xFF0066FF.toInt(),  // 不删用户数据，用主题蓝而非警示红
+            onConfirm = { viewModel.clearCache() }
+        )
+    }
+
+    private fun showCacheClearStatus(text: String, color: Int) {
+        val tv = _binding?.root?.findViewById<TextView>(R.id.tvClearCacheStatus) ?: return
+        tv.text = text
+        tv.setTextColor(color)
+        tv.visibility = View.VISIBLE
+        tv.postDelayed({ tv.visibility = View.GONE }, 2500)
     }
 
     // ── 复制工具 ──

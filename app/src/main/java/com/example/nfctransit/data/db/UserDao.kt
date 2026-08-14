@@ -70,6 +70,10 @@ interface UserDao {
     @Query("SELECT * FROM transactions_archive WHERE card_id = :cardId AND content_hash = :contentHash AND protocol = :protocol AND sfi = :sfi LIMIT 1")
     suspend fun getArchiveSlot(cardId: String, contentHash: String, protocol: String, sfi: String): ArchivedTransactionEntity?
 
+    /** 该卡归档最大 row_id，UI 构建缓存的失效标记（新交易落库即增长；无记录返回 null） */
+    @Query("SELECT MAX(row_id) FROM transactions_archive WHERE card_id = :cardId")
+    suspend fun maxArchiveRowId(cardId: String): Long?
+
     /** 完全一样（同内容同协议同扇区）→ IGNORE 跳过；内容/协议/扇区任一不同 → 新行插入 */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArchiveRow(row: ArchivedTransactionEntity): Long
