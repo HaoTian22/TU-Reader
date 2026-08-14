@@ -28,9 +28,10 @@
             android:layout_height="wrap_content"
             android:text="¥308.00"
             android:textColor="#FF3B30"
-            android:textSize="18sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
+            android:maxLines="1"
             android:layout_marginTop="4dp" />
     </LinearLayout>
 
@@ -57,9 +58,10 @@
             android:layout_height="wrap_content"
             android:text="42 次"
             android:textColor="#0066FF"
-            android:textSize="18sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
+            android:maxLines="1"
             android:layout_marginTop="4dp" />
     </LinearLayout>
 
@@ -85,9 +87,10 @@
             android:layout_height="wrap_content"
             android:text="¥10.27"
             android:textColor="#FF9500"
-            android:textSize="18sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
+            android:maxLines="1"
             android:layout_marginTop="4dp" />
     </LinearLayout>
 </LinearLayout>

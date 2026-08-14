@@ -439,8 +439,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val value = TextView(requireContext()).apply {
                 text = if (showValues) d.amountLabel() else ""
                 setTextColor(0xFF555555.toInt())
-                textSize = 9f
+                // 7 列窄列里金额放不下（¥350.00 / 全角￥会溢出或换行被 13dp 高度裁掉），字号调小并强制单行
+                textSize = 7f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setSingleLine(true)
                 gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,

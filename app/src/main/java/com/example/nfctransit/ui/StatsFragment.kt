@@ -11,6 +11,7 @@ import android.widget.TextView
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -198,8 +199,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             val value = TextView(requireContext()).apply {
                 text = if (showValues) d.amountLabel() else ""
                 setTextColor(0xFF555555.toInt())
-                textSize = 9f
+                // 窄列放不下金额（年视图每列 ~25dp），调小并强制单行，避免被裁
+                textSize = 6f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setSingleLine(true)
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -247,34 +250,62 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             col.addView(value)
             col.addView(bar)
             col.addView(label)
-
-            // 点击柱体（实际柱体，而非铺满全高的列）时在柱上方弹出信息框
-            bar.setOnClickListener {
-                popup.text = buildPopupText(d)
-                popup.measure(
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                val popupW = popup.measuredWidth
-                val popupH = popup.measuredHeight
-                // popup 挂在 trendRoot 上，用窗口坐标把柱中心换算成相对 trendRoot 的位置
-                val colLoc = IntArray(2)
-                val rootLoc = IntArray(2)
-                col.getLocationInWindow(colLoc)
-                trendBinding.root.getLocationInWindow(rootLoc)
-                val px = (colLoc[0] + col.width / 2 - popupW / 2) - rootLoc[0]
-                // 柱所在列顶往下移一些（图表区有 20dp padTop，数值文字也占 13dp），
-                // 弹窗底部贴近数值文字上方，避免浮到标题行上方
-                val py = colLoc[1] - popupH - dpToPx(4) - rootLoc[1] + dpToPx(16)
-                (popup.layoutParams as FrameLayout.LayoutParams).apply {
-                    this.leftMargin = px
-                    this.topMargin = py
-                }
-                if (popup.visibility != View.VISIBLE) popup.visibility = View.VISIBLE
-            }
-
             container.addView(col)
         }
+
+        // 手指划过图表即显示对应柱的金额弹窗（无需精确点中窄柱）：
+        // DOWN/MOVE 跟随手指更新弹窗；纵向拖动页面时 ScrollView 通过 onInterceptTouchEvent
+        // 接管手势并给 chartContainer 发 ACTION_CANCEL，这里据此收起弹窗，不影响页面滚动。
+        container.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                    val idx = columnIndexAt(event.x, container)
+                    if (idx in data.indices) {
+                        showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    popup.visibility = View.GONE
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+
+    private fun showPopupFor(d: DailySpending, col: LinearLayout) {
+        val popup = binding.cardTrend.chartPopup
+        popup.text = buildPopupText(d)
+        popup.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val popupW = popup.measuredWidth
+        val popupH = popup.measuredHeight
+        // popup 挂在 trendRoot 上，用窗口坐标把柱中心换算成相对 trendRoot 的位置
+        val colLoc = IntArray(2)
+        val rootLoc = IntArray(2)
+        col.getLocationInWindow(colLoc)
+        binding.cardTrend.root.getLocationInWindow(rootLoc)
+        val px = (colLoc[0] + col.width / 2 - popupW / 2) - rootLoc[0]
+        // 柱所在列顶往下移一些（图表区有 20dp padTop，数值文字也占 13dp），
+        // 弹窗底部贴近数值文字上方，避免浮到标题行上方
+        val py = colLoc[1] - popupH - dpToPx(4) - rootLoc[1] + dpToPx(16)
+        (popup.layoutParams as FrameLayout.LayoutParams).apply {
+            this.leftMargin = px
+            this.topMargin = py
+        }
+        if (popup.visibility != View.VISIBLE) popup.visibility = View.VISIBLE
+    }
+
+    /** 手指横向位置落在第几列（按列左边界判断） */
+    private fun columnIndexAt(x: Float, container: LinearLayout): Int {
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            if (x >= child.left && x < child.right) return i
+        }
+        return -1
     }
 
     private fun buildPopupText(d: DailySpending): String {
@@ -310,9 +341,9 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
 
         for (item in items) {
-            val (name, count, barPercent) = when (item) {
-                is StationStat -> Triple(item.name, item.count, item.barWidthPercent)
-                is LineStat -> Triple(item.name, item.count, item.barWidthPercent)
+            val (nameViews, count, barPercent) = when (item) {
+                is StationStat -> Triple(buildStationViews(item), item.count, item.barWidthPercent)
+                is LineStat -> Triple(buildLinePills(item), item.count, item.barWidthPercent)
                 else -> continue
             }
 
@@ -325,11 +356,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
 
-            val nameView = TextView(requireContext()).apply {
-                text = name
-                textSize = 13f
-                setTextColor(0xFF1A1A1A.toInt())
-            }
+            nameViews.forEach { row.addView(it) }
 
             val barWidth = (barPercent * 100).toInt()
             val bar = View(requireContext()).apply {
@@ -351,12 +378,74 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
             }
 
-            row.addView(nameView)
             row.addView(bar)
             row.addView(countView)
             row.addView(filler)
             container.addView(row)
         }
+    }
+
+    /** 车站行：城市药丸 + 站名文本（城市未知时不加药丸） */
+    private fun buildStationViews(station: StationStat): List<TextView> {
+        val views = mutableListOf<TextView>()
+        if (station.cityName.isNotBlank()) views.add(rankPill(station.cityName))
+        views.add(rankNameView(station.name))
+        return views
+    }
+
+    /** 车站排行名称（保持原文本样式） */
+    private fun rankNameView(name: String): TextView = TextView(requireContext()).apply {
+        text = name
+        textSize = 13f
+        setTextColor(0xFF1A1A1A.toInt())
+    }
+
+    /** 线路行药丸：先城市后线路；线路药丸按数据库线路颜色着色（无颜色保持灰色），与交易列表一致 */
+    private fun buildLinePills(line: LineStat): List<TextView> {
+        val pills = mutableListOf<TextView>()
+        if (line.cityName.isNotBlank()) pills.add(rankPill(line.cityName))
+        pills.add(rankPill(line.name, line.lineColor))
+        return pills
+    }
+
+    private fun rankPill(text: String, color: String? = null): TextView = TextView(requireContext()).apply {
+        this.text = text
+        textSize = 10f
+        setSingleLine(true)
+        setPadding(dpToPx(8), dpToPx(2), dpToPx(8), dpToPx(2))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { marginEnd = dpToPx(6) }
+        val parsed = parseLineColor(color)
+        if (parsed == null) {
+            setTextColor(0xFF555555.toInt())
+            background = ContextCompat.getDrawable(requireContext(), R.drawable.bg_chip_default)
+        } else {
+            background = GradientDrawable().apply {
+                cornerRadius = dpToPx(20).toFloat()
+                setColor(parsed)
+            }
+            setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
+        }
+    }
+
+    private fun parseLineColor(color: String?): Int? {
+        val trimmed = color?.trim()
+        if (trimmed.isNullOrEmpty()) return null
+        return try {
+            android.graphics.Color.parseColor(trimmed)
+        } catch (e: RuntimeException) {
+            null
+        }
+    }
+
+    /** 感知亮度需要白字（与交易列表一致） */
+    private fun isDarkColor(color: Int): Boolean {
+        val r = android.graphics.Color.red(color)
+        val g = android.graphics.Color.green(color)
+        val b = android.graphics.Color.blue(color)
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 160
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()

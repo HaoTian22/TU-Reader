@@ -713,9 +713,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
         _nfcLog.value = currentSessionNfcLog
         emitStats(txns)
-        // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致
+        // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致。
+        // 先按本周窗口过滤交易，柱高归一化到本周最大值（与统计页周视图一致）；
+        // 若直接用全量交易，历史最高消费日会拉大分母，本周柱整体偏矮
+        val (weekStart, weekEnd) = periodWindow("本周", 0)
         _homeWeeklySpending.value =
-            computeDailySpending(txns, "本周", periodWindow("本周", 0).first, periodWindow("本周", 0).second)
+            computeDailySpending(txns.filter { it.date in weekStart..weekEnd }, "本周", weekStart, weekEnd)
     }
 
     /** 折扣统计的"本月累计金额"：卡内统计月与当前月一致才采用，避免跨月陈旧值 */
@@ -926,7 +929,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
-        val counts = mutableMapOf<String, Int>()
+        // 以 (城市, 站点) 为 key：不同城市的同名车站（如多地都有"老街站"）分开统计
+        val counts = mutableMapOf<Pair<String, String>, Int>()
         for (t in uiTxns) {
             // 充值/无金额旅程事件不是乘车记录，不统计站点
             if (t.typeHex == "02" || t.amountYuan <= 0) continue
@@ -934,29 +938,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val name = t.stationName.replace(Regex(" [↑↓]$"), "")
             if (name.isNotEmpty() && name != "未知" &&
                 !name.startsWith("轨道交通") && !name.startsWith("公共交通") && !name.startsWith("广州公交")) {
-                counts[name] = (counts[name] ?: 0) + 1
+                val key = t.cityName to name
+                counts[key] = (counts[key] ?: 0) + 1
             }
         }
         val max = counts.values.maxOrNull() ?: 1
         return counts.entries.sortedByDescending { it.value }
             .take(5)
-            .map { StationStat(it.key, it.value, it.value.toFloat() / max) }
+            .map { StationStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first) }
     }
 
     private fun computeTopLines(uiTxns: List<UiTransaction>): List<LineStat> {
-        val counts = mutableMapOf<String, Int>()
+        // 以 (城市, 线路) 为 key：不同城市的同名线路（如多地都有"1号线"）分开统计
+        val counts = mutableMapOf<Pair<String, String>, Int>()
+        val colors = mutableMapOf<Pair<String, String>, String?>()
         for (t in uiTxns) {
             // 充值/无金额旅程事件不是乘车记录，不统计线路
             if (t.typeHex == "02" || t.amountYuan <= 0) continue
             val lineName = t.lineName
             if (lineName.isNotEmpty() && lineName != "—" && lineName != "未知") {
-                counts[lineName] = (counts[lineName] ?: 0) + 1
+                val key = t.cityName to lineName
+                counts[key] = (counts[key] ?: 0) + 1
+                // 记录该线路颜色（首个非空值，供药丸着色）
+                if (colors[key] == null && !t.lineColor.isNullOrBlank()) colors[key] = t.lineColor
             }
         }
         val max = counts.values.maxOrNull() ?: 1
         return counts.entries.sortedByDescending { it.value }
             .take(5)
-            .map { LineStat(it.key, it.value, it.value.toFloat() / max) }
+            .map { LineStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first, colors[it.key]) }
     }
 
     private fun computeStatsSummary(uiTxns: List<UiTransaction>): StatsSummary {

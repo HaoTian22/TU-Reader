@@ -33,6 +33,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
 
+    /** 当前交易的解析数据，供复制按钮使用 */
+    private var parsedTextToCopy = ""
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -54,6 +57,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             binding.btnBack.setTextColor(color)
             binding.tvCardBadge.setTextColor(color)
             binding.btnCopyHex.setTextColor(color)
+            binding.btnCopyParsed.setTextColor(color)
             updateCardBadgeBg()
         }
 
@@ -82,6 +86,18 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                     as android.content.ClipboardManager
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("原始数据", rawHexToCopy))
                 android.widget.Toast.makeText(requireContext(), "✓ 已复制原始数据", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 复制解析数据按钮
+        binding.btnCopyParsed.typeface =
+            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        binding.btnCopyParsed.setOnClickListener {
+            if (parsedTextToCopy.isNotBlank()) {
+                val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("解析数据", parsedTextToCopy))
+                android.widget.Toast.makeText(requireContext(), "✓ 已复制解析数据", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -162,37 +178,53 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val journeyHex = txn.journeyHex
         if (mainHex.isBlank() && journeyHex.isNullOrBlank()) {
             rawHexToCopy = ""
-            addRawLine("无该交易原始数据", dim = true)
+            addMonospaceLine(binding.hexPanel, "无该交易原始数据", dim = true)
             return
         }
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
-            addRawLine("SFI ${txn.sfi.toSfiHex()}", dim = true)
-            addRawLine(mainHex)
+            addMonospaceLine(binding.hexPanel, "SFI ${txn.sfi.toSfiHex()}", dim = true)
+            addMonospaceLine(binding.hexPanel, mainHex)
             sb.append(mainHex)
         }
         if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
-            addRawLine("SFI 0x1E（旅程）", dim = true)
-            addRawLine(journeyHex)
+            addMonospaceLine(binding.hexPanel, "SFI 0x1E（旅程）", dim = true)
+            addMonospaceLine(binding.hexPanel, journeyHex)
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
         }
         rawHexToCopy = sb.toString()
     }
 
-    /** 解析数据：按 SFI 解析原始 hex 的关键字段 */
+    /** 解析数据：按 SFI 解析原始 hex 的关键字段，与原始数据同款配色/行距 */
     private fun bindParsedData(txn: UiTransaction) {
+        val container = binding.parsedPanel
+        container.removeAllViews()
         val sb = StringBuilder()
         if (txn.hex.isNotBlank()) {
-            sb.appendLine(parseHexLine(txn.sfi, txn.hex))
+            appendParsedBlock(container, sb, txn.sfi, txn.hex)
         }
         val journeyHex = txn.journeyHex
         if (!journeyHex.isNullOrBlank() && journeyHex != txn.hex) {
-            sb.appendLine(parseHexLine(0x1E, journeyHex))
+            appendParsedBlock(container, sb, 0x1E, journeyHex)
         }
         val match = txn.deviceCode
-        sb.append("Match ${match ?: "Null"}")
-        binding.parsedPanel.text = sb.toString()
+        val matchLine = "Match ${match ?: "Null"}"
+        addMonospaceLine(container, matchLine)
+        sb.append(matchLine)
+        parsedTextToCopy = sb.toString()
+    }
+
+    private fun appendParsedBlock(container: LinearLayout, sb: StringBuilder, sfi: Int, hex: String) {
+        val parsed = parseHexLine(sfi, hex)
+        if (parsed.isEmpty()) return
+        val lines = parsed.split('\n')
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (line.isEmpty()) continue
+            addMonospaceLine(container, line, dim = i == 0)
+            sb.append(line).append('\n')
+        }
     }
 
     private fun parseHexLine(sfi: Int, hex: String): String {
@@ -236,7 +268,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    private fun addRawLine(text: String, dim: Boolean = false) {
+    private fun addMonospaceLine(container: LinearLayout, text: String, dim: Boolean = false) {
         val lineView = TextView(requireContext()).apply {
             this.text = text
             textSize = 10f
@@ -245,7 +277,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制
         }
-        binding.hexPanel.addView(lineView)
+        container.addView(lineView)
     }
 
     private fun updateCardBadgeBg() {

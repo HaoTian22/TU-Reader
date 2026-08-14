@@ -50,13 +50,16 @@ data class UiTransaction(
 data class StationStat(
     val name: String,
     val count: Int,
-    val barWidthPercent: Float     // relative to max count (0..1)
+    val barWidthPercent: Float,     // relative to max count (0..1)
+    val cityName: String = ""   // 车站所属城市，不同城市同名车站分开统计
 )
 
 data class LineStat(
     val name: String,
     val count: Int,
-    val barWidthPercent: Float
+    val barWidthPercent: Float,
+    val cityName: String = "",   // 线路所属城市，不同城市同名线路分开统计
+    val lineColor: String? = null   // 线路颜色（"#RRGGBB"），药丸着色用；空白保持灰色
 )
 
 data class DailySpending(
