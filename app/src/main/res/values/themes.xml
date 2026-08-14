@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TUReader" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- 文本选中手柄：套用 appcompat 手柄轮廓，着色为 MD3 主色，取代原生蓝灰 -->
+        <item name="android:textSelectHandle">@drawable/tu_text_select_handle_middle</item>
+        <item name="android:textSelectHandleLeft">@drawable/tu_text_select_handle_left</item>
+        <item name="android:textSelectHandleRight">@drawable/tu_text_select_handle_right</item>
+
+        <!-- 文本选中框高亮：显式固定为 M3 高亮色（MD3 配色），避免个别版本回落到原生高亮 -->
+        <item name="android:textColorHighlight">@color/m3_highlighted_text</item>
+    </style>
+</resources>
