@@ -215,6 +215,16 @@ object TransitData {
     }
 
     /**
+     * 按 ID 解析完整站点解析结果（含中英文原始名），供全文搜索建立索引；
+     * 与 entryOf 不同：不做显示语言回退，直接返回双语数据。无命中返回 null。
+     */
+    fun resolutionFor(lineId: Long?, stationId: Long?): StationResolution? {
+        ensureLoaded()
+        if (stationId == null) return null
+        return lineId?.let { byLineStationId[it to stationId] } ?: byStationId[stationId]
+    }
+
+    /**
      * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析。
      *
      * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"，仅用于兜底文案）

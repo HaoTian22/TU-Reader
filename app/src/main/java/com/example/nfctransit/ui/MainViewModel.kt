@@ -760,10 +760,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
-    /** 全文搜索：匹配时间/站点/城市/线路/类型/金额/余额/原始值(hex)/协议/终端 */
+    /** 全文搜索：查询按空白分词，每个词都要命中（AND），可组合条件（如「前海湾 地铁」）；
+     *  索引覆盖中英站/线/城市名、设备码、原始 hex、终端、协议、时间、金额。 */
     private fun UiTransaction.matchesSearch(query: String): Boolean {
+        val tokens = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return true
         val haystack = buildString {
             append(displayDateTime).append(' ')
+            append(date).append(' ').append(time).append(' ')
             append(stationName).append(' ')
             append(cityName).append(' ')
             append(lineName).append(' ')
@@ -774,8 +778,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             append(journeyHex.orEmpty()).append(' ')
             append(protocols.joinToString(" ")).append(' ')
             append(terminal).append(' ')
+            append(deviceCode.orEmpty()).append(' ')
+            // 双语站/线/城市名：搜索时中英文都能命中（界面只显示当前语言的名字）
+            TransitData.resolutionFor(lineId, stationId)?.let { r ->
+                append(r.cityName).append(' ')
+                append(r.cityNameEn.orEmpty()).append(' ')
+                append(r.lineName.orEmpty()).append(' ')
+                append(r.lineNameEn.orEmpty()).append(' ')
+                append(r.stationName.orEmpty()).append(' ')
+                append(r.stationNameEn.orEmpty()).append(' ')
+            }
         }
-        return haystack.contains(query, ignoreCase = true)
+        return tokens.all { haystack.contains(it, ignoreCase = true) }
     }
 
     /** 在日期字符串上增加天数，返回 "yyyy-MM-dd" */
