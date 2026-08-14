@@ -70,6 +70,13 @@ data class DailySpending(
     val date: String = ""          // "yyyy-MM-dd"，用于柱点击弹窗与日期范围显示
 )
 
+data class CategorySpending(
+    val name: String,          // "地铁" / "公交" / "消费" ...
+    val amountYuan: Double,
+    val percent: Float,        // 占总支出的比例 (0..1)
+    val color: Int
+)
+
 /** 柱状图金额标签：3.0 -> ¥3，5.50 -> ¥5.5，5.55 -> ¥5.55（去掉多余的 ".00"） */
 fun DailySpending.amountLabel(): String =
     "¥" + String.format("%.2f", amountYuan).trimEnd('0').trimEnd('.')

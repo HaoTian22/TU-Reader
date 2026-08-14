@@ -63,27 +63,16 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Scrollable content -->
-        <ScrollView
-            android:id="@+id/rootScroll"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#F8F9FA">
-
-            <LinearLayout
-                android:id="@+id/contentContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-        <!-- Segmented Control -->
+        <!-- Segmented Control（固定在顶部，不随内容滚动） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:background="#F8F9FA"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:paddingBottom="24dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="12dp">
 
             <TextView
                 android:id="@+id/segWeek"
@@ -153,6 +142,25 @@
                 android:focusable="true" />
         </LinearLayout>
 
+        <!-- 顶部分隔线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:background="#E5E5EA" />
+
+        <!-- Scrollable content -->
+        <ScrollView
+            android:id="@+id/rootScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F8F9FA">
+
+            <LinearLayout
+                android:id="@+id/contentContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
         <!-- Stats Content -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -167,6 +175,9 @@
 
             <!-- Summary Row -->
             <include android:id="@+id/cardSummary" layout="@layout/card_stats_summary" />
+
+            <!-- Category Donut Card -->
+            <include android:id="@+id/cardCategories" layout="@layout/card_spending_categories" />
 
             <!-- Top Stations Card -->
             <include android:id="@+id/cardStations" layout="@layout/card_top_stations" />

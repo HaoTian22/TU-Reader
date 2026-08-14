@@ -24,6 +24,7 @@ import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.CategorySpending
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
@@ -125,6 +126,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _dailySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val dailySpending: LiveData<List<DailySpending>> = _dailySpending
+
+    private val _categorySpending = MutableLiveData<List<CategorySpending>>(emptyList())
+    val categorySpending: LiveData<List<CategorySpending>> = _categorySpending
 
     // 首页迷你图专用：固定"本周（周一~周日）"7 根柱子，不受统计页周期切换影响
     private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
@@ -548,6 +552,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _topStations.value = emptyList()
         _topLines.value = emptyList()
         _dailySpending.value = emptyList()
+        _categorySpending.value = emptyList()
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
@@ -748,6 +753,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _topStations.value = computeTopStations(periodTxns)
         _topLines.value = computeTopLines(periodTxns)
         _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
+        _categorySpending.value = computeCategorySpending(periodTxns)
         _statsSummary.value = computeStatsSummary(periodTxns)
     }
 
@@ -912,6 +918,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _topStations.value = emptyList()
             _topLines.value = emptyList()
             _dailySpending.value = emptyList()
+            _categorySpending.value = emptyList()
             _homeWeeklySpending.value = emptyList()
             _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         } else {
@@ -977,6 +984,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }.size
         val uniqueDays = uiTxns.map { it.date }.distinct().size.coerceAtLeast(1)
         return StatsSummary(totalSpending, rideCount, totalSpending / uniqueDays)
+    }
+
+    /** 分类开销：按交通类型聚合有金额的支出（排除充值 +¥ 与 0 金额旅程事件），按金额降序 */
+    private fun computeCategorySpending(uiTxns: List<UiTransaction>): List<CategorySpending> {
+        val byType = mutableMapOf<String, Double>()
+        for (t in uiTxns) {
+            if (t.amountText.startsWith("+") || t.amountYuan <= 0) continue
+            byType[t.transitType] = (byType[t.transitType] ?: 0.0) + t.amountYuan
+        }
+        val total = byType.values.sum()
+        if (total <= 0) return emptyList()
+        return byType.entries.sortedByDescending { it.value }
+            .map { (name, amt) -> CategorySpending(name, amt, (amt / total).toFloat(), categoryColor(name)) }
+    }
+
+    private fun categoryColor(type: String): Int = when (type) {
+        "地铁" -> 0xFF1A73E8.toInt()
+        "公交" -> 0xFFFB8C00.toInt()
+        "BRT" -> 0xFF8E24AA.toInt()
+        "有轨电车" -> 0xFF26A69A.toInt()
+        "城际" -> 0xFF5C6BC0.toInt()
+        "消费" -> 0xFFE91E63.toInt()
+        else -> 0xFF78909C.toInt()
     }
 
     private fun computeDailySpending(

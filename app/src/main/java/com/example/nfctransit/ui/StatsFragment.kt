@@ -18,10 +18,12 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentStatsBinding
+import com.example.nfctransit.model.CategorySpending
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
 import com.example.nfctransit.model.amountLabel
+import kotlin.math.roundToInt
 
 class StatsFragment : Fragment(R.layout.fragment_stats) {
 
@@ -117,6 +119,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         viewModel.dailySpending.observe(viewLifecycleOwner) { daily ->
             bindBarChart(daily)
+        }
+
+        viewModel.categorySpending.observe(viewLifecycleOwner) { items ->
+            bindCategoryChart(items)
         }
     }
 
@@ -321,6 +327,81 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
     }
 
+    /** 分类环形图：中心总开销 + 右侧图例 */
+    private fun bindCategoryChart(items: List<CategorySpending>) {
+        val total = items.sumOf { it.amountYuan }
+        binding.cardCategories.donutChart.setSegments(
+            items,
+            "¥${String.format("%.2f", total)}"
+        )
+        bindCategoryLegend(binding.cardCategories.categoryLegend, items)
+    }
+
+    private fun bindCategoryLegend(container: LinearLayout, items: List<CategorySpending>) {
+        container.removeAllViews()
+        if (items.isEmpty()) {
+            val emptyView = TextView(requireContext()).apply {
+                text = "暂无支出数据，请先读取交通卡"
+                setTextColor(0xFF8E8E93.toInt())
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setPadding(0, dpToPx(16), 0, dpToPx(16))
+            }
+            container.addView(emptyView)
+            return
+        }
+        for (item in items) {
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dpToPx(10) }
+            }
+
+            val dot = View(requireContext()).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(item.color)
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(10), dpToPx(10)).apply {
+                    marginEnd = dpToPx(8)
+                }
+            }
+
+            val name = TextView(requireContext()).apply {
+                text = item.name
+                textSize = 13f
+                setTextColor(0xFF1A1A1A.toInt())
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val amount = TextView(requireContext()).apply {
+                text = "¥${String.format("%.2f", item.amountYuan)}"
+                textSize = 12f
+                setTextColor(0xFF555555.toInt())
+                typeface = Typeface.MONOSPACE
+            }
+
+            val percent = TextView(requireContext()).apply {
+                text = "${(item.percent * 100).roundToInt()}%"
+                textSize = 12f
+                setTextColor(0xFF8E8E93.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dpToPx(6) }
+            }
+
+            row.addView(dot)
+            row.addView(name)
+            row.addView(amount)
+            row.addView(percent)
+            container.addView(row)
+        }
+    }
+
     private fun bindRankList(
         container: LinearLayout,
         items: List<Any>,
@@ -358,10 +439,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
             nameViews.forEach { row.addView(it) }
 
-            val barWidth = (barPercent * 100).toInt()
+            // 宽度用 weight 按占比填满行内剩余空间：最高项≈满宽，其余按 count 占比缩放（归一化）
+            val barWeight = barPercent.coerceIn(0.05f, 1f)
             val bar = View(requireContext()).apply {
                 setBackgroundColor(barColor)
-                layoutParams = LinearLayout.LayoutParams(barWidth, 8).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 8, barWeight).apply {
                     marginStart = 10
                     marginEnd = 10
                 }
@@ -374,8 +456,9 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 typeface = android.graphics.Typeface.MONOSPACE
             }
 
+            // 剩余空间（1 - 占比）由尾部占位吸收，条与占比精确对应
             val filler = View(requireContext()).apply {
-                layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+                layoutParams = LinearLayout.LayoutParams(0, 1, (1f - barWeight).coerceAtLeast(0f))
             }
 
             row.addView(bar)
