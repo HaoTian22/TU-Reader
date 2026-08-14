@@ -434,6 +434,10 @@ object RecordDecoder {
                     lineColor = j.lineColor,
                     lineId = j.lineId,
                     stationId = j.stationId,
+                    // 站名取自 1E 时，交通类型也必须跟 1E：0x18 用卡发行前缀终端号解析，
+                    // 与 1E 解析结果可能不同（如深圳地铁 1E 命中前海湾，0x18 兜底到公交），
+                    // 否则会出现「地铁站名 + 公交类型」的矛盾展示
+                    transitType = j.transitType,
                     cityCode = city,
                     balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
                     journeyHex = journeyHex ?: j.hex,
