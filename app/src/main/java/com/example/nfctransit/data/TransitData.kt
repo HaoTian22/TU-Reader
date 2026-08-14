@@ -50,6 +50,8 @@ object TransitData {
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
     // 大类 fallback 用：device_code 按长度降序，供最长前缀匹配（如 5180xxxx 未命中 → 51804=地铁 / 518040=10号线）
     private val deviceCodesByLen = mutableListOf<String>()
+    // 城市码 -> 该城全部 device_code（重叠匹配只扫本城，避免 DB 增大后每次 O(全部设备)）
+    private val deviceCodesByCity = mutableMapOf<String, MutableList<String>>()
     // "线路 站点" 组合串 -> 解析结果（中/英各一），用于修复旧版本按空格误拆线路/站名的持久化数据
     private val byCombinedZh = mutableMapOf<String, StationResolution>()
     private val byCombinedEn = mutableMapOf<String, StationResolution>()
@@ -67,6 +69,11 @@ object TransitData {
     fun init(context: Context) {
         appContext = context.applicationContext
         loadCardNames()
+    }
+
+    /** 预热站名索引：启动时后台调用，避免首次读卡/首屏渲染时在主线程一次性加载 2.7 万行 */
+    fun warmup() {
+        ensureLoaded()
     }
 
     /** 卡号（PAN，来自应用序列号）-> 卡名。IIN = PAN 前 8 位，按最长前缀匹配。 */
@@ -161,8 +168,9 @@ object TransitData {
         var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
         val rawCand = if (!rawCode.isNullOrEmpty()) effectiveCity + rawCode else null
         if (rawCand != null) {
-            for ((dev, r) in byDeviceCode) {
-                if (r.cityCode != effectiveCity || !dev.startsWith(effectiveCity)) continue
+            for (dev in deviceCodesByCity[effectiveCity].orEmpty()) {
+                if (!dev.startsWith(effectiveCity)) continue
+                val r = byDeviceCode[dev] ?: continue
                 val devCode = dev.removePrefix(effectiveCity)
                 val ov = when {
                     rawCand.contains(dev) -> dev.length            // 整码是候选子串（metro 坝头 602001001B）
@@ -177,8 +185,9 @@ object TransitData {
             val s = stripLeadingZeros(terminal)
             if (s.length >= 6) {
                 val codeRegion = s.substring(1, 3) + s.substring(3, 6)  // "62099"
-                for ((dev, r) in byDeviceCode) {
-                    if (r.cityCode != effectiveCity || !dev.startsWith(effectiveCity)) continue
+                for (dev in deviceCodesByCity[effectiveCity].orEmpty()) {
+                    if (!dev.startsWith(effectiveCity)) continue
+                    val r = byDeviceCode[dev] ?: continue
                     val devCode = dev.removePrefix(effectiveCity)
                     if (devCode.isNotEmpty() && codeRegion.startsWith(devCode) && devCode.length > bestLen) {
                         bestLen = devCode.length; best = r
@@ -392,6 +401,7 @@ object TransitData {
             byStationNameZh.clear()
             byStationNameEn.clear()
             deviceCodesByLen.clear()
+            deviceCodesByCity.clear()
             loaded = false
             ensureLoaded()
         }
@@ -425,6 +435,7 @@ object TransitData {
                         if (!r.stationNameEn.isNullOrEmpty()) {
                             byStationNameEn.putIfAbsent(r.stationNameEn, r)
                         }
+                        deviceCodesByCity.getOrPut(r.cityCode) { mutableListOf() }.add(r.deviceCode)
                     }
                     deviceCodesByLen.clear()
                     deviceCodesByLen.addAll(byDeviceCode.keys.sortedByDescending { it.length })

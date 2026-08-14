@@ -2,6 +2,7 @@ package com.example.nfctransit.ui
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -73,6 +74,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _hasData = MutableLiveData(false)
     val hasData: LiveData<Boolean> = _hasData
+
+    /** 启动恢复/重建中（restore() 完成前为 true），首页据此显示加载态而非误导性的空态 */
+    private val _isRestoring = MutableLiveData(true)
+    val isRestoring: LiveData<Boolean> = _isRestoring
 
     private val _cards = MutableLiveData<List<UiCard>>(emptyList())
     val cards: LiveData<List<UiCard>> = _cards
@@ -165,33 +170,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 启动加载：从 DataStore + Room 用户库恢复；每张卡优先读上次的 UI 构建缓存，无缓存/失效再重建 */
     private suspend fun restore() {
-        _keepDebugLogs.value = repo.isKeepDebugLogs()
-        val cards = repo.loadCards()
-        if (cards.isEmpty()) return
-        val order = repo.getCardOrder()
-        val selectedId = repo.getSelectedCardId()
+        try {
+            // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
+            withContext(Dispatchers.Default) { TransitData.warmup() }
+            _keepDebugLogs.value = repo.isKeepDebugLogs()
+            val cards = repo.loadCards()
+            if (cards.isEmpty()) return
+            val order = repo.getCardOrder()
+            val selectedId = repo.getSelectedCardId()
 
-        // 按 cardOrder 排序（不在顺序里的放后面）
-        cardEntities.clear()
-        cardEntities.addAll(
-            cards.sortedBy { c ->
-                order.indexOf(c.cardId).let { if (it < 0) Int.MAX_VALUE else it }
+            // 按 cardOrder 排序（不在顺序里的放后面）
+            cardEntities.clear()
+            cardEntities.addAll(
+                cards.sortedBy { c ->
+                    order.indexOf(c.cardId).let { if (it < 0) Int.MAX_VALUE else it }
+                }
+            )
+            // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存；
+            // 单张卡失败不影响其余卡片（缓存命中的直接恢复，未命中的重建）
+            cachedTxnsByCard.clear()
+            cardEntities.forEach { card ->
+                val state = try {
+                    withContext(Dispatchers.Default) { loadCardState(card) }
+                } catch (e: Exception) {
+                    Log.e("MainViewModel", "加载卡片 ${card.cardId} 失败", e)
+                    null
+                }
+                if (state != null) applyCardState(card.cardId, state)
             }
-        )
-        // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存
-        cachedTxnsByCard.clear()
-        cardEntities.forEach { card ->
-            val state = withContext(Dispatchers.Default) { loadCardState(card) }
-            applyCardState(card.cardId, state)
-        }
 
-        val uiCards = cardEntities.map { it.toUiCard() }
-        _cards.value = uiCards
-        _hasData.value = true
-        val idx = if (selectedId != null) {
-            uiCards.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it }
-        } else 0
-        selectCardByIndex(idx)
+            val uiCards = cardEntities.map { it.toUiCard() }
+            _cards.value = uiCards
+            _hasData.value = true
+            val idx = if (selectedId != null) {
+                uiCards.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it }
+            } else 0
+            selectCardByIndex(idx)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "restore 失败", e)
+        } finally {
+            _isRestoring.value = false
+        }
     }
 
     /** 一张卡构建完成的全部渲染状态（在后台线程组装，回主线程经 applyCardState 落内存） */
@@ -356,14 +375,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
             }
             val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
-            var canon: List<CanonicalTransaction> = emptyList()
-            var txns: List<UiTransaction> = emptyList()
+            // 解码/映射是 CPU 密集：放 Default 计算，主线程只做状态落盘与 UI 刷新，避免大库/大卡读卡后卡顿
+            val canon = withContext(Dispatchers.Default) {
+                RecordDecoder.decodeArchive(profile.cardType, archive)
+            }
+            val txns = withContext(Dispatchers.Default) {
+                enrichProtocols(canon, rawRecs).toUiTransactions()
+            }
+            val stats = withContext(Dispatchers.Default) { RecordDecoder.parseTuDiscountStats(rawRecs) }
             withContext(Dispatchers.Main) {
-                canon = RecordDecoder.decodeArchive(profile.cardType, archive)
                 canonicalByCard[cardId] = canon
                 rawRecordsByCard[cardId] = rawRecs
-                discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(rawRecs)
-                txns = enrichProtocols(canon, rawRecs).toUiTransactions()
+                discountStatsByCard[cardId] = stats
                 cachedTxnsByCard[cardId] = txns
                 val idx = cardEntities.indexOfFirst { it.cardId == cardId }
                 if (idx >= 0 && _selectedIndex.value == idx) {

@@ -167,10 +167,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun observeViewModel() {
-        viewModel.hasData.observe(viewLifecycleOwner) { hasData ->
-            binding.emptyState.visibility = if (hasData) View.GONE else View.VISIBLE
-            binding.contentWrapper.visibility = if (hasData) View.VISIBLE else View.GONE
-        }
+        // 启动恢复中显示加载态；恢复完成后再按 hasData 切空态/内容，避免重建缓存期间误显示"请靠近交通卡"
+        viewModel.isRestoring.observe(viewLifecycleOwner) { updateRootVisibility() }
+        viewModel.hasData.observe(viewLifecycleOwner) { updateRootVisibility() }
 
         // 主题色跟随卡片：快捷操作图标、进度文字/条、迷你图、指示点、查看全部一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
@@ -229,6 +228,15 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         viewModel.homeWeeklySpending.observe(viewLifecycleOwner) { daily ->
             if (daily.isNotEmpty()) bindMiniChart(daily)
         }
+    }
+
+    /** 首页根视图三态切换：恢复中显示加载态；否则按是否有卡数据切空态（请靠近读卡）或内容 */
+    private fun updateRootVisibility() {
+        val restoring = viewModel.isRestoring.value == true
+        val hasData = viewModel.hasData.value == true
+        binding.loadingState.visibility = if (restoring) View.VISIBLE else View.GONE
+        binding.emptyState.visibility = if (!restoring && !hasData) View.VISIBLE else View.GONE
+        binding.contentWrapper.visibility = if (!restoring && hasData) View.VISIBLE else View.GONE
     }
 
     /**

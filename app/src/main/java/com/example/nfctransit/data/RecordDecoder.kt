@@ -207,8 +207,10 @@ object RecordDecoder {
             val stationCode = ApduUtil.bcdToString(data.copyOfRange(12, 14))
             val cityCode = if (data.size >= 34) ApduUtil.bcdToString(data.copyOfRange(32, 34)) else ""
             // 原始代码切片 [10..17)：line+station+city+类型等连续片段，直接交给匹配层做最长重叠匹配，
-            // 避免硬拆 line/station 位宽差异（如 16180101602009 → bus 618 / metro 01001B00 → 坝头）
-            val rawCode = if (data.size >= 17) ApduUtil.bcdToString(data.copyOfRange(10, 17)) else ""
+            // 避免硬拆 line/station 位宽差异（如 16180101602009 → bus 618 / metro 01001B00 → 坝头）。
+            // 用 bytesToHex 而非 bcdToString：站点码可含 hex 字母（东莞 1号线 0x1F=东城南、0x1B=坝头），
+            // bcdToString 会把 0x1F 半字节展开成 "115"（append(15)），破坏重叠匹配，hex 站全部退化到大类。
+            val rawCode = if (data.size >= 17) ApduUtil.bytesToHex(data.copyOfRange(10, 17)) else ""
 
             val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal, rawCode)
             val direction = when {

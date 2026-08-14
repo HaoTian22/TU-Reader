@@ -25,7 +25,7 @@ data class CardUiCache(
 ) {
     companion object {
         // 解码逻辑变更（站名/类型解析、读槽扩展等）时递增，强制旧缓存失效、从归档重建
-        const val FORMAT_VERSION = 2
+        const val FORMAT_VERSION = 3
     }
 }
 

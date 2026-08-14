@@ -4,6 +4,29 @@
     android:layout_height="match_parent"
     android:background="#F8F9FA">
 
+    <!-- Loading State: shown while restore() rebuilds caches / loads card data -->
+    <LinearLayout
+        android:id="@+id/loadingState"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminateTint="#0066FF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="正在加载数据…"
+            android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:layout_marginTop="16dp" />
+    </LinearLayout>
+
     <!-- Empty State: shown when no card data -->
     <LinearLayout
         android:id="@+id/emptyState"
@@ -11,7 +34,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:visibility="visible">
+        android:visibility="gone">
 
         <TextView
             android:layout_width="120dp"
