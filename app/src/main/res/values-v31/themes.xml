@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+（API 31）：文本选中跟随壁纸 Material You 动态色。
+         手柄 drawable 在 drawable-v31 中已着色为 system_accent1_500，高亮用动态版 M3 高亮色。 -->
+    <style name="Theme.TUReader" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:textSelectHandle">@drawable/tu_text_select_handle_middle</item>
+        <item name="android:textSelectHandleLeft">@drawable/tu_text_select_handle_left</item>
+        <item name="android:textSelectHandleRight">@drawable/tu_text_select_handle_right</item>
+
+        <item name="android:textColorHighlight">@color/m3_dynamic_highlighted_text</item>
+    </style>
+</resources>
