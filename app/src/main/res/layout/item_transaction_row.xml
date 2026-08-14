@@ -84,6 +84,21 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!-- 线路过长时整个线路药丸换到这一行 -->
+        <TextView
+            android:id="@+id/txnLineWrapped"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#555555"
+            android:textSize="10sp"
+            android:background="@drawable/bg_chip_default"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
+
         <!-- 第二行：出入站图标 + 站名 -->
         <LinearLayout
             android:layout_width="wrap_content"

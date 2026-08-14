@@ -34,7 +34,8 @@ object TransitData {
         val station: String,    // 站名
         val lineColor: String? = null,  // 线路颜色（"#RRGGBB"，空白时 UI 保持灰色）
         val lineId: Long? = null,
-        val stationId: Long? = null
+        val stationId: Long? = null,
+        val cityCode: String? = null    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
     )
 
     private data class CityInfo(val zh: String, val en: String?)
@@ -115,15 +116,31 @@ object TransitData {
     ): StationEntry? {
         ensureLoaded()
         // 深圳 TU：卡片 1E 城市码 5840 无独立站点数据（city_id 200 空），重定向到 5180（深圳数据所在）
-        val effectiveCity = if (cityCode == "5840") "5180" else cityCode
+        val baseCity = if (cityCode == "5840") "5180" else cityCode
+        // 广州记录：先按佛山(5880)匹配（广佛线共用，记录可能落在佛山），匹配不到再回广州(5810)
+        val cities = if (baseCity == "5810") listOf("5880", "5810") else listOf(baseCity)
+        for (c in cities) {
+            matchInCity(c, lineCode, stationCode, terminal, rawCode)?.let { return it.toEntry() }
+        }
+        return null
+    }
+
+    /** 在指定城市内匹配 TU 站点（终端/线路/rawCode 切片/终端前缀大类） */
+    private fun matchInCity(
+        effectiveCity: String,
+        lineCode: String,
+        stationCode: String,
+        terminal: String,
+        rawCode: String?
+    ): StationResolution? {
         if (terminal.isNotEmpty()) {
-            byDeviceCode[effectiveCity + terminal]?.let { return it.toEntry() }
-            byDeviceCode[terminal]?.let { return it.toEntry() }
+            byDeviceCode[effectiveCity + terminal]?.let { return it }
+            byDeviceCode[terminal]?.let { return it }
         }
         if (lineCode.isNotEmpty()) {
-            byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it.toEntry() }
+            byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it }
             byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
-                ?.let { return it.toEntry() }
+                ?.let { return it }
         }
         // 深圳 TU 轨道交通：按 1E 终端号匹配（cu.csv 格式同 CU）。卡片终端号 "000262016106"
         // 去前导 0 后第 1-2 位为线路码（62=4号线）、3-5 位为站点码（016=深圳北站），
@@ -133,8 +150,8 @@ object TransitData {
             if (s.length >= 6) {
                 val line = s.substring(1, 3)
                 val station = s.substring(3, 6)
-                byDeviceCode["5180$line$station"]?.let { return it.toEntry() }
-                byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it.toEntry() }
+                byDeviceCode["5180$line$station"]?.let { return it }
+                byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it }
             }
         }
         // 统一最长匹配 fallback：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
@@ -175,8 +192,7 @@ object TransitData {
                 if (r.deviceCode.length > bestLen) { bestLen = r.deviceCode.length; best = r }
             }
         }
-        best?.let { return it.toEntry() }
-        return null
+        return best
     }
 
     /** 大类 fallback：找 candidate 的最长前缀 device_code（按长度降序，首个命中即最长前缀） */
@@ -350,7 +366,7 @@ object TransitData {
             line,
             transitType
         ).firstOrNull { !it.isNullOrEmpty() } ?: ""
-        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId)
+        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId, cityCode)
     }
 
     /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换） */

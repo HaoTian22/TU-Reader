@@ -25,6 +25,8 @@ data class CanonicalTransaction(
     val sfi: Int,
     val protocol: String,  // "LNT"/"TU"/""
     val hex: String,
+    /** 命中的 device_code（站名解析匹配到的数据字符串，如 581000140019）；仅内存，不落库 */
+    val deviceCode: String? = null,
     /** 1E 旅程记录对应的原始 hex（TU 卡 1E+18 合并展示时携带，详情页原始数据显示两份）；仅内存，不落库 */
     val journeyHex: String? = null,
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */

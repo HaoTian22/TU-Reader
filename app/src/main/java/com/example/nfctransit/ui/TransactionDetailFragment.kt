@@ -14,6 +14,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.R
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
@@ -29,6 +30,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     /** 当前卡片主题色（跟随卡片渐变起点），默认蓝 */
     private var accentColor = 0xFF0066FF.toInt()
 
+    /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
+    private var rawHexToCopy = ""
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -43,12 +47,13 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
 
-        // 主题色跟随卡片：返回按钮、badge 一起变
+        // 主题色跟随卡片：返回按钮、badge、复制按钮一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             val color = accent.toInt()
             accentColor = color
             binding.btnBack.setTextColor(color)
             binding.tvCardBadge.setTextColor(color)
+            binding.btnCopyHex.setTextColor(color)
             updateCardBadgeBg()
         }
 
@@ -65,6 +70,19 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         if (txn != null) {
             bindTransactionData(txn)
             bindRawHex(txn)
+            bindParsedData(txn)
+        }
+
+        // 复制原始数据按钮
+        binding.btnCopyHex.typeface =
+            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        binding.btnCopyHex.setOnClickListener {
+            if (rawHexToCopy.isNotBlank()) {
+                val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("原始数据", rawHexToCopy))
+                android.widget.Toast.makeText(requireContext(), "✓ 已复制原始数据", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -143,16 +161,78 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val mainHex = txn.hex
         val journeyHex = txn.journeyHex
         if (mainHex.isBlank() && journeyHex.isNullOrBlank()) {
+            rawHexToCopy = ""
             addRawLine("无该交易原始数据", dim = true)
             return
         }
+        val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
             addRawLine("SFI ${txn.sfi.toSfiHex()}", dim = true)
             addRawLine(mainHex)
+            sb.append(mainHex)
         }
         if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
             addRawLine("SFI 0x1E（旅程）", dim = true)
             addRawLine(journeyHex)
+            if (sb.isNotEmpty()) sb.append('\n')
+            sb.append(journeyHex)
+        }
+        rawHexToCopy = sb.toString()
+    }
+
+    /** 解析数据：按 SFI 解析原始 hex 的关键字段 */
+    private fun bindParsedData(txn: UiTransaction) {
+        val sb = StringBuilder()
+        if (txn.hex.isNotBlank()) {
+            sb.appendLine(parseHexLine(txn.sfi, txn.hex))
+        }
+        val journeyHex = txn.journeyHex
+        if (!journeyHex.isNullOrBlank() && journeyHex != txn.hex) {
+            sb.appendLine(parseHexLine(0x1E, journeyHex))
+        }
+        val match = txn.deviceCode
+        sb.append("Match ${match ?: "Null"}")
+        binding.parsedPanel.text = sb.toString()
+    }
+
+    private fun parseHexLine(sfi: Int, hex: String): String {
+        return try {
+            val d = ApduUtil.hexToBytes(hex)
+            if (sfi == 0x1E && d.size >= 42) {
+                val type = String.format("%02X", d[0])
+                val subtype = String.format("%02X", d[9])
+                val terminal = ApduUtil.bcdToString(d.copyOfRange(1, 9))   // 带前缀终端号
+                val lineStn = ApduUtil.bytesToHex(d.copyOfRange(10, 17))   // 线路+站点，含站点区更多位（hex 显示）
+                val balance = ApduUtil.hexToLong(d.copyOfRange(21, 25))
+                val ts = ApduUtil.bcdToString(d.copyOfRange(25, 32))
+                val city = ApduUtil.bcdToString(d.copyOfRange(32, 34))
+                val instA = ApduUtil.bytesToHex(d.copyOfRange(34, 38))
+                val instB = ApduUtil.bytesToHex(d.copyOfRange(38, 42))
+                "SFI 0x1E\n" +
+                    "Type [0 hex] $type\n" +
+                    "Subtype [9 hex] $subtype\n" +
+                    "Terminal [1-9 bcd] $terminal\n" +
+                    "Timestamp [25-32 bcd] $ts\n" +
+                    "Line & Station [10-17] $lineStn\n" +   // 各城市编码不同，只保留位置不标方法
+                    "Balance [21-25 hex] ${String.format("%08X", balance)}\n" +
+                    "Area [32-34 bcd] $city\n" +
+                    "Institution [34-42 hex] $instA $instB"
+            } else if (d.size >= 23) {
+                val seq = ApduUtil.hexToLong(d.copyOfRange(0, 2)).toInt()
+                val type = String.format("%02X", d[9])
+                val terminal = ApduUtil.bcdToString(d.copyOfRange(10, 16))
+                val date = ApduUtil.bcdToString(d.copyOfRange(16, 20))
+                val time = ApduUtil.bcdToString(d.copyOfRange(20, 23))
+                "SFI 0x18\n" +
+                    "Type [9 hex] $type\n" +
+                    "Record No. [0-2 dec] $seq\n" +
+                    "Terminal [10-16 bcd] $terminal\n" +
+                    "Timestamp [16-23 bcd] $date$time"
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            ""
         }
     }
 
@@ -163,6 +243,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             setTextColor(if (dim) 0xFF666688.toInt() else 0xFFAAAAFF.toInt())
             typeface = Typeface.MONOSPACE
             setPadding(0, dpToPx(2), 0, dpToPx(2))
+            setTextIsSelectable(true)   // 长按可选中复制
         }
         binding.hexPanel.addView(lineView)
     }

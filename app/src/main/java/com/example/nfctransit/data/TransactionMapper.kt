@@ -76,7 +76,10 @@ object TransactionMapper {
             typeHex = typeHex,
             transitType = transitType,
             terminal = terminal,
-            stationName = if (isRecharge) "" else resolved.stationName,
+            // 站名找不到（空/未知）时，站名位置兜底到线路名，再到交通类型（充值→"充值"）
+            stationName = resolved.stationName.takeIf { it.isNotBlank() && it != "未知" }
+                ?: resolved.lineName.takeIf { it.isNotBlank() && it != "—" }
+                ?: transitType,
             cityName = if (isRecharge) "" else (cityCode?.let { TransitData.cityZh(it) } ?: ""),
             lineName = lineName,
             lineColor = resolved.lineColor,
@@ -91,7 +94,8 @@ object TransactionMapper {
             iconBgColor = iconBgColor,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
-            journeyHex = journeyHex
+            journeyHex = journeyHex,
+            deviceCode = deviceCode
         )
     }
 

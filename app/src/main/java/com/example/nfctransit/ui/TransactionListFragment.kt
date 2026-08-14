@@ -239,6 +239,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             private val dirIcon = itemView.findViewById<TextView>(R.id.txnDirIcon)
             private val station = itemView.findViewById<TextView>(R.id.txnStation)
             private val line = itemView.findViewById<TextView>(R.id.txnLine)
+            private val lineWrapped = itemView.findViewById<TextView>(R.id.txnLineWrapped)
 
             fun bind(txn: UiTransaction) {
                 // 站名末尾的方向箭头换成 FontAwesome 图标
@@ -269,13 +270,30 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
                 // 第二行：出入站图标 + 站名
                 station.text = stationText.ifEmpty { "未知" }
-                // 第一行：线路胶囊（用数据库线路颜色着色；空白/占位符保持隐藏）
-                if (isPlaceholderPill(lineText)) {
-                    line.visibility = View.GONE
-                } else {
-                    line.visibility = View.VISIBLE
-                    line.text = lineText
-                    applyLineColor(line, txn.lineColor)
+                // 线路胶囊（数据库线路颜色着色；空白/占位符保持隐藏）。过长时整个药丸换到下一行。
+                val lineVisible = !isPlaceholderPill(lineText)
+                line.text = lineText
+                lineWrapped.text = lineText
+                applyLineColor(line, txn.lineColor)
+                applyLineColor(lineWrapped, txn.lineColor)
+                line.visibility = if (lineVisible) View.VISIBLE else View.GONE
+                lineWrapped.visibility = View.GONE
+                if (lineVisible) {
+                    line.post {
+                        // 第一行(城市+类型+线路)总宽超过可用宽 → 线路药丸整行换到 txnLineWrapped
+                        val content = (line.parent as? View)?.parent as? View ?: return@post
+                        val endMargin = { v: View ->
+                            (v.layoutParams as? ViewGroup.MarginLayoutParams)?.marginEnd ?: 0
+                        }
+                        val cityW = if (city.visibility == View.VISIBLE) city.width + endMargin(city) else 0
+                        val typeW = if (type.visibility == View.VISIBLE) type.width + endMargin(type) else 0
+                        val lineW = if (line.visibility == View.VISIBLE) line.width else 0
+                        val overflow = cityW + typeW + lineW > content.width
+                        if (overflow) {
+                            line.visibility = View.GONE
+                            lineWrapped.visibility = View.VISIBLE
+                        }
+                    }
                 }
 
                 if (isEntry || isExit) {
