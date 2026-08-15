@@ -45,6 +45,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private val C_TERMINAL = 0xFF79C0FF.toInt()
     private val C_TIMESTAMP = 0xFFD2A8FF.toInt()
     private val C_SUBTYPE = 0xFFF79A9A.toInt()
+    private val C_AMOUNT = 0xFFFF6B6B.toInt()
     private val C_LINE = 0xFFE6EE9C.toInt()
     private val C_BALANCE = 0xFF56D4A0.toInt()
     private val C_AREA = 0xFF4DD0E1.toInt()
@@ -304,7 +305,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val color: Int
     )
 
-    /** 各字段在对应 SFI 下的字节区间与配色（与旧 parseHexLine 位置一致） */
+    /** 各字段在对应 SFI 下的字节区间与配色（位置与 RecordDecoder 解析一致） */
     private fun fieldsFor(sfi: Int, size: Int): List<FieldSpec> {
         if (sfi == 0x1E && size >= 42) {
             return listOf(
@@ -312,6 +313,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 FieldSpec("Terminal", 1, 9, "BCD", C_TERMINAL),
                 FieldSpec("Subtype", 9, 10, "hex", C_SUBTYPE),
                 FieldSpec("Line & Station", 10, 17, "", C_LINE),
+                FieldSpec("Amount", 19, 21, "hex", C_AMOUNT),
                 FieldSpec("Balance", 21, 25, "hex", C_BALANCE),
                 FieldSpec("Timestamp", 25, 32, "BCD", C_TIMESTAMP),
                 FieldSpec("Area", 32, 34, "BCD", C_AREA),
@@ -320,8 +322,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
         if (size >= 23) {
             return listOf(
-                FieldSpec("Type", 9, 10, "hex", C_TYPE),
                 FieldSpec("Record No.", 0, 2, "dec", C_RECORD),
+                FieldSpec("Amount", 6, 9, "hex", C_AMOUNT),
+                FieldSpec("Type", 9, 10, "hex", C_TYPE),
                 FieldSpec("Terminal", 10, 16, "BCD", C_TERMINAL),
                 FieldSpec("Timestamp", 16, 23, "BCD", C_TIMESTAMP)
             )

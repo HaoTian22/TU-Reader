@@ -109,10 +109,12 @@ object TransitData {
      * @param stationCode 站点码（4 位 BCD）
      * @param terminal    终端号（12 位，用于终端号匹配的城市）
      *
-     * 解析策略（顺序，线路+站点权重大于终端号）：
+     * 解析策略（顺序，线路+站点权重大于终端号，终端号仅在无线路+站点命中时兜底）：
      *   1. 线路头行城市拼接：device_code = 城市码 + 线路码 + 站点码（保留卡片 BCD 前导 0，如广州 0001 0001）
      *   2. 去前导 0 规范化键：{city}|{strip0(线路)}|{strip0(站点)}，兼容变长编码（北京/深圳/重庆等）
-     *   3. 终端号城市（杭州 TU / 广州 YCT 等，整行 Code 即终端号）：device_code = 城市码 + 终端号
+     *   3. 深圳 TU 按 1E 终端号派生线路/站点精确匹配（5180 专用）
+     *   4. raw 记录代码切片最长重叠（线路+站点；覆盖 bus 变长线路码与站点 hex 填充）
+     *   5. 终端号精确匹配 / 终端整体前缀大类（兜底，杭州 TU / 广州 YCT 等终端号城市也走这里）
      */
     fun resolveTuStation(
         cityCode: String,
@@ -140,15 +142,13 @@ object TransitData {
         terminal: String,
         rawCode: String?
     ): StationResolution? {
-        // 线路+站点权重大于终端号：线路/站点码直接编码进/出站位置，终端号只是闸机设备号，可能复用或映射偏差
+        // 线路+站点权重大于终端号：线路/站点码直接编码进/出站位置，终端号只是闸机设备号，可能复用或映射偏差。
+        // 跨城卡（如广州卡 4131… 在珠海）终端号是卡发行前缀，会让终端前缀误匹配他城同前缀线路（413 路），
+        // 因此终端号精确/前缀匹配仅在没有任何线路+站点命中时兜底。
         if (lineCode.isNotEmpty()) {
             byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it }
             byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
                 ?.let { return it }
-        }
-        if (terminal.isNotEmpty()) {
-            byDeviceCode[effectiveCity + terminal]?.let { return it }
-            byDeviceCode[terminal]?.let { return it }
         }
         // 深圳 TU 轨道交通：按 1E 终端号匹配（cu.csv 格式同 CU）。卡片终端号 "000262016106"
         // 去前导 0 后第 1-2 位为线路码（62=4号线）、3-5 位为站点码（016=深圳北站），
@@ -162,7 +162,7 @@ object TransitData {
                 byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it }
             }
         }
-        // 统一最长匹配 fallback：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
+        // 统一最长匹配（线路+站点）：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
         // 找同城 device_code 的最长重叠（整码或线路码部分作为候选子串，取最大）。不硬拆 line+station，
         // 自然覆盖 4 位 vs 3 位线路码（1618+0101 → 6180101 → bus 618）与站点填充（01001B00 → 01001B → 坝头）。
         var best: StationResolution? = null
@@ -196,11 +196,14 @@ object TransitData {
                 }
             }
         }
-        // 终端整体前缀（大类：51804=地铁）
-        if (terminal.isNotEmpty()) {
-            longestPrefixMatch(effectiveCity + terminal)?.let { r ->
-                if (r.deviceCode.length > bestLen) { bestLen = r.deviceCode.length; best = r }
-            }
+        // 终端号精确匹配兜底（仅当线路+站点无命中）
+        if (best == null && terminal.isNotEmpty()) {
+            byDeviceCode[effectiveCity + terminal]?.let { return it }
+            byDeviceCode[terminal]?.let { return it }
+        }
+        // 终端整体前缀大类兜底（如 51804=地铁，仅当线路+站点无命中）
+        if (best == null && terminal.isNotEmpty()) {
+            longestPrefixMatch(effectiveCity + terminal)?.let { return it }
         }
         return best
     }
