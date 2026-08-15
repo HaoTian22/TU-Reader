@@ -113,8 +113,9 @@ object TransitData {
      *   1. 线路头行城市拼接：device_code = 城市码 + 线路码 + 站点码（保留卡片 BCD 前导 0，如广州 0001 0001）
      *   2. 去前导 0 规范化键：{city}|{strip0(线路)}|{strip0(站点)}，兼容变长编码（北京/深圳/重庆等）
      *   3. 深圳 TU 按 1E 终端号派生线路/站点精确匹配（5180 专用）
-     *   4. raw 记录代码切片最长重叠（线路+站点；覆盖 bus 变长线路码与站点 hex 填充）
-     *   5. 终端号精确匹配 / 终端整体前缀大类（兜底，杭州 TU / 广州 YCT 等终端号城市也走这里）
+     *   4. 站点码字段即完整设备码（成都 metro：[12..14) 直接是"线路+站点"拼接的 Code，device_code = city + Code）
+     *   5. raw 记录代码切片最长重叠（线路+站点；覆盖 bus 变长线路码与站点 hex 填充）
+     *   6. 终端号精确匹配 / 终端整体前缀大类（兜底，杭州 TU / 广州 YCT 等终端号城市也走这里）
      */
     fun resolveTuStation(
         cityCode: String,
@@ -162,13 +163,23 @@ object TransitData {
                 byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it }
             }
         }
+        // 站点码字段即完整设备码：成都 metro 等记录 [12..14) 直接是"线路+站点"拼接的 Code，
+        // device_code = city + Code（如 6510+1335 = 65101335 杜甫草堂），[10..12) 线路码只是冗余前缀。
+        // 放在 raw 重叠前做精确匹配，避免重叠把 00131335 里的跨字节伪重叠 0131 与真实站码 1335
+        // 判为同长而误取（曾误匹配成 1号线桐梓林 65100131）。
+        if (stationCode.isNotEmpty()) {
+            byDeviceCode[effectiveCity + stationCode]?.let { return it }
+        }
         // 统一最长匹配（线路+站点）：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
         // 找同城 device_code 的最长重叠（整码或线路码部分作为候选子串，取最大）。不硬拆 line+station，
         // 自然覆盖 4 位 vs 3 位线路码（1618+0101 → 6180101 → bus 618）与站点填充（01001B00 → 01001B → 坝头）。
         var best: StationResolution? = null
         var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
-        val rawCand = if (!rawCode.isNullOrEmpty()) effectiveCity + rawCode else null
+        var bestAligned = false
+        val rc = rawCode
+        val rawCand = if (!rc.isNullOrEmpty()) effectiveCity + rc else null
         if (rawCand != null) {
+            val code = rc!!  // rawCand 非空 ⇒ rc 非空
             for (dev in deviceCodesByCity[effectiveCity].orEmpty()) {
                 if (!dev.startsWith(effectiveCity)) continue
                 val r = byDeviceCode[dev] ?: continue
@@ -178,7 +189,13 @@ object TransitData {
                     !devCode.isEmpty() && rawCand.contains(devCode) -> devCode.length  // 线路码是子串（bus 618）
                     else -> 0
                 }
-                if (ov > bestLen) { bestLen = ov; best = r }
+                if (ov == 0) continue
+                // 同长时优先字节对齐：真实站码按字节存（rawCode 偶数下标 = BCD 字节边界），
+                // 跨字节伪重叠（如 00131335 里的 0131）与真实站码 1335 同长时不误取
+                val aligned = code.indexOf(devCode).let { it >= 0 && it % 2 == 0 }
+                if (ov > bestLen || (ov == bestLen && aligned && !bestAligned)) {
+                    bestLen = ov; bestAligned = aligned; best = r
+                }
             }
         }
         // 深圳提取码前缀（未知站 → 4号线/13号线 大类）
