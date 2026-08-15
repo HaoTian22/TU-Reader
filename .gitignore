@@ -7,3 +7,4 @@ release.jks
 keystore.properties
 *.pyc
 *bak*
+.r2config.json

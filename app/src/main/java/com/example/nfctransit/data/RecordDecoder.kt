@@ -218,15 +218,19 @@ object RecordDecoder {
                 data[0] == 0x04.toByte() -> "↑"
                 else -> ""
             }
+            // 0x1E 类型字节 data[0]：0x06 = 公交。公交行程解析到地铁站或无站可解时一律回退公交，
+            // 否则同时间戳 0x18 的地铁站会经 mergeJourneyAndFare 覆盖显示为地铁
+            val isBusType = data[0] == 0x06.toByte()
+            val busRef = if (isBusType && (entry == null || entry.type == "地铁")) null else entry
             val ref = StationRef(
-                station = entry?.station ?: "未知",
-                line = entry?.line ?: "",
-                transitType = TransitData.transitTypeLabel(entry?.type),
+                station = busRef?.station ?: "公共交通",
+                line = busRef?.line ?: "",
+                transitType = if (busRef != null) TransitData.transitTypeLabel(busRef.type) else "公交",
                 direction = direction,
-                lineColor = entry?.lineColor,
-                lineId = entry?.lineId,
-                stationId = entry?.stationId,
-                deviceCode = entry?.code
+                lineColor = busRef?.lineColor,
+                lineId = busRef?.lineId,
+                stationId = busRef?.stationId,
+                deviceCode = busRef?.code
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(19, 21)) else 0L

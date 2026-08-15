@@ -14,6 +14,7 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.StationDbUpdater
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
 import com.example.nfctransit.data.TuDiscountStats
@@ -22,6 +23,7 @@ import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
+import com.example.nfctransit.data.prefs.AppPreferences
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CategorySpending
@@ -178,6 +180,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 启动加载：从 DataStore + Room 用户库恢复；每张卡优先读上次的 UI 构建缓存，无缓存/失效再重建 */
     private suspend fun restore() {
         try {
+            // 首次进入版本追踪时初始化 db_version；须在 createFromAsset 拷贝前执行，
+            // 才能区分「全新安装（无库）」与「老库升级（库已存在）」。
+            AppPreferences.initDbVersion(getApplication())
             // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
@@ -196,9 +201,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存；
             // 单张卡失败不影响其余卡片（缓存命中的直接恢复，未命中的重建）
             cachedTxnsByCard.clear()
+            val dbVersion = AppPreferences.getDbVersion(getApplication())
             cardEntities.forEach { card ->
                 val state = try {
-                    withContext(Dispatchers.Default) { loadCardState(card) }
+                    withContext(Dispatchers.Default) { loadCardState(card, dbVersion = dbVersion) }
                 } catch (e: Exception) {
                     Log.e("MainViewModel", "加载卡片 ${card.cardId} 失败", e)
                     null
@@ -242,14 +248,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      *
      * @param forceRebuild 忽略缓存强制重建（站名映射表更新/清缓存后站名与 ID 可能变化，须重新解析）
      */
-    private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false): BuiltCardState {
+    private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()
         val cardId = card.cardId
         val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
         val rawRecs = repo.loadRawRecords(cardId).map {
             RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
         }
-        val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId)
+        val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId, dbVersion)
         return if (cached != null) {
             BuiltCardState(
                 cached.canonicals, cached.txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs)
@@ -258,7 +264,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val archive = repo.loadArchive(cardId)
             val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
             val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions()
-            UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns))
+            UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns, dbVersion))
             BuiltCardState(canonicals, txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs))
         }
     }
@@ -266,9 +272,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存，刷新当前选中卡 */
     private suspend fun rebuildAllCardsAndRefresh() {
         cachedTxnsByCard.clear()
+        val dbVersion = AppPreferences.getDbVersion(getApplication())
         cardEntities.forEach { card ->
-            val state = withContext(Dispatchers.Default) { loadCardState(card, forceRebuild = true) }
-            applyCardState(card.cardId, state)
+            try {
+                val state = withContext(Dispatchers.Default) {
+                    loadCardState(card, forceRebuild = true, dbVersion = dbVersion)
+                }
+                applyCardState(card.cardId, state)
+            } catch (e: Exception) {
+                // 单张卡失败不拖垮其余卡片（与 restore() 一致）
+                Log.e("MainViewModel", "重建卡片 ${card.cardId} 失败", e)
+            }
         }
         val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId
         if (cardId != null) emitCardData(cardId)
@@ -401,7 +415,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             // 以数据库为准重建完成 → 回写磁盘缓存（下次启动直接命中）
-            UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns))
+            val dbVersion = AppPreferences.getDbVersion(getApplication())
+            UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns, dbVersion))
         }
         return if (isNew) index else null
     }
@@ -639,15 +654,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 try {
                     withContext(Dispatchers.IO) {
-                        AppDatabase.replaceWithDownloaded(getApplication(), downloaded)
+                        AppDatabase.replaceWithDownloaded(getApplication(), downloaded.file)
                         TransitData.reload()
                     }
                 } finally {
-                    downloaded.delete()
+                    downloaded.file.delete()
                 }
-                _stationDbUpdateStatus.value = "✓ 站名映射表已更新"
+                // 记录当前库版本：优先版本 sidecar，其次服务端 Last-Modified，最后本地时间
+                val otaVersion = withContext(Dispatchers.IO) {
+                    StationDbUpdater.downloadVersionString(getApplication())
+                } ?: downloaded.lastModifiedMillis?.let { TransitDbVersion.formatTimestamp(it) }
+                    ?: TransitDbVersion.formatTimestamp(System.currentTimeMillis())
+                AppPreferences.setDbVersion(getApplication(), otaVersion)
                 // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
                 rebuildAllCardsAndRefresh()
+                // 界面重建完成后再报成功，避免「提示已更新但界面还是旧站名」
+                _stationDbUpdateStatus.value = "✓ 站名映射表已更新"
             } catch (e: Exception) {
                 _stationDbUpdateStatus.value = "更新失败: ${e.message}"
             } finally {
@@ -657,21 +679,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 清理缓存：删除 UI 构建缓存，并把 transit.db 重置为打包 assets 内置版（清掉在线更新的站名映射表），
-     * 随后全部卡片重解码刷新界面。不影响用户数据（卡片/交易/原始记录）。
+     * 清理缓存：删除 UI 构建缓存。站名映射表仅在内置（asset）版本比当前库更新时才重置为内置版，
+     * 否则保留当前版本（避免把较新的在线更新库回退成旧内置版）。随后全部卡片重解码刷新界面。
+     * 不影响用户数据（卡片/交易/原始记录）。
      */
     fun clearCache() {
         if (_cacheClearing.value == true) return
         _cacheClearing.value = true
         viewModelScope.launch {
             try {
+                val ctx = getApplication<Application>()
+                val assetVersion = TransitDbVersion.readAssetVersion(ctx)
+                val activeVersion = AppPreferences.getDbVersion(ctx)
+                val resetToAsset = TransitDbVersion.isNewer(assetVersion, activeVersion)
                 withContext(Dispatchers.IO) {
-                    UiCache.clearAll(getApplication())
-                    AppDatabase.resetToAsset(getApplication())
-                    TransitData.reload()
+                    UiCache.clearAll(ctx)
+                    if (resetToAsset) {
+                        AppDatabase.resetToAsset(ctx)
+                        TransitData.reload()
+                    }
                 }
+                if (resetToAsset) AppPreferences.setDbVersion(ctx, assetVersion ?: "0")
                 rebuildAllCardsAndRefresh()
-                _cacheClearStatus.value = "✓ 已清理缓存并重置站名映射表"
+                _cacheClearStatus.value = if (resetToAsset) {
+                    "✓ 已清理缓存并重置站名映射表"
+                } else {
+                    "✓ 已清理缓存（站名映射表保持当前版本）"
+                }
             } catch (e: Exception) {
                 _cacheClearStatus.value = "清理失败: ${e.message}"
             } finally {

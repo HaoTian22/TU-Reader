@@ -19,6 +19,9 @@
     （如南京自行车、广州 yct）不写 match_key。
   - 空站名的行（公交运营商 / 线路标头）不产生 reader_device。
   - 已有 device_code 的站只更新 line/station/type 变化，保留 ID、英文、坐标、配色。
+
+版本 sidecar：应用有变更（或 sidecar 缺失）时在 assets/data/transit.db.version 写
+14 位时间戳（%Y%m%d%H%M%S），供 App 判断内置库与网络库孰新、清缓存时是否重置。
 """
 import argparse
 import collections
@@ -27,6 +30,7 @@ import datetime
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__)) + "/../../tripreader-data"
@@ -34,6 +38,7 @@ if not os.path.isdir(ROOT):
     ROOT = r"D:/Code/Android/APPs-Dev/tripreader-data"
 DB = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/transit.db"
 IDENTITY_HASH = "d655117dc122c44ad0b193eacfbeb8a4"
+VERSION_FILE = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/transit.db.version"
 
 
 def strip0(s):
@@ -195,11 +200,16 @@ def build_update(loader, only_files=None):
 
     # 第二遍：按最终 line_code 构建设备增改列表
     seen_added = set()
+    upd_station_en = []  # (station_id, station_en)：CSV 英文名为权威，已存在站也同步更新
     for city, line_name, std, has_en, line_code, all_rows in line_groups:
         lc = code_by_line[city][line_name]
         for r in all_rows:
             code, type_, lname, station = r[1], r[2], r[3], r[4]
             station_en = r[5] if has_en and len(r) > 5 and r[5] else None
+            if station and station_en:
+                st = loader.station(city, station)
+                if st is not None and (st["station_name_en"] or "") != station_en:
+                    upd_station_en.append((st["station_id"], station_en))
             dev = city + code
             csv_devices.add(dev)
             if dev in seen_added:
@@ -231,7 +241,7 @@ def build_update(loader, only_files=None):
         stale_device = sorted(dev for dev in loader.device_by_code if dev not in csv_devices)
     else:
         stale_device = []
-    return add_device, upd_device, stale_device, add_station, add_line, skipped
+    return add_device, upd_device, upd_station_en, stale_device, add_station, add_line, skipped
 
 
 def main():
@@ -239,6 +249,7 @@ def main():
     ap.add_argument("--check", action="store_true", help="只做 CSV 查重")
     ap.add_argument("--dry-run", action="store_true", help="预览改动不写库")
     ap.add_argument("--delete-stale", action="store_true", help="删除 CSV 中已不存在的过期设备（先 dry-run 核对再确认）")
+    ap.add_argument("--upload", action="store_true", help="更新后上传 transit.db 到 Cloudflare R2（调 upload_transit_db.py）")
     ap.add_argument("--only", nargs="+", help="只处理这些 CSV（相对 tripreader-data 的路径，如 Guangdong/Shenzhen/cu.csv）")
     args = ap.parse_args()
 
@@ -254,16 +265,30 @@ def main():
         return 0
 
     loader = Loader(DB)
-    add_device, upd_device, stale_device, add_station, add_line, skipped = build_update(loader, only_files=args.only)
+    add_device, upd_device, upd_station_en, stale_device, add_station, add_line, skipped = build_update(loader, only_files=args.only)
     print()
     print(f"=== 更新预览（dry-run={args.dry_run}）===")
-    print(f"新 reader_device：{len(add_device)}  需更新映射：{len(upd_device)}  跳过空站名行：{skipped}")
+    print(f"新 reader_device：{len(add_device)}  需更新映射：{len(upd_device)}  英文名同步：{len(upd_station_en)}  跳过空站名行：{skipped}")
     if args.only:
         print(f"（仅处理：{args.only}）")
     for dev, city, lc, lname, stn, en, type_, std, mk in add_device[:25]:
         print(f"  + {dev:16} {type_:6} {lname or '':10} {stn or '':12} lc={lc or '-':4} mk={mk}")
     if len(add_device) > 25:
         print(f"  ... 共 {len(add_device)} 条新设备")
+
+    print()
+    print(f"=== 英文名同步（CSV 英文名与库中不同，共 {len(upd_station_en)} 条）===")
+    if upd_station_en:
+        shown = 0
+        for sid, en in dict(upd_station_en).items():
+            if shown >= 25:
+                print(f"  ... 共 {len(dict(upd_station_en))} 个站点")
+                break
+            row = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (sid,)).fetchone()
+            print(f"  ~ {row[0] if row else sid} -> {en}")
+            shown += 1
+    else:
+        print("  无英文名变化")
 
     print()
     print(f"=== 待删除检测（CSV 中已不存在，共 {len(stale_device)} 条）===")
@@ -357,6 +382,12 @@ def main():
             cur.execute(
                 "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, updated_at=? WHERE device_code=?",
                 (lid, sid, type_, std, ts, dev))
+    if upd_station_en:
+        en_by_sid = dict(upd_station_en)
+        for sid, en in en_by_sid.items():
+            cur.execute("UPDATE station SET station_name_en=? WHERE station_id=?", (en, sid))
+        print(f"已同步 {len(en_by_sid)} 个站点的英文名")
+
     if args.delete_stale:
         if not stale_device:
             print("\n无可删除的过期设备")
@@ -367,9 +398,25 @@ def main():
 
     db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (IDENTITY_HASH,))
     db.commit()
-    print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射"
+    changed = bool(len(add_device) or len(upd_device) or len(upd_station_en) or (args.delete_stale and stale_device))
+    if changed or not os.path.isfile(VERSION_FILE):
+        with open(VERSION_FILE, "w", encoding="utf-8") as f:
+            f.write(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        print(f"版本 sidecar 已写入 {os.path.basename(VERSION_FILE)}")
+    print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射，"
+          f"同步 {len(dict(upd_station_en))} 个英文名"
           + (f"，删除 {len(stale_device)} 条过期设备" if args.delete_stale and stale_device else ""))
     print("identity_hash 保持", IDENTITY_HASH)
+
+    if args.upload:
+        if not changed:
+            print("\n无数据变更，跳过 R2 上传")
+        else:
+            print("\n=== 上传 transit.db 到 Cloudflare R2 ===")
+            up = os.path.join(os.path.dirname(os.path.abspath(__file__)), "upload_transit_db.py")
+            rc = subprocess.call([sys.executable, up])
+            if rc != 0:
+                sys.exit(rc)
     return 0
 
 

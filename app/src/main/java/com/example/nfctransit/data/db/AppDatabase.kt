@@ -34,6 +34,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        /** databases/transit.db 是否已存在（getDatabasePath 不会创建文件）。 */
+        fun hasDatabaseFile(context: Context): Boolean =
+            context.getDatabasePath(DB_NAME).exists()
+
         fun get(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(

@@ -461,7 +461,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         AppDialogs.confirm(
             context = requireContext(),
             title = "清理缓存",
-            message = "将清除界面构建缓存，并把站名映射表重置为内置版本（如需最新站名请重新联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
+            message = "将清除界面构建缓存；站名映射表仅在内置版本更新时才重置为内置版本，否则保留当前版本（如需最新站名请联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
             confirmLabel = "清理",
             confirmColor = 0xFF0066FF.toInt(),  // 不删用户数据，用主题蓝而非警示红
             onConfirm = { viewModel.clearCache() }
