@@ -330,6 +330,12 @@ object RecordDecoder {
                 resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
 
+            // 纯岭南通/羊城通 LNT 记录：0x18 [10..12) 是 0100 网络前缀而非城市码（广佛 YCT 设备共用），
+            // 站名匹配不到时无从得知交易城市，直接置空让城市药丸隐藏，避免误标"广州"
+            val cityForTx = if (isRecharge) null else if (
+                cardType == "YCT" && protocol == "LNT" && ref.deviceCode == null
+            ) null else displayCityCode
+
             // 无余额数据 = null（区别于真实的 ¥0.00）：
             // LNT 记录本身不含余额字段（旧实现把钱包级快照套到每条历史交易上，属捏造），一律 null；
             // 归档优先用已解析值（含 null，不重新推导）；TU 用 1E 嵌入余额匹配，匹配不到为 null
@@ -348,7 +354,7 @@ object RecordDecoder {
                     stationName = ref.stationWithDir, lineName = ref.line, lineColor = ref.lineColor,
                     lineId = ref.lineId, stationId = ref.stationId,
                     transitType = ref.transitType,
-                    cityCode = if (isRecharge) null else displayCityCode,
+                    cityCode = cityForTx,
                     date = date, time = time,
                     balanceAfterFen = balanceAfterFen,
                     deviceCode = ref.deviceCode
