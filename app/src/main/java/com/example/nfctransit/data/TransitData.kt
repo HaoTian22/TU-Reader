@@ -109,10 +109,10 @@ object TransitData {
      * @param stationCode 站点码（4 位 BCD）
      * @param terminal    终端号（12 位，用于终端号匹配的城市）
      *
-     * 解析策略（顺序）：
-     *   1. 终端号城市（杭州 TU / 广州 YCT 等，整行 Code 即终端号）：device_code = 城市码 + 终端号
-     *   2. 线路头行城市拼接：device_code = 城市码 + 线路码 + 站点码（保留卡片 BCD 前导 0，如广州 0001 0001）
-     *   3. 去前导 0 规范化键：{city}|{strip0(线路)}|{strip0(站点)}，兼容变长编码（北京/深圳/重庆等）
+     * 解析策略（顺序，线路+站点权重大于终端号）：
+     *   1. 线路头行城市拼接：device_code = 城市码 + 线路码 + 站点码（保留卡片 BCD 前导 0，如广州 0001 0001）
+     *   2. 去前导 0 规范化键：{city}|{strip0(线路)}|{strip0(站点)}，兼容变长编码（北京/深圳/重庆等）
+     *   3. 终端号城市（杭州 TU / 广州 YCT 等，整行 Code 即终端号）：device_code = 城市码 + 终端号
      */
     fun resolveTuStation(
         cityCode: String,
@@ -140,14 +140,15 @@ object TransitData {
         terminal: String,
         rawCode: String?
     ): StationResolution? {
-        if (terminal.isNotEmpty()) {
-            byDeviceCode[effectiveCity + terminal]?.let { return it }
-            byDeviceCode[terminal]?.let { return it }
-        }
+        // 线路+站点权重大于终端号：线路/站点码直接编码进/出站位置，终端号只是闸机设备号，可能复用或映射偏差
         if (lineCode.isNotEmpty()) {
             byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it }
             byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
                 ?.let { return it }
+        }
+        if (terminal.isNotEmpty()) {
+            byDeviceCode[effectiveCity + terminal]?.let { return it }
+            byDeviceCode[terminal]?.let { return it }
         }
         // 深圳 TU 轨道交通：按 1E 终端号匹配（cu.csv 格式同 CU）。卡片终端号 "000262016106"
         // 去前导 0 后第 1-2 位为线路码（62=4号线）、3-5 位为站点码（016=深圳北站），

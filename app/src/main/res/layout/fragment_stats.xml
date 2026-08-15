@@ -179,6 +179,9 @@
             <!-- Category Donut Card -->
             <include android:id="@+id/cardCategories" layout="@layout/card_spending_categories" />
 
+            <!-- City Donut Card -->
+            <include android:id="@+id/cardCities" layout="@layout/card_spending_cities" />
+
             <!-- Top Stations Card -->
             <include android:id="@+id/cardStations" layout="@layout/card_top_stations" />
 

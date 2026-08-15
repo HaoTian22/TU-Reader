@@ -130,6 +130,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _categorySpending = MutableLiveData<List<CategorySpending>>(emptyList())
     val categorySpending: LiveData<List<CategorySpending>> = _categorySpending
 
+    private val _citySpending = MutableLiveData<List<CategorySpending>>(emptyList())
+    val citySpending: LiveData<List<CategorySpending>> = _citySpending
+
     // 首页迷你图专用：固定"本周（周一~周日）"7 根柱子，不受统计页周期切换影响
     private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val homeWeeklySpending: LiveData<List<DailySpending>> = _homeWeeklySpending
@@ -553,6 +556,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _topLines.value = emptyList()
         _dailySpending.value = emptyList()
         _categorySpending.value = emptyList()
+        _citySpending.value = emptyList()
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
@@ -754,6 +758,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _topLines.value = computeTopLines(periodTxns)
         _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
         _categorySpending.value = computeCategorySpending(periodTxns)
+        _citySpending.value = computeCitySpending(periodTxns)
         _statsSummary.value = computeStatsSummary(periodTxns)
     }
 
@@ -919,6 +924,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _topLines.value = emptyList()
             _dailySpending.value = emptyList()
             _categorySpending.value = emptyList()
+            _citySpending.value = emptyList()
             _homeWeeklySpending.value = emptyList()
             _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         } else {
@@ -1008,6 +1014,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "消费" -> 0xFFE91E63.toInt()
         else -> 0xFF78909C.toInt()
     }
+
+    /** 城市开销：按城市聚合有金额的支出（排除充值 +¥ 与 0 金额旅程事件），按金额降序 */
+    private fun computeCitySpending(uiTxns: List<UiTransaction>): List<CategorySpending> {
+        val byCity = mutableMapOf<String, Double>()
+        for (t in uiTxns) {
+            if (t.amountText.startsWith("+") || t.amountYuan <= 0) continue
+            val city = t.cityName?.takeIf { it.isNotBlank() } ?: "未知"
+            byCity[city] = (byCity[city] ?: 0.0) + t.amountYuan
+        }
+        val total = byCity.values.sum()
+        if (total <= 0) return emptyList()
+        return byCity.entries.sortedByDescending { it.value }
+            .mapIndexed { i, (name, amt) ->
+                CategorySpending(name, amt, (amt / total).toFloat(), cityPalette[i % cityPalette.size])
+            }
+    }
+
+    private val cityPalette = listOf(
+        0xFF4CAF50.toInt(),  // 绿
+        0xFFFB8C00.toInt(),  // 橙
+        0xFF9C27B0.toInt(),  // 紫
+        0xFF00BCD4.toInt(),  // 青
+        0xFFE91E63.toInt(),  // 玫红
+        0xFF3F51B5.toInt(),  // 靛
+        0xFF8BC34A.toInt(),  // 浅绿
+        0xFF795548.toInt(),  // 棕
+        0xFFF44336.toInt(),  // 红
+        0xFF607D8B.toInt()   // 蓝灰
+    )
 
     private fun computeDailySpending(
         uiTxns: List<UiTransaction>,

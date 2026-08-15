@@ -4,9 +4,10 @@
 从 tripreader-data CSV 增量更新 transit.db（保留已有英文名/坐标/线路配色等增强数据）。
 
 用法：
-  python tools/update_transit_db.py --check     # 只做 CSV 查重，不写库
-  python tools/update_transit_db.py --dry-run   # 预览将发生的改动，不写库
-  python tools/update_transit_db.py             # 应用更新
+  python tools/update_transit_db.py --check        # 只做 CSV 查重，不写库
+  python tools/update_transit_db.py --dry-run      # 预览改动 + 过期设备清单，不写库
+  python tools/update_transit_db.py                # 应用更新（含过期设备检测报告，不删除）
+  python tools/update_transit_db.py --delete-stale # 应用更新并删除 CSV 中已不存在的过期设备
 
 规则（由现有 transit.db 反推 build_db.py 的映射）：
   - device_code = City/Prefix + Code（广州 yct.csv 用 Prefix 列）。
@@ -149,10 +150,11 @@ def dedup_check():
 
 
 def build_update(loader, only_files=None):
-    """构建增删改列表。返回 (add_device, upd_device, add_station, add_line, skipped)."""
+    """构建增删改列表。返回 (add_device, upd_device, stale_device, add_station, add_line, skipped)."""
     add_device, upd_device = [], []
     add_station, add_line = [], []
     skipped = 0
+    csv_devices = set()
     # 第一遍：收集各 (city, line_name) 组的站点行、表头码与推导的 line_code
     line_groups = []  # (city, line_name, std, has_en, line_code, station_rows)
     for rel, std, prefix_mode, has_en, rows in scan_csvs():
@@ -199,6 +201,7 @@ def build_update(loader, only_files=None):
             code, type_, lname, station = r[1], r[2], r[3], r[4]
             station_en = r[5] if has_en and len(r) > 5 and r[5] else None
             dev = city + code
+            csv_devices.add(dev)
             if dev in seen_added:
                 continue  # CSV 内同 device_code 多行（如 518050 地铁/公交 都有空站名行）只取第一个
             if loader.device_by_code.get(dev) is not None:
@@ -223,13 +226,19 @@ def build_update(loader, only_files=None):
                 mk = None  # 大类 fallback（空站名）：不参与 match_key，按 device_code 前缀匹配
             seen_added.add(dev)
             add_device.append((dev, city, lc, lname, station, station_en, type_, std, mk))
-    return add_device, upd_device, add_station, add_line, skipped
+    # 过期检测：DB 中存在但当前 CSV 已不再出现的设备（--only 时无法判断，跳过）
+    if only_files is None:
+        stale_device = sorted(dev for dev in loader.device_by_code if dev not in csv_devices)
+    else:
+        stale_device = []
+    return add_device, upd_device, stale_device, add_station, add_line, skipped
 
 
 def main():
     ap = argparse.ArgumentParser(description="从 tripreader-data CSV 增量更新 transit.db")
     ap.add_argument("--check", action="store_true", help="只做 CSV 查重")
     ap.add_argument("--dry-run", action="store_true", help="预览改动不写库")
+    ap.add_argument("--delete-stale", action="store_true", help="删除 CSV 中已不存在的过期设备（先 dry-run 核对再确认）")
     ap.add_argument("--only", nargs="+", help="只处理这些 CSV（相对 tripreader-data 的路径，如 Guangdong/Shenzhen/cu.csv）")
     args = ap.parse_args()
 
@@ -245,7 +254,7 @@ def main():
         return 0
 
     loader = Loader(DB)
-    add_device, upd_device, add_station, add_line, skipped = build_update(loader, only_files=args.only)
+    add_device, upd_device, stale_device, add_station, add_line, skipped = build_update(loader, only_files=args.only)
     print()
     print(f"=== 更新预览（dry-run={args.dry_run}）===")
     print(f"新 reader_device：{len(add_device)}  需更新映射：{len(upd_device)}  跳过空站名行：{skipped}")
@@ -255,6 +264,20 @@ def main():
         print(f"  + {dev:16} {type_:6} {lname or '':10} {stn or '':12} lc={lc or '-':4} mk={mk}")
     if len(add_device) > 25:
         print(f"  ... 共 {len(add_device)} 条新设备")
+
+    print()
+    print(f"=== 待删除检测（CSV 中已不存在，共 {len(stale_device)} 条）===")
+    if stale_device:
+        for dev in stale_device[:25]:
+            old = loader.device_by_code[dev]
+            ln = loader.db.execute("SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
+            st = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
+            print(f"  - {dev:16} line={ln[0] if ln else '-':16} stn={st[0] if st else '-':14} updated={old['updated_at']}")
+        if len(stale_device) > 25:
+            print(f"  ... 共 {len(stale_device)} 条，请人工核对后再删除")
+        print("（人工核对后运行 --delete-stale 才真正删除）")
+    else:
+        print("无过期设备")
 
     if args.dry_run:
         print("\n(dry-run 未写库)")
@@ -334,9 +357,18 @@ def main():
             cur.execute(
                 "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, updated_at=? WHERE device_code=?",
                 (lid, sid, type_, std, ts, dev))
+    if args.delete_stale:
+        if not stale_device:
+            print("\n无可删除的过期设备")
+        else:
+            for dev in stale_device:
+                cur.execute("DELETE FROM reader_device WHERE device_code=?", (dev,))
+            print(f"\n已删除 {len(stale_device)} 条过期设备")
+
     db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (IDENTITY_HASH,))
     db.commit()
-    print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射")
+    print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射"
+          + (f"，删除 {len(stale_device)} 条过期设备" if args.delete_stale and stale_device else ""))
     print("identity_hash 保持", IDENTITY_HASH)
     return 0
 

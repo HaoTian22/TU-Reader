@@ -164,7 +164,7 @@
                     android:focusable="true" />
             </LinearLayout>
 
-            <!-- Hex Panel -->
+            <!-- Hex Panel（含按字段着色 + 颜色图例） -->
             <LinearLayout
                 android:id="@+id/hexPanel"
                 android:layout_width="match_parent"
@@ -174,44 +174,6 @@
                 android:padding="16dp"
                 android:visibility="visible">
             </LinearLayout>
-
-            <!-- 解析数据 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingTop="20dp"
-                android:paddingBottom="12dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="解析数据"
-                    android:textColor="#1A1A1A"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/btnCopyParsed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="&#xf0c5; 复制"
-                    android:textColor="#0066FF"
-                    android:textSize="12sp"
-                    android:tag="fa"
-                    android:clickable="true"
-                    android:focusable="true" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/parsedPanel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_hex_panel"
-                android:padding="16dp" />
         </LinearLayout>
             </LinearLayout>
         </ScrollView>

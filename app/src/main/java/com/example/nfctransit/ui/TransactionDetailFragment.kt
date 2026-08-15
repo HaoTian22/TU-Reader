@@ -3,6 +3,10 @@ package com.example.nfctransit.ui
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,8 +37,19 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
 
-    /** 当前交易的解析数据，供复制按钮使用 */
-    private var parsedTextToCopy = ""
+    // 字段着色（深色 hex 面板 #1A1A2E 上的可读色）
+    private val C_DIM = 0xFF666688.toInt()          // SFI / Match 标签
+    private val C_RAW = 0xFFAAAAFF.toInt()          // 未解析字节（原始 hex 默认色）
+    private val C_TYPE = 0xFFFFC96B.toInt()
+    private val C_RECORD = 0xFF7EE787.toInt()
+    private val C_TERMINAL = 0xFF79C0FF.toInt()
+    private val C_TIMESTAMP = 0xFFD2A8FF.toInt()
+    private val C_SUBTYPE = 0xFFF79A9A.toInt()
+    private val C_LINE = 0xFFE6EE9C.toInt()
+    private val C_BALANCE = 0xFF56D4A0.toInt()
+    private val C_AREA = 0xFF4DD0E1.toInt()
+    private val C_INSTITUTION = 0xFFFF9E5E.toInt()
+    private val C_LEGEND_TEXT = 0xFFB8B8D0.toInt()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -57,7 +72,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             binding.btnBack.setTextColor(color)
             binding.tvCardBadge.setTextColor(color)
             binding.btnCopyHex.setTextColor(color)
-            binding.btnCopyParsed.setTextColor(color)
             updateCardBadgeBg()
         }
 
@@ -74,7 +88,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         if (txn != null) {
             bindTransactionData(txn)
             bindRawHex(txn)
-            bindParsedData(txn)
         }
 
         // 复制原始数据按钮
@@ -86,18 +99,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                     as android.content.ClipboardManager
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("原始数据", rawHexToCopy))
                 android.widget.Toast.makeText(requireContext(), "✓ 已复制原始数据", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        // 复制解析数据按钮
-        binding.btnCopyParsed.typeface =
-            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
-        binding.btnCopyParsed.setOnClickListener {
-            if (parsedTextToCopy.isNotBlank()) {
-                val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-                    as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("解析数据", parsedTextToCopy))
-                android.widget.Toast.makeText(requireContext(), "✓ 已复制解析数据", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -170,7 +171,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    /** 原始数据：展示该交易在 transactions_archive 中的 hex；TU 卡同时有 0x18 主交易与 0x1E 旅程记录时两份都显示 */
+    /** 原始数据：展示该交易在 transactions_archive 中的 hex，按解析字段位置着色；TU 卡同时有 0x18 与 0x1E 时两份都显示，框底附颜色图例 */
     private fun bindRawHex(txn: UiTransaction) {
         val hexContainer = binding.hexPanel
         hexContainer.removeAllViews()
@@ -181,98 +182,158 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             addMonospaceLine(binding.hexPanel, "无该交易原始数据", dim = true)
             return
         }
+        val blocks = mutableListOf<Pair<Int, String>>()  // (sfi, hex)
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
-            addMonospaceLine(binding.hexPanel, "SFI ${txn.sfi.toSfiHex()}", dim = true)
-            addMonospaceLine(binding.hexPanel, mainHex)
+            appendHexBlock(binding.hexPanel, txn.sfi, mainHex)
+            blocks.add(txn.sfi to mainHex)
             sb.append(mainHex)
         }
         if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
-            addMonospaceLine(binding.hexPanel, "SFI 0x1E（旅程）", dim = true)
-            addMonospaceLine(binding.hexPanel, journeyHex)
+            appendHexBlock(binding.hexPanel, 0x1E, journeyHex)
+            blocks.add(0x1E to journeyHex)
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
+        }
+        // Match 行：标签与 SFI 同色，值新起一行
+        addMonospaceLine(binding.hexPanel, "Match", dim = true)
+        addMonospaceLine(binding.hexPanel, txn.deviceCode ?: "Null")
+        // 颜色图例：含义 + 区域 + 解析方式 + 颜色
+        addDivider(binding.hexPanel)
+        for ((sfi, hex) in blocks) {
+            val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size)
+            if (fields.isEmpty()) continue
+            addMonospaceLine(binding.hexPanel, "SFI ${sfi.toSfiHex()} fields", dim = true)
+            for (f in fields) addLegendRow(binding.hexPanel, f)
         }
         rawHexToCopy = sb.toString()
     }
 
-    /** 解析数据：按 SFI 解析原始 hex 的关键字段，与原始数据同款配色/行距 */
-    private fun bindParsedData(txn: UiTransaction) {
-        val container = binding.parsedPanel
-        container.removeAllViews()
-        val sb = StringBuilder()
-        if (txn.hex.isNotBlank()) {
-            appendParsedBlock(container, sb, txn.sfi, txn.hex)
-        }
-        val journeyHex = txn.journeyHex
-        if (!journeyHex.isNullOrBlank() && journeyHex != txn.hex) {
-            appendParsedBlock(container, sb, 0x1E, journeyHex)
-        }
-        val match = txn.deviceCode
-        val matchLine = "Match ${match ?: "Null"}"
-        addMonospaceLine(container, matchLine)
-        sb.append(matchLine)
-        parsedTextToCopy = sb.toString()
+    private fun appendHexBlock(container: LinearLayout, sfi: Int, hex: String) {
+        val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size)
+        addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
+        addColoredHexLine(container, colorizeHex(hex, fields))
     }
 
-    private fun appendParsedBlock(container: LinearLayout, sb: StringBuilder, sfi: Int, hex: String) {
-        val parsed = parseHexLine(sfi, hex)
-        if (parsed.isEmpty()) return
-        val lines = parsed.split('\n')
-        for (i in lines.indices) {
-            val line = lines[i]
-            if (line.isEmpty()) continue
-            addMonospaceLine(container, line, dim = i == 0)
-            sb.append(line).append('\n')
-        }
+    private fun addDivider(container: LinearLayout) {
+        val divider = View(requireContext()).apply { setBackgroundColor(0xFF333366.toInt()) }
+        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
+        lp.setMargins(0, dpToPx(8), 0, dpToPx(8))
+        container.addView(divider, lp)
     }
 
-    private fun parseHexLine(sfi: Int, hex: String): String {
-        return try {
-            val d = ApduUtil.hexToBytes(hex)
-            if (sfi == 0x1E && d.size >= 42) {
-                val type = String.format("%02X", d[0])
-                val subtype = String.format("%02X", d[9])
-                val terminal = ApduUtil.bcdToString(d.copyOfRange(1, 9))   // 带前缀终端号
-                val lineStn = ApduUtil.bytesToHex(d.copyOfRange(10, 17))   // 线路+站点，含站点区更多位（hex 显示）
-                val balance = ApduUtil.hexToLong(d.copyOfRange(21, 25))
-                val ts = ApduUtil.bcdToString(d.copyOfRange(25, 32))
-                val city = ApduUtil.bcdToString(d.copyOfRange(32, 34))
-                val instA = ApduUtil.bytesToHex(d.copyOfRange(34, 38))
-                val instB = ApduUtil.bytesToHex(d.copyOfRange(38, 42))
-                "SFI 0x1E\n" +
-                    "Type [0 hex] $type\n" +
-                    "Subtype [9 hex] $subtype\n" +
-                    "Terminal [1-9 bcd] $terminal\n" +
-                    "Timestamp [25-32 bcd] $ts\n" +
-                    "Line & Station [10-17] $lineStn\n" +   // 各城市编码不同，只保留位置不标方法
-                    "Balance [21-25 hex] ${String.format("%08X", balance)}\n" +
-                    "Area [32-34 bcd] $city\n" +
-                    "Institution [34-42 hex] $instA $instB"
-            } else if (d.size >= 23) {
-                val seq = ApduUtil.hexToLong(d.copyOfRange(0, 2)).toInt()
-                val type = String.format("%02X", d[9])
-                val terminal = ApduUtil.bcdToString(d.copyOfRange(10, 16))
-                val date = ApduUtil.bcdToString(d.copyOfRange(16, 20))
-                val time = ApduUtil.bcdToString(d.copyOfRange(20, 23))
-                "SFI 0x18\n" +
-                    "Type [9 hex] $type\n" +
-                    "Record No. [0-2 dec] $seq\n" +
-                    "Terminal [10-16 bcd] $terminal\n" +
-                    "Timestamp [16-23 bcd] $date$time"
-            } else {
-                ""
+    private fun addColoredHexLine(container: LinearLayout, spannable: Spannable) {
+        val lineView = TextView(requireContext()).apply {
+            this.text = spannable
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            setTextColor(C_RAW)             // 未解析字节保持原始 hex 色
+            setPadding(0, dpToPx(2), 0, dpToPx(2))
+            setTextIsSelectable(true)   // 长按可选中复制
+        }
+        container.addView(lineView)
+    }
+
+    private fun addLegendRow(container: LinearLayout, f: FieldSpec) {
+        val row = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dpToPx(1), 0, dpToPx(1))
+        }
+        row.addView(TextView(requireContext()).apply {
+            text = "●"
+            textSize = 8f
+            setTextColor(f.color)
+            setPadding(0, 0, dpToPx(6), 0)
+        })
+        row.addView(TextView(requireContext()).apply {
+            text = f.label
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            setTextColor(f.color)
+        })
+        val methodPart = if (f.method.isNotEmpty()) " ${f.method}" else ""
+        row.addView(TextView(requireContext()).apply {
+            text = " [${rangeText(f.start, f.end)}$methodPart]"
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            setTextColor(C_LEGEND_TEXT)
+            setTextIsSelectable(true)
+        })
+        container.addView(row)
+    }
+
+    private fun rangeText(start: Int, end: Int): String =
+        if (end - start == 1) "$start" else "$start-$end"
+
+    /** 按字段字节区间把原始 hex 染成对应颜色（字节间空格不计入偏移） */
+    private fun colorizeHex(hex: String, fields: List<FieldSpec>): SpannableString {
+        val sp = SpannableString(hex)
+        val byteCount = hex.count { !it.isWhitespace() } / 2
+        if (byteCount == 0) return sp
+        val byteStartChar = IntArray(byteCount + 1)
+        var byteIdx = 0
+        var charIdx = 0
+        while (byteIdx < byteCount) {
+            while (charIdx < hex.length && hex[charIdx].isWhitespace()) charIdx++
+            byteStartChar[byteIdx] = charIdx
+            charIdx += 2
+            byteIdx++
+        }
+        byteStartChar[byteCount] = hex.length
+        for (f in fields) {
+            val s = f.start.coerceIn(0, byteCount)
+            val e = f.end.coerceIn(s, byteCount)
+            if (s < e) {
+                sp.setSpan(
+                    ForegroundColorSpan(f.color),
+                    byteStartChar[s],
+                    byteStartChar[e],
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
             }
-        } catch (e: Exception) {
-            ""
         }
+        return sp
+    }
+
+    private data class FieldSpec(
+        val label: String,      // 英文名（与图例/日志一致）
+        val start: Int,         // 起始字节（含）
+        val end: Int,           // 结束字节（不含）
+        val method: String,     // 解析方式（hex/BCD/dec）；空=不标
+        val color: Int
+    )
+
+    /** 各字段在对应 SFI 下的字节区间与配色（与旧 parseHexLine 位置一致） */
+    private fun fieldsFor(sfi: Int, size: Int): List<FieldSpec> {
+        if (sfi == 0x1E && size >= 42) {
+            return listOf(
+                FieldSpec("Type", 0, 1, "hex", C_TYPE),
+                FieldSpec("Terminal", 1, 9, "BCD", C_TERMINAL),
+                FieldSpec("Subtype", 9, 10, "hex", C_SUBTYPE),
+                FieldSpec("Line & Station", 10, 17, "", C_LINE),
+                FieldSpec("Balance", 21, 25, "hex", C_BALANCE),
+                FieldSpec("Timestamp", 25, 32, "BCD", C_TIMESTAMP),
+                FieldSpec("Area", 32, 34, "BCD", C_AREA),
+                FieldSpec("Institution", 34, 42, "hex", C_INSTITUTION)
+            )
+        }
+        if (size >= 23) {
+            return listOf(
+                FieldSpec("Type", 9, 10, "hex", C_TYPE),
+                FieldSpec("Record No.", 0, 2, "dec", C_RECORD),
+                FieldSpec("Terminal", 10, 16, "BCD", C_TERMINAL),
+                FieldSpec("Timestamp", 16, 23, "BCD", C_TIMESTAMP)
+            )
+        }
+        return emptyList()
     }
 
     private fun addMonospaceLine(container: LinearLayout, text: String, dim: Boolean = false) {
         val lineView = TextView(requireContext()).apply {
             this.text = text
             textSize = 10f
-            setTextColor(if (dim) 0xFF666688.toInt() else 0xFFAAAAFF.toInt())
+            setTextColor(if (dim) C_DIM else C_RAW)
             typeface = Typeface.MONOSPACE
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制

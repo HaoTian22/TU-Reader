@@ -122,7 +122,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
 
         viewModel.categorySpending.observe(viewLifecycleOwner) { items ->
-            bindCategoryChart(items)
+            bindDonutChart(binding.cardCategories.donutChart, binding.cardCategories.categoryLegend, items)
+        }
+
+        viewModel.citySpending.observe(viewLifecycleOwner) { items ->
+            bindDonutChart(binding.cardCities.donutChart, binding.cardCities.cityLegend, items)
         }
     }
 
@@ -327,17 +331,14 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
     }
 
-    /** 分类环形图：中心总开销 + 右侧图例 */
-    private fun bindCategoryChart(items: List<CategorySpending>) {
+    /** 环形图：中心总开销 + 右侧图例（分类/城市共用） */
+    private fun bindDonutChart(donut: DonutChartView, legend: LinearLayout, items: List<CategorySpending>) {
         val total = items.sumOf { it.amountYuan }
-        binding.cardCategories.donutChart.setSegments(
-            items,
-            "¥${String.format("%.2f", total)}"
-        )
-        bindCategoryLegend(binding.cardCategories.categoryLegend, items)
+        donut.setSegments(items, "¥${String.format("%.2f", total)}")
+        bindSpendingLegend(legend, items)
     }
 
-    private fun bindCategoryLegend(container: LinearLayout, items: List<CategorySpending>) {
+    private fun bindSpendingLegend(container: LinearLayout, items: List<CategorySpending>) {
         container.removeAllViews()
         if (items.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
