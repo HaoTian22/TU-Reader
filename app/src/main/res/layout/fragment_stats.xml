@@ -142,11 +142,70 @@
                 android:focusable="true" />
         </LinearLayout>
 
-        <!-- 顶部分隔线 -->
-        <View
+        <!-- 自定义日期范围行（仅自定义周期可见）：起止两个可点选日期 -->
+        <LinearLayout
+            android:id="@+id/customRangeRow"
             android:layout_width="match_parent"
-            android:layout_height="0.5dp"
-            android:background="#E5E5EA" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvCustomStart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_default"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="开始日期"
+                android:textColor="#555555"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="至"
+                android:textColor="#8E8E93"
+                android:textSize="13sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tvCustomEnd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_default"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="结束日期"
+                android:textColor="#555555"
+                android:textSize="13sp" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvCustomRangeHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="点击选择日期"
+                android:textColor="#8E8E93"
+                android:textSize="11sp" />
+        </LinearLayout>
 
         <!-- Scrollable content -->
         <ScrollView

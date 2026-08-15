@@ -68,6 +68,18 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         setupSegments()
 
+        // 自定义日期范围：起止两个字段都点开同一个 MD3 日期范围弹窗，改完实时重算
+        binding.tvCustomStart.setOnClickListener { showCustomRangeDialog() }
+        binding.tvCustomEnd.setOnClickListener { showCustomRangeDialog() }
+        // 图表右上角日期范围文字：自定义周期下点击同样弹出日期范围选择
+        binding.cardTrend.tvPeriodRange.setOnClickListener {
+            if (selectedSegment == "自定义") showCustomRangeDialog()
+        }
+        viewModel.customRange.observe(viewLifecycleOwner) { (start, end) ->
+            binding.tvCustomStart.text = start.ifEmpty { "开始日期" }
+            binding.tvCustomEnd.text = end.ifEmpty { "结束日期" }
+        }
+
         // 主题色跟随卡片：◀/▶/返回按钮、badge、柱状图、排行条、选中 chip 一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
@@ -178,6 +190,25 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 v.setTextColor(0xFF555555.toInt())
             }
         }
+        binding.customRangeRow.visibility =
+            if (selectedSegment == "自定义") View.VISIBLE else View.GONE
+        // 自定义周期下起止由日期范围决定，没有上/下一期，隐藏图表标题旁的两个箭头
+        val customMode = selectedSegment == "自定义"
+        binding.cardTrend.btnPrevPeriod.visibility = if (customMode) View.INVISIBLE else View.VISIBLE
+        binding.cardTrend.btnNextPeriod.visibility = if (customMode) View.INVISIBLE else View.VISIBLE
+    }
+
+    /** 弹出 MD3 风格日期范围弹窗（主题色跟随卡片），确定后实时重算统计 */
+    private fun showCustomRangeDialog() {
+        val current = viewModel.customRange.value ?: ("" to "")
+        DateRangeDialog.show(
+            requireContext(),
+            accentColor,
+            current.first.ifEmpty { null },
+            current.second.ifEmpty { null }
+        ) { start, end ->
+            viewModel.setCustomRange(start, end)
+        }
     }
 
     private fun bindBarChart(data: List<DailySpending>) {
@@ -264,18 +295,31 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
 
         // 手指划过图表即显示对应柱的金额弹窗（无需精确点中窄柱）：
-        // DOWN/MOVE 跟随手指更新弹窗；纵向拖动页面时 ScrollView 通过 onInterceptTouchEvent
-        // 接管手势并给 chartContainer 发 ACTION_CANCEL，这里据此收起弹窗，不影响页面滚动。
+        // DOWN/MOVE 跟随手指更新弹窗；DOWN 时禁止父级 ScrollView 拦截，纵向拖动不会滚动页面，
+        // 松开（UP）后恢复拦截，页面可继续滚动；CANCEL（仍被系统接管时）收起弹窗。
         container.setOnTouchListener { _, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                MotionEvent.ACTION_DOWN -> {
+                    container.requestDisallowInterceptTouchEvent(true)
                     val idx = columnIndexAt(event.x, container)
                     if (idx in data.indices) {
                         showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
                     }
                     true
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    val idx = columnIndexAt(event.x, container)
+                    if (idx in data.indices) {
+                        showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    container.requestDisallowInterceptTouchEvent(false)
+                    true
+                }
                 MotionEvent.ACTION_CANCEL -> {
+                    container.requestDisallowInterceptTouchEvent(false)
                     popup.visibility = View.GONE
                     true
                 }

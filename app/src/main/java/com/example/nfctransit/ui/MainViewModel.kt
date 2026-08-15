@@ -171,6 +171,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val periodOffset: LiveData<Int> = _periodOffset
     private val _periodRange = MutableLiveData("")
     val periodRange: LiveData<String> = _periodRange
+
+    // 自定义统计范围（yyyy-MM-dd）；未设置时为空串
+    private var customStart = ""
+    private var customEnd = ""
+    private val _customRange = MutableLiveData("" to "")
+    val customRange: LiveData<Pair<String, String>> = _customRange
+
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     init {
@@ -478,6 +485,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentPeriod = period
         currentOffset = 0
         _periodOffset.value = 0
+        // 首次切到自定义时给一个默认范围（本月 1 号 ~ 今天），避免空窗口导致整表退化为全量
+        if (period == "自定义" && (customStart.isEmpty() || customEnd.isEmpty())) {
+            setCustomRange(
+                dayFmt.format(Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1) }.time),
+                dayFmt.format(Calendar.getInstance().time)
+            )
+        }
+        emitStatsForSelected()
+    }
+
+    /** 设置自定义日期范围并立即重算统计（起 <= 止才接受） */
+    fun setCustomRange(start: String, end: String) {
+        if (start.isBlank() || end.isBlank()) return
+        if (start > end) return
+        customStart = start
+        customEnd = end
+        currentPeriod = "自定义"
+        currentOffset = 0
+        _periodOffset.value = 0
+        _customRange.value = start to end
         emitStatsForSelected()
     }
 
@@ -509,7 +536,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emitStats(txns)
     }
 
-    /** 某周期的日期窗口 [起, 止]，yyyy-MM-dd；自定义返回空串 */
+    /** 某周期的日期窗口 [起, 止]，yyyy-MM-dd；自定义返回用户所选范围，未设置时返回空串 */
     private fun periodWindow(period: String, offset: Int): Pair<String, String> {
         val cal = Calendar.getInstance()
         return when (period) {
@@ -540,6 +567,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val end = dayFmt.format(cal.time)
                 start to end
             }
+            "自定义" ->
+                if (customStart.isNotEmpty() && customEnd.isNotEmpty()) customStart to customEnd else "" to ""
             else -> "" to ""
         }
     }
@@ -793,7 +822,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
         _categorySpending.value = computeCategorySpending(periodTxns)
         _citySpending.value = computeCitySpending(periodTxns)
-        _statsSummary.value = computeStatsSummary(periodTxns)
+        _statsSummary.value = computeStatsSummary(periodTxns, start, end)
     }
 
     /** 内容去重合并（identity = content_hash；同内容变体合并为一条并保留协议并集，内容不同追加为新 key） */
@@ -1016,14 +1045,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .map { LineStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first, colors[it.key]) }
     }
 
-    private fun computeStatsSummary(uiTxns: List<UiTransaction>): StatsSummary {
+    /**
+     * 日均消费分母：窗口内从起点到今天（含今天）的天数，把没有消费（金额 0）的日期也算上；
+     * 过去周期（offset != 0）整段都在今天之前，取整个窗口；无窗口时回退到有记录的天数。
+     */
+    private fun computeStatsSummary(
+        uiTxns: List<UiTransaction>,
+        winStart: String,
+        winEnd: String
+    ): StatsSummary {
         val totalSpending = uiTxns.filter { !it.amountText.startsWith("+") }.sumOf { it.amountYuan }
         // 乘车次数只统计有金额的乘车记录（1E 进站/出站事件 ¥0 不单独算一次）
         val rideCount = uiTxns.filter {
             (it.transitType == "地铁" || it.transitType == "公交") && it.amountYuan > 0
         }.size
-        val uniqueDays = uiTxns.map { it.date }.distinct().size.coerceAtLeast(1)
-        return StatsSummary(totalSpending, rideCount, totalSpending / uniqueDays)
+        val dayCount = if (winStart.isNotEmpty() && winEnd.isNotEmpty()) {
+            val today = dayFmt.format(Date())
+            val effectiveEnd = if (winEnd < today) winEnd else today
+            if (winStart <= effectiveEnd) daysBetween(winStart, effectiveEnd) else 1
+        } else {
+            uiTxns.map { it.date }.distinct().size.coerceAtLeast(1)
+        }
+        return StatsSummary(totalSpending, rideCount, totalSpending / dayCount)
+    }
+
+    /** 两个日期（含首尾）之间的天数，yyyy-MM-dd */
+    private fun daysBetween(start: String, end: String): Int {
+        return try {
+            val s = dayFmt.parse(start)!!.time
+            val e = dayFmt.parse(end)!!.time
+            (((e - s) / (24 * 60 * 60 * 1000)).toInt()) + 1
+        } catch (ex: Exception) {
+            1
+        }
     }
 
     /** 分类开销：按交通类型聚合有金额的支出（排除充值 +¥ 与 0 金额旅程事件），按金额降序 */
@@ -1149,7 +1203,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 自定义等：近 7 个有消费的天，标签用日期号数
+        // 自定义：按所选起止范围逐日展示；范围较长时按月聚合避免柱过多（与本年视图一致）
+        if (winStart.isNotEmpty() && winEnd.isNotEmpty()) {
+            val max = dayMap.values.maxOrNull() ?: 1.0
+            val dayCount = daysBetween(winStart, winEnd)
+            if (dayCount <= 62) {
+                return (0 until dayCount).map { i ->
+                    val date = addDays(winStart, i)
+                    val amt = dayMap[date] ?: 0.0
+                    DailySpending(
+                        dayLabel = "${date.substring(5, 7).toInt()}/${date.substring(8).toInt()}",
+                        amountYuan = amt,
+                        barHeightPercent = (amt / max).toFloat(),
+                        isToday = date == today,
+                        date = date
+                    )
+                }
+            }
+            // 长范围按月聚合
+            val monthMap = mutableMapOf<String, Double>() // "yyyy-MM" -> 金额
+            for ((date, amt) in dayMap) {
+                monthMap[date.take(7)] = (monthMap[date.take(7)] ?: 0.0) + amt
+            }
+            val cal = Calendar.getInstance().apply { time = dayFmt.parse(winStart)!! }
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            val endCal = Calendar.getInstance().apply { time = dayFmt.parse(winEnd)!! }
+            val months = mutableListOf<DailySpending>()
+            while (cal.timeInMillis <= endCal.timeInMillis) {
+                val key = dayFmt.format(cal.time).take(7)
+                val amt = monthMap[key] ?: 0.0
+                months.add(
+                    DailySpending(
+                        dayLabel = "${key.substring(5).toInt()}月",
+                        amountYuan = amt,
+                        barHeightPercent = (amt / max).toFloat(),
+                        date = "$key-01"
+                    )
+                )
+                cal.add(Calendar.MONTH, 1)
+            }
+            return months
+        }
+
+        // 兜底：近 7 个有消费的天，标签用日期号数
         val max = dayMap.values.maxOrNull() ?: 1.0
         val sorted = dayMap.entries.sortedBy { it.key }.takeLast(7)
         return sorted.map { (date, amount) ->
