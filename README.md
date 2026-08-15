@@ -1,22 +1,25 @@
-<img width="50%" alt="IMG_20260809_151532" src="https://github.com/user-attachments/assets/63218273-d5d6-463c-b19e-461a7e5d3f24" />
-
-<img width="50%" alt="Screenshot_2026-08-09-15-14-40-88_8ad0ac6c95b402ecb2d4ebd9b723fcda" src="https://github.com/user-attachments/assets/8a92f250-4d23-4f59-b663-490b89c59a3a" />
-<img width="50%" alt="Screenshot_2026-08-09-15-15-12-72_8ad0ac6c95b402ecb2d4ebd9b723fcda" src="https://github.com/user-attachments/assets/34ad6fd7-9013-4fa5-9ce7-20d214f178e5" />
-
-
 # NFC 交通卡读取器 
 ⚠️作者并不熟悉Android App开发，顶多能看懂一点代码，99%都是Vibe-Coding出来的
 
-这是基于公开交通卡协议文档（NFC Wiki 智能卡手册）搭建的最小可用（MVP）Android 项目，
-用于替代已停更的"读卡识途"App 的核心功能：读取交通卡余额与交易记录。
+这是基于公开交通卡协议文档（NFC Wiki 智能卡手册）搭建的最小可用（MVP）Android 项目
 
-## 当前支持范围（第一版）
+## 截图
 
-- 交通联合卡 (T-Union) 电子钱包应用
+<img width="1440" height="3168" alt="Screenshot_2026-08-14-13-23-09-13_8ad0ac6c95b402ecb2d4ebd9b723fcda" src="https://github.com/user-attachments/assets/24c639c7-0086-455b-a588-ea10b1cb6009" />
+<img width="1440" height="3052" alt="IMG_20260815_133749" src="https://github.com/user-attachments/assets/860dece1-ab59-4caf-afa1-dfd8e8c1286e" />
+<img width="1439" height="3032" alt="Screenshot_2026-08-15-13-25-31-91_8ad0ac6c95b402ecb2d4ebd9b723fcda" src="https://github.com/user-attachments/assets/e6e1468e-2b22-40c7-b624-d9f726cd9bf8" />
+<img width="1440" height="3041" alt="Screenshot_2026-08-15-13-31-56-31_8ad0ac6c95b402ecb2d4ebd9b723fcda" src="https://github.com/user-attachments/assets/a4634852-ee96-46b3-81d7-013e2aee6c5b" />
+
+
+## 当前支持范围
+
+### 卡片协议
+- 交通联合卡 (T-Union)
+- 羊城通（仅部分站点）
 
 ## 核心原理
 
-## 数据来源
+### 数据来源
 
 卡种 AID、SFI、文件结构均来自 NFC Wiki 智能卡手册（wiki.nfc.im/books/智能卡手册），
 APDU 命令格式参考 ISO/IEC 7816-4 标准及 Android 官方 NFC/HCE 开发文档。
