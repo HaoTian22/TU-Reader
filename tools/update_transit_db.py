@@ -33,6 +33,13 @@ import sqlite3
 import subprocess
 import sys
 
+# Windows 控制台默认 cp1252，打印中文会崩；统一用 UTF-8
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 ROOT = os.path.dirname(os.path.abspath(__file__)) + "/../../tripreader-data"
 if not os.path.isdir(ROOT):
     ROOT = r"D:/Code/Android/APPs-Dev/tripreader-data"
@@ -185,24 +192,60 @@ def build_update(loader, only_files=None):
                         break
                 if not line_code and stn_codes:
                     line_code = common_prefix(stn_codes)
+            elif not station_rows and line_name and len(set(header_codes)) == 1:
+                # 头行-only 线路（公交公司/终端型）：用 CSV 头行码做 line_code。
+                # 已存在但 code 是线路名（历史 name-as-code 误存）→ 一并纠正；
+                # 空线路名的类别行（51802/3/4 多码并存）与多码组由冲突消解/保持原样。
+                if not line_code or line_code == line_name:
+                    line_code = header_codes[0]
             line_groups.append((city, line_name, std, has_en, line_code, grp))
 
-    # 冲突消解：同城多个线路推导出同一个 line_code（如广州 YCT 终端码都共享 '00' 前缀）或
-    # 推导为空 → 改用线路名作 code（YCT 是终端型，line_code 只是存储键，不影响解析）
-    code_by_line = collections.defaultdict(dict)  # city -> {line_name: line_code}
-    for city, line_name, _, _, lc, _ in line_groups:
-        code_by_line[city][line_name] = lc
+    # 冲突消解：同城多个线路推导出同一个 line_code 时，站线保码、头行-only 让位回退线路名；
+    # 同类型冲突（都站线/都头行）都回退线路名。推导为空 → 用线路名。冲突会打印警告。
+    code_by_line = collections.defaultdict(dict)  # city -> {line_name: (line_code, has_station_rows)}
+    for city, line_name, _, _, lc, grp in line_groups:
+        code_by_line[city][line_name] = (lc, any(r[4] for r in grp))
+    conflict_msgs = []
+    # 按 (city, line_code) 分组处理：站线保码、头行-only 回退线路名；推导空 → 线路名。
+    # 只对「站线 + 头行」混合冲突组报警（如公交公司码被地铁线占用）；纯站线共享前缀
+    # （广州 YCT 全共享 '00'）是终端型的预期情况，静默回退不报警。
+    by_code_city = collections.defaultdict(list)  # (city, lc) -> [(line_name, has_stn)]
     for city, names in code_by_line.items():
-        used = collections.Counter(names.values())
-        for line_name, lc in names.items():
-            if not lc or used[lc] > 1:
-                names[line_name] = line_name  # 冲突/为空 → 用线路名
+        for line_name, (lc, has_stn) in names.items():
+            by_code_city[(city, lc)].append((line_name, has_stn))
+    for (city, lc), members in sorted(by_code_city.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        stn_members = [n for n, h in members if h]
+        hdr_members = [n for n, h in members if not h]
+        if len(members) <= 1 and lc:
+            continue  # 无冲突
+        mixed = bool(stn_members and hdr_members)
+        if mixed:
+            conflict_msgs.append(
+                f"  !! line_code 冲突 {city}/{lc!r}: "
+                + " vs ".join(f"{n}({'站' if h else '头'})" for n, h in members))
+        # 回退：混合冲突且唯一站线 → 站线保码；否则该组全部回退线路名
+        keep = stn_members[0] if (mixed and len(stn_members) == 1) else None
+        for n, _ in members:
+            if n == keep:
+                continue
+            code_by_line[city][n] = (n, any(h for _, h in members))
+
+    # 历史 name-as-code 同步清单：DB 中 line_code==线路名、但 CSV 推导出真实码的线路，
+    # apply 阶段统一 UPDATE（东部公交 '东部公交' → '20'）。
+    line_code_syncs = []
+    for city, names in code_by_line.items():
+        for line_name, (lc, _) in names.items():
+            if not line_name or not lc or lc == line_name:
+                continue
+            row = loader.line_by_city_name.get((city, line_name))
+            if row is not None and (row["line_code"] or "") == line_name:
+                line_code_syncs.append((city, line_name, lc))
 
     # 第二遍：按最终 line_code 构建设备增改列表
     seen_added = set()
     upd_station_en = []  # (station_id, station_en)：CSV 英文名为权威，已存在站也同步更新
     for city, line_name, std, has_en, line_code, all_rows in line_groups:
-        lc = code_by_line[city][line_name]
+        lc = code_by_line[city][line_name][0]
         for r in all_rows:
             code, type_, lname, station = r[1], r[2], r[3], r[4]
             station_en = r[5] if has_en and len(r) > 5 and r[5] else None
@@ -241,7 +284,30 @@ def build_update(loader, only_files=None):
         stale_device = sorted(dev for dev in loader.device_by_code if dev not in csv_devices)
     else:
         stale_device = []
-    return add_device, upd_device, upd_station_en, stale_device, add_station, add_line, skipped
+    # 孤儿站检测：最终状态（扣掉过期设备后）没有任何 reader_device 的站，
+    # 通常是改名/打错字留下的重复条目（如 鸿福路→市民中心、圆山西坑→园山西坑）。
+    dev_count = collections.Counter()
+    for sid, in loader.db.execute("SELECT station_id FROM reader_device"):
+        dev_count[sid] += 1
+    for dev in stale_device:
+        dev_count[loader.device_by_code[dev]["station_id"]] -= 1
+    orphan_stations = [s for s in loader.db.execute(
+        "SELECT s.station_id, s.station_name, s.longitude, c.city_name "
+        "FROM station s JOIN city c ON c.city_id=s.city_id")
+        if dev_count.get(s["station_id"], 0) <= 0]
+    # 孤儿线路检测：最终状态（扣掉过期设备后）没有任何 reader_device 引用的 line。
+    line_dev_count = collections.Counter()
+    for lid, in loader.db.execute("SELECT line_id FROM reader_device WHERE line_id IS NOT NULL"):
+        line_dev_count[lid] += 1
+    for dev in stale_device:
+        lid = loader.device_by_code[dev]["line_id"]
+        if lid is not None:
+            line_dev_count[lid] -= 1
+    orphan_lines = [l for l in loader.db.execute(
+        "SELECT l.line_id, l.line_code, l.line_name, c.city_name "
+        "FROM line l JOIN city c ON c.city_id=l.city_id")
+        if line_dev_count.get(l["line_id"], 0) <= 0]
+    return add_device, upd_device, upd_station_en, stale_device, orphan_stations, orphan_lines, add_station, add_line, skipped, conflict_msgs, line_code_syncs
 
 
 def main():
@@ -265,7 +331,7 @@ def main():
         return 0
 
     loader = Loader(DB)
-    add_device, upd_device, upd_station_en, stale_device, add_station, add_line, skipped = build_update(loader, only_files=args.only)
+    add_device, upd_device, upd_station_en, stale_device, orphan_stations, orphan_lines, add_station, add_line, skipped, conflict_msgs, line_code_syncs = build_update(loader, only_files=args.only)
     print()
     print(f"=== 更新预览（dry-run={args.dry_run}）===")
     print(f"新 reader_device：{len(add_device)}  需更新映射：{len(upd_device)}  英文名同步：{len(upd_station_en)}  跳过空站名行：{skipped}")
@@ -275,6 +341,20 @@ def main():
         print(f"  + {dev:16} {type_:6} {lname or '':10} {stn or '':12} lc={lc or '-':4} mk={mk}")
     if len(add_device) > 25:
         print(f"  ... 共 {len(add_device)} 条新设备")
+
+    if conflict_msgs:
+        print()
+        print(f"=== line_code 冲突警告（{len(conflict_msgs)} 组，冲突组已自动回退线路名）===")
+        for m in conflict_msgs:
+            print(m)
+
+    if line_code_syncs:
+        print()
+        print(f"=== line_code 同步（历史 name-as-code → CSV 头行码，共 {len(line_code_syncs)} 条）===")
+        for city, lname, lc in line_code_syncs[:15]:
+            print(f"  ~ {city}/{lname}  {lname!r} -> {lc!r}")
+        if len(line_code_syncs) > 15:
+            print(f"  ... 共 {len(line_code_syncs)} 条")
 
     print()
     print(f"=== 英文名同步（CSV 英文名与库中不同，共 {len(upd_station_en)} 条）===")
@@ -304,14 +384,38 @@ def main():
     else:
         print("无过期设备")
 
+    print()
+    print(f"=== 孤儿站检测（最终无 reader_device，共 {len(orphan_stations)} 条）===")
+    if orphan_stations:
+        for s in orphan_stations[:25]:
+            print(f"  - {s['city_name']:6s} id={s['station_id']} {s['station_name']} lon={s['longitude']}")
+        if len(orphan_stations) > 25:
+            print(f"  ... 共 {len(orphan_stations)} 条，请人工核对后再删除")
+        print("（--delete-stale 时一并删除）")
+    else:
+        print("无孤儿站")
+
+    print()
+    print(f"=== 孤儿线路检测（最终无 reader_device 引用，共 {len(orphan_lines)} 条）===")
+    if orphan_lines:
+        for l in orphan_lines[:25]:
+            print(f"  - {l['city_name']:6s} id={l['line_id']} {l['line_name'] or ''} code={l['line_code']}")
+        if len(orphan_lines) > 25:
+            print(f"  ... 共 {len(orphan_lines)} 条，请人工核对后再删除")
+        print("（--delete-stale 时一并删除）")
+    else:
+        print("无孤儿线路")
+
     if args.dry_run:
         print("\n(dry-run 未写库)")
         return 0
 
+    conflict_preview_n = len(conflict_msgs)  # 预览期间已打印；apply 追加的冲突运行时再打印
+
     # 应用更新
     db = loader.db
     cur = db.cursor()
-    added_stations, added_lines = 0, 0
+    added_stations, added_lines, changed_line_codes = 0, 0, 0
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 与原始构建的 updated_at 时间戳格式一致
 
     def ensure_line(city, line_code, lname, cid):
@@ -338,6 +442,11 @@ def main():
                     by_code = cur.execute("SELECT * FROM line WHERE line_id=?", (by_code["line_id"],)).fetchone()
                     loader.line_by_city_name[(city, lname)] = by_code
                 return by_code["line_id"]
+        if line_code and loader.line_by_city_code.get((city, line_code)) is not None:
+            # 目标码已被同城其它线路占用（多为不在本次 CSV 的旧行）：不崩溃，改用线路名并提示
+            conflict_msgs.append(
+                f"  !! line_code {city}/{line_code!r} 已被占用，新线路「{lname or ''}」改用线路名")
+            line_code = lname
         cur.execute("INSERT INTO line (city_id, line_code, line_name) VALUES (?,?,?)",
                     (cid, line_code or "", lname or ""))
         lid = cur.lastrowid
@@ -382,12 +491,27 @@ def main():
             cur.execute(
                 "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, updated_at=? WHERE device_code=?",
                 (lid, sid, type_, std, ts, dev))
+    for city, lname, lc in line_code_syncs:
+        row = loader.line_by_city_name.get((city, lname))
+        if row is None or (row["line_code"] or "") != lname:
+            continue
+        other = loader.line_by_city_code.get((city, lc))
+        if other is not None and other["line_id"] != row["line_id"]:
+            conflict_msgs.append(
+                f"  !! line_code {city}/{lc!r} 已被「{other['line_name']}」占用，"
+                f"「{lname}」保持 {row['line_code']!r}")
+            continue
+        cur.execute("UPDATE line SET line_code=? WHERE line_id=?", (lc, row["line_id"]))
+        newrow = cur.execute("SELECT * FROM line WHERE line_id=?", (row["line_id"],)).fetchone()
+        loader.line_by_city_code[(city, lc)] = newrow
+        changed_line_codes += 1
     if upd_station_en:
         en_by_sid = dict(upd_station_en)
         for sid, en in en_by_sid.items():
             cur.execute("UPDATE station SET station_name_en=? WHERE station_id=?", (en, sid))
         print(f"已同步 {len(en_by_sid)} 个站点的英文名")
 
+    orphans_stn, orphans_ln = [], []
     if args.delete_stale:
         if not stale_device:
             print("\n无可删除的过期设备")
@@ -395,14 +519,34 @@ def main():
             for dev in stale_device:
                 cur.execute("DELETE FROM reader_device WHERE device_code=?", (dev,))
             print(f"\n已删除 {len(stale_device)} 条过期设备")
+        # 应用变更后重新计算孤儿（新增设备可能引用原孤儿，过期设备删除可能产生新孤儿）
+        orphans_stn = db.execute(
+            "SELECT station_id FROM station WHERE NOT EXISTS "
+            "(SELECT 1 FROM reader_device rd WHERE rd.station_id=station.station_id)").fetchall()
+        for (sid,) in orphans_stn:
+            cur.execute("DELETE FROM station WHERE station_id=?", (sid,))
+        orphans_ln = db.execute(
+            "SELECT line_id FROM line WHERE NOT EXISTS "
+            "(SELECT 1 FROM reader_device rd WHERE rd.line_id=line.line_id)").fetchall()
+        for (lid,) in orphans_ln:
+            cur.execute("DELETE FROM line WHERE line_id=?", (lid,))
+        print(f"孤儿清理：删除 {len(orphans_stn)} 个孤儿站、{len(orphans_ln)} 条孤儿线路")
 
     db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (IDENTITY_HASH,))
     db.commit()
-    changed = bool(len(add_device) or len(upd_device) or len(upd_station_en) or (args.delete_stale and stale_device))
+    changed = bool(len(add_device) or len(upd_device) or len(upd_station_en) or changed_line_codes
+                   or (args.delete_stale and (stale_device or orphans_stn or orphans_ln)))
     if changed or not os.path.isfile(VERSION_FILE):
         with open(VERSION_FILE, "w", encoding="utf-8") as f:
             f.write(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         print(f"版本 sidecar 已写入 {os.path.basename(VERSION_FILE)}")
+    runtime_conflicts = conflict_msgs[conflict_preview_n:]
+    if runtime_conflicts:
+        print("\nline_code 冲突提示（应用期间追加）：")
+        for m in runtime_conflicts:
+            print(m)
+    if changed_line_codes:
+        print(f"线路 line_code 同步：{changed_line_codes} 条（name-as-code → CSV 头行码）")
     print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射，"
           f"同步 {len(dict(upd_station_en))} 个英文名"
           + (f"，删除 {len(stale_device)} 条过期设备" if args.delete_stale and stale_device else ""))

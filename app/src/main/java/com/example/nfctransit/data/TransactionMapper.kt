@@ -95,7 +95,8 @@ object TransactionMapper {
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
             journeyHex = journeyHex,
-            deviceCode = deviceCode
+            deviceCode = deviceCode,
+            spRule = spRule
         )
     }
 

@@ -44,7 +44,8 @@ data class UiTransaction(
     val iconBgColor: Long,         // background color for icon circle
     val protocols: List<String> = emptyList(),  // 该记录被哪些协议写入（LNT/TU），排序后展示
     val journeyHex: String? = null, // TU 卡同笔交易的 1E 旅程原始 hex（详情页原始数据显示两份）；null=无配对 1E
-    val deviceCode: String? = null  // 站名解析命中的 device_code（如 581000140019）；null=未命中
+    val deviceCode: String? = null,  // 站名解析命中的 device_code（如 581000140019）；null=未命中
+    val spRule: String? = null      // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行附加展示；null=普通命中
 )
 
 data class StationStat(

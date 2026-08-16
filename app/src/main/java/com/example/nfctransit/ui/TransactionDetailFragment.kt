@@ -196,9 +196,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
         }
-        // Match 行：标签与 SFI 同色，值新起一行
+        // Match 行：标签与 SFI 同色，值新起一行；特殊匹配规则（广佛跨城/深圳）附加标记
         addMonospaceLine(binding.hexPanel, "Match", dim = true)
-        addMonospaceLine(binding.hexPanel, txn.deviceCode ?: "Null")
+        val matchCode = txn.deviceCode ?: "Null"
+        addMonospaceLine(binding.hexPanel, if (txn.spRule != null) "$matchCode ${txn.spRule}" else matchCode)
         // 颜色图例：含义 + 区域 + 解析方式 + 颜色
         addDivider(binding.hexPanel)
         for ((sfi, hex) in blocks) {

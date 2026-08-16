@@ -5,7 +5,8 @@ import androidx.room.Dao
 import androidx.room.Query
 
 /** 站名解析结果：device_code 命中的城市/线路/站点（含英文，缺省回退中文由调用方处理）。
- *  站名字段可空——大类 fallback 设备（空站名的类别行，如 51804=地铁）station_id/station_name 为 NULL。 */
+ *  站名字段可空——大类 fallback 设备（空站名的类别行，如 51804=地铁）station_id/station_name 为 NULL。
+ *  longitude/latitude 为站点 WGS84 坐标（station 表），缺省 null（未采集）。 */
 data class StationResolution(
     @ColumnInfo(name = "city_id") val cityId: Long,
     @ColumnInfo(name = "city_code") val cityCode: String,
@@ -21,7 +22,9 @@ data class StationResolution(
     @ColumnInfo(name = "standard") val standard: String,
     @ColumnInfo(name = "transit_type") val transitType: String,
     @ColumnInfo(name = "device_code") val deviceCode: String,
-    @ColumnInfo(name = "match_key") val matchKey: String?
+    @ColumnInfo(name = "match_key") val matchKey: String?,
+    @ColumnInfo(name = "longitude") val longitude: Double? = null,
+    @ColumnInfo(name = "latitude") val latitude: Double? = null
 )
 
 @Dao
@@ -44,7 +47,8 @@ interface TransitDao {
         SELECT c.city_id, c.city_code, c.city_name, c.city_name_en,
                l.line_id, l.line_name, l.line_name_en, l.line_color,
                s.station_id, s.station_name, s.station_name_en,
-               r.standard, r.transit_type, r.device_code, r.match_key
+               r.standard, r.transit_type, r.device_code, r.match_key,
+               s.longitude, s.latitude
         FROM reader_device r
         JOIN city c ON c.city_id = r.city_id
         LEFT JOIN line l ON l.line_id = r.line_id

@@ -12,6 +12,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.ui.MainViewModel
+import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,6 +21,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 腾讯地图 SDK 合规：本应用无独立隐私弹窗，进入即视为同意地图组件隐私政策
+        TencentMapInitializer.setAgreePrivacy(true)
         setContentView(R.layout.activity_main)
 
         TransitData.init(applicationContext)

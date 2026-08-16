@@ -94,4 +94,7 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.8.4'
     implementation 'androidx.room:room-ktx:2.8.4'
     ksp 'androidx.room:room-compiler:2.8.4'
+
+    // 腾讯地图 SDK（4.5.x 兼容经典 5 段式 Key 格式，自包含无传递依赖）
+    implementation 'com.tencent.map:tencent-map-vector-sdk:4.5.14.5'
 }

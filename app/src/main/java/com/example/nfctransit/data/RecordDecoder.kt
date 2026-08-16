@@ -32,7 +32,8 @@ object RecordDecoder {
         val lineColor: String? = null,
         val lineId: Long? = null,
         val stationId: Long? = null,
-        val deviceCode: String? = null
+        val deviceCode: String? = null,
+        val spRule: String? = null
     ) {
         val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
     }
@@ -230,7 +231,8 @@ object RecordDecoder {
                 lineColor = busRef?.lineColor,
                 lineId = busRef?.lineId,
                 stationId = busRef?.stationId,
-                deviceCode = busRef?.code
+                deviceCode = busRef?.code,
+                spRule = busRef?.spRule
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(19, 21)) else 0L
@@ -257,7 +259,8 @@ object RecordDecoder {
                         cityCode = entry?.cityCode ?: if (cityCode.isNotEmpty()) cityCode else null,
                         date = timestamp.substring(0, 8), time = timestamp.substring(8, 14),
                         balanceAfterFen = balanceFen,
-                        deviceCode = ref.deviceCode
+                        deviceCode = ref.deviceCode,
+                        spRule = ref.spRule
                     )
                 )
             }
@@ -361,7 +364,8 @@ object RecordDecoder {
                     cityCode = cityForTx,
                     date = date, time = time,
                     balanceAfterFen = balanceAfterFen,
-                    deviceCode = ref.deviceCode
+                    deviceCode = ref.deviceCode,
+                    spRule = ref.spRule
                 )
             )
         }
@@ -386,7 +390,8 @@ object RecordDecoder {
         date: String,
         time: String,
         balanceAfterFen: Long?,
-        deviceCode: String? = null
+        deviceCode: String? = null,
+        spRule: String? = null
     ): CanonicalTransaction {
         return CanonicalTransaction(
             identity = contentHash(hex),
@@ -407,7 +412,8 @@ object RecordDecoder {
             sfi = sfi,
             protocol = protocol,
             hex = hex,
-            deviceCode = deviceCode
+            deviceCode = deviceCode,
+            spRule = spRule
         )
     }
 
@@ -453,7 +459,8 @@ object RecordDecoder {
                     cityCode = city,
                     balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
                     journeyHex = journeyHex ?: j.hex,
-                    deviceCode = j.deviceCode
+                    deviceCode = j.deviceCode,
+                    spRule = j.spRule
                 ))
             } else {
                 out.add(f.copy(journeyHex = journeyHex, cityCode = city))
@@ -499,7 +506,10 @@ object RecordDecoder {
     }
 
     private fun TransitData.StationEntry.toStationRef(): StationRef {
-        return StationRef(station, line, TransitData.transitTypeLabel(type), "", lineColor, lineId, stationId, deviceCode = code)
+        return StationRef(
+            station, line, TransitData.transitTypeLabel(type), "", lineColor, lineId, stationId,
+            deviceCode = code, spRule = spRule
+        )
     }
 
     /** 按终端号模糊匹配余额（1E 与 18 终端号长度不一致时的兜底）；匹配不到返回 null（该记录无余额数据） */

@@ -536,44 +536,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         return pills
     }
 
-    private fun rankPill(text: String, color: String? = null): TextView = TextView(requireContext()).apply {
-        this.text = text
-        textSize = 10f
-        setSingleLine(true)
-        setPadding(dpToPx(8), dpToPx(2), dpToPx(8), dpToPx(2))
+    private fun rankPill(text: String, color: String? = null): TextView = requireContext().linePill(text, color).apply {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { marginEnd = dpToPx(6) }
-        val parsed = parseLineColor(color)
-        if (parsed == null) {
-            setTextColor(0xFF555555.toInt())
-            background = ContextCompat.getDrawable(requireContext(), R.drawable.bg_chip_default)
-        } else {
-            background = GradientDrawable().apply {
-                cornerRadius = dpToPx(20).toFloat()
-                setColor(parsed)
-            }
-            setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
-        }
-    }
-
-    private fun parseLineColor(color: String?): Int? {
-        val trimmed = color?.trim()
-        if (trimmed.isNullOrEmpty()) return null
-        return try {
-            android.graphics.Color.parseColor(trimmed)
-        } catch (e: RuntimeException) {
-            null
-        }
-    }
-
-    /** 感知亮度需要白字（与交易列表一致） */
-    private fun isDarkColor(color: Int): Boolean {
-        val r = android.graphics.Color.red(color)
-        val g = android.graphics.Color.green(color)
-        val b = android.graphics.Color.blue(color)
-        return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 160
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()

@@ -138,37 +138,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     }
 
     /** 给线路胶囊着色：颜色来自数据库 line_color（"#RRGGBB"），空白/无效时保持灰色；
-     *  深色背景自动改白字，避免深色底 + 深灰字难读。
+     *  深色背景自动改白字，避免深色底 + 深灰字难读（统一走 Pills.applyLinePill）。
      *  无有效颜色时必须重置为默认灰色，否则 RecyclerView 复用时会残留上一行的线路色。 */
-    private fun applyLineColor(line: TextView, color: String?) {
-        val trimmed = color?.trim()
-        val parsed = if (trimmed.isNullOrEmpty()) {
-            null
-        } else {
-            try {
-                android.graphics.Color.parseColor(trimmed)
-            } catch (e: RuntimeException) {
-                null
-            }
-        } ?: run {
-            line.setBackgroundResource(R.drawable.bg_chip_default)
-            line.setTextColor(0xFF555555.toInt())
-            return
-        }
-        line.background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = 20f * resources.displayMetrics.density
-            setColor(parsed)
-        }
-        line.setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
-    }
-
-    /** 感知亮度需要白字 */
-    private fun isDarkColor(color: Int): Boolean {
-        val r = android.graphics.Color.red(color)
-        val g = android.graphics.Color.green(color)
-        val b = android.graphics.Color.blue(color)
-        return (0.2126*r + 0.7152*g + 0.0722*b) < 160
-    }
+    private fun applyLineColor(line: TextView, color: String?) = line.applyLinePill(color)
 
     private fun updateCardBadgeBg() {
         // 卡信息标签背景用主题色淡色填充（保留 10dp 圆角）

@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 腾讯地图 SDK：瓦片下载/网络状态检测 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-feature
         android:name="android.hardware.nfc"
         android:required="true" />
@@ -13,6 +16,10 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.TUReader">
+
+        <meta-data
+            android:name="TencentMapSDK"
+            android:value="RGXBZ-JPKCQ-2FW53-24H4F-6SMF5-P7FGM" />
 
         <activity
             android:name=".MainActivity"

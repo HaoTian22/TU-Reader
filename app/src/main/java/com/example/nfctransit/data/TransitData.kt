@@ -26,6 +26,17 @@ object TransitData {
     private const val LANG_ZH = "zh"
     private const val LANG_EN = "en"
 
+    // 特殊匹配规则标记（详情页 Match 行展示）：命中经特殊规则解析时附加到 device_code 之后
+    private const val SP_RULE_GUANGZHOU_FOSHAN = "(SP Rule: Guangzhou/Foshan)"
+    private const val SP_RULE_SHENZHEN = "(SP Rule: Shenzhen)"
+    private const val SP_RULE_MATCHKEY_FALLBACK = "(Fallback: match_key)"
+
+    // 城市内匹配优先级（tier 越小越精确；仅用于广佛跨城两城比较，城内按代码顺序短路返回）
+    private const val TIER_MATCHKEY = 0     // 去前导0 match_key 精确（raw 错位时的最后兜底，但仍是精确命中）
+    private const val TIER_RAW = 1          // 前缀分桶 + 最长重叠（同长优先字节对齐）
+    private const val TIER_TERM_EXACT = 2   // 终端号精确
+    private const val TIER_TERM_PREFIX = 3  // 终端整体前缀大类
+
     /** 一条站点解析结果（名称已按界面语言回退；ID 用于跨页面传递与切换语言时重新解析） */
     data class StationEntry(
         val code: String,       // device_code（城市码 + Code 拼接）
@@ -35,7 +46,8 @@ object TransitData {
         val lineColor: String? = null,  // 线路颜色（"#RRGGBB"，空白时 UI 保持灰色）
         val lineId: Long? = null,
         val stationId: Long? = null,
-        val cityCode: String? = null    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
+        val cityCode: String? = null,    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
+        val spRule: String? = null       // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行展示
     )
 
     private data class CityInfo(val zh: String, val en: String?)
@@ -48,9 +60,8 @@ object TransitData {
     private val byMatchKey = mutableMapOf<String, StationResolution>()   // 去前导0 match_key -> 解析结果
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
-    // 大类 fallback 用：device_code 按长度降序，供最长前缀匹配（如 5180xxxx 未命中 → 51804=地铁 / 518040=10号线）
-    private val deviceCodesByLen = mutableListOf<String>()
-    // 城市码 -> 该城全部 device_code（重叠匹配只扫本城，避免 DB 增大后每次 O(全部设备)）
+    // 前缀/城市码（device_code[:4] == city_code 已验证成立）-> 该前缀下全部 device_code；
+    // 最长重叠/终端前缀匹配只扫本桶，避免 DB 增大后每次 O(全部设备)
     private val deviceCodesByCity = mutableMapOf<String, MutableList<String>>()
     // "线路 站点" 组合串 -> 解析结果（中/英各一），用于修复旧版本按空格误拆线路/站名的持久化数据
     private val byCombinedZh = mutableMapOf<String, StationResolution>()
@@ -104,18 +115,21 @@ object TransitData {
 
     /**
      * 解析 TU 站点。
-     * @param cityCode    卡内城市码（4 位，来自 SFI 0x1E）
+     * @param cityCode    卡内城市码（4 位，来自 SFI 0x1E [32..34)，乘车城市）
      * @param lineCode    线路码（4 位 BCD）
      * @param stationCode 站点码（4 位 BCD）
      * @param terminal    终端号（12 位，用于终端号匹配的城市）
      *
-     * 解析策略（顺序，线路+站点权重大于终端号，终端号仅在无线路+站点命中时兜底）：
-     *   1. 线路头行城市拼接：device_code = 城市码 + 线路码 + 站点码（保留卡片 BCD 前导 0，如广州 0001 0001）
-     *   2. 去前导 0 规范化键：{city}|{strip0(线路)}|{strip0(站点)}，兼容变长编码（北京/深圳/重庆等）
-     *   3. 深圳 TU 按 1E 终端号派生线路/站点精确匹配（5180 专用）
-     *   4. 站点码字段即完整设备码（成都 metro：[12..14) 直接是"线路+站点"拼接的 Code，device_code = city + Code）
-     *   5. raw 记录代码切片最长重叠（线路+站点；覆盖 bus 变长线路码与站点 hex 填充）
-     *   6. 终端号精确匹配 / 终端整体前缀大类（兜底，杭州 TU / 广州 YCT 等终端号城市也走这里）
+     * 解析策略（前缀分桶 + 最长重叠；线路+站点权重大于终端号，终端号仅兜底）：
+     *   0. 广佛跨城：5810 记录与变换为 5880 的候选连表匹配，两城各按下方 1-4 优先级取更精确者；
+     *      5810 记录一律按双城联查解析并打 spRule 标记；5840 记录重定向到 5180 后解析（→ spRule 标记）
+     *   1. 前缀分桶 + 最长重叠：只扫同前缀（=同城，device_code[:4]==city_code）reader_device，
+     *      候选主体 = 深圳用终端号（其 [10..14) 非线路/站点，线路+站点编码在终端号里）、
+     *      其余用 raw [10..17) hex 切片；取最长重叠，同长优先字节对齐（真实站码按字节存，跨字节伪重叠不误取）
+     *   2. match_key（去前导0 规范化键 {city}|{strip0(线路)}|{strip0(站点)}）兜底：raw 切片错位时命中，
+     *      打 (Fallback: match_key) 标记；深圳 [10..14) 非线路/站点，跳过
+     *   3. 终端号精确匹配（杭州 TU / 广州 YCT 等终端号城市）
+     *   4. 终端整体前缀大类（如 51804=地铁，最后兜底）
      */
     fun resolveTuStation(
         cityCode: String,
@@ -126,112 +140,126 @@ object TransitData {
     ): StationEntry? {
         ensureLoaded()
         // 深圳 TU：卡片 1E 城市码 5840 无独立站点数据（city_id 200 空），重定向到 5180（深圳数据所在）
-        val baseCity = if (cityCode == "5840") "5180" else cityCode
-        // 广州记录：先按佛山(5880)匹配（广佛线共用，记录可能落在佛山），匹配不到再回广州(5810)
-        val cities = if (baseCity == "5810") listOf("5880", "5810") else listOf(baseCity)
-        for (c in cities) {
-            matchInCity(c, lineCode, stationCode, terminal, rawCode)?.let { return it.toEntry() }
+        val shenzhenRedirect = cityCode == "5840"
+        val baseCity = if (shenzhenRedirect) "5180" else cityCode
+        // 广佛跨城：5810 记录把城市前缀变换为 5880 后与原始 5810 数据连表匹配，两城候选同一优先级取更精确者，
+        // 而不是旧的"先佛山后广州"按城逐个短路——那会让佛山弱命中（公交/线路码重叠）遮蔽广州精确命中。
+        if (baseCity == "5810") {
+            val gz = matchInCity("5810", lineCode, stationCode, terminal, rawCode)
+            val fs = matchInCity("5880", lineCode, stationCode, terminal, rawCode)
+            val best = pickBetter(gz, fs, preferCity = "5810") ?: return null
+            // 5810 记录一律经广州/佛山双城联查解析（命中 5880 佛山数据即跨城乘车）→ 打联查规则标记
+            return best.resolution.toEntry(SP_RULE_GUANGZHOU_FOSHAN)
         }
-        return null
+        val m = matchInCity(baseCity, lineCode, stationCode, terminal, rawCode) ?: return null
+        // 5840 重定向命中 → 深圳特殊规则标记（终端号派生命中已在 matchInCity 内打标）
+        return m.resolution.toEntry(if (shenzhenRedirect) SP_RULE_SHENZHEN else m.spRule)
     }
 
-    /** 在指定城市内匹配 TU 站点（终端/线路/rawCode 切片/终端前缀大类） */
+    /** 城市内匹配结果：resolution + 优先级（tier 越小越精确）+ 匹配长度（重叠/前缀，RAW/TERM_PREFIX 用） */
+    private data class CityMatch(
+        val resolution: StationResolution,
+        val tier: Int,
+        val len: Int = 0,
+        val spRule: String? = null
+    )
+
+    /** 连表取优：优先级高（tier 小）者胜；同级比匹配长度；仍平手偏向原始城市 */
+    private fun pickBetter(a: CityMatch?, b: CityMatch?, preferCity: String): CityMatch? {
+        if (a == null) return b
+        if (b == null) return a
+        if (a.tier != b.tier) return if (a.tier < b.tier) a else b
+        if (a.len != b.len) return if (a.len > b.len) a else b
+        return if (a.resolution.cityCode == preferCity) a else b
+    }
+
+    /** 在指定城市内匹配 TU 站点（前缀分桶 + 最长重叠 → match_key 兜底 → 终端号兜底） */
     private fun matchInCity(
         effectiveCity: String,
         lineCode: String,
         stationCode: String,
         terminal: String,
         rawCode: String?
-    ): StationResolution? {
-        // 线路+站点权重大于终端号：线路/站点码直接编码进/出站位置，终端号只是闸机设备号，可能复用或映射偏差。
-        // 跨城卡（如广州卡 4131… 在珠海）终端号是卡发行前缀，会让终端前缀误匹配他城同前缀线路（413 路），
-        // 因此终端号精确/前缀匹配仅在没有任何线路+站点命中时兜底。
-        if (lineCode.isNotEmpty()) {
-            byDeviceCode[effectiveCity + lineCode + stationCode]?.let { return it }
-            byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
-                ?.let { return it }
-        }
-        // 深圳 TU 轨道交通：按 1E 终端号匹配（cu.csv 格式同 CU）。卡片终端号 "000262016106"
-        // 去前导 0 后第 1-2 位为线路码（62=4号线）、3-5 位为站点码（016=深圳北站），
-        // 对应 device_code "5180"+线路+站点（如 518062016）
-        if (effectiveCity == "5180" && terminal.isNotEmpty()) {
-            val s = stripLeadingZeros(terminal)
-            if (s.length >= 6) {
-                val line = s.substring(1, 3)
-                val station = s.substring(3, 6)
-                byDeviceCode["5180$line$station"]?.let { return it }
-                byMatchKey["5180|$line|${stripLeadingZeros(station)}"]?.let { return it }
+    ): CityMatch? {
+        val isSZ = effectiveCity == "5180"
+        // 候选主体：深圳 TU 用终端号（raw 切片 [10..17) 不含线路/站点，线路+站点编码在终端号里），
+        // 其余用 raw hex 切片（保留 hex 站，避免 BCD 半字节展开破坏重叠）。
+        val body = if (isSZ) terminal else rawCode
+        if (!body.isNullOrEmpty()) {
+            longestOverlap(effectiveCity, body)?.let { (r, len) ->
+                return CityMatch(r, TIER_RAW, len, if (isSZ) SP_RULE_SHENZHEN else null)
             }
         }
-        // 站点码字段即完整设备码：成都 metro 等记录 [12..14) 直接是"线路+站点"拼接的 Code，
-        // device_code = city + Code（如 6510+1335 = 65101335 杜甫草堂），[10..12) 线路码只是冗余前缀。
-        // 放在 raw 重叠前做精确匹配，避免重叠把 00131335 里的跨字节伪重叠 0131 与真实站码 1335
-        // 判为同长而误取（曾误匹配成 1号线桐梓林 65100131）。
-        if (stationCode.isNotEmpty()) {
-            byDeviceCode[effectiveCity + stationCode]?.let { return it }
+        // match_key 兜底（放最后）：raw 切片错位（变长编码/位数不齐）时按去前导0 的 {city}|{line}|{station}
+        // 规范化键精确命中，打 Fallback 标记。深圳 [10..14) 非线路/站点，跳过。
+        if (!isSZ && lineCode.isNotEmpty() && stationCode.isNotEmpty()) {
+            byMatchKey["$effectiveCity|${stripLeadingZeros(lineCode)}|${stripLeadingZeros(stationCode)}"]
+                ?.let { return CityMatch(it, TIER_MATCHKEY, spRule = SP_RULE_MATCHKEY_FALLBACK) }
         }
-        // 统一最长匹配（线路+站点）：取 raw 记录代码切片（[10..17)，如 "16180101602009"）加城市前缀作为候选，
-        // 找同城 device_code 的最长重叠（整码或线路码部分作为候选子串，取最大）。不硬拆 line+station，
-        // 自然覆盖 4 位 vs 3 位线路码（1618+0101 → 6180101 → bus 618）与站点填充（01001B00 → 01001B → 坝头）。
+        // 终端号精确匹配（终端号城市：杭州 TU / 广州 YCT 等；跨城卡终端号是发行前缀，仅此兜底）
+        if (terminal.isNotEmpty()) {
+            byDeviceCode[effectiveCity + terminal]?.let { return CityMatch(it, TIER_TERM_EXACT) }
+            byDeviceCode[terminal]?.let { return CityMatch(it, TIER_TERM_EXACT) }
+        }
+        // 终端整体前缀大类（如 51804=地铁，最后兜底）
+        if (terminal.isNotEmpty()) {
+            longestPrefixInCity(effectiveCity, effectiveCity + terminal)?.let { (r, len) ->
+                return CityMatch(r, TIER_TERM_PREFIX, len)
+            }
+        }
+        return null
+    }
+
+    /**
+     * 前缀分桶 + 最长重叠：只扫 prefix 前缀下的 reader_device，找候选串（prefix+body）里重叠最长的
+     * device_code（整码或去前缀码作为候选子串，取最大）。不硬拆 line+station，自然覆盖 4 位 vs 3 位
+     * 线路码（1618+0101 → 6180101 → bus 618）与站点 hex 填充（01001B00 → 01001B → 坝头），以及
+     * 终端号形态设备（device_code = prefix + 完整终端号，杭州）。同长优先字节对齐：真实站码按字节存
+     * （候选串偶数下标 = BCD 字节边界），跨字节伪重叠（如 00131335 里的 0131 与真实站码 1335）同长时不误取。
+     * 返回命中设备与重叠长度；无命中返回 null。
+     */
+    private fun longestOverlap(prefix: String, body: String): Pair<StationResolution, Int>? {
+        val candidate = prefix + body
         var best: StationResolution? = null
         var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
         var bestAligned = false
-        val rc = rawCode
-        val rawCand = if (!rc.isNullOrEmpty()) effectiveCity + rc else null
-        if (rawCand != null) {
-            val code = rc!!  // rawCand 非空 ⇒ rc 非空
-            for (dev in deviceCodesByCity[effectiveCity].orEmpty()) {
-                if (!dev.startsWith(effectiveCity)) continue
-                val r = byDeviceCode[dev] ?: continue
-                val devCode = dev.removePrefix(effectiveCity)
-                val ov = when {
-                    rawCand.contains(dev) -> dev.length            // 整码是候选子串（metro 坝头 602001001B）
-                    !devCode.isEmpty() && rawCand.contains(devCode) -> devCode.length  // 线路码是子串（bus 618）
-                    else -> 0
-                }
-                if (ov == 0) continue
-                // 同长时优先字节对齐：真实站码按字节存（rawCode 偶数下标 = BCD 字节边界），
-                // 跨字节伪重叠（如 00131335 里的 0131）与真实站码 1335 同长时不误取
-                val aligned = code.indexOf(devCode).let { it >= 0 && it % 2 == 0 }
-                if (ov > bestLen || (ov == bestLen && aligned && !bestAligned)) {
-                    bestLen = ov; bestAligned = aligned; best = r
-                }
+        for (dev in deviceCodesByCity[prefix].orEmpty()) {
+            if (!dev.startsWith(prefix)) continue
+            val r = byDeviceCode[dev] ?: continue
+            val devCode = dev.removePrefix(prefix)
+            if (devCode.isEmpty()) continue
+            val ov = when {
+                candidate.contains(dev) -> dev.length            // 整码是候选子串（metro 坝头 602001001B）
+                candidate.contains(devCode) -> devCode.length    // 去前缀码是子串（bus 618 / 杭州终端号）
+                else -> 0
+            }
+            if (ov == 0) continue
+            // 重叠必须真正压在记录数据（body）一侧：整段都落在城市前缀内的假重叠
+            // （如 6510 前缀尾部 "10" 命中 651010）会被当成有效命中，必须过滤。
+            // 字节对齐也按 body 坐标判断：body 起始偏移 0，真实站码在偶数偏移；
+            // 城市码恒为 4 位（偶数），对 body 内真实匹配等价于旧的全串奇偶判断。
+            val idx = candidate.indexOf(devCode)
+            if (idx + ov <= prefix.length) continue
+            val aligned = idx >= prefix.length && (idx - prefix.length) % 2 == 0
+            if (ov > bestLen || (ov == bestLen && aligned && !bestAligned)) {
+                bestLen = ov; bestAligned = aligned; best = r
             }
         }
-        // 深圳提取码前缀（未知站 → 4号线/13号线 大类）
-        if (effectiveCity == "5180" && terminal.isNotEmpty()) {
-            val s = stripLeadingZeros(terminal)
-            if (s.length >= 6) {
-                val codeRegion = s.substring(1, 3) + s.substring(3, 6)  // "62099"
-                for (dev in deviceCodesByCity[effectiveCity].orEmpty()) {
-                    if (!dev.startsWith(effectiveCity)) continue
-                    val r = byDeviceCode[dev] ?: continue
-                    val devCode = dev.removePrefix(effectiveCity)
-                    if (devCode.isNotEmpty() && codeRegion.startsWith(devCode) && devCode.length > bestLen) {
-                        bestLen = devCode.length; best = r
-                    }
-                }
-            }
-        }
-        // 终端号精确匹配兜底（仅当线路+站点无命中）
-        if (best == null && terminal.isNotEmpty()) {
-            byDeviceCode[effectiveCity + terminal]?.let { return it }
-            byDeviceCode[terminal]?.let { return it }
-        }
-        // 终端整体前缀大类兜底（如 51804=地铁，仅当线路+站点无命中）
-        if (best == null && terminal.isNotEmpty()) {
-            longestPrefixMatch(effectiveCity + terminal)?.let { return it }
-        }
-        return best
+        return best?.let { it to bestLen }
     }
 
-    /** 大类 fallback：找 candidate 的最长前缀 device_code（按长度降序，首个命中即最长前缀） */
-    private fun longestPrefixMatch(candidate: String): StationResolution? {
-        for (dev in deviceCodesByLen) {
-            if (dev.length < 5) continue
-            if (candidate.startsWith(dev)) return byDeviceCode[dev]
+    /** 大类 fallback：prefix 前缀下找 candidate 的最长前缀 device_code（同前缀分桶，只扫本桶） */
+    private fun longestPrefixInCity(prefix: String, candidate: String): Pair<StationResolution, Int>? {
+        var best: StationResolution? = null
+        var bestLen = 0
+        for (dev in deviceCodesByCity[prefix].orEmpty()) {
+            if (dev.length <= prefix.length) continue
+            val r = byDeviceCode[dev] ?: continue
+            if (candidate.startsWith(dev) && dev.length > bestLen) {
+                bestLen = dev.length; best = r
+            }
         }
-        return null
+        return best?.let { it to bestLen }
     }
 
     /**
@@ -254,21 +282,28 @@ object TransitData {
         return lineId?.let { byLineStationId[it to stationId] } ?: byStationId[stationId]
     }
 
+    /** 站点 WGS84 坐标 (lng, lat)；坐标缺失（未采集）或站点未知返回 null。
+     *  站点坐标属于 station 表，与线路无关，按 stationId 直接查。 */
+    fun coordsOf(stationId: Long?): Pair<Double, Double>? {
+        if (stationId == null) return null
+        ensureLoaded()
+        val r = byStationId[stationId] ?: return null
+        val lon = r.longitude ?: return null
+        val lat = r.latitude ?: return null
+        return lon to lat
+    }
+
     /**
-     * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析。
+     * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析（简化：前缀分桶 + 最长重叠）。
      *
-     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"，仅用于兜底文案）
-     * @param cityCode 交易城市码（4 位十进制，来自记录 [10..12) 压缩 BCD，如 5180）
-     * @param code     记录 [10..16) 的 hex 串（12 位，含城市码前缀 [10..12)）
-     * @param terminal 记录 [10..16) 的 BCD 串（12 位终端号）
+     * 0x18 记录 [10..16)：前 4 位 = 城市/网络前缀（广州 YCT 0100、深圳 5180…），其余 = 位置/终端码。
+     * 按前缀分桶到该前缀下全部 reader_device，对整段 code（= prefix + 剩余）做最长重叠（同长优先
+     * 字节对齐），与 TU 0x1E 共用同一 longestOverlap。未知前缀（如珠海 5850 暂无设备数据）自然无命中。
      *
-     * 各卡种 device_code 形态不同（DB 由 CSV 生成，key = City/Prefix + Code 拼接）：
-     *   - CU（深圳/上海等）：device_code = 城市码 + 线路/站点码，如 518040011
-     *   - YCT（广州羊城通）：device_code = 0100 + 终端号，如 010000163423
-     * 且 DB 的 standard 标签来自 CSV 文件名，与卡 AID 类型可能不一致
-     * （深圳的 cu.csv → standard='CU'，但卡 AID 是 PAY.SZT）。
-     * 因此这里不按 standard 过滤，而是生成「城市码+位置码」「城市码+终端号」等候选 key
-     * 逐个试命中；未命中时对 in-memory 索引做一次有界的 后缀/前缀 扫描兜底。
+     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"，仅用于兜底文案，未参与匹配）
+     * @param cityCode 交易城市码（与 code 前 4 位同源，保留签名兼容）
+     * @param code     记录 [10..16) 的 hex 串（12 位，含城市前缀）
+     * @param terminal 记录 [10..16) 的 BCD 串（与 code 同字节，保留签名兼容）
      */
     fun resolveByStandard(
         standard: String,
@@ -277,46 +312,10 @@ object TransitData {
         terminal: String
     ): StationEntry? {
         ensureLoaded()
-        val city = cityCode.ifBlank { "" }
-        // [10..12) 是城市码（hex 前 4 位），[12..16) 是位置码；去掉前缀
-        val pos = if (code.length > 4) code.substring(4) else code
-
-        val candidates = linkedSetOf<String>()
-        if (city.isNotEmpty()) {
-            candidates.add(city + pos)
-            candidates.add(city + stripLeadingZeros(pos))
-            candidates.add(city + pos.trimEnd('0'))
-            if (terminal.isNotEmpty()) {
-                candidates.add(city + terminal)
-                candidates.add(city + stripLeadingZeros(terminal))
-            }
-        }
-        candidates.add(pos)
-        candidates.add(stripLeadingZeros(pos))
-        if (terminal.isNotEmpty()) {
-            candidates.add(terminal)
-            candidates.add(stripLeadingZeros(terminal))
-        }
-        for (c in candidates) {
-            byDeviceCode[c]?.let { return it.toEntry() }
-        }
-
-        // 兜底：有界后缀/前缀扫描（先短后长，命中第一个即返回）
-        var best: Pair<StationResolution, Int>? = null
-        for ((dev, r) in byDeviceCode) {
-            val dl = dev.length
-            if (dl < 5) continue
-            val matchLen = when {
-                dl <= code.length && dev.endsWith(pos) && code.endsWith(dev) -> dl
-                code.length <= dl && pos.endsWith(dev) && dev.length <= pos.length -> code.length
-                terminal.isNotEmpty() && dl <= terminal.length && terminal.endsWith(dev) -> dl
-                else -> 0
-            }
-            if (matchLen > 0 && (best == null || matchLen > best.second)) {
-                best = r to matchLen
-            }
-        }
-        return best?.first?.toEntry()
+        val prefix = if (code.length >= 4) code.substring(0, 4) else code
+        val body = if (code.length > 4) code.substring(4) else code
+        if (body.isEmpty()) return null
+        return longestOverlap(prefix, body)?.first?.toEntry()
     }
 
     /**
@@ -398,7 +397,7 @@ object TransitData {
 
     /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID。
      *  空站名/空线路名的大类 fallback 设备 → 站名回退到线路名或交通类型（空串也要兜底，不能用 ?: 只对 null 生效） */
-    private fun StationResolution.toEntry(): StationEntry {
+    private fun StationResolution.toEntry(spRule: String? = null): StationEntry {
         val useEn = useEnglish()
         val line = if (useEn) lineNameEn ?: lineName else lineName ?: lineNameEn
         val station = sequenceOf(
@@ -406,7 +405,7 @@ object TransitData {
             line,
             transitType
         ).firstOrNull { !it.isNullOrEmpty() } ?: ""
-        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId, cityCode)
+        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId, cityCode, spRule)
     }
 
     /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换） */
@@ -421,7 +420,6 @@ object TransitData {
             byCombinedEn.clear()
             byStationNameZh.clear()
             byStationNameEn.clear()
-            deviceCodesByLen.clear()
             deviceCodesByCity.clear()
             loaded = false
             ensureLoaded()
@@ -458,8 +456,6 @@ object TransitData {
                         }
                         deviceCodesByCity.getOrPut(r.cityCode) { mutableListOf() }.add(r.deviceCode)
                     }
-                    deviceCodesByLen.clear()
-                    deviceCodesByLen.addAll(byDeviceCode.keys.sortedByDescending { it.length })
                 }
             } catch (e: Exception) {
                 Log.e("TransitData", "DB load failed", e)
