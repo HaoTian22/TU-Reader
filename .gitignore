@@ -8,3 +8,5 @@ keystore.properties
 *.pyc
 *bak*
 .r2config.json
+tools/osm_coords/cache/*
+CLAUDE.md

@@ -24,6 +24,8 @@ data class UiTransaction(
     val seq: Int,
     val sfi: Int = 0,          // 来源文件 SFI（0x18/0x1E/附加区）
     val hex: String = "",      // transactions_archive 中该条原始 hex，详情页直接展示
+    val cardType: String = "", // "YCT"/"CU"/"TU" 等解析卡型
+    val protocol: String = "", // 该原始记录的来源协议（LNT/TU/空）
     val amountYuan: Double,
     val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"
     val typeHex: String,

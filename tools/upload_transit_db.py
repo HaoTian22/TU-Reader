@@ -30,6 +30,12 @@ import sqlite3
 import sys
 import urllib.parse
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(HERE, ".r2config.json")
 DEFAULT_FILE = os.path.join(HERE, "../app/src/main/assets/data/transit.db")

@@ -186,12 +186,12 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val blocks = mutableListOf<Pair<Int, String>>()  // (sfi, hex)
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
-            appendHexBlock(binding.hexPanel, txn.sfi, mainHex)
+            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.cardType, txn.protocol)
             blocks.add(txn.sfi to mainHex)
             sb.append(mainHex)
         }
         if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
-            appendHexBlock(binding.hexPanel, 0x1E, journeyHex)
+            appendHexBlock(binding.hexPanel, 0x1E, journeyHex, txn.cardType, "TU")
             blocks.add(0x1E to journeyHex)
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
@@ -203,16 +203,53 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         // 颜色图例：含义 + 区域 + 解析方式 + 颜色
         addDivider(binding.hexPanel)
         for ((sfi, hex) in blocks) {
-            val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size)
+            val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, txn.cardType, txn.protocol)
             if (fields.isEmpty()) continue
             addMonospaceLine(binding.hexPanel, "SFI ${sfi.toSfiHex()} fields", dim = true)
             for (f in fields) addLegendRow(binding.hexPanel, f)
         }
-        rawHexToCopy = sb.toString()
+        rawHexToCopy = buildCopyText(sb.toString(), blocks, txn)
     }
 
-    private fun appendHexBlock(container: LinearLayout, sfi: Int, hex: String) {
-        val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size)
+    private fun buildCopyText(
+        rawValue: String,
+        blocks: List<Pair<Int, String>>,
+        txn: UiTransaction
+    ): String {
+        val out = StringBuilder(rawValue)
+        out.append("\n\n")
+        for ((sfi, hex) in blocks) {
+            val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, txn.cardType, txn.protocol)
+            if (fields.isEmpty()) continue
+            out.append("SFI ${sfi.toSfiHex()}\n")
+            for (f in fields) {
+                val methodPart = if (f.method.isEmpty()) "" else " ${f.method}"
+                out.append("[${f.label} ${rangeText(f.start, f.end)}$methodPart] ")
+                    .append(hexRange(hex, f.start, f.end))
+                    .append('\n')
+            }
+        }
+        val matchCode = txn.deviceCode ?: "Null"
+        out.append("[Match] ")
+            .append(if (txn.spRule != null) "$matchCode ${txn.spRule}" else matchCode)
+        return out.toString()
+    }
+
+    private fun hexRange(hex: String, start: Int, end: Int): String {
+        val compact = hex.filterNot { it.isWhitespace() }
+        val from = (start * 2).coerceIn(0, compact.length)
+        val to = (end * 2).coerceIn(from, compact.length)
+        return compact.substring(from, to)
+    }
+
+    private fun appendHexBlock(
+        container: LinearLayout,
+        sfi: Int,
+        hex: String,
+        cardType: String,
+        protocol: String
+    ) {
+        val fields = fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, cardType, protocol)
         addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
         addColoredHexLine(container, colorizeHex(hex, fields))
     }
@@ -266,7 +303,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     }
 
     private fun rangeText(start: Int, end: Int): String =
-        if (end - start == 1) "$start" else "$start-$end"
+        if (end - start == 1) "$start" else "$start-${end - 1}"
 
     /** 按字段字节区间把原始 hex 染成对应颜色（字节间空格不计入偏移） */
     private fun colorizeHex(hex: String, fields: List<FieldSpec>): SpannableString {
@@ -307,7 +344,12 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     )
 
     /** 各字段在对应 SFI 下的字节区间与配色（位置与 RecordDecoder 解析一致） */
-    private fun fieldsFor(sfi: Int, size: Int): List<FieldSpec> {
+    private fun fieldsFor(
+        sfi: Int,
+        size: Int,
+        cardType: String,
+        protocol: String
+    ): List<FieldSpec> {
         if (sfi == 0x1E && size >= 42) {
             return listOf(
                 FieldSpec("Type", 0, 1, "hex", C_TYPE),
@@ -319,6 +361,18 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 FieldSpec("Timestamp", 25, 32, "BCD", C_TIMESTAMP),
                 FieldSpec("Area", 32, 34, "BCD", C_AREA),
                 FieldSpec("Institution", 34, 42, "hex", C_INSTITUTION)
+            )
+        }
+        if (sfi == 0x18 && size >= 23 &&
+            (cardType == "CU" || (cardType == "YCT" && protocol == "LNT"))
+        ) {
+            return listOf(
+                FieldSpec("Record No.", 0, 2, "dec", C_RECORD),
+                FieldSpec("Amount", 6, 9, "hex", C_AMOUNT),
+                FieldSpec("Type", 9, 10, "hex", C_TYPE),
+                FieldSpec("Terminal", 10, 16, "BCD", C_TERMINAL),
+                FieldSpec("Timestamp", 18, 22, "BCD", C_TIMESTAMP),
+                FieldSpec("Subtype", 22, 23, "hex", C_SUBTYPE)
             )
         }
         if (size >= 23) {

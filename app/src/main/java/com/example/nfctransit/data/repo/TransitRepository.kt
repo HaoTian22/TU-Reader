@@ -165,19 +165,29 @@ class TransitRepository(private val context: Context) {
         src.close()
 
         val now = System.currentTimeMillis()
+        val existingCards = dao.getAllCards().toMutableList()
         val idMap = mutableMapOf<String, String>()
         val newCardIds = mutableListOf<String>()
 
         for (card in importedCards) {
-            val existing = when {
-                card.cardNumber.isNotEmpty() -> dao.findByCardNumber(card.cardNumber)
-                else -> dao.findByLastFour(card.lastFour)
-            }
+            val existing = matchCardByNumbers(
+                existingCards,
+                card.cardNumber,
+                card.secondCardNumber.orEmpty(),
+                card.lastFour
+            )
             if (existing != null) {
+                val merged = mergeCardNumbers(existing, card.cardNumber, card.secondCardNumber.orEmpty())
+                if (merged != existing) {
+                    dao.upsertCard(merged)
+                    existingCards[existingCards.indexOf(existing)] = merged
+                }
                 idMap[card.cardId] = existing.cardId
             } else {
                 val newId = UUID.randomUUID().toString()
-                dao.upsertCard(card.copy(cardId = newId))
+                val imported = card.copy(cardId = newId)
+                dao.upsertCard(imported)
+                existingCards.add(imported)
                 idMap[card.cardId] = newId
                 newCardIds.add(newId)
             }
@@ -222,7 +232,7 @@ class TransitRepository(private val context: Context) {
      */
     suspend fun importTripReaderDatabase(importFile: File): ImportSummary {
         val source = TripReaderDatabase.read(importFile)
-        val existingCards = dao.getAllCards()
+        val existingCards = dao.getAllCards().toMutableList()
         val now = System.currentTimeMillis()
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val newCardIds = mutableListOf<String>()
@@ -251,14 +261,21 @@ class TransitRepository(private val context: Context) {
             }
 
             val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
-            val cardId = existing?.cardId ?: run {
+            val cardId = if (existing != null) {
+                val merged = mergeCardNumbers(existing, src.cdNo, src.cdNo2)
+                if (merged != existing) {
+                    dao.upsertCard(merged)
+                    existingCards[existingCards.indexOf(existing)] = merged
+                }
+                existing.cardId
+            } else run {
                 val id = UUID.randomUUID().toString()
                 val gradient = importCardPalette.firstOrNull { it.first !in usedColors }
                     ?: importCardPalette[newCardIds.size % importCardPalette.size]
                 usedColors.add(gradient.first)
-                dao.upsertCard(
-                    buildTripReaderCard(id, src, hasLnt = lntRows.isNotEmpty(), gradient)
-                )
+                val imported = buildTripReaderCard(id, src, hasLnt = lntRows.isNotEmpty(), gradient)
+                dao.upsertCard(imported)
+                existingCards.add(imported)
                 newCardIds.add(id)
                 id
             }
@@ -311,18 +328,41 @@ class TransitRepository(private val context: Context) {
         existing: List<CardEntity>,
         cdNo: String,
         cdNo2: String
+    ): CardEntity? = matchCardByNumbers(existing, cdNo, cdNo2)
+
+    private fun matchCardByNumbers(
+        existing: List<CardEntity>,
+        first: String,
+        second: String,
+        fallbackLastFour: String = ""
     ): CardEntity? {
-        val numbers = buildSet {
-            if (cdNo.isNotEmpty()) add(cdNo)
-            if (cdNo2.isNotEmpty()) add(cdNo2)
-        }
+        val numbers = listOf(first, second).filter { it.isNotEmpty() }.toSet()
         if (numbers.isNotEmpty()) {
-            for (e in existing) {
-                if (e.cardNumber in numbers || e.secondCardNumber in numbers) return e
-            }
+            existing.firstOrNull { card ->
+                numbers.any { it == card.cardNumber || it == card.secondCardNumber }
+            }?.let { return it }
         }
-        val lastFour = cdNo.takeLast(4).ifEmpty { cdNo2.takeLast(4) }
-        return if (lastFour.isNotEmpty()) existing.firstOrNull { it.lastFour == lastFour } else null
+        val lastFours = buildSet {
+            addAll(numbers.map { it.takeLast(4) }.filter { it.isNotEmpty() })
+            if (fallbackLastFour.isNotEmpty()) add(fallbackLastFour)
+        }
+        return if (lastFours.isNotEmpty()) {
+            existing.firstOrNull { it.lastFour in lastFours }
+        } else {
+            null
+        }
+    }
+
+    private fun mergeCardNumbers(existing: CardEntity, first: String, second: String): CardEntity {
+        val numbers = listOf(first, second).filter { it.isNotEmpty() }
+        val primary = existing.cardNumber.ifEmpty { numbers.firstOrNull().orEmpty() }
+        val secondary = existing.secondCardNumber?.takeIf { it.isNotEmpty() }
+            ?: numbers.firstOrNull { it != primary }
+        return if (primary != existing.cardNumber || secondary != existing.secondCardNumber) {
+            existing.copy(cardNumber = primary, secondCardNumber = secondary)
+        } else {
+            existing
+        }
     }
 
     private fun buildTripReaderCard(

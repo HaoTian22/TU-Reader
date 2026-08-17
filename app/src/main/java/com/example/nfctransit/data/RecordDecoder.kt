@@ -286,6 +286,7 @@ object RecordDecoder {
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
         var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) else null
+        val hasSubtype18 = cardType == "CU" || (cardType == "YCT" && isLnt)
         var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) else null
         val results = mutableListOf<CanonicalTransaction>()
 
@@ -300,12 +301,18 @@ object RecordDecoder {
             val typeHex = ApduUtil.bytesToHex(byteArrayOf(data[9]))
             val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
-            val time = ApduUtil.bcdToString(data.copyOfRange(20, 23))
+            val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
+            val subtype = if (isSubtype18) data[22].toInt() and 0xFF else null
+            val time = if (isSubtype18) {
+                ApduUtil.bcdToString(data.copyOfRange(20, 22)) + "00"
+            } else {
+                ApduUtil.bcdToString(data.copyOfRange(20, 23))
+            }
 
             // 日期：归档优先用已解析日期；否则 LNT 用年份推断，其余直接用记录内日期
             val hash = contentHash(rec.hex)
             val date = storedDateByHash?.get(hash) ?: run {
-                if (isLnt) {
+                if (isLnt || isSubtype18) {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
                     val thisMonth = mmdd.take(2).toIntOrNull()
                     var year: String? = null
@@ -330,6 +337,11 @@ object RecordDecoder {
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
             val isRecharge = posIsRecharge || typeHex == "02"
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
+            val direction = when (subtype) {
+                0x11 -> "↓"
+                0x17 -> "↑"
+                else -> ""
+            }
 
             val ref = if (isRecharge) {
                 StationRef("", "", "充值", "")
@@ -358,7 +370,11 @@ object RecordDecoder {
                     sfi = rec.sfi, protocol = rec.protocol, hex = rec.hex,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
-                    stationName = ref.stationWithDir, lineName = ref.line, lineColor = ref.lineColor,
+                    stationName = if (direction.isNotEmpty() && ref.station.isNotEmpty()) {
+                        "${ref.station} $direction"
+                    } else {
+                        ref.stationWithDir
+                    }, lineName = ref.line, lineColor = ref.lineColor,
                     lineId = ref.lineId, stationId = ref.stationId,
                     transitType = ref.transitType,
                     cityCode = cityForTx,

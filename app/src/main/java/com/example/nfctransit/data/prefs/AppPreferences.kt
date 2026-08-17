@@ -22,7 +22,7 @@ object AppPreferences {
     private val KEY_KEEP_DEBUG_LOGS = stringPreferencesKey("keep_debug_logs") // "true"/"false"
     private val KEY_SCHEMA_VERSION = intPreferencesKey("schema_version")
     private val KEY_DB_VERSION = stringPreferencesKey("db_version")           // 当前 databases/transit.db 的版本
-
+    private val KEY_APP_INSTALL_MARKER = stringPreferencesKey("app_install_marker")
     const val SCHEMA_VERSION = 1
 
     // ── 读取（一次性，供启动）──
@@ -47,6 +47,18 @@ object AppPreferences {
 
     suspend fun setDbVersion(context: Context, version: String) {
         context.dataStore.edit { it[KEY_DB_VERSION] = version }
+    }
+
+    /** 返回 true 表示本次启动检测到新安装/升级，需要清理一次 UI 缓存。 */
+    suspend fun markAppInstall(context: Context, marker: String): Boolean {
+        var changed = false
+        context.dataStore.edit { prefs ->
+            if (prefs[KEY_APP_INSTALL_MARKER] != marker) {
+                prefs[KEY_APP_INSTALL_MARKER] = marker
+                changed = true
+            }
+        }
+        return changed
     }
 
     /**

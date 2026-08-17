@@ -26,7 +26,7 @@ object TransactionMapper {
     )
 
     /** CanonicalTransaction → UiTransaction；站点/线路名按当前界面语言经 ID 重新解析，ID 缺失回退存档名 */
-    fun CanonicalTransaction.toUiTransaction(index: Int): UiTransaction {
+    fun CanonicalTransaction.toUiTransaction(index: Int, cardType: String = ""): UiTransaction {
         val amountYuan = (amountFen ?: 0L) / 100.0
         val isRecharge = typeHex == "02" || (amountFen ?: 0L) < 0
         val amountAbs = abs(amountYuan)
@@ -71,6 +71,8 @@ object TransactionMapper {
             seq = sequence ?: 0,
             sfi = sfi,
             hex = hex,
+            cardType = cardType,
+            protocol = protocol,
             amountYuan = amountYuan,
             amountText = amountText,
             typeHex = typeHex,

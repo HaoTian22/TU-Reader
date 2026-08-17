@@ -187,6 +187,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 启动加载：从 DataStore + Room 用户库恢复；每张卡优先读上次的 UI 构建缓存，无缓存/失效再重建 */
     private suspend fun restore() {
         try {
+            // 安装/升级后只清理一次 UI 构建缓存；普通重启沿用缓存。
+            val app = getApplication<Application>()
+            val packageInfo = app.packageManager.getPackageInfo(app.packageName, 0)
+            val installMarker = "${packageInfo.versionName}:${packageInfo.lastUpdateTime}"
+            if (AppPreferences.markAppInstall(app, installMarker)) {
+                withContext(Dispatchers.IO) { UiCache.clearAll(app) }
+            }
             // 首次进入版本追踪时初始化 db_version；须在 createFromAsset 拷贝前执行，
             // 才能区分「全新安装（无库）」与「老库升级（库已存在）」。
             AppPreferences.initDbVersion(getApplication())
@@ -270,7 +277,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             val archive = repo.loadArchive(cardId)
             val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
-            val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions()
+            val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions(card.cardType)
             UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns, dbVersion))
             BuiltCardState(canonicals, txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs))
         }
@@ -408,7 +415,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 RecordDecoder.decodeArchive(profile.cardType, archive)
             }
             val txns = withContext(Dispatchers.Default) {
-                enrichProtocols(canon, rawRecs).toUiTransactions()
+                enrichProtocols(canon, rawRecs).toUiTransactions(profile.cardType)
             }
             val stats = withContext(Dispatchers.Default) { RecordDecoder.parseTuDiscountStats(rawRecs) }
             withContext(Dispatchers.Main) {
@@ -532,7 +539,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun emitStatsForSelected() {
         val index = _selectedIndex.value ?: return
         val cardId = cardEntities.getOrNull(index)?.cardId ?: return
-        val txns = cachedTxnsByCard[cardId] ?: canonicalByCard[cardId]?.toUiTransactions() ?: return
+        val cardType = cardEntities.getOrNull(index)?.cardType.orEmpty()
+        val txns = cachedTxnsByCard[cardId] ?: canonicalByCard[cardId]?.toUiTransactions(cardType) ?: return
         emitStats(txns)
     }
 
@@ -746,8 +754,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── Private ──
 
     /** 从 canonical（镜像 archive）生成该卡的 UI 交易（名称按当前界面语言经 ID 解析） */
-    private fun List<CanonicalTransaction>.toUiTransactions(): List<UiTransaction> =
-        mapIndexed { idx, c -> c.toUiTransaction(idx) }
+    private fun List<CanonicalTransaction>.toUiTransactions(cardType: String): List<UiTransaction> =
+        mapIndexed { idx, c -> c.toUiTransaction(idx, cardType) }
 
     /**
      * 用 raw_records 反查 contentHash → 协议集合，回填 canonical.protocols（仅归档未合并出并集时兜底）：
@@ -771,9 +779,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val card = cardEntities.firstOrNull { it.cardId == cardId }?.toUiCard() ?: return
         // 优先用已构建的 UI 交易（启动缓存命中/读卡后已回写），避免切卡/筛选/统计时重跑 toUiTransaction
         // 并触发 27k 行站名索引加载；缺失（语言切换、数据变化的失效点）时从 canonical 重派生并回写内存
+        val cardType = cardEntities.firstOrNull { it.cardId == cardId }?.cardType.orEmpty()
         val txns = cachedTxnsByCard[cardId]
             ?: enrichProtocols(canonicalByCard[cardId].orEmpty(), rawRecordsByCard[cardId].orEmpty())
-                .toUiTransactions()
+                .toUiTransactions(cardType)
                 .also { cachedTxnsByCard[cardId] = it }
         _selectedCard.value = card
         _mainAccent.value = card.gradientStartColor
