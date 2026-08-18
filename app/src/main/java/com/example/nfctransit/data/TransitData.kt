@@ -323,27 +323,17 @@ object TransitData {
     }
 
     /**
-     * 深圳通 SZT 的 0x18 记录没有把 5180 放进 Terminal 字段；Terminal 中的编码为
-     * 线路码 + 站点码，且中间夹有一个非编码字节。样例 000040020122 → 40022。
+     * 深圳通 SZT 的 0x18 记录：Terminal 前 4 位是保留字段，后续连续内容包含线路/站点码。
+     * 交给同城最长重叠匹配，避免跳过中间字节后把后面的终端序号误当成站点码。
      */
     private fun resolveShenzhenTerminal(code: String, terminal: String): StationEntry? {
-        val candidates = linkedSetOf<String>()
-        if (code.length >= 11) {
-            candidates += code.substring(4, 8) + code.substring(10, 11)
+        val body = when {
+            code.length > 4 -> code.substring(4)
+            terminal.length > 4 -> terminal.substring(4)
+            else -> ""
         }
-        val stripped = terminal.trimStart('0')
-        if (stripped.length >= 6) {
-            candidates += stripped.substring(1, 3) + stripped.substring(3, 6)
-        }
-        for (stationCode in candidates) {
-            byDeviceCode["5180$stationCode"]?.let {
-                return it.toEntry(SP_RULE_SHENZHEN)
-            }
-            byMatchKey["5180|${stripLeadingZeros(stationCode.take(2))}|${stripLeadingZeros(stationCode.drop(2))}"]?.let {
-                return it.toEntry(SP_RULE_SHENZHEN)
-            }
-        }
-        return null
+        if (body.isEmpty()) return null
+        return longestOverlap("5180", body)?.first?.toEntry(SP_RULE_SHENZHEN)
     }
 
     /**
