@@ -51,6 +51,11 @@ class TransitRepository(private val context: Context) {
 
     suspend fun upsertCard(card: CardEntity) = dao.upsertCard(card)
 
+    suspend fun updateCardName(cardId: String, name: String) = dao.updateCardName(cardId, name)
+
+    suspend fun updateCardColors(cardId: String, startColor: Long, endColor: Long) =
+        dao.updateCardColors(cardId, startColor, endColor)
+
     suspend fun updateCardBalance(cardId: String, balanceFen: Long?, lastReadAt: Long) =
         dao.updateCardBalance(cardId, balanceFen, lastReadAt)
 

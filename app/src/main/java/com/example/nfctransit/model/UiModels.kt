@@ -6,7 +6,8 @@ package com.example.nfctransit.model
 data class UiCard(
     val id: String,
     val name: String,
-    val cardType: String,      // "深圳通" or "岭南通"
+    val cardType: String,      // 当前展示名的历史兼容字段
+    val protocolType: String = "", // "YCT"/"CU"/"TU" 等内部卡型
     val lastFour: String,
     val cardNumber: String = "",  // 完整卡号（应用序列号），首页展示；其他页面用 lastFour
     val secondCardNumber: String? = null,  // 双协议卡第二个卡号（如 LNT+TU 的 TU 卡号）；nullable 兼容旧版持久化数据（Gson 反序列化为 null）
@@ -18,6 +19,13 @@ data class UiCard(
     /** 余额（元），仅 UI 展示用 */
     val balanceYuan: Double get() = (balanceFen ?: 0L) / 100.0
 }
+
+data class UiCardMetadata(
+    val issuerCity: String? = null,
+    val issuer: String? = null,
+    val issueDate: String? = null,
+    val validUntil: String? = null
+)
 
 data class UiTransaction(
     val id: Int,

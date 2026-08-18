@@ -15,7 +15,8 @@ object TransactionMapper {
     fun CardEntity.toUiCard(): UiCard = UiCard(
         id = cardId,
         name = name,
-        cardType = name,  // UiCard.cardType 为展示名（沿用现有行为）
+        cardType = name,  // 保持旧版 UI 语义：历史调用将 cardType 当作展示名
+        protocolType = cardType,
         lastFour = lastFour,
         cardNumber = cardNumber,
         secondCardNumber = secondCardNumber,

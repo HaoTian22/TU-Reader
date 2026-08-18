@@ -160,6 +160,38 @@
                 android:paddingBottom="16dp">
 
                 <LinearLayout
+                    android:id="@+id/actionCardInfo"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
+                        android:gravity="center"
+                        android:background="@drawable/bg_action_circle">
+                        <TextView
+                            android:id="@+id/iconCardInfo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xF09D;"
+                            android:textColor="#0066FF"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="卡片信息"
+                        android:textColor="#555555"
+                        android:textSize="11sp"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+
+                <LinearLayout
                     android:id="@+id/actionTransactions"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"

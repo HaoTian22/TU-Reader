@@ -106,7 +106,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
-                binding.tvCardBadge.text = "${card.cardType} · ${card.lastFour}"
+                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
                 binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
             }
         }

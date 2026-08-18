@@ -19,11 +19,21 @@
         android:paddingTop="20dp"
         android:paddingBottom="8dp" />
 
-    <LinearLayout
-        android:id="@+id/dialogOptionsContainer"
+    <ScrollView
+        android:id="@+id/dialogOptionsScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical" />
+        android:fillViewport="false"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:scrollbarStyle="insideOverlay">
+
+        <LinearLayout
+            android:id="@+id/dialogOptionsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
 
     <View
         android:layout_width="match_parent"

@@ -104,7 +104,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
-                binding.tvCardBadge.text = "${card.cardType} · ${card.lastFour}"
+                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
                 binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
             }
         }

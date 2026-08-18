@@ -60,7 +60,10 @@
                 android:text="深圳通 · 3821"
                 android:textColor="#0066FF"
                 android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:maxWidth="140dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
         </LinearLayout>
     </LinearLayout>
 

@@ -27,6 +27,12 @@ interface UserDao {
     @Upsert
     suspend fun upsertCard(card: CardEntity)
 
+    @Query("UPDATE cards SET name = :name WHERE card_id = :cardId")
+    suspend fun updateCardName(cardId: String, name: String)
+
+    @Query("UPDATE cards SET gradient_start_color = :startColor, gradient_end_color = :endColor WHERE card_id = :cardId")
+    suspend fun updateCardColors(cardId: String, startColor: Long, endColor: Long)
+
     @Query("UPDATE cards SET latest_balance_fen = :balanceFen, last_read_at = :lastReadAt WHERE card_id = :cardId")
     suspend fun updateCardBalance(cardId: String, balanceFen: Long?, lastReadAt: Long)
 

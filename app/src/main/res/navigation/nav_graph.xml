@@ -11,6 +11,9 @@
         android:label="Home"
         tools:layout="@layout/fragment_home">
         <action
+            android:id="@+id/action_home_to_cardInfo"
+            app:destination="@id/cardInfoFragment" />
+        <action
             android:id="@+id/action_home_to_transactionList"
             app:destination="@id/transactionListFragment" />
         <action
@@ -23,6 +26,12 @@
             android:id="@+id/action_home_to_mapTrace"
             app:destination="@id/mapTraceFragment" />
     </fragment>
+
+    <fragment
+        android:id="@+id/cardInfoFragment"
+        android:name="com.example.nfctransit.ui.CardInfoFragment"
+        android:label="CardInfo"
+        tools:layout="@layout/fragment_card_info" />
 
     <fragment
         android:id="@+id/transactionListFragment"

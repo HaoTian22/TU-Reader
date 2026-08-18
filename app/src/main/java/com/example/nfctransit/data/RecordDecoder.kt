@@ -32,6 +32,7 @@ object RecordDecoder {
         val lineColor: String? = null,
         val lineId: Long? = null,
         val stationId: Long? = null,
+        val cityCode: String? = null,
         val deviceCode: String? = null,
         val spRule: String? = null
     ) {
@@ -267,6 +268,7 @@ object RecordDecoder {
                 lineColor = busRef?.lineColor,
                 lineId = busRef?.lineId,
                 stationId = busRef?.stationId,
+                cityCode = busRef?.cityCode,
                 deviceCode = busRef?.code,
                 spRule = busRef?.spRule
             )
@@ -385,11 +387,13 @@ object RecordDecoder {
                 resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
 
-            // 纯岭南通/羊城通 LNT 记录：0x18 [10..12) 是 0100 网络前缀而非城市码（广佛 YCT 设备共用），
-            // 站名匹配不到时无从得知交易城市，直接置空让城市药丸隐藏，避免误标"广州"
-            val cityForTx = if (isRecharge) null else if (
-                cardType == "YCT" && protocol == "LNT" && ref.deviceCode == null
-            ) null else displayCityCode
+            // 站点命中后优先使用设备所属城市；未命中时再沿用记录/钱包城市码。
+            val cityForTx = when {
+                isRecharge -> null
+                ref.cityCode != null -> ref.cityCode
+                cardType == "YCT" && protocol == "LNT" && ref.deviceCode == null -> null
+                else -> displayCityCode
+            }
 
             // 无余额数据 = null（区别于真实的 ¥0.00）：
             // LNT 记录本身不含余额字段（旧实现把钱包级快照套到每条历史交易上，属捏造），一律 null；
@@ -560,7 +564,7 @@ object RecordDecoder {
     private fun TransitData.StationEntry.toStationRef(): StationRef {
         return StationRef(
             station, line, TransitData.transitTypeLabel(type), "", lineColor, lineId, stationId,
-            deviceCode = code, spRule = spRule
+            cityCode = cityCode, deviceCode = code, spRule = spRule
         )
     }
 

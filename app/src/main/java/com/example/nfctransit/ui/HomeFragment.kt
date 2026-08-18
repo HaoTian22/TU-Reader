@@ -136,12 +136,16 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private fun setupQuickActions() {
         // 快捷操作图标用 FontAwesome 字体渲染
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        binding.iconCardInfo.typeface = fa
         binding.iconTransactions.typeface = fa
         binding.iconStats.typeface = fa
         binding.iconMapTrace.typeface = fa
         // 设置齿轮图标也统一用 FontAwesome 渲染
         binding.btnSettings.typeface = fa
 
+        binding.actionCardInfo.setOnClickListener {
+            findNavController().navigate(R.id.action_home_to_cardInfo)
+        }
         binding.actionTransactions.setOnClickListener {
             findNavController().navigate(R.id.action_home_to_transactionList)
         }
@@ -174,6 +178,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         // 主题色跟随卡片：快捷操作图标、进度文字/条、迷你图、指示点、查看全部一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
+            binding.iconCardInfo.setTextColor(accentColor)
             binding.iconTransactions.setTextColor(accentColor)
             binding.iconStats.setTextColor(accentColor)
             binding.iconMapTrace.setTextColor(accentColor)
@@ -565,7 +570,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
 
                 val typeView = TextView(page.context).apply {
-                    text = card.cardType
+                    text = card.name
                     setTextColor(Color.argb(204, 255, 255, 255))
                     textSize = 12f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD

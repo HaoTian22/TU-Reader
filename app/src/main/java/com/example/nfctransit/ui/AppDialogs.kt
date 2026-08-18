@@ -10,6 +10,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.WindowManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.nfctransit.R
@@ -54,6 +56,53 @@ object AppDialogs {
         dialog.show()
     }
 
+    fun textInput(
+        context: Context,
+        title: String,
+        initialValue: String = "",
+        hint: String = "",
+        maxLength: Int? = null,
+        accentColor: Int = 0xFF0066FF.toInt(),
+        onConfirm: (String) -> Unit
+    ): Dialog {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_text_input, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+
+        view.findViewById<TextView>(R.id.dialogInputTitle)?.text = title
+        view.findViewById<EditText>(R.id.dialogInput)?.apply {
+            setText(initialValue)
+            setSelection(text.length)
+            if (hint.isNotEmpty()) this.hint = hint
+            maxLength?.let { filters = arrayOf(android.text.InputFilter.LengthFilter(it)) }
+        }
+        view.findViewById<TextView>(R.id.dialogInputCancel)?.setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.dialogInputConfirm)?.apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                val value = view.findViewById<EditText>(R.id.dialogInput)?.text?.toString().orEmpty()
+                dialog.dismiss()
+                onConfirm(value)
+            }
+        }
+        dialog.setOnShowListener {
+            view.findViewById<EditText>(R.id.dialogInput)?.apply {
+                requestFocus()
+                dialog.window?.setSoftInputMode(
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+                )
+            }
+        }
+        dialog.show()
+        return dialog
+    }
+
     /** 与应用风格一致的选项弹窗：selectedIndex >= 0 时高亮该项并显示对勾，否则为纯列表 */
     fun options(
         context: Context,
@@ -61,6 +110,7 @@ object AppDialogs {
         options: List<String>,
         selectedIndex: Int = -1,
         accentColor: Int = 0xFF0066FF.toInt(),
+        maxHeightDp: Int? = null,
         cancelLabel: String = "取消",
         onSelect: (Int) -> Unit
     ) {
@@ -78,6 +128,12 @@ object AppDialogs {
         val container = view.findViewById<LinearLayout>(R.id.dialogOptionsContainer)
             ?: return
         val density = context.resources.displayMetrics.density
+        view.findViewById<android.widget.ScrollView>(R.id.dialogOptionsScroll)?.let { scroll ->
+            val params = scroll.layoutParams
+            params.height = maxHeightDp?.let { (it * density).toInt() }
+                ?: ViewGroup.LayoutParams.WRAP_CONTENT
+            scroll.layoutParams = params
+        }
 
         options.forEachIndexed { i, label ->
             val selected = i == selectedIndex

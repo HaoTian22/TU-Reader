@@ -502,7 +502,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         val card = viewModel.selectedCard.value
         if (card != null) {
-            sb.appendLine("卡片: ${card.cardType} (${card.lastFour})")
+            sb.appendLine("卡片: ${card.name} (${card.lastFour})")
             sb.appendLine("余额: ¥${String.format("%.2f", card.balanceYuan)}")
         }
 

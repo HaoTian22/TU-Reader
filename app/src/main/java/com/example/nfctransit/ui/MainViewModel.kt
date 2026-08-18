@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.nfctransit.CardProfile
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.data.CardUiCache
 import com.example.nfctransit.data.RawRecord
@@ -32,6 +33,7 @@ import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
 import com.example.nfctransit.model.StatsSummary
 import com.example.nfctransit.model.UiCard
+import com.example.nfctransit.model.UiCardMetadata
 import com.example.nfctransit.model.UiTransaction
 import java.io.File
 import java.io.FileOutputStream
@@ -90,6 +92,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedCard = MutableLiveData<UiCard?>()
     val selectedCard: LiveData<UiCard?> = _selectedCard
+
+    private val _selectedCardMetadata = MutableLiveData(UiCardMetadata())
+    val selectedCardMetadata: LiveData<UiCardMetadata> = _selectedCardMetadata
 
     // 读卡后发出对应卡的下标，供首页自动滑动跳转到该卡（新卡或重复读同一张卡都会跳转）
     private val _cardAdded = MutableLiveData<Int?>()
@@ -363,7 +368,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             cardId = cardId,
             cardNumber = cardNumber,
             secondCardNumber = secondCardNumber.ifEmpty { null },
-            name = displayName,
+            name = existing?.name ?: displayName,
             cardType = profile.cardType,
             lastFour = lastFour,
             gradientStartColor = gradStart,
@@ -443,6 +448,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.setSelectedCardId(cardId) }
         emitCardData(cardId)
     }
+
+    /** 更新当前卡片的展示名并持久化到 cards.name。 */
+    fun renameSelectedCard(name: String): Boolean {
+        val normalized = name.trim()
+        if (normalized.isEmpty()) return false
+        val index = _selectedIndex.value ?: return false
+        val current = cardEntities.getOrNull(index) ?: return false
+        if (current.name == normalized) return true
+
+        val updated = current.copy(name = normalized)
+        cardEntities[index] = updated
+        _cards.value = cardEntities.map { it.toUiCard() }
+        emitCardData(updated.cardId)
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.updateCardName(updated.cardId, normalized)
+        }
+        return true
+    }
+
+    fun setSelectedCardColors(startColor: Long, endColor: Long) {
+        val index = _selectedIndex.value ?: return
+        val current = cardEntities.getOrNull(index) ?: return
+        if (current.gradientStartColor == startColor && current.gradientEndColor == endColor) return
+
+        val updated = current.copy(
+            gradientStartColor = startColor,
+            gradientEndColor = endColor
+        )
+        cardEntities[index] = updated
+        _cards.value = cardEntities.map { it.toUiCard() }
+        emitCardData(updated.cardId)
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.updateCardColors(updated.cardId, startColor, endColor)
+        }
+    }
+
+    fun cardColorOptions(): List<Pair<Long, Long>> = cardPalette
 
     fun clearCardAdded() {
         _cardAdded.value = null
@@ -598,6 +640,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _cards.value = emptyList()
         _selectedIndex.value = -1
         _selectedCard.value = null
+        _selectedCardMetadata.value = UiCardMetadata()
         _cardAdded.value = null
         _allTransactions.value = emptyList()
         _selectedDiscountMonthlyFen.value = null
@@ -775,6 +818,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun buildCardMetadata(cardId: String, cardType: String, card: UiCard): UiCardMetadata {
+        val records = rawRecordsByCard[cardId].orEmpty()
+        val infoRecord = records
+            .filter { it.sfi == 0x15 }
+            .maxByOrNull { it.hex.length }
+        val info = infoRecord?.let {
+            runCatching { ApduUtil.hexToBytes(it.hex) }.getOrNull()
+        }
+        val isYct = cardType == "YCT" || records.any { it.protocol == "LNT" }
+        val issueDate = if (isYct) {
+            info?.let { parseCardDate(it, 23) }
+        } else {
+            info?.let { parseCardDate(it, 20) }
+        }
+        val validUntil = if (isYct) {
+            info?.let { parseCardDate(it, 27) }
+        } else {
+            info?.let { parseCardDate(it, 24) }
+        }
+
+        val issuerCode = if (isYct) {
+            info?.takeIf { it.size >= 52 }?.let {
+                ApduUtil.bytesToHex(it.copyOfRange(48, 52))
+            }?.takeIf { it.any { ch -> ch != '0' } }
+        } else {
+            records.asSequence()
+                .filter { it.sfi == 0x1E && it.hex.length >= 76 }
+                .mapNotNull { record ->
+                    runCatching {
+                        ApduUtil.hexToBytes(record.hex).copyOfRange(34, 38)
+                            .let(ApduUtil::bytesToHex)
+                    }.getOrNull()
+                }
+                .firstOrNull { it.any { ch -> ch != '0' } }
+        }
+        val issuerCityCode = issuerCode?.takeLast(4)
+            ?.takeIf { TransitData.cityZh(it) != it }
+        val cityCode = issuerCityCode
+            ?: canonicalByCard[cardId].orEmpty()
+                .asSequence()
+                .mapNotNull { it.cityCode }
+                .firstOrNull { it.isNotBlank() && it != "0000" }
+            ?: records.asSequence()
+                .filter { it.sfi == 0x1E && it.hex.length >= 68 }
+                .mapNotNull { record ->
+                    runCatching {
+                        val bytes = ApduUtil.hexToBytes(record.hex)
+                        ApduUtil.bcdToString(bytes.copyOfRange(32, 34))
+                    }.getOrNull()
+                }
+                .firstOrNull { it.isNotBlank() && it != "0000" }
+        val issuerName = card.cardNumber.takeIf { it.isNotBlank() }?.let(TransitData::cardName)
+        val issuer = when {
+            issuerName != null && issuerCode != null -> "$issuerName（$issuerCode）"
+            issuerName != null -> issuerName
+            issuerCode != null -> issuerCode
+            else -> null
+        }
+        return UiCardMetadata(
+            issuerCity = cityCode?.let { TransitData.cityZh(it) },
+            issuer = issuer,
+            issueDate = issueDate,
+            validUntil = validUntil
+        )
+    }
+
+    private fun parseCardDate(data: ByteArray, start: Int): String? {
+        if (start < 0 || start + 4 > data.size) return null
+        val value = ApduUtil.bcdToString(data.copyOfRange(start, start + 4))
+        if (!value.matches(Regex("\\d{8}"))) return null
+        val year = value.substring(0, 4).toIntOrNull() ?: return null
+        val month = value.substring(4, 6).toIntOrNull() ?: return null
+        val day = value.substring(6, 8).toIntOrNull() ?: return null
+        if (year !in 1900..2200 || month !in 1..12 || day !in 1..31) return null
+        return "${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}"
+    }
+
     private fun emitCardData(cardId: String) {
         val card = cardEntities.firstOrNull { it.cardId == cardId }?.toUiCard() ?: return
         // 优先用已构建的 UI 交易（启动缓存命中/读卡后已回写），避免切卡/筛选/统计时重跑 toUiTransaction
@@ -785,6 +905,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .toUiTransactions(cardType)
                 .also { cachedTxnsByCard[cardId] = it }
         _selectedCard.value = card
+        _selectedCardMetadata.value = buildCardMetadata(cardId, cardEntities.firstOrNull { it.cardId == cardId }?.cardType.orEmpty(), card)
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
         val stats = discountStatsByCard[cardId]
@@ -987,6 +1108,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _hasData.value = false
             _selectedIndex.value = -1
             _selectedCard.value = null
+            _selectedCardMetadata.value = UiCardMetadata()
             _cardAdded.value = null
             _allTransactions.value = emptyList()
             _selectedDiscountMonthlyFen.value = null

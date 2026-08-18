@@ -64,7 +64,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         // Update card badge from ViewModel
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
-                binding.tvCardBadge.text = "${card.cardType} · ${card.lastFour}"
+                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
                 binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
             }
         }
