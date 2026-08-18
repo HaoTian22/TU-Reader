@@ -254,14 +254,22 @@ class TransitRepository(private val context: Context) {
                     if (src.isSZT) {
                         sztRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "SZT", tx.cuHex))
                     } else {
-                        val data = ApduUtil.hexToBytes(tx.cuHex)
-                        // 0x18 主交易：日期字段以 20 开头 → 交通联合钱包（自含完整年份）；否则岭南通 LNT（需补年份）
-                        val fullYear = data.size >= 20 &&
-                            ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
-                        if (fullYear) {
-                            tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
-                        } else {
-                            lntRows.add(tx.cuHex to tx.dateMs)
+                        val sourceIsLnt = tx.isLNT
+                            ?: src.isLNT?.takeIf { !src.isTU }
+                            ?: src.isYCT.takeIf { !src.isTU }
+                        when (sourceIsLnt) {
+                            true -> lntRows.add(tx.cuHex to tx.dateMs)
+                            false -> tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                            null -> {
+                                val data = ApduUtil.hexToBytes(tx.cuHex)
+                                val fullYear = data.size >= 20 &&
+                                    ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
+                                if (fullYear) {
+                                    tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                                } else {
+                                    lntRows.add(tx.cuHex to tx.dateMs)
+                                }
+                            }
                         }
                     }
                 }
@@ -270,7 +278,7 @@ class TransitRepository(private val context: Context) {
                 }
             }
 
-            val hasLnt = src.isYCT || lntRows.isNotEmpty()
+            val hasLnt = src.isLNT == true || src.isYCT || lntRows.isNotEmpty()
             val importedCardType = if (src.isSZT) "SZT" else if (hasLnt) "YCT" else "TU"
             val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
             val cardId = if (existing != null) {

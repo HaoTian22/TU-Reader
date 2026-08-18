@@ -4,6 +4,7 @@ import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import java.security.MessageDigest
+import java.util.Calendar
 
 /**
  * 交易解码器（纯函数）：从原始 hex 记录解码交易。
@@ -15,7 +16,7 @@ import java.security.MessageDigest
  */
 object RecordDecoder {
 
-    /** 读卡时带槽位的原始记录（recNo 顺序用于 LNT 年份连续性推断） */
+    /** 读卡时带槽位的原始记录；recNo 是物理槽位，LNT 年份推断按内容开头的 Record No. 排序 */
     data class ZoneRecord(
         val sfi: Int,
         val recNo: Int,
@@ -341,9 +342,14 @@ object RecordDecoder {
         var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) else null
         val hasSubtype18 = cardType == "CU" || (cardType == "YCT" && isLnt)
         var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) else null
+        val today = todayDate()
+        val orderedRecords = records.sortedWith(
+            compareByDescending<ZoneRecord> { contentRecordNo(it.hex) ?: -1 }
+                .thenBy { it.recNo }
+        )
         val results = mutableListOf<CanonicalTransaction>()
 
-        for (rec in records.sortedBy { it.recNo }) {
+        for (rec in orderedRecords) {
             if (rec.sfi == 0x1E) continue  // 旅程记录由 buildTuMap 处理
             val data = ApduUtil.hexToBytes(rec.hex)
             if (data.size < 0x17) continue
@@ -376,8 +382,9 @@ object RecordDecoder {
                         year = relYear.toString()
                         lastMonth = thisMonth
                     }
-                    val resolvedYear = year ?: currentYear.toString()
-                    resolvedYear + mmdd
+                    val resolvedYear = year?.toIntOrNull() ?: currentYear
+                    val boundedYear = boundYearNotAfterToday(resolvedYear, mmdd, today)
+                    boundedYear.toString().padStart(4, '0') + mmdd
                 } else {
                     ApduUtil.bcdToString(data.copyOfRange(16, 20))
                 }
@@ -598,6 +605,29 @@ object RecordDecoder {
             }
         }
         return best
+    }
+
+    private fun contentRecordNo(hex: String): Int? {
+        val data = ApduUtil.hexToBytes(hex)
+        return if (data.size >= 2) ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt() else null
+    }
+
+    private fun todayDate(): String {
+        val calendar = Calendar.getInstance()
+        return String.format(
+            "%04d%02d%02d",
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    private fun boundYearNotAfterToday(year: Int, mmdd: String, today: String): Int {
+        var boundedYear = year
+        while (boundedYear > 0 && "${boundedYear.toString().padStart(4, '0')}$mmdd" > today) {
+            boundedYear--
+        }
+        return boundedYear
     }
 
     /** BCD 半字节 → 十进制数（0x12 → 12） */
