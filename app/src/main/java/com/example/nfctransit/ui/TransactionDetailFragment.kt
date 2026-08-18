@@ -120,12 +120,17 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             .joinToString(" ")
         val isEntry = txn.stationName.endsWith("↓")
         val isExit = txn.stationName.endsWith("↑")
-        val transactionType = when (txn.transitType) {
-            "地铁" -> if (isEntry) "地铁入站" else if (isExit) "地铁出站" else "地铁"
-            "公交" -> "公交乘车"
-            "消费" -> "小额消费"
-            "充值" -> "充值"
-            else -> txn.transitType
+        val transactionType = if (txn.amountText == "票务处理") {
+            "票务处理"
+        } else {
+            when (txn.transitType) {
+                "地铁" -> if (isEntry) "地铁入站" else if (isExit) "地铁出站" else "地铁"
+                "公交" -> "公交乘车"
+                "消费" -> "小额消费"
+                "便利店" -> "便利店"
+                "充值" -> "充值"
+                else -> txn.transitType
+            }
         }
         // 进出站图标用 FontAwesome：入站 = 箭头进框，出站 = 箭头出框
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")

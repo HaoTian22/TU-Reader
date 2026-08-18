@@ -1231,6 +1231,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "有轨电车" -> 0xFF26A69A.toInt()
         "城际" -> 0xFF5C6BC0.toInt()
         "消费" -> 0xFFE91E63.toInt()
+        "便利店" -> 0xFFE91E63.toInt()
         else -> 0xFF78909C.toInt()
     }
 

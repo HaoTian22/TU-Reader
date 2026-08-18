@@ -39,6 +39,21 @@ object RecordDecoder {
         val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
     }
 
+    /** LNT 0x18 原始交易类型覆盖；type/subtype 均按记录中的十六进制字节比较。 */
+    private data class LntType(
+        val transitType: String,
+        val direction: String = ""
+    )
+
+    private fun resolveLntType(typeByte: Int, subtype: Int?): LntType? {
+        return when {
+            typeByte == 0x09 && (subtype == 0x31 || subtype == 0x17) -> LntType("地铁", "↑")
+            typeByte == 0x09 && subtype == 0x11 -> LntType("地铁", "↓")
+            typeByte == 0x06 && subtype == 0x17 -> LntType("便利店")
+            else -> null
+        }
+    }
+
     /** TU 1E 建表结果；balanceMap 值为 null = 该记录无余额数据 */
     private class TuMap(
         val stationMap: Map<String, StationRef>,
@@ -337,10 +352,12 @@ object RecordDecoder {
             val seq = ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt()
             val amountFen = ApduUtil.hexToLong(data.copyOfRange(6, 9))
             val typeHex = ApduUtil.bytesToHex(byteArrayOf(data[9]))
+            val typeByte = data[9].toInt() and 0xFF
             val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
             val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
             val subtype = if (isSubtype18) data[22].toInt() and 0xFF else null
+            val lntType = if (isLnt && isSubtype18) resolveLntType(typeByte, subtype) else null
             val time = if (isSubtype18) {
                 ApduUtil.bcdToString(data.copyOfRange(20, 22)) + "00"
             } else {
@@ -375,17 +392,14 @@ object RecordDecoder {
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
             val isRecharge = posIsRecharge || typeHex == "02"
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
-            val direction = when (subtype) {
-                0x11 -> "↓"
-                0x17 -> "↑"
-                else -> ""
-            }
+            val direction = lntType?.direction.orEmpty()
 
-            val ref = if (isRecharge) {
-                StationRef("", "", "充值", "")
-            } else {
-                resolveStation(cardType, cityCode18, posHex, terminal, tu)
+            val ref = when {
+                isRecharge -> StationRef("", "", "充值", "")
+                lntType?.transitType == "便利店" -> StationRef("", "", "便利店", "")
+                else -> resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
+            val transitType = lntType?.transitType ?: ref.transitType
 
             // 站点命中后优先使用设备所属城市；未命中时再沿用记录/钱包城市码。
             val cityForTx = when {
@@ -410,13 +424,13 @@ object RecordDecoder {
                     sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
-                    stationName = if (direction.isNotEmpty() && ref.station.isNotEmpty()) {
-                        "${ref.station} $direction"
+                    stationName = if (direction.isNotEmpty() && (ref.station.isNotEmpty() || lntType != null)) {
+                        "${ref.station.ifEmpty { transitType }} $direction"
                     } else {
                         ref.stationWithDir
                     }, lineName = ref.line, lineColor = ref.lineColor,
                     lineId = ref.lineId, stationId = ref.stationId,
-                    transitType = ref.transitType,
+                    transitType = transitType,
                     cityCode = cityForTx,
                     date = date, time = time,
                     balanceAfterFen = balanceAfterFen,
