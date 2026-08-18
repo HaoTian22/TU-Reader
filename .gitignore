@@ -10,3 +10,4 @@ keystore.properties
 .r2config.json
 tools/osm_coords/cache/*
 CLAUDE.md
+local.properties

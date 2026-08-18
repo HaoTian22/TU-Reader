@@ -103,4 +103,18 @@ interface UserDao {
 
     @Query("DELETE FROM card_app WHERE card_id = :cardId")
     suspend fun clearCardApps(cardId: String)
+
+    // ── route_cache（腾讯路线规划派生缓存）──
+
+    @Query("SELECT * FROM route_cache WHERE cache_key = :cacheKey LIMIT 1")
+    suspend fun getRouteCache(cacheKey: String): RouteCacheEntity?
+
+    @Upsert
+    suspend fun upsertRouteCache(row: RouteCacheEntity)
+
+    @Query("DELETE FROM route_cache WHERE expires_at < :before AND status != 'SUCCESS'")
+    suspend fun deleteExpiredNegativeRouteCache(before: Long)
+
+    @Query("DELETE FROM route_cache")
+    suspend fun clearRouteCache()
 }

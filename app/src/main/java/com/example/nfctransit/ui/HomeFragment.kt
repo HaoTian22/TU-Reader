@@ -10,9 +10,12 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
@@ -26,6 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
 
@@ -37,6 +41,42 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var lastKnownSize = -1
     private var suppressPagerCallback = false
     private var accentColor = 0xFF0066FF.toInt()
+    private var isImportingOldData = false
+
+    private val importOldDataLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            isImportingOldData = false
+            renderOldDataImportState(importing = false)
+            return@registerForActivityResult
+        }
+
+        isImportingOldData = true
+        renderOldDataImportState(importing = true)
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val message = viewModel.importDatabase(uri)
+                isImportingOldData = false
+                renderOldDataImportState(
+                    importing = false,
+                    message = message,
+                    success = true
+                )
+                context?.let {
+                    Toast.makeText(it, "✓ $message", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                isImportingOldData = false
+                val detail = e.message?.takeIf { it.isNotBlank() } ?: "文件格式不受支持"
+                renderOldDataImportState(
+                    importing = false,
+                    message = "导入失败：$detail",
+                    success = false
+                )
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -54,6 +94,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         // ViewModel 记录的选中卡片重置成第一张
         suppressPagerCallback = true
 
+        setupOldDataImport()
         setupQuickActions()
         setupCardPager()
         observeViewModel()
@@ -68,6 +109,38 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             }
             // 等恢复布局完成后放开回调，允许用户滑动切换卡片
             binding.cardPager.post { suppressPagerCallback = false }
+        }
+    }
+
+    /** 首页无数据时直接导入 TU Reader / TripReader 数据库备份。 */
+    private fun setupOldDataImport() {
+        renderOldDataImportState(importing = isImportingOldData)
+        binding.btnImportOldData.setOnClickListener {
+            if (isImportingOldData) return@setOnClickListener
+            renderOldDataImportState(importing = false)
+            importOldDataLauncher.launch(arrayOf("*/*"))
+        }
+    }
+
+    private fun renderOldDataImportState(
+        importing: Boolean,
+        message: String? = null,
+        success: Boolean = false
+    ) {
+        val currentBinding = _binding ?: return
+        currentBinding.btnImportOldData.isEnabled = !importing
+        currentBinding.btnImportOldData.text = if (importing) "正在导入…" else "导入旧数据"
+        currentBinding.tvImportOldDataStatus.apply {
+            text = message.orEmpty()
+            setTextColor(
+                when {
+                    importing -> 0xFF8E8E93.toInt()
+                    success -> 0xFF34C759.toInt()
+                    else -> 0xFFFF3B30.toInt()
+                }
+            )
+            visibility = if (importing || message != null) View.VISIBLE else View.GONE
+            if (importing) text = "正在读取并合并备份数据…"
         }
     }
 

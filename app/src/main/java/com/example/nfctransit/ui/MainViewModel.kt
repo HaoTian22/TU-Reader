@@ -774,6 +774,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val resetToAsset = TransitDbVersion.isNewer(assetVersion, activeVersion)
                 withContext(Dispatchers.IO) {
                     UiCache.clearAll(ctx)
+                    repo.clearRouteCache()
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
                         TransitData.reload()

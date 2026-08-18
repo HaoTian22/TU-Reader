@@ -69,6 +69,7 @@ object TransitData {
     // 站名 -> 解析结果（中/英各一；同名站多线路时优先带线路者），用于给旧数据补回 ID
     private val byStationNameZh = mutableMapOf<String, StationResolution>()
     private val byStationNameEn = mutableMapOf<String, StationResolution>()
+    private val lineColorsByCityAndName = mutableMapOf<Pair<Long, String>, String>()
 
     // 交通联合卡 IIN -> 卡名（来自 assets/data/TU/cardname-tu.csv）
     private val iinNames = mutableMapOf<String, String>()
@@ -293,6 +294,25 @@ object TransitData {
         return lon to lat
     }
 
+    /** 腾讯路线返回线路名后的颜色补全；按起点站所属城市限制，避免不同城市同名“1号线”串色。 */
+    fun lineColorOf(originStationId: Long?, lineName: String): String? {
+        if (originStationId == null || lineName.isBlank()) return null
+        ensureLoaded()
+        val cityId = byStationId[originStationId]?.cityId ?: return null
+        val normalized = normalizeRouteLineName(lineName)
+        lineColorsByCityAndName[cityId to normalized]?.let { return it }
+        return lineColorsByCityAndName.entries
+            .asSequence()
+            .filter { it.key.first == cityId }
+            .filter { (key, _) ->
+                val candidate = key.second
+                minOf(candidate.length, normalized.length) >= 2 &&
+                    (candidate.contains(normalized) || normalized.contains(candidate))
+            }
+            .maxByOrNull { it.key.second.length }
+            ?.value
+    }
+
     /**
      * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析（简化：前缀分桶 + 最长重叠）。
      *
@@ -438,6 +458,7 @@ object TransitData {
             byCombinedEn.clear()
             byStationNameZh.clear()
             byStationNameEn.clear()
+            lineColorsByCityAndName.clear()
             deviceCodesByCity.clear()
             loaded = false
             ensureLoaded()
@@ -461,6 +482,14 @@ object TransitData {
                         r.matchKey?.let { byMatchKey[it] = r }
                         r.stationId?.let { byStationId[it] = r }
                         r.lineId?.let { lid -> r.stationId?.let { byLineStationId[lid to it] = r } }
+                        if (!r.lineColor.isNullOrBlank()) {
+                            r.lineName?.takeIf { it.isNotBlank() }?.let { name ->
+                                lineColorsByCityAndName.putIfAbsent(r.cityId to normalizeRouteLineName(name), r.lineColor)
+                            }
+                            r.lineNameEn?.takeIf { it.isNotBlank() }?.let { name ->
+                                lineColorsByCityAndName.putIfAbsent(r.cityId to normalizeRouteLineName(name), r.lineColor)
+                            }
+                        }
                         byCombinedZh["${r.lineName ?: ""} ${r.stationName ?: ""}".trim()] = r
                         byCombinedEn[
                             "${r.lineNameEn ?: r.lineName ?: ""} ${r.stationNameEn ?: r.stationName ?: ""}".trim()
@@ -482,6 +511,13 @@ object TransitData {
             }
         }
     }
+
+    private fun normalizeRouteLineName(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(Regex("[（(].*?[）)]"), "")
+        .replace("轨道交通", "")
+        .replace("地铁", "")
+        .replace(Regex("[\\s·•_\\-]"), "")
 
     /** 加载 IIN -> 卡名映射（cardname-tu.csv），Name 列非空的才入库 */
     private fun loadCardNames() {

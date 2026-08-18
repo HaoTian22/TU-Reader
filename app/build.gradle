@@ -26,6 +26,7 @@ android {
         versionCode 1
         versionName appVersionName
         resValue "string", "app_version", appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -100,4 +101,11 @@ dependencies {
 
     // 腾讯地图 SDK（4.5.x 兼容经典 5 段式 Key 格式，自包含无传递依赖）
     implementation 'com.tencent.map:tencent-map-vector-sdk:4.5.14.5'
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.room:room-testing:2.8.4'
 }
+
+android.sourceSets.androidTest.assets.srcDirs += files("$projectDir/schemas")

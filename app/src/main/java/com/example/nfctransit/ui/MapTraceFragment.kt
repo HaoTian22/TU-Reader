@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -18,6 +19,14 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.route.RouteGeometry
+import com.example.nfctransit.data.route.RouteLeg
+import com.example.nfctransit.data.route.RouteLoadState
+import com.example.nfctransit.data.route.RouteMode
+import com.example.nfctransit.data.route.RoutePlan
+import com.example.nfctransit.data.route.TransitRouteQuery
+import com.example.nfctransit.data.route.TransitRouteRepository
 import com.example.nfctransit.databinding.FragmentMapTraceBinding
 import androidx.navigation.fragment.findNavController
 import com.tencent.tencentmap.mapsdk.maps.CameraUpdateFactory
@@ -33,6 +42,7 @@ import com.tencent.tencentmap.mapsdk.maps.model.MarkerOptions
 import com.tencent.tencentmap.mapsdk.maps.model.Polyline
 import com.tencent.tencentmap.mapsdk.maps.model.PolylineOptions
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -47,8 +57,19 @@ import java.util.Locale
  */
 class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
-    /** 一条贝塞尔曲线：白色描边底 + 彩色主线（描边仅当前段显示） */
-    private class CurveOverlay(val white: Polyline, val color: Polyline)
+    private data class LegOverlay(
+        val white: Polyline,
+        val color: Polyline,
+        val leg: RouteLeg?,
+        val activeColor: Int,
+        val activeWidthDp: Float
+    )
+
+    private data class SegmentOverlay(
+        val segment: MapSegment,
+        val legs: MutableList<LegOverlay>,
+        var realRoute: Boolean = false
+    )
 
     private var _binding: FragmentMapTraceBinding? = null
     private val binding get() = _binding!!
@@ -62,10 +83,12 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var playing = false
     private var speed = 1f
     private var mainAccent = 0xFF0066FF.toInt()
+    private val routeRepository by lazy { TransitRouteRepository(requireContext().applicationContext) }
 
     private val stationMarkers = mutableMapOf<Long, Marker>()
     private val stationMeta = mutableMapOf<Long, Pair<String, Int>>()   // stationId -> (站名, 圆点色)
-    private val segmentPolylines = mutableListOf<Pair<MapSegment, CurveOverlay>>()
+    private val segmentOverlays = mutableListOf<SegmentOverlay>()
+    private val routePlans = mutableMapOf<MapSegment, RoutePlan>()
     private val segmentRows = mutableListOf<View>()          // 行程列表行（与 model.segments 对齐）
     private val plainDotCache = mutableMapOf<Int, BitmapDescriptor>()
     private val highlightDotCache = mutableMapOf<Int, BitmapDescriptor>()
@@ -79,6 +102,16 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var programmaticScroll = false   // 播放自动滚动列表时不当作"用户滑动"
     private var playbackJob: Job? = null
     private var cameraJob: Job? = null
+    private var routeLoadJob: Job? = null
+    private var routeGeneration = 0
+    private var routeTotal = 0
+    private var routeFinished = 0
+    private var routeFailures = 0
+    private var routeServiceDisabled = false
+    private var routeHasEstimate = false
+    private var routeHasStaleCache = false
+    private var playbackMarker: Marker? = null
+    private val transferMarkers = mutableListOf<Marker>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -201,10 +234,16 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun renderJourney() {
         stopPlayback()
+        routeLoadJob?.cancel()
+        routeLoadJob = null
+        routeGeneration++
         stationMarkers.clear()
         stationMeta.clear()
-        segmentPolylines.clear()
+        segmentOverlays.clear()
+        routePlans.clear()
         segmentRows.clear()
+        transferMarkers.clear()
+        playbackMarker = null
         plainDotCache.clear()
         highlightDotCache.clear()
         labelCache.clear()
@@ -239,7 +278,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             if (m != null) stationMarkers[ev.stationId] = m
         }
 
-        // 站间贝塞尔曲线：白色描边底 + 彩色主线（描边仅当前段显示）
+        // 网络真实路线返回前先保留示意曲线，失败/离线时可直接降级使用。
         for (seg in model.segments) {
             if (!seg.hasCurve) continue
             val pts = bezierPoints(seg.from, seg.to!!)
@@ -250,7 +289,16 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             val colored = tencentMap?.addPolyline(
                 PolylineOptions().addAll(pts).width(dpToPx(0.5f)).color(ghostCurveColor)
             )
-            if (white != null && colored != null) segmentPolylines.add(seg to CurveOverlay(white, colored))
+            if (white != null && colored != null) {
+                segmentOverlays.add(
+                    SegmentOverlay(
+                        segment = seg,
+                        legs = mutableListOf(
+                            LegOverlay(white, colored, null, color, 5f)
+                        )
+                    )
+                )
+            }
         }
 
         currentEventIndex = 0
@@ -259,9 +307,159 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         val first = model.events[0]
         tencentMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(first.lat, first.lng), 18f))
         bindTripInfo(model.segments)
+        startRouteLoading()
 
         // 等布局完成后再刷一次进度条宽度（首帧父容器宽度尚未算出）
         view?.post { updateHighlight() }
+    }
+
+    // ── 腾讯公交真实路线 ──
+
+    private fun startRouteLoading() {
+        val eligible = model.segments.filter { segment ->
+            segment.hasCurve && segment.to != null && isSameCity(segment)
+        }
+        routeTotal = eligible.size
+        routeFinished = 0
+        routeFailures = 0
+        routeServiceDisabled = false
+        routeHasEstimate = false
+        routeHasStaleCache = false
+        updateRouteHint()
+        if (eligible.isEmpty()) return
+
+        val generation = routeGeneration
+        val current = activeSegmentAt()
+        val ordered = buildList {
+            current?.takeIf { it in eligible }?.let(::add)
+            eligible.firstOrNull { it !== current }?.let(::add)
+            eligible.forEach { if (it !in this) add(it) }
+        }
+        routeLoadJob = viewLifecycleOwner.lifecycleScope.launch {
+            coroutineScope {
+                for (segment in ordered) {
+                    launch {
+                        val state = routeRepository.resolve(routeQuery(segment))
+                        if (generation != routeGeneration || _binding == null) return@launch
+                        handleRouteResult(segment, state)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun routeQuery(segment: MapSegment): TransitRouteQuery {
+        val to = requireNotNull(segment.to)
+        return TransitRouteQuery(
+            fromStationId = segment.from.stationId,
+            toStationId = to.stationId,
+            fromName = segment.from.name,
+            toName = to.name,
+            fromLineName = segment.from.lineName,
+            toLineName = to.lineName,
+            fromLat = segment.from.lat,
+            fromLng = segment.from.lng,
+            toLat = to.lat,
+            toLng = to.lng,
+            departureTimeSeconds = segment.startTime / 1000L
+        )
+    }
+
+    private fun isSameCity(segment: MapSegment): Boolean {
+        val to = segment.to ?: return false
+        val fromCity = TransitData.resolutionFor(null, segment.from.stationId)?.cityId
+        val toCity = TransitData.resolutionFor(null, to.stationId)?.cityId
+        return fromCity != null && fromCity == toCity
+    }
+
+    private fun handleRouteResult(segment: MapSegment, state: RouteLoadState) {
+        routeFinished++
+        when (state) {
+            is RouteLoadState.Ready -> {
+                routePlans[segment] = state.plan
+                routeHasEstimate = routeHasEstimate || state.plan.estimatedCurrentNetwork
+                routeHasStaleCache = routeHasStaleCache || state.plan.stale
+                replaceWithRealRoute(segment, state.plan)
+                // 路线腿名称/换乘信息到达后刷新行程列表；保持当前段，不触发自动滚动。
+                programmaticScroll = true
+                try {
+                    bindTripInfo(model.segments)
+                } finally {
+                    programmaticScroll = false
+                }
+                updateHighlight(scrollList = false)
+            }
+            is RouteLoadState.Unavailable -> routeFailures++
+            is RouteLoadState.Error -> {
+                routeFailures++
+                if (state.serviceDisabled) routeServiceDisabled = true
+            }
+        }
+        updateRouteHint()
+    }
+
+    private fun replaceWithRealRoute(segment: MapSegment, plan: RoutePlan) {
+        val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
+        holder.legs.forEach { overlay ->
+            overlay.white.remove()
+            overlay.color.remove()
+        }
+        holder.legs.clear()
+        for (leg in plan.legs) {
+            if (leg.points.size < 2) continue
+            val points = leg.points.map { LatLng(it.lat, it.lng) }
+            val width = if (leg.mode == RouteMode.WALKING) 2f else 5f
+            val activeColor = routeLegColor(segment, plan, leg)
+            val white = tencentMap?.addPolyline(
+                PolylineOptions()
+                    .addAll(points)
+                    .width(dpToPx(width + 2f))
+                    .color(Color.WHITE)
+                    .visible(false)
+            )
+            val colored = tencentMap?.addPolyline(
+                PolylineOptions()
+                    .addAll(points)
+                    .width(dpToPx(0.5f))
+                    .color(ghostCurveColor)
+            )
+            if (white != null && colored != null) {
+                holder.legs.add(LegOverlay(white, colored, leg, activeColor, width))
+            }
+        }
+        holder.realRoute = holder.legs.isNotEmpty()
+    }
+
+    private fun routeLegColor(segment: MapSegment, plan: RoutePlan, leg: RouteLeg): Int {
+        if (leg.mode == RouteMode.WALKING) return 0xFF9AA8B5.toInt()
+        val transit = plan.transitLegs
+        val index = transit.indexOf(leg)
+        val endpointColor = when (index) {
+            0 -> parseColor(segment.from.lineColor)
+            transit.lastIndex -> parseColor(segment.to?.lineColor)
+            else -> null
+        }
+        if (endpointColor != null) return endpointColor
+        parseColor(TransitData.lineColorOf(segment.from.stationId, leg.title))?.let { return it }
+        val palette = intArrayOf(
+            0xFF2D7DD2.toInt(), 0xFFE84855.toInt(), 0xFF2A9D8F.toInt(),
+            0xFFF4A261.toInt(), 0xFF8E5AC7.toInt(), 0xFF00A6A6.toInt()
+        )
+        return palette[(leg.title.hashCode() and Int.MAX_VALUE) % palette.size]
+    }
+
+    private fun updateRouteHint() {
+        if (_binding == null) return
+        binding.tvMapHint.text = when {
+            routeServiceDisabled -> "路线服务未开通 · 已使用示意线"
+            routeTotal > 0 && routeFinished < routeTotal ->
+                "正在加载真实路线 ${routeFinished}/${routeTotal}"
+            routeFailures > 0 -> "部分路线使用示意线 · 腾讯地图推算可能与实际乘坐不同"
+            routeHasStaleCache -> "已使用过期路线缓存 · 可能与实际乘坐不同"
+            routeHasEstimate -> "按当前路网推算 · 可能与实际乘坐不同"
+            routeTotal > 0 -> "路线由腾讯地图推算，可能与实际乘坐不同"
+            else -> "双指缩放 · 滑动下方列表调整时间"
+        }
     }
 
     // ── 播放 ──
@@ -285,6 +483,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun stopPlayback() {
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
+        playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
     }
@@ -292,6 +491,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun pause() {
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
+        playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
     }
@@ -314,22 +514,101 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private suspend fun advanceOneStep() {
         val cur = model.events.getOrNull(currentEventIndex) ?: return
         val seg = activeSegmentAt()
-        val isJourney = seg != null && seg.hasCurve && seg.from === cur
-        val next = if (isJourney) {
-            val ti = model.events.indexOfFirst { it === seg!!.to }
+        val journeySegment = seg?.takeIf { it.hasCurve && it.from === cur }
+        val next = if (journeySegment != null) {
+            val ti = model.events.indexOfFirst { it === journeySegment.to }
             if (ti < 0) return else ti
         } else {
             if (currentEventIndex >= model.events.lastIndex) 0 else currentEventIndex + 1
         }
         // 飞前停 1s
         delay((1000f / speed).toLong())
-        // flyTo（等待完成）
-        val zoom = if (next == 0 || next == model.events.lastIndex) 18f else null
-        animateCameraToNow(model.events[next], zoom = zoom)
+        val routePlan = journeySegment?.let(routePlans::get)
+        if (journeySegment != null && routePlan != null) {
+            animateAlongRoute(journeySegment, routePlan, currentEventIndex, next)
+        } else {
+            // 无网络、无路线或仍在加载时沿用原 flyTo 降级。
+            val zoom = if (next == 0 || next == model.events.lastIndex) 18f else null
+            animateCameraToNow(model.events[next], zoom = zoom)
+        }
         // 飞后停 0.5s，然后切换
         delay((500f / speed).toLong())
+        playbackMarker?.setVisible(false)
         currentEventIndex = next
         updateHighlight()
+    }
+
+    /** 沿腾讯返回的真实点串匀速播放；各腿按几何距离分配时长，换乘边界短暂停留。 */
+    private suspend fun animateAlongRoute(
+        segment: MapSegment,
+        plan: RoutePlan,
+        fromEventIndex: Int,
+        toEventIndex: Int
+    ) {
+        val map = tencentMap ?: return
+        val geometries = plan.legs.map { RouteGeometry(it.points) }
+        val totalMeters = geometries.sumOf { it.totalMeters }
+        if (totalMeters <= 0.0) {
+            animateCameraToNow(segment.to ?: return)
+            return
+        }
+        cameraJob?.cancel()
+        cameraJob = null
+        val baseDuration = ((totalMeters / 1000.0) * 800.0).toLong().coerceIn(3_000L, 12_000L)
+        val totalDuration = (baseDuration / speed).toLong().coerceAtLeast(1_000L)
+        val progressStart = if (model.events.size <= 1) 0f
+        else fromEventIndex.toFloat() / model.events.lastIndex
+        val progressEnd = if (model.events.size <= 1) 1f
+        else toEventIndex.toFloat() / model.events.lastIndex
+        val followZoom = (map.cameraPosition?.zoom ?: 15.5f).coerceIn(14.5f, 17f)
+        var completedMeters = 0.0
+
+        for ((legIndex, geometry) in geometries.withIndex()) {
+            if (geometry.points.size < 2 || geometry.totalMeters <= 0.0) continue
+            updateActiveRouteLeg(segment, legIndex)
+            val legDuration = (totalDuration * geometry.totalMeters / totalMeters)
+                .toLong().coerceAtLeast(300L)
+            val startedAt = SystemClock.elapsedRealtime()
+            while (currentCoroutineContext().isActive) {
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                val fraction = (elapsed.toDouble() / legDuration).coerceIn(0.0, 1.0)
+                val point = geometry.pointAtFraction(fraction) ?: break
+                val latLng = LatLng(point.lat, point.lng)
+                showPlaybackMarker(latLng)
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, followZoom))
+                val routeFraction = ((completedMeters + geometry.totalMeters * fraction) / totalMeters).toFloat()
+                updateProgressBar(progressStart + (progressEnd - progressStart) * routeFraction)
+                if (fraction >= 1.0) break
+                delay(33L)
+            }
+            completedMeters += geometry.totalMeters
+            if (legIndex < geometries.lastIndex) delay((350f / speed).toLong())
+        }
+    }
+
+    private fun showPlaybackMarker(position: LatLng) {
+        val marker = playbackMarker
+        if (marker == null) {
+            playbackMarker = tencentMap?.addMarker(
+                MarkerOptions()
+                    .position(position)
+                    .anchor(0.5f, 0.5f)
+                    .icon(stationDot(mainAccent, 5.5f, ring = true))
+            )
+        } else {
+            marker.setPosition(position)
+            marker.setVisible(true)
+        }
+    }
+
+    private fun updateActiveRouteLeg(segment: MapSegment, activeLegIndex: Int) {
+        val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
+        for ((index, overlay) in holder.legs.withIndex()) {
+            overlay.white.setVisible(true)
+            overlay.color.setColor(overlay.activeColor)
+            val extra = if (index == activeLegIndex) 1.5f else 0f
+            overlay.color.setWidth(dpToPx(overlay.activeWidthDp + extra))
+        }
     }
 
     private fun activeSegmentAt(): MapSegment? {
@@ -345,20 +624,26 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         // 站点圆点：当前站高亮；zoom≥13 显示站名标签
         refreshMarkerIcons()
 
-        // 贝塞尔：当前行程段高亮加粗（白描边），其余统一变细变暗
-        for ((seg, ov) in segmentPolylines) {
-            val isActive = active != null && seg === active
-            val color = parseColor(seg.lineColor) ?: 0xFF4A90D9.toInt()
-            if (isActive) {
-                ov.white.setVisible(true)
-                ov.color.setColor(color)
-                ov.color.setWidth(dpToPx(5f))
-            } else {
-                ov.white.setVisible(false)
-                ov.color.setColor(ghostCurveColor)
-                ov.color.setWidth(dpToPx(0.5f))
+        // 当前真实路线逐腿着色并加白描边；未加载/失败的段继续使用原贝塞尔降级线。
+        for (holder in segmentOverlays) {
+            val isActive = active != null && holder.segment === active
+            for (overlay in holder.legs) {
+                if (isActive) {
+                    overlay.white.setVisible(true)
+                    overlay.color.setColor(overlay.activeColor)
+                    overlay.color.setWidth(dpToPx(overlay.activeWidthDp))
+                } else if (holder.realRoute) {
+                    overlay.white.setVisible(false)
+                    overlay.color.setColor((overlay.activeColor and 0x00FFFFFF) or 0x66000000)
+                    overlay.color.setWidth(dpToPx(overlay.activeWidthDp))
+                } else {
+                    overlay.white.setVisible(false)
+                    overlay.color.setColor(ghostCurveColor)
+                    overlay.color.setWidth(dpToPx(0.5f))
+                }
             }
         }
+        renderTransferMarkers(active)
 
         // 列表：当前行程行高亮（圆角）；播放/跳转时把它滚到视口中间
         val activeIdx = active?.let { model.segments.indexOf(it) } ?: -1
@@ -377,12 +662,35 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         // 文案：站名 + 药丸线路
         renderCurrentStation(active, ev)
 
-        // 进度条
+        val frac = if (model.events.size <= 1) 1f else currentEventIndex.toFloat() / (model.events.size - 1)
+        updateProgressBar(frac)
+    }
+
+    private fun updateProgressBar(frac: Float) {
         val parent = binding.progressPlayback.parent as? View
         val totalW = parent?.width ?: 0
-        val frac = if (model.events.size <= 1) 1f else currentEventIndex.toFloat() / (model.events.size - 1)
         binding.progressPlayback.layoutParams = binding.progressPlayback.layoutParams.apply {
-            width = (totalW * frac).toInt()
+            width = (totalW * frac.coerceIn(0f, 1f)).toInt()
+        }
+    }
+
+    private fun renderTransferMarkers(active: MapSegment?) {
+        transferMarkers.forEach { it.remove() }
+        transferMarkers.clear()
+        val plan = active?.let(routePlans::get) ?: return
+        val transit = plan.transitLegs
+        if (transit.size < 2) return
+        for (i in 1 until transit.size) {
+            val leg = transit[i]
+            val point = leg.points.firstOrNull() ?: continue
+            val marker = tencentMap?.addMarker(
+                MarkerOptions()
+                    .position(LatLng(point.lat, point.lng))
+                    .anchor(0.5f, 0.5f)
+                    .title("换乘 ${leg.title}")
+                    .icon(markerDot(0xFFF5A623.toInt(), highlighted = true))
+            )
+            if (marker != null) transferMarkers.add(marker)
         }
     }
 
@@ -433,7 +741,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun renderCurrentStation(active: MapSegment?, ev: MapEvent) {
         val row = binding.currentStationRow
         row.removeAllViews()
-        if (active != null && active.hasCurve && active.to != null) {
+        val plan = active?.let(routePlans::get)
+        if (active != null && plan != null && plan.transitLegs.isNotEmpty()) {
+            addRouteChain(row, active, plan)
+        } else if (active != null && active.hasCurve && active.to != null) {
             row.addView(stationChip(active.from.name, active.from.lineName, active.from.lineColor))
             row.addView(arrowView())
             row.addView(stationChip(active.to.name, active.to.lineName, active.to.lineColor))
@@ -442,6 +753,33 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         }
         binding.tvCurrentTime.text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ev.timeMillis))
     }
+
+    private fun addRouteChain(container: LinearLayout, segment: MapSegment, plan: RoutePlan) {
+        val transit = plan.transitLegs
+        if (transit.isEmpty()) return
+        val first = transit.first()
+        container.addView(
+            stationChip(
+                first.fromName ?: segment.from.name,
+                first.title,
+                colorHex(routeLegColor(segment, plan, first))
+            )
+        )
+        for ((index, leg) in transit.withIndex()) {
+            container.addView(arrowView())
+            val nextLine = transit.getOrNull(index + 1) ?: leg
+            val fallbackName = if (index == transit.lastIndex) segment.to?.name.orEmpty() else "换乘"
+            container.addView(
+                stationChip(
+                    leg.toName ?: fallbackName,
+                    nextLine.title,
+                    colorHex(routeLegColor(segment, plan, nextLine))
+                )
+            )
+        }
+    }
+
+    private fun colorHex(color: Int): String = String.format(Locale.US, "#%06X", color and 0xFFFFFF)
 
     /** 站名 + 线路药丸 的组合视图 */
     private fun stationChip(name: String, lineName: String, lineColor: String?): LinearLayout {
@@ -798,7 +1136,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
-            if (seg.hasCurve) {
+            val plan = routePlans[seg]
+            if (plan != null && plan.transitLegs.isNotEmpty()) {
+                addRouteChain(routeRow, seg, plan)
+            } else if (seg.hasCurve) {
                 routeRow.addView(stationChip(seg.from.name, seg.from.lineName, seg.from.lineColor))
                 routeRow.addView(arrowView())
                 routeRow.addView(stationChip(seg.to!!.name, seg.to.lineName, seg.to.lineColor))
@@ -834,6 +1175,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     override fun onDestroyView() {
         stopPlayback()
+        routeGeneration++
+        routeLoadJob?.cancel()
+        routeLoadJob = null
         mapView?.onDestroy()
         mapView = null
         tencentMap = null
