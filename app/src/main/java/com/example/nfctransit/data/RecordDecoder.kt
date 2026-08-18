@@ -343,10 +343,14 @@ object RecordDecoder {
         val hasSubtype18 = cardType == "CU" || (cardType == "YCT" && isLnt)
         var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) else null
         val today = todayDate()
-        val orderedRecords = records.sortedWith(
-            compareByDescending<ZoneRecord> { contentRecordNo(it.hex) ?: -1 }
-                .thenBy { it.recNo }
-        )
+        val orderedRecords = if (isLnt || hasSubtype18) {
+            records.sortedWith(
+                compareByDescending<ZoneRecord> { contentRecordNo(it.hex) ?: -1 }
+                    .thenBy { it.recNo }
+            )
+        } else {
+            records.sortedBy { it.recNo }
+        }
         val results = mutableListOf<CanonicalTransaction>()
 
         for (rec in orderedRecords) {
