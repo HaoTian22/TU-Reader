@@ -46,7 +46,8 @@ object RecordDecoder {
 
     private fun resolveLntType(typeByte: Int, subtype: Int?): LntType? {
         return when {
-            typeByte == 0x09 && subtype == 0x31 -> LntType("地铁", "↑")
+            typeByte == 0x09 && (subtype == 0x31 || subtype == 0x17) -> LntType("地铁", "↑")
+            typeByte == 0x09 && subtype == 0x11 -> LntType("地铁", "↓")
             typeByte == 0x06 && subtype == 0x17 -> LntType("便利店")
             else -> null
         }
@@ -389,11 +390,7 @@ object RecordDecoder {
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
             val isRecharge = posIsRecharge || typeHex == "02"
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
-            val direction = lntType?.direction ?: when (subtype) {
-                0x11 -> "↓"
-                0x17 -> "↑"
-                else -> ""
-            }
+            val direction = lntType?.direction.orEmpty()
 
             val ref = when {
                 isRecharge -> StationRef("", "", "充值", "")
