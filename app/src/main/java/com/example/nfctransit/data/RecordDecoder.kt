@@ -134,6 +134,22 @@ object RecordDecoder {
                 )
                 DecodeResult(display, finalLnt + tu.journey + tuFare)
             }
+            "CU" -> {
+                val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
+                val tuRecords = records.filter { it.protocol == "TU" }
+                val cu = parseFareRecords(
+                    cardType, cuRecords, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null
+                )
+                val tu = buildTuMap(tuRecords)
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
+                    "TU", tuRecords, "TU", tu, currentYear, null
+                )
+                val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
+                val display = (cu + tuMerged).sortedWith(
+                    compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
+                )
+                DecodeResult(display, cu + tu.journey + tuFare)
+            }
             "SZT" -> {
                 val hasSztProtocol = records.any { it.protocol == "SZT" }
                 val sztRecords = records.filter {
@@ -192,6 +208,19 @@ object RecordDecoder {
                     cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
+            }
+            "CU" -> {
+                val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
+                val tuRecords = records.filter { it.protocol == "TU" }
+                val cu = parseFareRecords(
+                    cardType, cuRecords, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null,
+                    storedDate, storedBalance
+                )
+                val tu = buildTuMap(tuRecords)
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
+                    "TU", tuRecords, "TU", tu, 0, null, storedDate, storedBalance
+                )
+                cu + mergeJourneyAndFare(tu.journey, tuFare)
             }
             "SZT" -> {
                 val hasSztProtocol = records.any { it.protocol == "SZT" }

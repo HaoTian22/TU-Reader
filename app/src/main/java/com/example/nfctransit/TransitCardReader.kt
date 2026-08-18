@@ -113,18 +113,20 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     val rawRecs = mutableListOf<RawRecord>()
                     probeAllFiles(log, rawRecs, "TU", profile.transactionSfis)
                     val lntBalance = collectTuWallet(profile, log, rawRecs)
+                    addInfoRecord(rawRecs, info, "TU")
                     val bc = readBalance(profile, log)
                     val balance = if (bc.respHex != null) bc.fen else lntBalance
                     appReads.add(AppRead(aid, selectHex, balance, bc.respHex))
                     ReadResult(profile, info, balance, rawRecords = rawRecs, rawLog = log, appReads = appReads)
                 }
-                // 双协议卡：LNT 钱包（信息/余额/统计月份 + 全部 SFI + 0x18 LNT）+ TU 钱包（1E + 0x18 TU）
                 "YCT" -> {
                     val yct = readYctCard(profile, log)
                     val rawRecs = mutableListOf<RawRecord>()
                     probeAllFiles(log, rawRecs, "LNT", profile.transactionSfis)
                     collectFareZone(profile, log, profile.tradeSfi, "LNT", rawRecs)
+                    addInfoRecord(rawRecs, yct.info, "LNT")
                     val tu = readTuWallet(log, rawRecs)
+                    addInfoRecord(rawRecs, tu.info, "TU")
                     appReads.add(
                         AppRead("5041592E5449434C", yct.ticlSelectResp, yct.balance, yct.balanceResp)
                     )
@@ -132,6 +134,24 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     ReadResult(
                         profile, yct.info, yct.balance,
                         tu.info, tu.balance, yct.payMonth, rawRecs, log, appReads
+                    )
+                }
+                // CU 双标准卡：CU 钱包 + TU 钱包，两个标准分别保留信息文件和交易协议
+                "CU" -> {
+                    val info = readCuInfo(profile, log)
+                    val bc = readBalance(profile, log)
+                    val balanceFen: Long? = if (bc.respHex != null) bc.fen else null
+                    val rawRecs = mutableListOf<RawRecord>()
+                    probeAllFiles(log, rawRecs, "CU", profile.transactionSfis)
+                    collectFareZone(profile, log, profile.tradeSfi, "CU", rawRecs)
+                    addInfoRecord(rawRecs, info, "CU")
+                    val tu = readTuWallet(log, rawRecs)
+                    addInfoRecord(rawRecs, tu.info, "TU")
+                    appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
+                    appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
+                    ReadResult(
+                        profile, info, balanceFen,
+                        tu.info, tu.balance, rawRecords = rawRecs, rawLog = log, appReads = appReads
                     )
                 }
                 // SZT+TU 双协议卡：深圳通钱包标记 SZT，TU 钱包标记 TU，归档后按协议分别解码
@@ -145,7 +165,9 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     for (sfi in profile.extraTradeSfis) {
                         collectFareZone(profile, log, sfi, "SZT", rawRecs)
                     }
+                    addInfoRecord(rawRecs, info, "SZT")
                     val tu = readTuWallet(log, rawRecs)
+                    addInfoRecord(rawRecs, tu.info, "TU")
                     appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
                     appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
                     ReadResult(
@@ -164,6 +186,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
                     for (sfi in profile.extraTradeSfis) {
                         collectFareZone(profile, log, sfi, "", rawRecs)
                     }
+                    addInfoRecord(rawRecs, info, profile.cardType)
                     appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
                     ReadResult(profile, info, balanceFen, rawRecords = rawRecs, rawLog = log, appReads = appReads)
                 }
@@ -371,7 +394,12 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val selectAppy = isoDep.transceive(ApduUtil.buildSelectByName(appyAid))
         log.add("SELECT AID $appyAid (YCT basic app) -> ${ApduUtil.bytesToHex(selectAppy)}")
         // ① 信息文件（PAY.APPY 上下文）：SFI=0x15, P2=0x40, Le=0x46
-        val info = readYctInfo(profile, log)
+        val info = if (ApduUtil.isSuccess(selectAppy)) {
+            readYctInfo(profile, log)
+        } else {
+            log.add("PAY.APPY 选择失败，跳过 YCT 信息文件读取")
+            null
+        }
         // ①.5 统计月份（PAY.APPY 上下文）：SFI=0x08 rec1（00 B2 01 44 16，22B）[3]年BCD+2000、[4]月BCD。
         //    LNT 交易记录无年份，用它做年份锚点（Trip Reader relYear 逻辑同源）
         var payMonth: Int? = null
@@ -468,8 +496,12 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val cardNumber = if (data.size >= 16) {
             ApduUtil.bcdToString(data.copyOfRange(11, 16))
         } else ""
-        val info = CardInfo(cardName, validFrom, validTo, cardNumber, hex)
-        log.add("READ YCT info 命中 $label, 卡号=$cardNumber, 发卡=$validFrom, 到期=$validTo, 共${data.size}字节")
+        val issuerCode = if (data.size >= 52) {
+            ApduUtil.bytesToHex(data.copyOfRange(48, 52))
+                .takeIf { it.any { ch -> ch != '0' } }
+        } else null
+        val info = CardInfo(cardName, validFrom, validTo, cardNumber, hex, issuerCode)
+        log.add("READ YCT info 命中 $label, 卡号=$cardNumber, 发卡机构码=${issuerCode ?: "未知"}, 发卡=$validFrom, 到期=$validTo, 共${data.size}字节")
         return info
     }
 
@@ -498,6 +530,16 @@ class TransitCardReader(private val isoDep: IsoDep) {
             log.add("读取信息文件异常: ${e.message}")
             null
         }
+    }
+
+    private fun addInfoRecord(
+        collector: MutableList<RawRecord>,
+        info: CardInfo?,
+        protocol: String
+    ) {
+        if (info == null || info.rawHex.isBlank()) return
+        collector.removeAll { it.sfi == 0x15 && it.recNo == 0 && it.protocol == protocol }
+        collector.add(RawRecord(0x15, 0, protocol, info.rawHex))
     }
 
     /**

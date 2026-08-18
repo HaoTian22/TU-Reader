@@ -58,6 +58,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 卡内折扣统计（SFI 0x19 rec1）快照，镜像 raw_records；用于首页优惠卡片（比交易累加权威、无重复计数） */
     private val discountStatsByCard = mutableMapOf<String, TuDiscountStats?>()
 
+    /** 每卡最近一次读取的应用 SELECT/BALANCE 快照 */
+    private val cardAppsByCard = mutableMapOf<String, List<CardAppEntity>>()
+
     /** 每卡原始记录快照（镜像 raw_records），交易详情页按 SFI 展示原始数据 */
     private val rawRecordsByCard = mutableMapOf<String, List<RawRecord>>()
 
@@ -95,6 +98,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedCardMetadata = MutableLiveData(UiCardMetadata())
     val selectedCardMetadata: LiveData<UiCardMetadata> = _selectedCardMetadata
+
+    private val _selectedRawRecords = MutableLiveData<List<RawRecord>>(emptyList())
+    val selectedRawRecords: LiveData<List<RawRecord>> = _selectedRawRecords
+
+    private val _selectedCardApps = MutableLiveData<List<CardAppEntity>>(emptyList())
+    val selectedCardApps: LiveData<List<CardAppEntity>> = _selectedCardApps
 
     // 读卡后发出对应卡的下标，供首页自动滑动跳转到该卡（新卡或重复读同一张卡都会跳转）
     private val _cardAdded = MutableLiveData<Int?>()
@@ -250,6 +259,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val canonicals: List<CanonicalTransaction>,
         val txns: List<UiTransaction>,
         val raws: List<RawRecord>,
+        val apps: List<CardAppEntity>,
         val discountStats: TuDiscountStats?
     )
 
@@ -257,6 +267,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         canonicalByCard[cardId] = state.canonicals
         cachedTxnsByCard[cardId] = state.txns
         rawRecordsByCard[cardId] = state.raws
+        cardAppsByCard[cardId] = state.apps
         discountStatsByCard[cardId] = state.discountStats
     }
 
@@ -274,17 +285,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val rawRecs = repo.loadRawRecords(cardId).map {
             RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
         }
+        val appRows = repo.loadCardApps(cardId)
+            .groupBy { it.selectedAid }
+            .values
+            .mapNotNull { rows -> rows.maxByOrNull { it.readAt } }
+            .sortedBy { it.selectedAid }
         val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId, dbVersion)
         return if (cached != null) {
             BuiltCardState(
-                cached.canonicals, cached.txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs)
+                cached.canonicals, cached.txns, rawRecs, appRows, RecordDecoder.parseTuDiscountStats(rawRecs)
             )
         } else {
             val archive = repo.loadArchive(cardId)
             val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
             val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions(card.cardType)
             UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns, dbVersion))
-            BuiltCardState(canonicals, txns, rawRecs, RecordDecoder.parseTuDiscountStats(rawRecs))
+            BuiltCardState(canonicals, txns, rawRecs, appRows, RecordDecoder.parseTuDiscountStats(rawRecs))
         }
     }
 
@@ -358,18 +374,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.gradientStartColor to it.gradientEndColor
         } ?: nextCardColor()
 
-        // 内容去重合并进内存（identity = content_hash，不含 rec_no）
+        val primaryCardNumber = cardNumber.ifEmpty { existing?.cardNumber.orEmpty() }
+        val mergedSecondCardNumber = secondCardNumber
+            .takeIf { it.isNotEmpty() && it != primaryCardNumber }
+            ?: existing?.secondCardNumber?.takeIf { it != primaryCardNumber }
+        val effectiveCardType = if (
+            profile.cardType == "TU" && existing?.cardType in setOf("YCT", "SZT", "CU") &&
+            mergedSecondCardNumber != null
+        ) existing?.cardType ?: profile.cardType else profile.cardType
+
+        // 内容去重合并进内存 (identity = content_hash，不含 rec_no)
         canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
         cachedTxnsByCard.remove(cardId)  // canonical 已更新 → 让 emitCardData 立刻从新 canonical 重派生
         rawRecordsByCard[cardId] = result.rawRecords
+        cardAppsByCard[cardId] = result.appReads.map { app ->
+            CardAppEntity(
+                cardId = cardId,
+                readAt = now,
+                selectedAid = app.selectedAid,
+                selectResp = app.selectResp,
+                balanceFen = app.balanceFen,
+                balanceResp = app.balanceResp
+            )
+        }
         discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(result.rawRecords)
 
         val entity = CardEntity(
             cardId = cardId,
-            cardNumber = cardNumber,
-            secondCardNumber = secondCardNumber.ifEmpty { null },
+            cardNumber = primaryCardNumber,
+            secondCardNumber = mergedSecondCardNumber,
             name = existing?.name ?: displayName,
-            cardType = profile.cardType,
+            cardType = effectiveCardType,
             lastFour = lastFour,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd,
@@ -391,16 +426,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 异步持久化：卡片 + 槽位同步 + 内容去重归档（含 0x1E 旅程记录）+ 应用 SELECT/BALANCE + 顺序 + 会话日志
         val rawRecords = result.rawRecords
         val logLines = result.rawLog
-        val appRows = result.appReads.map { app ->
-            CardAppEntity(
-                cardId = cardId,
-                readAt = now,
-                selectedAid = app.selectedAid,
-                selectResp = app.selectResp,
-                balanceFen = app.balanceFen,
-                balanceResp = app.balanceResp
-            )
-        }
+        val appRows = cardAppsByCard[cardId].orEmpty()
         viewModelScope.launch(Dispatchers.IO) {
             repo.upsertCard(entity)
             repo.syncRawRecords(cardId, rawRecords)
@@ -414,18 +440,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val rawRecs = repo.loadRawRecords(cardId).map {
                 RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
             }
+            val appRecs = repo.loadCardApps(cardId)
+                .groupBy { it.selectedAid }
+                .values
+                .mapNotNull { rows -> rows.maxByOrNull { it.readAt } }
+                .sortedBy { it.selectedAid }
             val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
             // 解码/映射是 CPU 密集：放 Default 计算，主线程只做状态落盘与 UI 刷新，避免大库/大卡读卡后卡顿
             val canon = withContext(Dispatchers.Default) {
-                RecordDecoder.decodeArchive(profile.cardType, archive)
+                RecordDecoder.decodeArchive(effectiveCardType, archive)
             }
             val txns = withContext(Dispatchers.Default) {
-                enrichProtocols(canon, rawRecs).toUiTransactions(profile.cardType)
+                enrichProtocols(canon, rawRecs).toUiTransactions(effectiveCardType)
             }
             val stats = withContext(Dispatchers.Default) { RecordDecoder.parseTuDiscountStats(rawRecs) }
             withContext(Dispatchers.Main) {
                 canonicalByCard[cardId] = canon
                 rawRecordsByCard[cardId] = rawRecs
+                cardAppsByCard[cardId] = appRecs
                 discountStatsByCard[cardId] = stats
                 cachedTxnsByCard[cardId] = txns
                 val idx = cardEntities.indexOfFirst { it.cardId == cardId }
@@ -634,6 +666,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cardEntities.clear()
         canonicalByCard.clear()
         rawRecordsByCard.clear()
+        cardAppsByCard.clear()
         currentSessionNfcLog = emptyList()
         lastReadCount = 0
         _hasData.value = false
@@ -641,6 +674,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedIndex.value = -1
         _selectedCard.value = null
         _selectedCardMetadata.value = UiCardMetadata()
+        _selectedRawRecords.value = emptyList()
+        _selectedCardApps.value = emptyList()
         _cardAdded.value = null
         _allTransactions.value = emptyList()
         _selectedDiscountMonthlyFen.value = null
@@ -820,56 +855,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildCardMetadata(cardId: String, cardType: String, card: UiCard): UiCardMetadata {
         val records = rawRecordsByCard[cardId].orEmpty()
-        val infoRecord = records
-            .filter { it.sfi == 0x15 }
-            .maxByOrNull { it.hex.length }
-        val info = infoRecord?.let {
-            runCatching { ApduUtil.hexToBytes(it.hex) }.getOrNull()
+        val primaryProtocol = when (cardType) {
+            "YCT" -> "LNT"
+            "SZT" -> "SZT"
+            "CU" -> "CU"
+            "TU" -> "TU"
+            else -> cardType
         }
-        val isYct = cardType == "YCT" || records.any { it.protocol == "LNT" }
-        val issueDate = if (isYct) {
-            info?.let { parseCardDate(it, 23) }
-        } else {
-            info?.let { parseCardDate(it, 20) }
-        }
-        val validUntil = if (isYct) {
-            info?.let { parseCardDate(it, 27) }
-        } else {
-            info?.let { parseCardDate(it, 24) }
-        }
-
-        val issuerCode = if (isYct) {
-            info?.takeIf { it.size >= 52 }?.let {
-                ApduUtil.bytesToHex(it.copyOfRange(48, 52))
-            }?.takeIf { it.any { ch -> ch != '0' } }
-        } else {
-            records.asSequence()
-                .filter { it.sfi == 0x1E && it.hex.length >= 76 }
-                .mapNotNull { record ->
-                    runCatching {
-                        ApduUtil.hexToBytes(record.hex).copyOfRange(34, 38)
-                            .let(ApduUtil::bytesToHex)
-                    }.getOrNull()
-                }
-                .firstOrNull { it.any { ch -> ch != '0' } }
-        }
+        val primaryInfo = findInfoBytes(records, primaryProtocol)
+        val secondInfo = if (cardType in setOf("YCT", "SZT", "CU")) {
+            findInfoBytes(records, "TU", allowBlankFallback = false)
+        } else null
+        val primary = primaryInfo?.let { parseInfoMetadata(it, cardType == "YCT") }
+        val second = secondInfo?.let { parseInfoMetadata(it, false) }
+        val issuerCode = sequenceOf(
+            card.secondCardNumber,
+            card.cardNumber
+        ).filterNotNull()
+            .mapNotNull(TransitData::cardIssuerCode)
+            .firstOrNull()
+            ?: primary?.issuerCode
         val issuerCityCode = issuerCode?.takeLast(4)
-            ?.takeIf { TransitData.cityZh(it) != it }
-        val cityCode = issuerCityCode
-            ?: canonicalByCard[cardId].orEmpty()
-                .asSequence()
-                .mapNotNull { it.cityCode }
-                .firstOrNull { it.isNotBlank() && it != "0000" }
-            ?: records.asSequence()
-                .filter { it.sfi == 0x1E && it.hex.length >= 68 }
-                .mapNotNull { record ->
-                    runCatching {
-                        val bytes = ApduUtil.hexToBytes(record.hex)
-                        ApduUtil.bcdToString(bytes.copyOfRange(32, 34))
-                    }.getOrNull()
-                }
-                .firstOrNull { it.isNotBlank() && it != "0000" }
-        val issuerName = card.cardNumber.takeIf { it.isNotBlank() }?.let(TransitData::cardName)
+            ?.takeIf { it.length == 4 && TransitData.cityZh(it) != it }
+        val issuerNumber = card.secondCardNumber?.takeIf { TransitData.cardName(it) != null }
+            ?: card.cardNumber
+        val issuerName = issuerNumber.takeIf { it.isNotBlank() }?.let(TransitData::cardName)
         val issuer = when {
             issuerName != null && issuerCode != null -> "$issuerName（$issuerCode）"
             issuerName != null -> issuerName
@@ -877,10 +887,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> null
         }
         return UiCardMetadata(
-            issuerCity = cityCode?.let { TransitData.cityZh(it) },
+            issuerCity = issuerCityCode?.let { TransitData.cityZh(it) },
             issuer = issuer,
-            issueDate = issueDate,
-            validUntil = validUntil
+            issueDate = primary?.issueDate,
+            validUntil = primary?.validUntil,
+            secondStandard = second?.let {
+                when (cardType) {
+                    "YCT", "SZT", "CU" -> "交通联合"
+                    else -> "第二标准"
+                }
+            },
+            secondIssueDate = second?.issueDate,
+            secondValidUntil = second?.validUntil
+        )
+    }
+
+    private data class CardInfoMetadata(
+        val issueDate: String?,
+        val validUntil: String?,
+        val issuerCode: String?
+    )
+
+    private fun findInfoBytes(
+        records: List<RawRecord>,
+        protocol: String,
+        allowBlankFallback: Boolean = true
+    ): ByteArray? {
+        val candidates = records.filter { it.sfi == 0x15 && it.protocol == protocol }
+            .let { exact ->
+                if (exact.isNotEmpty() || !allowBlankFallback || protocol == "") {
+                    exact
+                } else {
+                    records.filter { it.sfi == 0x15 && it.protocol.isBlank() }
+                }
+            }
+        val record = candidates.maxByOrNull { it.hex.length } ?: return null
+        return runCatching { ApduUtil.hexToBytes(record.hex) }.getOrNull()
+    }
+
+    private fun parseInfoMetadata(data: ByteArray, isYct: Boolean): CardInfoMetadata {
+        val dateOffset = if (isYct) 23 else 20
+        val issuerCode = if (isYct && data.size >= 52) {
+            ApduUtil.bytesToHex(data.copyOfRange(48, 52))
+                .takeIf { it.any { ch -> ch != '0' } }
+        } else null
+        return CardInfoMetadata(
+            issueDate = parseCardDate(data, dateOffset),
+            validUntil = parseCardDate(data, dateOffset + 4),
+            issuerCode = issuerCode
         )
     }
 
@@ -906,6 +960,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .also { cachedTxnsByCard[cardId] = it }
         _selectedCard.value = card
         _selectedCardMetadata.value = buildCardMetadata(cardId, cardEntities.firstOrNull { it.cardId == cardId }?.cardType.orEmpty(), card)
+        _selectedRawRecords.value = rawRecordsByCard[cardId].orEmpty()
+        _selectedCardApps.value = cardAppsByCard[cardId].orEmpty()
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
         val stats = discountStatsByCard[cardId]
@@ -1100,6 +1156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cardEntities.removeAt(index)
         canonicalByCard.remove(cardId)
         rawRecordsByCard.remove(cardId)
+        cardAppsByCard.remove(cardId)
         discountStatsByCard.remove(cardId)
         cachedTxnsByCard.remove(cardId)
         val updated = cardEntities.map { it.toUiCard() }
@@ -1109,6 +1166,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _selectedIndex.value = -1
             _selectedCard.value = null
             _selectedCardMetadata.value = UiCardMetadata()
+            _selectedRawRecords.value = emptyList()
+        _selectedCardApps.value = emptyList()
             _cardAdded.value = null
             _allTransactions.value = emptyList()
             _selectedDiscountMonthlyFen.value = null

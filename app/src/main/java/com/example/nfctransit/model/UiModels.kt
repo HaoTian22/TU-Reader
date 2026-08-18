@@ -24,7 +24,10 @@ data class UiCardMetadata(
     val issuerCity: String? = null,
     val issuer: String? = null,
     val issueDate: String? = null,
-    val validUntil: String? = null
+    val validUntil: String? = null,
+    val secondStandard: String? = null,
+    val secondIssueDate: String? = null,
+    val secondValidUntil: String? = null
 )
 
 data class UiTransaction(
