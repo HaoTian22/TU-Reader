@@ -100,7 +100,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     /** 漏斗 → App 风格多选类别弹窗 */
     private fun showFilterDialog() {
-        val categories = listOf("地铁", "公交", "充值", "消费", "城际", "有轨电车")
+        val categories = listOf("地铁", "公交", "充值", "消费", "便利店", "城际", "有轨电车")
         AppDialogs.multiSelect(
             context = requireContext(),
             title = "筛选类别",
