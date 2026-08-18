@@ -1,5 +1,6 @@
 package com.example.nfctransit.data
 
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.UiCard
@@ -29,6 +30,7 @@ object TransactionMapper {
     fun CanonicalTransaction.toUiTransaction(index: Int, cardType: String = ""): UiTransaction {
         val amountYuan = (amountFen ?: 0L) / 100.0
         val isRecharge = typeHex == "02" || (amountFen ?: 0L) < 0
+        val isTicketProcessing = isTuTicketProcessing()
         val amountAbs = abs(amountYuan)
 
         val resolved = resolveDisplayNames()
@@ -44,7 +46,8 @@ object TransactionMapper {
                 Quad("🚊", 0xFFE0F7FA, "有轨电车", resolved.lineName.ifEmpty { "—" })
             resolved.transitType.contains("城际") || resolved.transitType.contains("Intercity") ->
                 Quad("🚄", 0xFFE8EAF6, "城际", resolved.lineName.ifEmpty { "—" })
-            resolved.transitType.contains("消费") -> Quad("🛒", 0xFFFCE4EC, "消费", "—")
+            resolved.transitType.contains("消费") || resolved.transitType.contains("便利店") ->
+                Quad("🛒", 0xFFFCE4EC, if (resolved.transitType.contains("便利店")) "便利店" else "消费", "—")
             else -> {
                 if (resolved.lineName.isNotEmpty() && resolved.lineName[0].isDigit())
                     Quad("🚇", 0xFFE3F2FD, "地铁", resolved.lineName)
@@ -58,7 +61,8 @@ object TransactionMapper {
         val balanceAfterYuan = balanceAfterFen?.div(100.0)   // 无余额数据为 null（区别于真实的 ¥0.00）
         val amountText = when {
             isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
-            amountYuan == 0.0 && transitType != "消费" -> when {
+            isTicketProcessing && amountYuan == 0.0 -> "票务处理"
+            amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when {
                 resolved.stationName.contains("↓") -> "进站"
                 resolved.stationName.contains("↑") -> "出站"
                 else -> "乘车"
@@ -100,6 +104,15 @@ object TransactionMapper {
             deviceCode = deviceCode,
             spRule = spRule
         )
+    }
+
+    private fun CanonicalTransaction.isTuTicketProcessing(): Boolean {
+        if (protocol != "TU" && !protocols.contains("TU")) return false
+        val raw = if (sfi == 0x1E) hex else journeyHex ?: return false
+        val data = ApduUtil.hexToBytes(raw)
+        return data.size >= 10 &&
+            (data[0].toInt() and 0xFF) == 0x08 &&
+            (data[9].toInt() and 0xFF) == 0x01
     }
 
     /** 按 ID（或旧数据反查）解析站名/线路名，跟随界面语言；ID 缺失回退存档名 */

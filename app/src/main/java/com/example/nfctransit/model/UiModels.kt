@@ -29,7 +29,7 @@ data class UiTransaction(
     val amountYuan: Double,
     val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"
     val typeHex: String,
-    val transitType: String,       // "地铁", "公交", "消费", "充值"
+    val transitType: String,       // "地铁", "公交", "消费", "便利店", "充值"
     val terminal: String,
     val stationName: String,
     val cityName: String = "",     // 城市中文名（如 "广州"）
