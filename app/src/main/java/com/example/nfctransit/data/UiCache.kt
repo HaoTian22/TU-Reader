@@ -26,7 +26,7 @@ data class CardUiCache(
 ) {
     companion object {
         // 解码逻辑变更（站名/类型解析、读槽扩展等）或缓存结构变更（dbVersion 加入）时递增
-        const val FORMAT_VERSION = 5
+        const val FORMAT_VERSION = 6
     }
 }
 

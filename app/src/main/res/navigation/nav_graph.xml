@@ -60,5 +60,19 @@
         android:id="@+id/settingsFragment"
         android:name="com.example.nfctransit.ui.SettingsFragment"
         android:label="Settings"
-        tools:layout="@layout/fragment_settings" />
+        tools:layout="@layout/fragment_settings">
+        <action
+            android:id="@+id/action_settings_to_databaseQuery"
+            app:destination="@id/databaseQueryFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/databaseQueryFragment"
+        android:name="com.example.nfctransit.ui.DatabaseQueryFragment"
+        android:label="DatabaseQuery"
+        tools:layout="@layout/fragment_database_query">
+        <argument
+            android:name="databaseKey"
+            app:argType="string" />
+    </fragment>
 </navigation>

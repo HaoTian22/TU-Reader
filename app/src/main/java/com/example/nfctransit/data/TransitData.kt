@@ -300,9 +300,9 @@ object TransitData {
      * 按前缀分桶到该前缀下全部 reader_device，对整段 code（= prefix + 剩余）做最长重叠（同长优先
      * 字节对齐），与 TU 0x1E 共用同一 longestOverlap。未知前缀（如珠海 5850 暂无设备数据）自然无命中。
      *
-     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"，仅用于兜底文案，未参与匹配）
+     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"）；SZT 启用深圳 Terminal 特殊匹配
      * @param cityCode 交易城市码（与 code 前 4 位同源，保留签名兼容）
-     * @param code     记录 [10..16) 的 hex 串（12 位，含城市前缀）
+     * @param code     记录 [10..16) 的 hex 串（12 位，含前缀/终端字段）
      * @param terminal 记录 [10..16) 的 BCD 串（与 code 同字节，保留签名兼容）
      */
     fun resolveByStandard(
@@ -312,10 +312,38 @@ object TransitData {
         terminal: String
     ): StationEntry? {
         ensureLoaded()
+        if (standard == "SZT") {
+            resolveShenzhenTerminal(code, terminal)?.let { return it }
+        }
+
         val prefix = if (code.length >= 4) code.substring(0, 4) else code
         val body = if (code.length > 4) code.substring(4) else code
         if (body.isEmpty()) return null
         return longestOverlap(prefix, body)?.first?.toEntry()
+    }
+
+    /**
+     * 深圳通 SZT 的 0x18 记录没有把 5180 放进 Terminal 字段；Terminal 中的编码为
+     * 线路码 + 站点码，且中间夹有一个非编码字节。样例 000040020122 → 40022。
+     */
+    private fun resolveShenzhenTerminal(code: String, terminal: String): StationEntry? {
+        val candidates = linkedSetOf<String>()
+        if (code.length >= 11) {
+            candidates += code.substring(4, 8) + code.substring(10, 11)
+        }
+        val stripped = terminal.trimStart('0')
+        if (stripped.length >= 6) {
+            candidates += stripped.substring(1, 3) + stripped.substring(3, 6)
+        }
+        for (stationCode in candidates) {
+            byDeviceCode["5180$stationCode"]?.let {
+                return it.toEntry(SP_RULE_SHENZHEN)
+            }
+            byMatchKey["5180|${stripLeadingZeros(stationCode.take(2))}|${stripLeadingZeros(stationCode.drop(2))}"]?.let {
+                return it.toEntry(SP_RULE_SHENZHEN)
+            }
+        }
+        return null
     }
 
     /**

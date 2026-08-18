@@ -241,18 +241,23 @@ class TransitRepository(private val context: Context) {
 
         for (src in source.cards) {
             val tuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
+            val sztRecords = mutableListOf<RecordDecoder.ZoneRecord>()
             val lntRows = mutableListOf<Pair<String, Long>>()  // (0x18 hex, 源库 txDate 毫秒)
             var recNo = 0
             for (tx in src.transactions) {
                 if (tx.cuHex.isNotEmpty()) {
-                    val data = ApduUtil.hexToBytes(tx.cuHex)
-                    // 0x18 主交易：日期字段以 20 开头 → 交通联合钱包（自含完整年份）；否则岭南通 LNT（需补年份）
-                    val fullYear = data.size >= 20 &&
-                        ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
-                    if (fullYear) {
-                        tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                    if (src.isSZT) {
+                        sztRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "SZT", tx.cuHex))
                     } else {
-                        lntRows.add(tx.cuHex to tx.dateMs)
+                        val data = ApduUtil.hexToBytes(tx.cuHex)
+                        // 0x18 主交易：日期字段以 20 开头 → 交通联合钱包（自含完整年份）；否则岭南通 LNT（需补年份）
+                        val fullYear = data.size >= 20 &&
+                            ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
+                        if (fullYear) {
+                            tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                        } else {
+                            lntRows.add(tx.cuHex to tx.dateMs)
+                        }
                     }
                 }
                 if (tx.tuHex.isNotEmpty()) {
@@ -260,9 +265,13 @@ class TransitRepository(private val context: Context) {
                 }
             }
 
+            val hasLnt = src.isYCT || lntRows.isNotEmpty()
+            val importedCardType = if (src.isSZT) "SZT" else if (hasLnt) "YCT" else "TU"
             val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
             val cardId = if (existing != null) {
-                val merged = mergeCardNumbers(existing, src.cdNo, src.cdNo2)
+                val merged = mergeCardNumbers(existing, src.cdNo, src.cdNo2).let {
+                    if (importedCardType == "SZT") it.copy(cardType = "SZT") else it
+                }
                 if (merged != existing) {
                     dao.upsertCard(merged)
                     existingCards[existingCards.indexOf(existing)] = merged
@@ -273,16 +282,18 @@ class TransitRepository(private val context: Context) {
                 val gradient = importCardPalette.firstOrNull { it.first !in usedColors }
                     ?: importCardPalette[newCardIds.size % importCardPalette.size]
                 usedColors.add(gradient.first)
-                val imported = buildTripReaderCard(id, src, hasLnt = lntRows.isNotEmpty(), gradient)
+                val imported = buildTripReaderCard(id, src, importedCardType, gradient)
                 dao.upsertCard(imported)
                 existingCards.add(imported)
                 newCardIds.add(id)
                 id
             }
 
-            // TU 钱包：与读卡同一条解码路径（含 1E→18 余额匹配），归档按内容去重
-            if (tuRecords.isNotEmpty()) {
-                val decoded = RecordDecoder.decodeCard("TU", tuRecords, null, currentYear)
+            // SZT+TU 或单 TU：沿用读卡解码路径，归档按协议保存 SZT/TU
+            val transactionRecords = if (src.isSZT) sztRecords + tuRecords else tuRecords
+            val transactionCardType = if (src.isSZT) "SZT" else "TU"
+            if (transactionRecords.isNotEmpty()) {
+                val decoded = RecordDecoder.decodeCard(transactionCardType, transactionRecords, null, currentYear)
                 for (t in decoded.archive) {
                     val sfiHex = t.sfi.toSfiHex()
                     if (dao.getArchiveSlot(cardId, t.identity, t.protocol, sfiHex) == null) {
@@ -368,7 +379,7 @@ class TransitRepository(private val context: Context) {
     private fun buildTripReaderCard(
         cardId: String,
         src: TripReaderCard,
-        hasLnt: Boolean,
+        cardType: String,
         gradient: Pair<Long, Long>
     ): CardEntity {
         val now = System.currentTimeMillis()
@@ -377,7 +388,7 @@ class TransitRepository(private val context: Context) {
             cardNumber = src.cdNo,
             secondCardNumber = src.cdNo2.ifEmpty { null },
             name = TransitData.cardName(src.cdNo) ?: src.cdTitle,
-            cardType = if (hasLnt) "YCT" else "TU",
+            cardType = cardType,
             lastFour = src.cdNo.takeLast(4).ifEmpty { src.cdNo2.takeLast(4) },
             gradientStartColor = gradient.first,
             gradientEndColor = gradient.second,

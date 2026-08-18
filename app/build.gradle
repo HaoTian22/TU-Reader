@@ -13,6 +13,8 @@ if (keystorePropertiesFile.exists()) {
 }
 def releaseKeystoreConfigured = keystorePropertiesFile.exists() || System.getenv('KEYSTORE_FILE') != null
 
+def appVersionName = project.findProperty('versionName') ?: '1.0.0'
+
 android {
     namespace 'com.example.nfctransit'
     compileSdk 37
@@ -22,7 +24,8 @@ android {
         minSdk 24
         targetSdk 37
         versionCode 1
-        versionName "1.0.0"
+        versionName appVersionName
+        resValue "string", "app_version", appVersionName
     }
 
     buildFeatures {

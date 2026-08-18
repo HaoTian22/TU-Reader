@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag and in-app version (for example, 1.2.3 or v1.2.3)
+        required: true
+        type: string
+        default: 1.0.0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag must use a version format such as 1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+          if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG" >/dev/null; then
+            echo "::error::tag already exists: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.1'
+
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEYSTORE_BASE64" ]]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "release keystore restored"
+          else
+            echo "no ANDROID_KEYSTORE_BASE64 secret; falling back to debug signing"
+          fi
+
+      - name: Build release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: gradle -PversionName="$RELEASE_TAG" :app:assembleRelease --no-daemon --console=plain
+
+      - name: Verify APK version
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST=app/build/intermediates/packaged_manifests/release/processReleaseManifestForPackage/AndroidManifest.xml
+          ACTUAL_VERSION=$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' "$MANIFEST")
+          if [[ "$ACTUAL_VERSION" != "$RELEASE_TAG" ]]; then
+            echo "::error::APK version '$ACTUAL_VERSION' does not match tag '$RELEASE_TAG'"
+            exit 1
+          fi
+
+      - name: Create tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "Release $RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_SOURCE=app/build/outputs/apk/release/app-release.apk
+          APK_NAME="TU-Reader-${RELEASE_TAG}.apk"
+          if [[ ! -f "$APK_SOURCE" ]]; then
+            echo "::error::release APK not found: $APK_SOURCE"
+            exit 1
+          fi
+          cp "$APK_SOURCE" "$APK_NAME"
+          gh release create "$RELEASE_TAG" "$APK_NAME" \
+            --verify-tag \
+            --title "TU-Reader $RELEASE_TAG" \
+            --generate-notes

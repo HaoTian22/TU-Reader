@@ -23,6 +23,7 @@ object AppPreferences {
     private val KEY_SCHEMA_VERSION = intPreferencesKey("schema_version")
     private val KEY_DB_VERSION = stringPreferencesKey("db_version")           // 当前 databases/transit.db 的版本
     private val KEY_APP_INSTALL_MARKER = stringPreferencesKey("app_install_marker")
+    private val KEY_LAST_DATABASE_SQL_PREFIX = "last_database_sql_"
     const val SCHEMA_VERSION = 1
 
     // ── 读取（一次性，供启动）──
@@ -96,6 +97,17 @@ object AppPreferences {
     suspend fun markMigrated(context: Context) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SCHEMA_VERSION] = SCHEMA_VERSION
+        }
+    }
+
+    suspend fun getLastDatabaseSql(context: Context, databaseKey: String): String =
+        context.dataStore.data.first()[
+            stringPreferencesKey(KEY_LAST_DATABASE_SQL_PREFIX + databaseKey)
+        ].orEmpty()
+
+    suspend fun setLastDatabaseSql(context: Context, databaseKey: String, sql: String) {
+        context.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(KEY_LAST_DATABASE_SQL_PREFIX + databaseKey)] = sql
         }
     }
 

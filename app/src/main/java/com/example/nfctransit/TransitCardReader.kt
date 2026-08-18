@@ -19,7 +19,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
 
     private val TAG = "TransitCardReader"
 
-    /** YCT 卡读取结果：信息 + 余额 + 年份锚点 + TICL SELECT/BALANCE 响应 */
+    /** 卡读取结果：信息 + 余额 + 年份锚点 + TICL SELECT/BALANCE 响应 */
     private data class YctCardResult(
         val info: CardInfo?,
         val balance: Long?,             // LNT 钱包余额（分），BALANCE CHECK 失败为 null
@@ -52,7 +52,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val matchedProfile: CardProfile?,
         val cardInfo: CardInfo?,
         val balanceFen: Long? = null,             // 主钱包余额（分），读卡失败/无余额为 null
-        val secondCardInfo: CardInfo? = null,     // 双协议卡第二个钱包（如 LNT+TU 的 TU 钱包）
+        val secondCardInfo: CardInfo? = null,     // 双协议卡第二个钱包（如 LNT+TU / SZT+TU 的 TU 钱包）
         val secondBalanceFen: Long? = null,       // 第二个钱包余额（分）
         val statsMonth: Int? = null,              // LNT 统计月份 YYYYMM（SFI 0x08 rec1，年份锚点）
         val rawRecords: List<RawRecord> = emptyList(),  // 各交易区原始记录（带 protocol 标签）
@@ -67,7 +67,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val appReads = mutableListOf<AppRead>()
 
         try {
-            // 顺序尝试 CardProfiles.known（首命中即读；双协议卡由 YCT 分支内部同时读 LNT + TU）。
+            // 顺序尝试 CardProfiles.known（首命中即读；YCT/SZT 双协议卡在各自分支内部同时读 TU 钱包）。
             // 注意：PSE 不能先于识别——实测 SELECT PSE 后卡片会锁定到目录列出的应用，
             // 导致未列出的 PAY.APPY/PAY.TICL SELECT 返回 6A82（LNT 钱包读不到、双协议变纯 TU），
             // 因此 PSE 只在读取完成后补一次，仅用于 card_app 留档。
@@ -134,7 +134,26 @@ class TransitCardReader(private val isoDep: IsoDep) {
                         tu.info, tu.balance, yct.payMonth, rawRecs, log, appReads
                     )
                 }
-                // 通用（CU/SZT/TFT/苏州）：信息 + BALANCE CHECK + 全部 SFI + 0x18 + 附加区
+                // SZT+TU 双协议卡：深圳通钱包标记 SZT，TU 钱包标记 TU，归档后按协议分别解码
+                "SZT" -> {
+                    val info = readCuInfo(profile, log)
+                    val bc = readBalance(profile, log)
+                    val balanceFen: Long? = if (bc.respHex != null) bc.fen else null
+                    val rawRecs = mutableListOf<RawRecord>()
+                    probeAllFiles(log, rawRecs, "SZT", profile.transactionSfis)
+                    collectFareZone(profile, log, profile.tradeSfi, "SZT", rawRecs)
+                    for (sfi in profile.extraTradeSfis) {
+                        collectFareZone(profile, log, sfi, "SZT", rawRecs)
+                    }
+                    val tu = readTuWallet(log, rawRecs)
+                    appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
+                    appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
+                    ReadResult(
+                        profile, info, balanceFen,
+                        tu.info, tu.balance, rawRecords = rawRecs, rawLog = log, appReads = appReads
+                    )
+                }
+                // 通用（CU/TFT/苏州）：信息 + BALANCE CHECK + 全部 SFI + 0x18 + 附加区
                 else -> {
                     val info = readCuInfo(profile, log)
                     val bc = readBalance(profile, log)

@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.databinding.FragmentSettingsBinding
 import java.io.File
 import kotlinx.coroutines.launch
@@ -155,7 +156,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 主题色跟随卡片：返回按钮、各选项行首图标一起变
         val optionIcons = intArrayOf(
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
-            R.id.iconLocalStorage, R.id.iconDataExport, R.id.iconImportData,
+            R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache, R.id.iconClearData, R.id.iconPrivacy,
             R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
@@ -204,6 +205,23 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 cards = cards,
                 accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
                 onDone = { orderedIds -> viewModel.applyCardOrder(orderedIds) }
+            )
+        }
+
+        binding.root.findViewById<View>(R.id.rowDatabaseViewer)?.setOnClickListener {
+            val options = DatabaseQuerySpec.values().map { it.displayName }
+            AppDialogs.options(
+                context = requireContext(),
+                title = "选择数据库",
+                options = options,
+                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                onSelect = { index ->
+                    val spec = DatabaseQuerySpec.values()[index]
+                    findNavController().navigate(
+                        R.id.action_settings_to_databaseQuery,
+                        Bundle().apply { putString("databaseKey", spec.key) }
+                    )
+                }
             )
         }
 

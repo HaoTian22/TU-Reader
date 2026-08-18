@@ -57,6 +57,46 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/rowDatabaseViewer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:id="@+id/iconDatabaseViewer"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:gravity="center"
+            android:text="&#xf1c0;"
+            android:textColor="#0066FF"
+            android:textSize="14sp"
+            android:tag="fa" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="查看数据库"
+            android:textColor="#1A1A1A"
+            android:textSize="14sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#xf054;"
+            android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:tag="fa" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/rowDataExport"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

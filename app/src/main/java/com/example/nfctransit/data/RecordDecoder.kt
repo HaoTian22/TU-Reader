@@ -19,7 +19,7 @@ object RecordDecoder {
     data class ZoneRecord(
         val sfi: Int,
         val recNo: Int,
-        val protocol: String,  // "LNT"/"TU"/"" — 双协议卡区分钱包
+        val protocol: String,  // "LNT"/"SZT"/"TU"/"" — 双协议卡区分钱包
         val hex: String
     )
 
@@ -117,8 +117,28 @@ object RecordDecoder {
                 )
                 DecodeResult(display, finalLnt + tu.journey + tuFare)
             }
+            "SZT" -> {
+                val hasSztProtocol = records.any { it.protocol == "SZT" }
+                val sztRecords = records.filter {
+                    it.protocol == "SZT" || (!hasSztProtocol && it.protocol.isBlank())
+                }
+                val tuRecords = records.filter { it.protocol == "TU" }
+                val szt = parseFareRecords(
+                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyMap(), emptyList()),
+                    currentYear, null
+                )
+                val tu = buildTuMap(tuRecords)
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
+                    cardType, tuRecords, "TU", tu, currentYear, null
+                )
+                val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
+                val display = (szt + tuMerged).sortedWith(
+                    compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
+                )
+                DecodeResult(display, szt + tu.journey + tuFare)
+            }
             else -> {
-                // 通用（CU/SZT/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
+                // 通用（CU/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
                 val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null)
                 val display = fare.distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
                     .sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
@@ -155,6 +175,22 @@ object RecordDecoder {
                     cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
+            }
+            "SZT" -> {
+                val hasSztProtocol = records.any { it.protocol == "SZT" }
+                val sztRecords = records.filter {
+                    it.protocol == "SZT" || (!hasSztProtocol && it.protocol.isBlank())
+                }
+                val tuRecords = records.filter { it.protocol == "TU" }
+                val szt = parseFareRecords(
+                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null,
+                    storedDate, storedBalance
+                )
+                val tu = buildTuMap(tuRecords)
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
+                    cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
+                )
+                szt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             else -> parseFareRecords(
                 cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
@@ -367,7 +403,7 @@ object RecordDecoder {
 
             results.add(
                 buildTransaction(
-                    sfi = rec.sfi, protocol = rec.protocol, hex = rec.hex,
+                    sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
                     stationName = if (direction.isNotEmpty() && ref.station.isNotEmpty()) {

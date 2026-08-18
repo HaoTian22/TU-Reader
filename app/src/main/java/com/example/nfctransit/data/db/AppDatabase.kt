@@ -86,6 +86,9 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 在整库替换/重置与只读查询之间共享同一把锁。 */
+        fun <T> withDatabaseLock(block: () -> T): T = synchronized(this) { block() }
+
         /**
          * 把 transit.db 重置为打包 assets 版本：关闭旧实例、删除本地库文件（含 WAL/journal）、置空单例。
          * 下次 AppDatabase.get() / TransitData.ensureLoaded() 会因文件不存在而走 createFromAsset 重新拷贝内置库。

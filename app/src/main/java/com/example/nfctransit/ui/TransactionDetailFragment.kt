@@ -363,14 +363,13 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 FieldSpec("Institution", 34, 42, "hex", C_INSTITUTION)
             )
         }
-        if (sfi == 0x18 && size >= 23 &&
-            (cardType == "CU" || (cardType == "YCT" && protocol == "LNT"))
-        ) {
+        if (sfi == 0x18 && size >= 23 && protocol == "LNT") {
             return listOf(
                 FieldSpec("Record No.", 0, 2, "dec", C_RECORD),
                 FieldSpec("Amount", 6, 9, "hex", C_AMOUNT),
                 FieldSpec("Type", 9, 10, "hex", C_TYPE),
                 FieldSpec("Terminal", 10, 16, "BCD", C_TERMINAL),
+                FieldSpec("Original Fare", 16, 18, "hex", C_AMOUNT),
                 FieldSpec("Timestamp", 18, 22, "BCD", C_TIMESTAMP),
                 FieldSpec("Subtype", 22, 23, "hex", C_SUBTYPE)
             )
