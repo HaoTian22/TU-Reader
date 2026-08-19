@@ -1,0 +1,166 @@
+name: Build PR Test APK
+
+on:
+  issue_comment:
+    types: [created]
+
+run-name: PR #${{ github.event.issue.number }} test APK
+
+# 同一 PR 重复触发时，只保留最新一次测试构建。
+concurrency:
+  group: pr-test-apk-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/build-apk' &&
+      (
+        github.event.comment.user.login == github.event.issue.user.login ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      run-build: ${{ steps.verify-pr.outputs.run-build }}
+    steps:
+      - name: Verify pull request is ready to build
+        id: verify-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pullNumber = context.payload.issue.number;
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber,
+            });
+
+            const ready = pull.state === 'open' && !pull.draft;
+            core.setOutput('run-build', ready ? 'true' : 'false');
+            if (!ready) {
+              console.log(`PR #${pullNumber} is ${pull.state}${pull.draft ? ' (draft)' : ''}; skipping build.`);
+            }
+
+  build:
+    needs: authorize
+    if: needs.authorize.outputs.run-build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact-url: ${{ steps.upload-apk.outputs.artifact-url }}
+      short-sha: ${{ steps.metadata.outputs.short-sha }}
+    steps:
+      # 检出 GitHub 为 PR 与目标分支生成的候选合并结果，而不是仅检出 PR head。
+      - name: Checkout merge candidate
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 仓库没有 gradle wrapper jar，不能用 ./gradlew，直接装 9.6.1 调 gradle
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.1'
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon --console=plain
+
+      - name: Prepare APK metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          if [[ ! -f "$APK" ]]; then
+            echo "::error::debug APK not found: $APK"
+            exit 1
+          fi
+          echo "short-sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload test APK
+        id: upload-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: TU-Reader-test-pr-${{ github.event.issue.number }}-${{ steps.metadata.outputs.short-sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  comment:
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Comment test APK link on pull request
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_URL: ${{ needs.build.outputs.artifact-url }}
+          SHORT_SHA: ${{ needs.build.outputs.short-sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.issue.number;
+            const marker = '<!-- tu-reader-pr-test-apk -->';
+            const body = [
+              marker,
+              '',
+              '## 测试 APK 已构建',
+              '',
+              '此 PR 当前候选合并结果的 debug 测试包已生成：',
+              '',
+              `- 候选合并提交：\`${process.env.SHORT_SHA}\``,
+              '- 保留期限：14 天',
+              `- [下载测试 APK](${process.env.ARTIFACT_URL})`,
+              '',
+              '> 该链接需要有此仓库的访问权限。',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const previous = comments.find(
+              (comment) =>
+                comment.user?.login === 'github-actions[bot]' &&
+                comment.body?.includes(marker),
+            );
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body,
+              });
+              console.log(`已更新 PR #${issueNumber} 的测试 APK 评论。`);
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+              console.log(`已在 PR #${issueNumber} 创建测试 APK 评论。`);
+            }
