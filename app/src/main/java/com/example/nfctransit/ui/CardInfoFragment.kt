@@ -168,21 +168,20 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                 val first = records.first()
                 val data = runCatching { com.example.nfctransit.ApduUtil.hexToBytes(first.hex) }.getOrNull()
                 val fields = RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, first.protocol)
-                val isLoopRecord = records.size > 1 || sfi == 0x18 || sfi == 0x1E
                 records.forEach { record ->
                     appendRawBlock(
                         panel,
                         RawHexFormatter.header(record),
                         record.hex,
-                        if (isLoopRecord) emptyList() else fields,
-                        addDivider = previousSfi != sfi || panel.childCount == 0
+                        fields,
+                        addDivider = previousSfi != sfi || panel.childCount == 0,
+                        showFields = false
                     )
                     previousSfi = sfi
                 }
-                if (isLoopRecord && fields.isNotEmpty()) {
-                    addDivider(panel)
+                if (fields.isNotEmpty()) {
                     addMonospaceLine(panel, "SFI ${sfi.toSfiHex()} · $protocol fields", dim = true)
-                    addFieldDetails(panel, first.hex, fields)
+                    fields.forEach { addLegendRow(panel, it) }
                 }
             }
         }
@@ -196,7 +195,8 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         title: String,
         hex: String,
         fields: List<RawHexFormatter.FieldSpec>,
-        addDivider: Boolean
+        addDivider: Boolean,
+        showFields: Boolean = true
     ) {
         if (hex.isBlank()) return
         if (addDivider && panel.childCount > 0) addDivider(panel)
@@ -215,31 +215,9 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
-        if (fields.isNotEmpty()) {
+        if (showFields && fields.isNotEmpty()) {
             addMonospaceLine(panel, "$title fields", dim = true)
-            addFieldDetails(panel, hex, fields)
-        }
-    }
-
-    private fun addFieldDetails(
-        panel: LinearLayout,
-        hex: String,
-        fields: List<RawHexFormatter.FieldSpec>
-    ) {
-        fields.forEach { field ->
-            val value = TextView(requireContext()).apply {
-                text = RawHexFormatter.hexRange(hex, field.start, field.end)
-                textSize = 10f
-                typeface = Typeface.MONOSPACE
-                setTextColor(field.color)
-                setPadding(0, dpToPx(1), 0, 0)
-                setTextIsSelectable(true)
-            }
-            panel.addView(value, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            addLegendRow(panel, field)
+            fields.forEach { addLegendRow(panel, it) }
         }
     }
 
