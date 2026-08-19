@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -642,11 +643,31 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     ).apply { leftMargin = 18.dpToPx(); bottomMargin = 16.dpToPx() }
                 }
 
-                val typeView = TextView(page.context).apply {
+                val typeLabel = TextView(page.context).apply {
                     text = card.name
                     setTextColor(Color.argb(204, 255, 255, 255))
-                    textSize = 12f
+                    textSize = 20f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+                val logoResId = when (card.name) {
+                    "深圳通" -> R.drawable.shenzhentong
+                    "珠海通" -> R.drawable.zhuhaitong
+                    "羊城通" -> R.drawable.yangchengtong
+                    else -> null
+                }
+                val typeView: View = if (logoResId != null) {
+                    ImageView(page.context).apply {
+                        setImageResource(logoResId)
+                        contentDescription = card.name
+                        adjustViewBounds = true
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        layoutParams = LinearLayout.LayoutParams(
+                            kotlin.math.ceil(typeLabel.paint.measureText("深圳通").toDouble()).toInt() * 2,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                    }
+                } else {
+                    typeLabel
                 }
 
                 val numberView = TextView(page.context).apply {
