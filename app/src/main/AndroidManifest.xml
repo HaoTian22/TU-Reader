@@ -20,7 +20,6 @@
         <meta-data
             android:name="TencentMapSDK"
             android:value="RGXBZ-JPKCQ-2FW53-24H4F-6SMF5-P7FGM" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true"

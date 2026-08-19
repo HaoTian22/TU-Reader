@@ -9,17 +9,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
- * 版本迁移见 MIGRATIONS：当前 v5，sfi 列以 hex 字符串（"0x19"）存储，并含路线规划缓存。
+ * 版本迁移见 MIGRATIONS：当前 v4，sfi 列以 hex 字符串（"0x19"）存储。
  */
 @Database(
     entities = [
         CardEntity::class,
         RawRecordEntity::class,
         ArchivedTransactionEntity::class,
-        CardAppEntity::class,
-        RouteCacheEntity::class
+        CardAppEntity::class
     ],
-    version = 5,
+    version = 4,
     exportSchema = true
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -119,32 +118,8 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
-        /** v4→v5：增加腾讯公交路线规划缓存；缓存为派生数据，不关联卡片外键。 */
-        private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """CREATE TABLE IF NOT EXISTS `route_cache` (
-                        `cache_key` TEXT NOT NULL,
-                        `from_station_id` INTEGER NOT NULL,
-                        `to_station_id` INTEGER NOT NULL,
-                        `departure_time` INTEGER NOT NULL,
-                        `policy` TEXT NOT NULL,
-                        `status` TEXT NOT NULL,
-                        `response_json` TEXT,
-                        `is_estimate` INTEGER NOT NULL,
-                        `fetched_at` INTEGER NOT NULL,
-                        `expires_at` INTEGER NOT NULL,
-                        PRIMARY KEY(`cache_key`)
-                    )"""
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `index_route_cache_expires_at` ON `route_cache` (`expires_at`)"
-                )
-            }
-        }
-
         /** 全部迁移：主库打开与导入旧库共用 */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         @Volatile
         private var instance: UserDatabase? = null

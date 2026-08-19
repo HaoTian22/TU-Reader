@@ -26,6 +26,7 @@ import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.prefs.AppPreferences
 import com.example.nfctransit.data.repo.TransitRepository
+import com.example.nfctransit.data.route.RouteCacheStore
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CategorySpending
 import com.example.nfctransit.model.DailySpending
@@ -657,7 +658,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
         cachedTxnsByCard.clear()
         viewModelScope.launch(Dispatchers.IO) {
-            UiCache.clearAll(getApplication())
+            val ctx = getApplication<Application>()
+            UiCache.clearAll(ctx)
+            RouteCacheStore(ctx.cacheDir).clearAll()
             repo.clearAll()
         }
     }
@@ -759,7 +762,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 清理缓存：删除 UI 构建缓存。站名映射表仅在内置（asset）版本比当前库更新时才重置为内置版，
+     * 清理缓存：删除 UI 构建缓存和地图路线缓存。站名映射表仅在内置（asset）版本比当前库更新时才重置为内置版，
      * 否则保留当前版本（避免把较新的在线更新库回退成旧内置版）。随后全部卡片重解码刷新界面。
      * 不影响用户数据（卡片/交易/原始记录）。
      */
@@ -774,7 +777,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val resetToAsset = TransitDbVersion.isNewer(assetVersion, activeVersion)
                 withContext(Dispatchers.IO) {
                     UiCache.clearAll(ctx)
-                    repo.clearRouteCache()
+                    RouteCacheStore(ctx.cacheDir).clearAll()
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
                         TransitData.reload()

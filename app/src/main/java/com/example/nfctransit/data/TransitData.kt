@@ -69,7 +69,13 @@ object TransitData {
     // 站名 -> 解析结果（中/英各一；同名站多线路时优先带线路者），用于给旧数据补回 ID
     private val byStationNameZh = mutableMapOf<String, StationResolution>()
     private val byStationNameEn = mutableMapOf<String, StationResolution>()
+    // 规范化站名 -> 全部同名候选。地图轨迹会按站名查坐标，必须走索引，不能逐笔扫描全部站点。
+    private val byNormalizedStationName = mutableMapOf<String, MutableList<StationResolution>>()
     private val lineColorsByCityAndName = mutableMapOf<Pair<Long, String>, String>()
+
+    private val lookupParentheticalRegex = Regex("[（(].*?[）)]")
+    private val lookupBracketedRegex = Regex("[\\[【].*?[\\]】]")
+    private val lookupSeparatorRegex = Regex("[\\s·•_\\-]")
 
     // 交通联合卡 IIN -> 卡名（来自 assets/data/TU/cardname-tu.csv）
     private val iinNames = mutableMapOf<String, String>()
@@ -294,6 +300,61 @@ object TransitData {
         return lon to lat
     }
 
+    /**
+     * 按交易记录中的站名反查本地坐标缓存。站名是主键语义，城市和线路只用于消歧；
+     * 这样即使历史记录携带了错误 stationId，也不会直接把相邻站坐标用于路线请求。
+     */
+    fun coordsByStationName(
+        stationName: String,
+        cityName: String = "",
+        lineName: String = ""
+    ): Pair<Double, Double>? {
+        ensureLoaded()
+        val wantedStation = normalizeLookupName(stationName)
+        if (wantedStation.isEmpty()) return null
+        val stationMatches = byNormalizedStationName[wantedStation]
+            .orEmpty()
+            .filter { it.longitude != null && it.latitude != null }
+        if (stationMatches.isEmpty()) return null
+
+        val wantedCity = normalizeLookupName(cityName)
+        val cityMatches = stationMatches.filter { resolution ->
+            wantedCity.isNotEmpty() && sequenceOf(resolution.cityName, resolution.cityNameEn)
+                .filterNotNull()
+                .any { candidate ->
+                    val normalized = normalizeLookupName(candidate)
+                    normalized == wantedCity || wantedCity.contains(normalized) || normalized.contains(wantedCity)
+                }
+        }.ifEmpty { stationMatches }
+
+        val wantedLine = normalizeLookupLine(lineName)
+        val best = cityMatches.maxWithOrNull(
+            compareBy<StationResolution> { resolution ->
+                val candidate = normalizeLookupLine(resolution.lineName ?: resolution.lineNameEn.orEmpty())
+                if (wantedLine.isNotEmpty() && candidate.isNotEmpty() &&
+                    (candidate == wantedLine || candidate.contains(wantedLine) || wantedLine.contains(candidate))
+                ) 1 else 0
+            }.thenBy { if (it.lineId != null) 1 else 0 }
+        ) ?: return null
+        return best.longitude!! to best.latitude!!
+    }
+
+    private fun normalizeLookupName(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(lookupParentheticalRegex, "")
+        .replace(lookupBracketedRegex, "")
+        .replace(lookupSeparatorRegex, "")
+        .removeSuffix("↑")
+        .removeSuffix("↓")
+        .removeSuffix("站")
+
+    private fun normalizeLookupLine(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(lookupParentheticalRegex, "")
+        .replace("轨道交通", "")
+        .replace("地铁", "")
+        .replace(lookupSeparatorRegex, "")
+
     /** 腾讯路线返回线路名后的颜色补全；按起点站所属城市限制，避免不同城市同名“1号线”串色。 */
     fun lineColorOf(originStationId: Long?, lineName: String): String? {
         if (originStationId == null || lineName.isBlank()) return null
@@ -458,6 +519,7 @@ object TransitData {
             byCombinedEn.clear()
             byStationNameZh.clear()
             byStationNameEn.clear()
+            byNormalizedStationName.clear()
             lineColorsByCityAndName.clear()
             deviceCodesByCity.clear()
             loaded = false
@@ -501,6 +563,14 @@ object TransitData {
                         if (!r.stationNameEn.isNullOrEmpty()) {
                             byStationNameEn.putIfAbsent(r.stationNameEn, r)
                         }
+                        sequenceOf(r.stationName, r.stationNameEn)
+                            .filterNotNull()
+                            .map(::normalizeLookupName)
+                            .filter(String::isNotEmpty)
+                            .distinct()
+                            .forEach { name ->
+                                byNormalizedStationName.getOrPut(name, ::mutableListOf).add(r)
+                            }
                         deviceCodesByCity.getOrPut(r.cityCode) { mutableListOf() }.add(r.deviceCode)
                     }
                 }

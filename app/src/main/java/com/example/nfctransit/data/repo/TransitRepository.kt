@@ -137,12 +137,9 @@ class TransitRepository(private val context: Context) {
 
     suspend fun clearAll() {
         dao.clearCards()
-        dao.clearRouteCache()
         SessionLogStore.deleteAll(context)
         AppPreferences.clear(context)
     }
-
-    suspend fun clearRouteCache() = dao.clearRouteCache()
 
     // ── 数据库导入 / 导出 ──
 

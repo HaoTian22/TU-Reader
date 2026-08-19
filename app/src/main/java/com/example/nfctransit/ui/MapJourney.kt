@@ -1,8 +1,10 @@
 package com.example.nfctransit.ui
 
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.route.TransitFamily
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.util.CoordTransform
+import java.util.Locale
 
 /**
  * 地图轨迹的行程模型：从交易记录（数据库）构建时间线事件 + 站间出行线段。
@@ -21,7 +23,9 @@ data class MapEvent(
     val lng: Double,           // GCJ-02（腾讯坐标系）
     val lat: Double,
     val timeMillis: Long,
-    val direction: MapDirection
+    val direction: MapDirection,
+    val transitFamily: TransitFamily = TransitFamily.ANY,
+    val cityName: String = ""
 )
 
 data class MapSegment(
@@ -33,6 +37,41 @@ data class MapSegment(
     val endTime: Long
 ) {
     val hasCurve: Boolean get() = to != null
+    val requiredTransitFamily: TransitFamily get() {
+        val destinationFamily = to?.transitFamily ?: return TransitFamily.ANY
+        return from.transitFamily.takeIf {
+            it != TransitFamily.ANY && it == destinationFamily
+        } ?: TransitFamily.ANY
+    }
+}
+
+internal fun transitFamilyOf(value: String): TransitFamily {
+    val type = value.trim().lowercase(Locale.ROOT)
+    return when {
+        type in setOf("地铁", "轻轨", "单轨", "快轨", "磁浮") ||
+            type.contains("metro") || type.contains("subway") ||
+            type.contains("light rail") || type.contains("monorail") ||
+            type.contains("maglev") -> TransitFamily.SUBWAY
+        type in setOf("公交", "有轨电车", "brt") ||
+            type.contains("bus") || type.contains("tram") -> TransitFamily.BUS
+        type == "城际" || type.contains("intercity") ||
+            type.contains("rail") || type.contains("express") -> TransitFamily.RAIL
+        else -> TransitFamily.ANY
+    }
+}
+
+/** Direction transit 必须有可靠的同城、同类起终点；单点及混合模式记录不参与路线请求。 */
+internal fun isTransitRouteEligible(
+    segment: MapSegment,
+    fromCityId: Long?,
+    toCityId: Long?
+): Boolean {
+    val to = segment.to ?: return false
+    val family = segment.from.transitFamily
+    return fromCityId != null &&
+        fromCityId == toCityId &&
+        family != TransitFamily.ANY &&
+        family == to.transitFamily
 }
 
 class JourneyModel private constructor(
@@ -45,14 +84,8 @@ class JourneyModel private constructor(
 
     companion object {
         /** 是否算作出行（充值/消费不算） */
-        private fun isTransit(tx: UiTransaction): Boolean {
-            val t = tx.transitType
-            return t == "地铁" || t == "公交" || t == "有轨电车" || t == "城际" ||
-                t == "轻轨" || t == "单轨" || t == "快轨" || t == "磁浮" ||
-                t.contains("Metro") || t.contains("Bus") || t.contains("Tram") ||
-                t.contains("Rail") || t.contains("Intercity") || t.contains("Monorail") ||
-                t.contains("Maglev") || t.contains("Express")
-        }
+        private fun isTransit(tx: UiTransaction): Boolean =
+            transitFamilyOf(tx.transitType) != TransitFamily.ANY
 
         private fun parseTime(date: String, time: String): Long {
             // 本地时间（交易时间即本地时间），默认时区解析
@@ -75,14 +108,16 @@ class JourneyModel private constructor(
             for (tx in txns) {
                 if (!isTransit(tx)) continue
                 val stationId = tx.stationId ?: continue
-                val coords = TransitData.coordsOf(stationId) ?: continue  // 缺坐标直接丢弃
-                val (gcjLng, gcjLat) = CoordTransform.wgs84ToGcj02(coords.first, coords.second)
                 val direction = when {
                     tx.stationName.trimEnd().endsWith("↓") -> MapDirection.ENTRY
                     tx.stationName.trimEnd().endsWith("↑") -> MapDirection.EXIT
                     else -> MapDirection.NONE
                 }
                 val name = tx.stationName.trim().removeSuffix("↓").removeSuffix("↑").trim()
+                val coords = TransitData.coordsByStationName(name, tx.cityName, tx.lineName)
+                    ?: TransitData.coordsOf(stationId)
+                    ?: continue
+                val (gcjLng, gcjLat) = CoordTransform.wgs84ToGcj02(coords.first, coords.second)
                 events.add(
                     MapEvent(
                         stationId = stationId,
@@ -92,7 +127,9 @@ class JourneyModel private constructor(
                         lng = gcjLng,
                         lat = gcjLat,
                         timeMillis = parseTime(tx.date, tx.time),
-                        direction = direction
+                        direction = direction,
+                        transitFamily = transitFamilyOf(tx.transitType),
+                        cityName = tx.cityName
                     )
                 )
             }

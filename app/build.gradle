@@ -13,6 +13,27 @@ if (keystorePropertiesFile.exists()) {
 }
 def releaseKeystoreConfigured = keystorePropertiesFile.exists() || System.getenv('KEYSTORE_FILE') != null
 
+// 腾讯地图 WebService：CI 环境变量优先，本地开发读取被 Git 忽略的 local.properties。
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+def readTencentMapCredential = { String name ->
+    def environmentValue = System.getenv(name)?.trim()
+    environmentValue ? environmentValue : localProperties.getProperty(name, '').trim()
+}
+def buildConfigString = { String value ->
+    def escaped = value
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\r', '\\r')
+        .replace('\n', '\\n')
+    "\"${escaped}\""
+}
+def tencentMapWebServiceKey = readTencentMapCredential('TENCENT_MAP_WEB_SERVICE_KEY')
+def tencentMapSecretKey = readTencentMapCredential('TENCENT_MAP_SECRET_KEY')
+
 def appVersionName = project.findProperty('versionName') ?: '1.0.0'
 
 android {
@@ -26,11 +47,13 @@ android {
         versionCode 1
         versionName appVersionName
         resValue "string", "app_version", appVersionName
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "TENCENT_MAP_WEB_SERVICE_KEY", buildConfigString(tencentMapWebServiceKey)
+        buildConfigField "String", "TENCENT_MAP_SECRET_KEY", buildConfigString(tencentMapSecretKey)
     }
 
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 
     ksp {
@@ -103,9 +126,4 @@ dependencies {
     implementation 'com.tencent.map:tencent-map-vector-sdk:4.5.14.5'
 
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test:runner:1.6.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
-    androidTestImplementation 'androidx.room:room-testing:2.8.4'
 }
-
-android.sourceSets.androidTest.assets.srcDirs += files("$projectDir/schemas")
