@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /**
  * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
  * 版本迁移见 MIGRATIONS：当前 v4，sfi 列以 hex 字符串（"0x19"）存储。
+ * 兼容曾运行 v5 开发版的设备：降级时仅删除已移出用户库的路线缓存表。
  */
 @Database(
     entities = [
@@ -118,8 +119,15 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /** v5→v4：路线缓存已迁移到 cache/route_cache，保留所有用户数据表。 */
+        private val MIGRATION_5_4 = object : Migration(5, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `route_cache`")
+            }
+        }
+
         /** 全部迁移：主库打开与导入旧库共用 */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_5_4)
 
         @Volatile
         private var instance: UserDatabase? = null

@@ -47,6 +47,7 @@ android {
         versionCode 1
         versionName appVersionName
         resValue "string", "app_version", appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "TENCENT_MAP_WEB_SERVICE_KEY", buildConfigString(tencentMapWebServiceKey)
         buildConfigField "String", "TENCENT_MAP_SECRET_KEY", buildConfigString(tencentMapSecretKey)
     }
@@ -126,4 +127,6 @@ dependencies {
     implementation 'com.tencent.map:tencent-map-vector-sdk:4.5.14.5'
 
     testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }

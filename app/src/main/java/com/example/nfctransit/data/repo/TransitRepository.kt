@@ -15,6 +15,7 @@ import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.db.RawRecordEntity
 import com.example.nfctransit.data.db.UserDatabase
 import com.example.nfctransit.data.prefs.AppPreferences
+import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.model.CanonicalTransaction
 import java.io.File
 import java.io.FileInputStream
@@ -440,6 +441,10 @@ class TransitRepository(private val context: Context) {
     suspend fun setCardOrder(cardIds: List<String>) = AppPreferences.setCardOrder(context, cardIds)
     suspend fun isKeepDebugLogs(): Boolean = AppPreferences.isKeepDebugLogs(context)
     suspend fun setKeepDebugLogs(keep: Boolean) = AppPreferences.setKeepDebugLogs(context, keep)
+    suspend fun getCurrentTripRouteDisplayMode(): CurrentTripRouteDisplayMode =
+        AppPreferences.getCurrentTripRouteDisplayMode(context)
+    suspend fun setCurrentTripRouteDisplayMode(mode: CurrentTripRouteDisplayMode) =
+        AppPreferences.setCurrentTripRouteDisplayMode(context, mode)
     suspend fun getSchemaVersion(): Int = AppPreferences.getSchemaVersion(context)
     suspend fun markMigrated() = AppPreferences.markMigrated(context)
 }

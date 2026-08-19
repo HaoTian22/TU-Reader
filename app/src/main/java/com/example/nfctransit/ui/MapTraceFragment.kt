@@ -20,6 +20,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.route.RouteGeometryKind
 import com.example.nfctransit.data.route.RouteGeometry
 import com.example.nfctransit.data.route.RouteLeg
@@ -50,6 +51,11 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+internal fun shouldShowFullCurrentTripRoute(
+    mode: CurrentTripRouteDisplayMode,
+    resolvedTransitLegCount: Int
+): Boolean = mode == CurrentTripRouteDisplayMode.FULL_TRANSFERS && resolvedTransitLegCount > 0
 
 /**
  * 地图轨迹：腾讯地图展示行程。从数据库交易构建时间线（MapJourney），
@@ -85,6 +91,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var playing = false
     private var speed = 1f
     private var mainAccent = 0xFF0066FF.toInt()
+    private var currentTripRouteDisplayMode = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
     private val routeRepository by lazy { TransitRouteRepository(requireContext().applicationContext) }
 
     private val stationMarkers = mutableMapOf<Long, Marker>()
@@ -146,6 +153,12 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
                 binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
             }
+        }
+
+        viewModel.currentTripRouteDisplayMode.observe(viewLifecycleOwner) { mode ->
+            currentTripRouteDisplayMode = mode
+            val event = model.events.getOrNull(currentEventIndex) ?: return@observe
+            renderCurrentStation(activeSegmentAt(), event)
         }
 
         initMap()
@@ -775,7 +788,11 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         val row = binding.currentStationRow
         row.removeAllViews()
         val plan = active?.let(routePlans::get)
-        if (active != null && plan != null && plan.transitLegs.isNotEmpty()) {
+        if (
+            active != null &&
+            plan != null &&
+            shouldShowFullCurrentTripRoute(currentTripRouteDisplayMode, plan.transitLegs.size)
+        ) {
             addRouteChain(row, active, plan)
         } else if (active != null && active.hasCurve && active.to != null) {
             row.addView(stationChip(active.from.name, active.from.lineName, active.from.lineColor))
