@@ -2,6 +2,7 @@ package com.example.nfctransit.data.db
 
 import androidx.room.ColumnInfo
 import androidx.room.Dao
+import androidx.room.Insert
 import androidx.room.Query
 
 /** 站名解析结果：device_code 命中的城市/线路/站点（含英文，缺省回退中文由调用方处理）。
@@ -63,4 +64,51 @@ interface TransitDao {
 
     @Query("SELECT COUNT(*) FROM reader_device")
     suspend fun countDevices(): Int
+
+    @Query("SELECT * FROM line WHERE city_id = :cityId AND line_name = :lineName LIMIT 1")
+    suspend fun getLineByName(cityId: Long, lineName: String): LineEntity?
+
+    @Insert
+    suspend fun insertLine(line: LineEntity): Long
+
+    @Query("SELECT * FROM station WHERE city_id = :cityId AND station_name = :stationName LIMIT 1")
+    suspend fun getStationByName(cityId: Long, stationName: String): StationEntity?
+
+    @Insert
+    suspend fun insertStation(station: StationEntity): Long
+
+    @Query("SELECT * FROM reader_device WHERE device_code = :deviceCode LIMIT 1")
+    suspend fun getDeviceByCode(deviceCode: String): ReaderDeviceEntity?
+
+    @Insert
+    suspend fun insertDevice(device: ReaderDeviceEntity): Long
+
+    @Query(
+        """
+        UPDATE reader_device
+        SET standard = :standard, line_id = :lineId, station_id = :stationId,
+            transit_type = :transitType, updated_at = :updatedAt
+        WHERE device_code = :deviceCode
+        """
+    )
+    suspend fun updateDeviceMapping(
+        deviceCode: String,
+        standard: String,
+        lineId: Long?,
+        stationId: Long?,
+        transitType: String,
+        updatedAt: String
+    )
+
+    @Query("SELECT * FROM city WHERE city_id = :cityId LIMIT 1")
+    suspend fun getCityById(cityId: Long): CityEntity?
+
+    @Query("SELECT * FROM line WHERE line_id = :lineId LIMIT 1")
+    suspend fun getLineById(lineId: Long): LineEntity?
+
+    @Query("SELECT * FROM station WHERE station_id = :stationId LIMIT 1")
+    suspend fun getStationById(stationId: Long): StationEntity?
+
+    @Query("SELECT COUNT(*) FROM reader_device WHERE device_code = :deviceCode")
+    suspend fun countDevice(deviceCode: String): Int
 }

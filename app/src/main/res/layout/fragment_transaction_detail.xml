@@ -165,6 +165,17 @@
                     android:tag="fa"
                     android:clickable="true"
                     android:focusable="true" />
+
+                <TextView
+                    android:id="@+id/btnFeedbackHex"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="&#xf075; 反馈"
+                    android:textColor="#0066FF"
+                    android:textSize="12sp"
+                    android:clickable="true"
+                    android:focusable="true" />
             </LinearLayout>
 
             <!-- Hex Panel（含按字段着色 + 颜色图例） -->

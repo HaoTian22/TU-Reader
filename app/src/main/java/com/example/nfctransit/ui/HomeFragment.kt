@@ -646,7 +646,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val typeLabel = TextView(page.context).apply {
                     text = card.name
                     setTextColor(Color.argb(204, 255, 255, 255))
-                    textSize = 20f
+                    textSize = 12f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
                 }
                 val logoResId = when (card.name) {
@@ -654,20 +654,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     "珠海通" -> R.drawable.zhuhaitong
                     "羊城通" -> R.drawable.yangchengtong
                     else -> null
-                }
-                val typeView: View = if (logoResId != null) {
-                    ImageView(page.context).apply {
-                        setImageResource(logoResId)
-                        contentDescription = card.name
-                        adjustViewBounds = true
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                        layoutParams = LinearLayout.LayoutParams(
-                            kotlin.math.ceil(typeLabel.paint.measureText("深圳通").toDouble()).toInt() * 2,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                    }
-                } else {
-                    typeLabel
                 }
 
                 val numberView = TextView(page.context).apply {
@@ -679,7 +665,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     setPadding(0, 3.dpToPx(), 0, 0)
                 }
 
-                textCol.addView(typeView)
+                textCol.addView(typeLabel)
                 textCol.addView(numberView)
                 // 双协议卡：第二行显示第二个卡号（如 TU 卡号）
                 if (!card.secondCardNumber.isNullOrEmpty()) {
@@ -693,6 +679,22 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     textCol.addView(secondNumberView)
                 }
                 page.addView(textCol)
+
+                logoResId?.let { logo ->
+                    page.addView(ImageView(page.context).apply {
+                        setImageResource(logo)
+                        contentDescription = card.name
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        layoutParams = FrameLayout.LayoutParams(
+                            90.dpToPx(),
+                            50.dpToPx(),
+                            android.view.Gravity.BOTTOM or android.view.Gravity.END
+                        ).apply {
+                            rightMargin = 18.dpToPx()
+                            bottomMargin = 16.dpToPx()
+                        }
+                    })
+                }
 
                 // 右上角删除按钮
                 val deleteBtn = TextView(page.context).apply {

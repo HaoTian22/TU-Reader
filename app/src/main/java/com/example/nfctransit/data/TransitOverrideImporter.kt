@@ -1,0 +1,109 @@
+package com.example.nfctransit.data
+
+import android.content.Context
+import androidx.room.withTransaction
+import com.example.nfctransit.data.db.AppDatabase
+import com.example.nfctransit.data.db.LineEntity
+import com.example.nfctransit.data.db.ReaderDeviceEntity
+import com.example.nfctransit.data.db.StationEntity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+object TransitOverrideImporter {
+    private val codeRegex = Regex("[0-9A-Za-z]+")
+    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+
+    suspend fun import(context: Context): OverrideImportSummary {
+        val appContext = context.applicationContext
+        val snapshot = TransitOverrideStore.read(appContext)
+        if (snapshot.rows.isEmpty()) return OverrideImportSummary()
+        val dao = AppDatabase.get(appContext).transitDao()
+        var added = 0
+        var updated = 0
+        var unchanged = 0
+        var skipped = 0
+        val errors = mutableListOf<String>()
+        val now = timeFormat.format(Date())
+
+        AppDatabase.get(appContext).withTransaction {
+            snapshot.rows.values.forEachIndexed { index, row ->
+                val error = validate(row)
+                if (error != null) {
+                    skipped++
+                    errors += "第 ${index + 2} 行：$error"
+                    return@forEachIndexed
+                }
+                val city = dao.getCity(row.prefix)
+                if (city == null) {
+                    skipped++
+                    errors += "第 ${index + 2} 行：未知城市码 ${row.prefix}"
+                    return@forEachIndexed
+                }
+                val lineId = dao.getLineByName(city.cityId, row.line)?.lineId
+                    ?: dao.insertLine(
+                        LineEntity(
+                            cityId = city.cityId,
+                            lineCode = row.line,
+                            lineName = row.line
+                        )
+                    )
+                val stationId = dao.getStationByName(city.cityId, row.station)?.stationId
+                    ?: dao.insertStation(
+                        StationEntity(cityId = city.cityId, stationName = row.station)
+                    )
+                val existing = dao.getDeviceByCode(row.deviceCode)
+                val standard = snapshot.standards[row.deviceCode]
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: existing?.standard
+                    ?: "OVERRIDE"
+                if (existing == null) {
+                    dao.insertDevice(
+                        ReaderDeviceEntity(
+                            standard = standard,
+                            deviceCode = row.deviceCode,
+                            cityId = city.cityId,
+                            lineId = lineId,
+                            stationId = stationId,
+                            transitType = row.type,
+                            updatedAt = now
+                        )
+                    )
+                    added++
+                } else if (
+                    existing.standard != standard ||
+                    existing.cityId != city.cityId ||
+                    existing.lineId != lineId ||
+                    existing.stationId != stationId ||
+                    existing.transitType != row.type
+                ) {
+                    dao.updateDeviceMapping(
+                        deviceCode = row.deviceCode,
+                        standard = standard,
+                        lineId = lineId,
+                        stationId = stationId,
+                        transitType = row.type,
+                        updatedAt = now
+                    )
+                    updated++
+                } else {
+                    unchanged++
+                }
+            }
+        }
+        return OverrideImportSummary(added, updated, unchanged, skipped, errors)
+    }
+
+    private fun validate(row: TransitOverrideRow): String? {
+        if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return "Prefix 无效"
+        if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return "Code 无效"
+        if (row.type.isBlank() || row.type.length > 32) return "Type 无效"
+        if (row.line.isBlank() || row.line.length > 128) return "线路不能为空或过长"
+        if (row.station.isBlank() || row.station.length > 128) return "站名不能为空或过长"
+        if (listOf(row.type, row.line, row.station).any { it.contains('\n') || it.contains('\r') }) {
+            return "字段不能包含换行"
+        }
+        return null
+    }
+}

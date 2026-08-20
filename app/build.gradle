@@ -33,6 +33,7 @@ def buildConfigString = { String value ->
 }
 def tencentMapWebServiceKey = readTencentMapCredential('TENCENT_MAP_WEB_SERVICE_KEY')
 def tencentMapSecretKey = readTencentMapCredential('TENCENT_MAP_SECRET_KEY')
+def feedbackUploadUrl = System.getenv('FEEDBACK_UPLOAD_URL')?.trim() ?: localProperties.getProperty('FEEDBACK_UPLOAD_URL', '').trim()
 
 def appVersionName = project.findProperty('versionName') ?: '1.0.0'
 
@@ -50,6 +51,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "TENCENT_MAP_WEB_SERVICE_KEY", buildConfigString(tencentMapWebServiceKey)
         buildConfigField "String", "TENCENT_MAP_SECRET_KEY", buildConfigString(tencentMapSecretKey)
+        buildConfigField "String", "FEEDBACK_UPLOAD_URL", buildConfigString(feedbackUploadUrl)
     }
 
     buildFeatures {

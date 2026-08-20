@@ -543,7 +543,6 @@ object RecordDecoder {
         // 无法定位站，必须用同时间戳的 1E 记录取站点/线路/余额。journeyHex 也取 1E 的原始记录。
         val journeyByTs = journey.groupBy { it.date + it.time }
         val out = mutableListOf<CanonicalTransaction>()
-        val consumed = mutableSetOf<String>()
         for (f in fare) {
             val ts = f.date + f.time
             val journeyAtTs = journeyByTs[ts]
@@ -555,7 +554,7 @@ object RecordDecoder {
             val j = journeyAtTs?.firstOrNull {
                 it.stationName.isNotEmpty() && it.stationName != "未知"
             }
-            if (j != null && consumed.add(ts)) {
+            if (j != null) {
                 out.add(f.copy(
                     stationName = j.stationName,
                     lineName = j.lineName,
@@ -578,7 +577,7 @@ object RecordDecoder {
         }
         for (j in journey) {
             val ts = j.date + j.time
-            if (ts !in fareByTs && ts !in consumed) out.add(j)
+            if (ts !in fareByTs) out.add(j)
         }
         return out
     }

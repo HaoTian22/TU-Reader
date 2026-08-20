@@ -88,6 +88,7 @@ object TransactionMapper {
                 ?: resolved.lineName.takeIf { it.isNotBlank() && it != "—" }
                 ?: transitType,
             cityName = if (isRecharge) "" else (cityCode?.let { TransitData.cityZh(it) } ?: ""),
+            cityCode = cityCode,
             lineName = lineName,
             lineColor = resolved.lineColor,
             lineId = resolved.lineId,

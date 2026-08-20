@@ -44,6 +44,7 @@ data class UiTransaction(
     val terminal: String,
     val stationName: String,
     val cityName: String = "",     // 城市中文名（如 "广州"）
+    val cityCode: String? = null,   // 交易原始城市码，供反馈覆盖预填
     val lineName: String,          // e.g. "2号线", "M373"
     val lineColor: String? = null, // 线路颜色（"#RRGGBB"，空白时界面保持灰色）
     val lineId: Long? = null,      // 线路数据库 ID（页面间以 ID 传递；切换语言时按 ID 重新解析名称）

@@ -2,6 +2,7 @@ package com.example.nfctransit.ui
 
 import android.app.Dialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -103,7 +104,61 @@ object AppDialogs {
         return dialog
     }
 
-    /** 与应用风格一致的选项弹窗：selectedIndex >= 0 时高亮该项并显示对勾，否则为纯列表 */
+    fun feedback(
+        context: Context,
+        prefix: String,
+        code: String,
+        line: String,
+        station: String,
+        accentColor: Int = 0xFF0066FF.toInt(),
+        onConfirm: (prefix: String, code: String, line: String, station: String, publish: Boolean) -> Unit
+    ): Dialog {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_feedback, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+        val prefixInput = view.findViewById<EditText>(R.id.feedbackPrefix)
+        val codeInput = view.findViewById<EditText>(R.id.feedbackCode)
+        val lineInput = view.findViewById<EditText>(R.id.feedbackLine)
+        val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
+        val publishInput = view.findViewById<android.widget.CheckBox>(R.id.feedbackPublish)
+        publishInput.buttonTintList = ColorStateList.valueOf(accentColor)
+        prefixInput.setText(prefix)
+        codeInput.setText(code)
+        lineInput.setText(line)
+        stationInput.setText(station)
+        listOf(prefixInput, codeInput, lineInput, stationInput).forEach { input ->
+            input.setSelection(input.text.length)
+        }
+        view.findViewById<TextView>(R.id.feedbackConfirm).apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                onConfirm(
+                    prefixInput.text.toString(),
+                    codeInput.text.toString(),
+                    lineInput.text.toString(),
+                    stationInput.text.toString(),
+                    publishInput.isChecked
+                )
+                dialog.dismiss()
+            }
+        }
+        view.findViewById<TextView>(R.id.feedbackCancel).setOnClickListener { dialog.dismiss() }
+        dialog.setOnShowListener {
+            prefixInput.requestFocus()
+            dialog.window?.setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            )
+        }
+        dialog.show()
+        return dialog
+    }
+
     fun options(
         context: Context,
         title: String,

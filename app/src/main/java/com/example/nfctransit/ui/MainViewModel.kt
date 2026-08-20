@@ -15,6 +15,11 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.StationDbUpdater
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.TransitOverrideImporter
+import com.example.nfctransit.data.TransitOverrideStore
+import com.example.nfctransit.data.FeedbackUploader
+import com.example.nfctransit.data.FeedbackOverride
+import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
@@ -179,7 +184,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationDbUpdateStatus = MutableLiveData<String?>(null)
     val stationDbUpdateStatus: LiveData<String?> = _stationDbUpdateStatus
 
-    /** 清理缓存（UI 构建缓存 + transit.db 重置为内置版）：是否进行中 / 结果文案 */
+    private val _feedbackStatus = MutableLiveData<String?>(null)
+    val feedbackStatus: LiveData<String?> = _feedbackStatus
+
+    private val _feedbackSaving = MutableLiveData(false)
+    val feedbackSaving: LiveData<Boolean> = _feedbackSaving
+
     private val _cacheClearing = MutableLiveData(false)
     val cacheClearing: LiveData<Boolean> = _cacheClearing
 
@@ -219,6 +229,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 首次进入版本追踪时初始化 db_version；须在 createFromAsset 拷贝前执行，
             // 才能区分「全新安装（无库）」与「老库升级（库已存在）」。
             AppPreferences.initDbVersion(getApplication())
+            withContext(Dispatchers.IO) { TransitOverrideImporter.import(app) }
             // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
@@ -674,7 +685,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _allTransactions.value?.find { it.id == id }
     }
 
-    // ── 数据管理 ──
+    fun saveFeedbackOverride(
+        transaction: UiTransaction,
+        prefix: String,
+        code: String,
+        line: String,
+        station: String,
+        publish: Boolean
+    ) {
+        if (_feedbackSaving.value == true) return
+        _feedbackSaving.value = true
+        _feedbackStatus.value = null
+        viewModelScope.launch {
+            try {
+                val normalized = TransitOverrideRow(
+                    prefix.trim(), code.trim(), transaction.transitType,
+                    line.trim(), station.trim()
+                )
+                val standard = transaction.cardType.ifBlank { transaction.protocol.ifBlank { "OVERRIDE" } }
+                val result = withContext(Dispatchers.IO) {
+                    TransitOverrideStore.upsert(
+                        getApplication(),
+                        FeedbackOverride(normalized, standard, publish)
+                    )
+                    val summary = TransitOverrideImporter.import(getApplication())
+                    TransitData.reload()
+                    summary
+                }
+                rebuildAllCardsAndRefresh()
+                val uploadStatus = if (publish) {
+                    withContext(Dispatchers.IO) {
+                        FeedbackUploader.upload(
+                            getApplication(), normalized, transaction.transitType, standard
+                        )
+                    }
+                } else null
+                _feedbackStatus.value = buildString {
+                    append(result.message())
+                    if (uploadStatus != null) append("；").append(uploadStatus)
+                }
+            } catch (e: Exception) {
+                _feedbackStatus.value = "反馈保存失败：${e.message ?: "未知错误"}"
+            } finally {
+                _feedbackSaving.value = false
+            }
+        }
+    }
+
 
     /** 清除全部本地数据 */
     fun clearAllData() {
@@ -788,6 +845,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     withContext(Dispatchers.IO) {
                         AppDatabase.replaceWithDownloaded(getApplication(), downloaded.file)
+                        TransitOverrideImporter.import(getApplication())
                         TransitData.reload()
                     }
                 } finally {
@@ -830,8 +888,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     RouteCacheStore(ctx.cacheDir).clearAll()
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
-                        TransitData.reload()
                     }
+                    TransitOverrideImporter.import(ctx)
+                    TransitData.reload()
                 }
                 if (resetToAsset) AppPreferences.setDbVersion(ctx, assetVersion ?: "0")
                 rebuildAllCardsAndRefresh()
@@ -1110,10 +1169,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 显示语言切换后，按 ID 重新解析当前卡的站名/线路名并刷新界面（名称由 ID 在映射时解析） */
     fun reloadDisplayLanguage() {
-        // 已构建的 UI 交易名按旧语言缓存 → 全部丢弃，让 emit 按当前语言从 canonical 重派生
-        cachedTxnsByCard.clear()
-        val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId ?: return
-        emitCardData(cardId)
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                TransitOverrideImporter.import(getApplication())
+                TransitData.reload()
+            }
+            // 已构建的 UI 交易名按旧语言缓存 → 全部丢弃，让 emit 按当前语言从 canonical 重派生
+            cachedTxnsByCard.clear()
+            val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId ?: return@launch
+            emitCardData(cardId)
+        }
     }
 
     private fun cardDisplayName(profile: CardProfile, cardNumber: String): String {

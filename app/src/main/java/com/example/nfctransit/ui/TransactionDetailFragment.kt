@@ -1,5 +1,6 @@
 package com.example.nfctransit.ui
 
+import android.app.Dialog
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -34,6 +35,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
+    private var feedbackDialog: Dialog? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -56,6 +58,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             binding.btnBack.setTextColor(color)
             binding.tvCardBadge.setTextColor(color)
             binding.btnCopyHex.setTextColor(color)
+            binding.btnFeedbackHex.setTextColor(color)
             updateCardBadgeBg()
         }
 
@@ -77,6 +80,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         // 复制原始数据按钮
         binding.btnCopyHex.typeface =
             Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        binding.btnFeedbackHex.typeface = binding.btnCopyHex.typeface
         binding.btnCopyHex.setOnClickListener {
             if (rawHexToCopy.isNotBlank()) {
                 val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
@@ -84,6 +88,83 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("原始数据", rawHexToCopy))
                 android.widget.Toast.makeText(requireContext(), "✓ 已复制原始数据", android.widget.Toast.LENGTH_SHORT).show()
             }
+        }
+        binding.btnFeedbackHex.setOnClickListener { showFeedbackDialog() }
+
+        viewModel.feedbackStatus.observe(viewLifecycleOwner) { status ->
+            if (!status.isNullOrBlank()) {
+                android.widget.Toast.makeText(requireContext(), status, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+
+    }
+
+    private fun showFeedbackDialog() {
+        val txn = viewModel.getTransactionById(args.transactionId) ?: return
+        val fullCode = txn.deviceCode.orEmpty()
+        val isLnt = txn.cardType == "YCT" || txn.protocol == "LNT"
+        val isTu = txn.cardType == "TU" || txn.protocol == "TU" || txn.protocols.contains("TU")
+        val tuLineStationCode = txn.journeyHex
+            ?.takeIf { it.isNotBlank() }
+            ?.let { hexRange(it, 10, 17) }
+            .orEmpty()
+        val rawCode = when {
+            isLnt -> txn.terminal
+            isTu -> tuLineStationCode
+            else -> fullCode.ifBlank { txn.terminal }
+        }
+        val prefix = when {
+            isLnt -> "0100"
+            isTu -> txn.cityCode.orEmpty()
+            else -> txn.cityCode?.takeIf { it.isNotBlank() }
+                ?: rawCode.takeIf { it.length > 4 }?.take(4)
+                ?: ""
+        }
+        val code = if (isLnt) rawCode.removePrefix(prefix) else rawCode
+        val hasTuJourney = isTu && (txn.sfi == 0x1E || !txn.journeyHex.isNullOrBlank())
+        val line = txn.lineName
+            .takeIf {
+                it.isNotBlank() && it != "—" && it != "未知" &&
+                    txn.lineId != null && (!isTu || hasTuJourney)
+            }
+            .orEmpty()
+        val station = txn.stationName
+            .removeSuffix("↑")
+            .removeSuffix("↓")
+            .trim()
+            .takeIf {
+                it.isNotBlank() && it != "未知" && it != "—" && it != "公共交通" &&
+                    txn.stationId != null && (!isTu || hasTuJourney)
+            }
+            .orEmpty()
+        feedbackDialog?.dismiss()
+        feedbackDialog = AppDialogs.feedback(
+            context = requireContext(),
+            prefix = prefix,
+            code = code,
+            line = line,
+            station = station,
+            accentColor = accentColor
+        ) { enteredPrefix, enteredCode, enteredLine, enteredStation, publish ->
+            val codeRegex = Regex("[0-9A-Za-z]+")
+            val valid = enteredPrefix.trim().matches(codeRegex) &&
+                enteredCode.trim().matches(codeRegex) &&
+                enteredLine.trim().isNotEmpty() &&
+                enteredStation.trim().isNotEmpty()
+            if (!valid) {
+                android.widget.Toast.makeText(
+                    requireContext(), "请填写有效的 Prefix、Code、线路和站名", android.widget.Toast.LENGTH_SHORT
+                ).show()
+                return@feedback
+            }
+            viewModel.saveFeedbackOverride(
+                txn,
+                enteredPrefix,
+                enteredCode,
+                enteredLine,
+                enteredStation,
+                publish
+            )
         }
     }
 
@@ -316,6 +397,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
+        feedbackDialog?.dismiss()
+        feedbackDialog = null
         super.onDestroyView()
         _binding = null
     }
