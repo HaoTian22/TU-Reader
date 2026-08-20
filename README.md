@@ -78,6 +78,19 @@ export PATH="$JAVA_HOME/bin:$PATH"
 /c/Users/Hao_T/.gradle/wrapper/dists/gradle-9.6.1-bin/4ticwg1pgcbps2hj28r8so764/gradle-9.6.1/bin/gradle :app:assembleDebug --console=plain
 ```
 
+### 腾讯地图 WebService SN 配置
+
+公交路线规划和站点搜索使用腾讯地图 WebService SN 校验。本地开发时，在根目录下被 Git 忽略的 `local.properties` 中配置：
+
+```properties
+TENCENT_MAP_WEB_SERVICE_KEY=your-webservice-key
+TENCENT_MAP_SECRET_KEY=your-secret-key
+```
+
+CI 构建使用同名环境变量 `TENCENT_MAP_WEB_SERVICE_KEY` 和 `TENCENT_MAP_SECRET_KEY`，环境变量会覆盖 `local.properties`。未配置任意一项时应用仍可构建，但不会发起腾讯 WebService 请求。
+
+> ⚠️ 当前应用采用客户端直签，Key 与 SecretKey 会被编译进 APK。此方式只能避免凭据进入版本库，无法防止从 APK 中提取；面向不可信用户分发时应改为由后端保存 SecretKey 并代理请求。
+
 ### 数据库架构
 
 应用使用两套独立的 SQLite 数据库：
@@ -85,9 +98,22 @@ export PATH="$JAVA_HOME/bin:$PATH"
 | 数据库 | Room 版本 | 内容 | 存储位置 |
 |---|---|---|---|
 | `transit.db` | v1 (AppDatabase) | 城市/线路/站点/读卡器设备 | assets/data/ → 应用私有目录 |
-| `user_data.db` | — | 卡片/原始记录/交易归档 | 应用私有目录 |
+| `user_data.db` | v4 (UserDatabase) | 卡片/原始记录/交易归档 | 应用私有目录 |
 
 **重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致
+
+界面构建结果和地图路线等可再生成数据不进入用户数据库，而是按 JSON 文件存放在应用的 `cacheDir`：
+
+```text
+cache/
+├── ui_cache/
+│   └── <card-id>.json
+└── route_cache/
+    ├── route_<sha256>.json
+    └── station_<sha256>.json
+```
+
+缓存可由系统或设置页随时清除；导出 `user_data.db` 时不会包含这些文件。
 
 ### 在线更新机制
 

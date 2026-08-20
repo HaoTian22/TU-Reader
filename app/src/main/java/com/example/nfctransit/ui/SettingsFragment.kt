@@ -20,6 +20,7 @@ import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.db.DatabaseQuerySpec
+import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.databinding.FragmentSettingsBinding
 import java.io.File
 import kotlinx.coroutines.launch
@@ -158,7 +159,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
             R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache, R.id.iconClearData, R.id.iconPrivacy,
-            R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconMapSpeed, R.id.iconLanguage,
+            R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconCurrentTripRoute,
+            R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconChangelog, R.id.iconSupportedCards,
             R.id.iconOpenSource, R.id.iconFeedback
@@ -235,6 +237,32 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         binding.root.findViewById<View>(R.id.rowImportData)?.setOnClickListener {
             importLauncher.launch(arrayOf("*/*"))
+        }
+
+        val currentTripRouteValue =
+            binding.root.findViewById<TextView>(R.id.tvCurrentTripRouteValue)
+        viewModel.currentTripRouteDisplayMode.observe(viewLifecycleOwner) { mode ->
+            currentTripRouteValue.text = when (mode) {
+                CurrentTripRouteDisplayMode.ENDPOINTS_ONLY -> "仅起终点"
+                CurrentTripRouteDisplayMode.FULL_TRANSFERS -> "完整换乘"
+            }
+        }
+        binding.root.findViewById<View>(R.id.rowCurrentTripRoute)?.setOnClickListener {
+            val current = viewModel.currentTripRouteDisplayMode.value
+                ?: CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
+            AppDialogs.options(
+                context = requireContext(),
+                title = "当前行程路线",
+                options = listOf("仅起终点", "完整换乘过程"),
+                selectedIndex = if (current == CurrentTripRouteDisplayMode.ENDPOINTS_ONLY) 0 else 1,
+                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                onSelect = { which ->
+                    viewModel.setCurrentTripRouteDisplayMode(
+                        if (which == 0) CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
+                        else CurrentTripRouteDisplayMode.FULL_TRANSFERS
+                    )
+                }
+            )
         }
 
         // 语言切换：跟随系统 / 中文 / English
@@ -479,7 +507,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         AppDialogs.confirm(
             context = requireContext(),
             title = "清理缓存",
-            message = "将清除界面构建缓存；站名映射表仅在内置版本更新时才重置为内置版本，否则保留当前版本（如需最新站名请联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
+            message = "将清除界面构建缓存和地图路线缓存；站名映射表仅在内置版本更新时才重置为内置版本，否则保留当前版本（如需最新站名请联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
             confirmLabel = "清理",
             confirmColor = 0xFF0066FF.toInt(),  // 不删用户数据，用主题蓝而非警示红
             onConfirm = { viewModel.clearCache() }
