@@ -90,7 +90,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="支持 TU Reader 与 TripReader 数据库备份"
+            android:text="导入数据库备份"
             android:textColor="#B0B0B5"
             android:textSize="11sp" />
 
