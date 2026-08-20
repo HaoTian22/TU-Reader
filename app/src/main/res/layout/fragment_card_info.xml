@@ -289,6 +289,58 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/secondStandardIssueRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="52dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    android:background="@drawable/bg_detail_row_divider">
+                    <TextView
+                        android:id="@+id/tvSecondIssueLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="第二标准发行日期"
+                        android:textColor="#8E8E93"
+                        android:textSize="13sp" />
+                    <TextView
+                        android:id="@+id/tvSecondIssueDate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/secondStandardValidRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="52dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    android:background="@drawable/bg_detail_row_divider">
+                    <TextView
+                        android:id="@+id/tvSecondValidLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="第二标准有效期至"
+                        android:textColor="#8E8E93"
+                        android:textSize="13sp" />
+                    <TextView
+                        android:id="@+id/tvSecondValidUntil"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:minHeight="52dp"
@@ -385,6 +437,53 @@
                         android:textColor="#1A1A1A"
                         android:textSize="14sp" />
                 </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rawDataSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="原始数据"
+                        android:textColor="#1A1A1A"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/btnCopyRawData"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:gravity="center"
+                        android:text="&#xf0c5; 复制"
+                        android:textColor="#0066FF"
+                        android:textSize="12sp"
+                        android:tag="fa"
+                        android:contentDescription="复制卡片原始数据"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="4dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/rawDataPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_hex_panel"
+                    android:padding="16dp" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>

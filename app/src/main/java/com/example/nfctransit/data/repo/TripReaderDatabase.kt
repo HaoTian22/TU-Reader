@@ -8,7 +8,7 @@ data class TripReaderSource(
     val cards: List<TripReaderCard>
 )
 
-/** TripReader 库中的一张卡：cdNo = 19 位交通联合应用序列号，cdNo2 = 10 位岭南通应用序列号（可能为空）；isSZT/isYCT 等为来源库卡型标志 */
+/** TripReader 库中的一张卡：cdNo = 19 位交通联合应用序列号，cdNo2 = 10 位岭南通应用序列号（可能为空）；isSZT/isYCT/isLNT 等为来源库卡型标志 */
 data class TripReaderCard(
     val cdNo: String,
     val cdNo2: String,
@@ -18,6 +18,7 @@ data class TripReaderCard(
     val isCU: Boolean,
     val isSZT: Boolean,
     val isYCT: Boolean,
+    val isLNT: Boolean?,
     val transactions: List<TripReaderTransaction>
 )
 
@@ -25,7 +26,8 @@ data class TripReaderCard(
 data class TripReaderTransaction(
     val dateMs: Long,
     val cuHex: String,
-    val tuHex: String
+    val tuHex: String,
+    val isLNT: Boolean? = null
 )
 
 /**
@@ -52,6 +54,8 @@ object TripReaderDatabase {
         val isCU: String,
         val isSZT: String,
         val isYCT: String,
+        val cardIsLNT: String,
+        val txIsLNT: String,
         val txDate: String,
         val txCUResult: String,
         val txTUResult: String,
@@ -63,6 +67,7 @@ object TripReaderDatabase {
         cardRawNo = "cdRawNo", transactionRawNo = "cdRawNo",
         cardNo = "cdNo", cardNo2 = "cdNo2", cardBalance = "cdBalance", cardTitle = "cdTitle",
         isTU = "isTU", isCU = "isCU", isSZT = "isSZT", isYCT = "isYCT",
+        cardIsLNT = "isLNT", txIsLNT = "isLNT",
         txDate = "txDate", txCUResult = "txCUResult", txTUResult = "txTUResult",
         dateIsAppleReference = false
     )
@@ -72,6 +77,7 @@ object TripReaderDatabase {
         cardRawNo = "ZCDRAWNO", transactionRawNo = "ZCDRAWNO",
         cardNo = "ZCDNO", cardNo2 = "ZCDNO2", cardBalance = "ZCDBALANCE", cardTitle = "ZCDTITLE",
         isTU = "ZISTU", isCU = "ZISCU", isSZT = "ZISSZT", isYCT = "ZISYCT",
+        cardIsLNT = "ZISLNT", txIsLNT = "ZISLNT",
         txDate = "ZTXDATE", txCUResult = "ZTXCURESULT", txTUResult = "ZTXTURESULT",
         dateIsAppleReference = true
     )
@@ -92,6 +98,7 @@ object TripReaderDatabase {
                 val iCuFlag = c.getColumnIndex(schema.isCU)
                 val iSztFlag = c.getColumnIndex(schema.isSZT)
                 val iYctFlag = c.getColumnIndex(schema.isYCT)
+                val iLntFlag = c.getColumnIndex(schema.cardIsLNT)
                 while (c.moveToNext()) {
                     if (iRaw < 0 || iNo < 0) continue
                     val rawNo = c.getString(iRaw)
@@ -103,6 +110,7 @@ object TripReaderDatabase {
                         val iDate = t.getColumnIndex(schema.txDate)
                         val iCu = t.getColumnIndex(schema.txCUResult)
                         val iTu = t.getColumnIndex(schema.txTUResult)
+                        val iTxLntFlag = t.getColumnIndex(schema.txIsLNT)
                         while (t.moveToNext()) {
                             val cuHex = if (iCu >= 0) t.getString(iCu) else ""
                             val tuHex = if (iTu >= 0) t.getString(iTu) else ""
@@ -111,7 +119,8 @@ object TripReaderDatabase {
                                 TripReaderTransaction(
                                     dateMs = if (iDate >= 0) dateToMillis(t, iDate, schema.dateIsAppleReference) else 0L,
                                     cuHex = cuHex,
-                                    tuHex = tuHex
+                                    tuHex = tuHex,
+                                    isLNT = if (iTxLntFlag >= 0) t.getInt(iTxLntFlag) != 0 else null
                                 )
                             )
                         }
@@ -126,6 +135,7 @@ object TripReaderDatabase {
                             isCU = iCuFlag >= 0 && c.getInt(iCuFlag) != 0,
                             isSZT = iSztFlag >= 0 && c.getInt(iSztFlag) != 0,
                             isYCT = iYctFlag >= 0 && c.getInt(iYctFlag) != 0,
+                            isLNT = if (iLntFlag >= 0) c.getInt(iLntFlag) != 0 else null,
                             transactions = transactions
                         )
                     )

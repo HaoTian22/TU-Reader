@@ -77,8 +77,9 @@ object TransitData {
     private val lookupBracketedRegex = Regex("[\\[【].*?[\\]】]")
     private val lookupSeparatorRegex = Regex("[\\s·•_\\-]")
 
-    // 交通联合卡 IIN -> 卡名（来自 assets/data/TU/cardname-tu.csv）
+    // 交通联合卡 IIN -> 卡名/发卡机构码（来自 assets/data/TU/cardname-tu.csv）
     private val iinNames = mutableMapOf<String, String>()
+    private val iinIssuers = mutableMapOf<String, String>()
 
     @Volatile
     private var loaded = false
@@ -102,6 +103,19 @@ object TransitData {
             if (iin.startsWith(key) && key.length > bestLen) {
                 bestLen = key.length
                 best = name
+            }
+        }
+        return best
+    }
+
+    /** 发卡机构码（Issuer）按 IIN 最长前缀匹配。 */
+    fun cardIssuerCode(iin: String): String? {
+        var best: String? = null
+        var bestLen = -1
+        for ((key, issuer) in iinIssuers) {
+            if (iin.startsWith(key) && key.length > bestLen) {
+                bestLen = key.length
+                best = issuer
             }
         }
         return best
@@ -593,11 +607,13 @@ object TransitData {
     private fun loadCardNames() {
         val ctx = appContext ?: return
         for (row in readCsv("$ROOT/TU/cardname-tu.csv")) {
-            if (row.size < 3) continue
+            if (row.size < 2) continue
             val iin = row[0].trim()
-            val name = row[2].trim()
-            if (iin.isEmpty() || iin == "IIN" || name.isEmpty()) continue
-            iinNames[iin] = name
+            val issuer = row[1].trim()
+            val name = row.getOrNull(2)?.trim().orEmpty()
+            if (iin.isEmpty() || iin == "IIN") continue
+            if (issuer.isNotEmpty()) iinIssuers[iin] = issuer
+            if (name.isNotEmpty()) iinNames[iin] = name
         }
     }
 
