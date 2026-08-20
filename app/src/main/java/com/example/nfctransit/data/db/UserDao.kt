@@ -103,5 +103,4 @@ interface UserDao {
 
     @Query("DELETE FROM card_app WHERE card_id = :cardId")
     suspend fun clearCardApps(cardId: String)
-
 }
