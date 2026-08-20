@@ -25,7 +25,9 @@ import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.prefs.AppPreferences
+import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.repo.TransitRepository
+import com.example.nfctransit.data.route.RouteCacheStore
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CategorySpending
 import com.example.nfctransit.model.DailySpending
@@ -164,6 +166,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _keepDebugLogs = MutableLiveData(true)
     val keepDebugLogs: LiveData<Boolean> = _keepDebugLogs
 
+    /** 地图页顶部当前行程是否展开完整换乘过程 */
+    private val _currentTripRouteDisplayMode =
+        MutableLiveData(CurrentTripRouteDisplayMode.ENDPOINTS_ONLY)
+    val currentTripRouteDisplayMode: LiveData<CurrentTripRouteDisplayMode> =
+        _currentTripRouteDisplayMode
+
     /** 站名映射表在线更新：是否进行中 / 结果文案（供设置页状态提示） */
     private val _stationDbUpdating = MutableLiveData(false)
     val stationDbUpdating: LiveData<Boolean> = _stationDbUpdating
@@ -214,6 +222,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
+            _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
             val cards = repo.loadCards()
             if (cards.isEmpty()) return
             val order = repo.getCardOrder()
@@ -610,6 +619,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.setKeepDebugLogs(keep) }
     }
 
+    /** 设置地图页顶部当前行程的路线展示粒度 */
+    fun setCurrentTripRouteDisplayMode(mode: CurrentTripRouteDisplayMode) {
+        _currentTripRouteDisplayMode.value = mode
+        viewModelScope.launch(Dispatchers.IO) { repo.setCurrentTripRouteDisplayMode(mode) }
+    }
+
     private fun emitStatsForSelected() {
         val index = _selectedIndex.value ?: return
         val cardId = cardEntities.getOrNull(index)?.cardId ?: return
@@ -690,9 +705,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
+        _currentTripRouteDisplayMode.value = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
         cachedTxnsByCard.clear()
         viewModelScope.launch(Dispatchers.IO) {
-            UiCache.clearAll(getApplication())
+            val ctx = getApplication<Application>()
+            UiCache.clearAll(ctx)
+            RouteCacheStore(ctx.cacheDir).clearAll()
             repo.clearAll()
         }
     }
@@ -794,7 +812,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 清理缓存：删除 UI 构建缓存。站名映射表仅在内置（asset）版本比当前库更新时才重置为内置版，
+     * 清理缓存：删除 UI 构建缓存和地图路线缓存。站名映射表仅在内置（asset）版本比当前库更新时才重置为内置版，
      * 否则保留当前版本（避免把较新的在线更新库回退成旧内置版）。随后全部卡片重解码刷新界面。
      * 不影响用户数据（卡片/交易/原始记录）。
      */
@@ -809,6 +827,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val resetToAsset = TransitDbVersion.isNewer(assetVersion, activeVersion)
                 withContext(Dispatchers.IO) {
                     UiCache.clearAll(ctx)
+                    RouteCacheStore(ctx.cacheDir).clearAll()
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
                         TransitData.reload()

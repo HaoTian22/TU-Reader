@@ -9,6 +9,16 @@ import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.db.AppDatabase
 import kotlinx.coroutines.flow.first
 
+enum class CurrentTripRouteDisplayMode {
+    ENDPOINTS_ONLY,
+    FULL_TRANSFERS;
+
+    companion object {
+        fun fromPersistedValue(value: String?): CurrentTripRouteDisplayMode =
+            entries.firstOrNull { it.name == value } ?: ENDPOINTS_ONLY
+    }
+}
+
 /**
  * 轻量 UI/设置状态（Preferences DataStore "transit_preferences"）。
  * 卡片/交易等业务数据不在此处——它们在 Room 用户库（UserDatabase）。
@@ -20,6 +30,8 @@ object AppPreferences {
     private val KEY_SELECTED_CARD_ID = stringPreferencesKey("selected_card_id")
     private val KEY_CARD_ORDER = stringPreferencesKey("card_order")          // 逗号连接的 cardId 列表
     private val KEY_KEEP_DEBUG_LOGS = stringPreferencesKey("keep_debug_logs") // "true"/"false"
+    private val KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE =
+        stringPreferencesKey("current_trip_route_display_mode")
     private val KEY_SCHEMA_VERSION = intPreferencesKey("schema_version")
     private val KEY_DB_VERSION = stringPreferencesKey("db_version")           // 当前 databases/transit.db 的版本
     private val KEY_APP_INSTALL_MARKER = stringPreferencesKey("app_install_marker")
@@ -38,6 +50,11 @@ object AppPreferences {
 
     suspend fun isKeepDebugLogs(context: Context): Boolean =
         context.dataStore.data.first()[KEY_KEEP_DEBUG_LOGS] != "false"  // 默认 true
+
+    suspend fun getCurrentTripRouteDisplayMode(context: Context): CurrentTripRouteDisplayMode {
+        val stored = context.dataStore.data.first()[KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE]
+        return CurrentTripRouteDisplayMode.fromPersistedValue(stored)
+    }
 
     suspend fun getSchemaVersion(context: Context): Int =
         context.dataStore.data.first()[KEY_SCHEMA_VERSION] ?: 0
@@ -91,6 +108,15 @@ object AppPreferences {
     suspend fun setKeepDebugLogs(context: Context, keep: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_KEEP_DEBUG_LOGS] = keep.toString()
+        }
+    }
+
+    suspend fun setCurrentTripRouteDisplayMode(
+        context: Context,
+        mode: CurrentTripRouteDisplayMode
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE] = mode.name
         }
     }
 

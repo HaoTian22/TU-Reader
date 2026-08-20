@@ -69,6 +69,13 @@ object TransitData {
     // 站名 -> 解析结果（中/英各一；同名站多线路时优先带线路者），用于给旧数据补回 ID
     private val byStationNameZh = mutableMapOf<String, StationResolution>()
     private val byStationNameEn = mutableMapOf<String, StationResolution>()
+    // 规范化站名 -> 全部同名候选。地图轨迹会按站名查坐标，必须走索引，不能逐笔扫描全部站点。
+    private val byNormalizedStationName = mutableMapOf<String, MutableList<StationResolution>>()
+    private val lineColorsByCityAndName = mutableMapOf<Pair<Long, String>, String>()
+
+    private val lookupParentheticalRegex = Regex("[（(].*?[）)]")
+    private val lookupBracketedRegex = Regex("[\\[【].*?[\\]】]")
+    private val lookupSeparatorRegex = Regex("[\\s·•_\\-]")
 
     // 交通联合卡 IIN -> 卡名/发卡机构码（来自 assets/data/TU/cardname-tu.csv）
     private val iinNames = mutableMapOf<String, String>()
@@ -308,6 +315,80 @@ object TransitData {
     }
 
     /**
+     * 按交易记录中的站名反查本地坐标缓存。站名是主键语义，城市和线路只用于消歧；
+     * 这样即使历史记录携带了错误 stationId，也不会直接把相邻站坐标用于路线请求。
+     */
+    fun coordsByStationName(
+        stationName: String,
+        cityName: String = "",
+        lineName: String = ""
+    ): Pair<Double, Double>? {
+        ensureLoaded()
+        val wantedStation = normalizeLookupName(stationName)
+        if (wantedStation.isEmpty()) return null
+        val stationMatches = byNormalizedStationName[wantedStation]
+            .orEmpty()
+            .filter { it.longitude != null && it.latitude != null }
+        if (stationMatches.isEmpty()) return null
+
+        val wantedCity = normalizeLookupName(cityName)
+        val cityMatches = stationMatches.filter { resolution ->
+            wantedCity.isNotEmpty() && sequenceOf(resolution.cityName, resolution.cityNameEn)
+                .filterNotNull()
+                .any { candidate ->
+                    val normalized = normalizeLookupName(candidate)
+                    normalized == wantedCity || wantedCity.contains(normalized) || normalized.contains(wantedCity)
+                }
+        }.ifEmpty { stationMatches }
+
+        val wantedLine = normalizeLookupLine(lineName)
+        val best = cityMatches.maxWithOrNull(
+            compareBy<StationResolution> { resolution ->
+                val candidate = normalizeLookupLine(resolution.lineName ?: resolution.lineNameEn.orEmpty())
+                if (wantedLine.isNotEmpty() && candidate.isNotEmpty() &&
+                    (candidate == wantedLine || candidate.contains(wantedLine) || wantedLine.contains(candidate))
+                ) 1 else 0
+            }.thenBy { if (it.lineId != null) 1 else 0 }
+        ) ?: return null
+        return best.longitude!! to best.latitude!!
+    }
+
+    private fun normalizeLookupName(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(lookupParentheticalRegex, "")
+        .replace(lookupBracketedRegex, "")
+        .replace(lookupSeparatorRegex, "")
+        .removeSuffix("↑")
+        .removeSuffix("↓")
+        .removeSuffix("站")
+
+    private fun normalizeLookupLine(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(lookupParentheticalRegex, "")
+        .replace("轨道交通", "")
+        .replace("地铁", "")
+        .replace(lookupSeparatorRegex, "")
+
+    /** 腾讯路线返回线路名后的颜色补全；按起点站所属城市限制，避免不同城市同名“1号线”串色。 */
+    fun lineColorOf(originStationId: Long?, lineName: String): String? {
+        if (originStationId == null || lineName.isBlank()) return null
+        ensureLoaded()
+        val cityId = byStationId[originStationId]?.cityId ?: return null
+        val normalized = normalizeRouteLineName(lineName)
+        lineColorsByCityAndName[cityId to normalized]?.let { return it }
+        return lineColorsByCityAndName.entries
+            .asSequence()
+            .filter { it.key.first == cityId }
+            .filter { (key, _) ->
+                val candidate = key.second
+                minOf(candidate.length, normalized.length) >= 2 &&
+                    (candidate.contains(normalized) || normalized.contains(candidate))
+            }
+            .maxByOrNull { it.key.second.length }
+            ?.value
+    }
+
+    /**
      * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析（简化：前缀分桶 + 最长重叠）。
      *
      * 0x18 记录 [10..16)：前 4 位 = 城市/网络前缀（广州 YCT 0100、深圳 5180…），其余 = 位置/终端码。
@@ -452,6 +533,8 @@ object TransitData {
             byCombinedEn.clear()
             byStationNameZh.clear()
             byStationNameEn.clear()
+            byNormalizedStationName.clear()
+            lineColorsByCityAndName.clear()
             deviceCodesByCity.clear()
             loaded = false
             ensureLoaded()
@@ -475,6 +558,14 @@ object TransitData {
                         r.matchKey?.let { byMatchKey[it] = r }
                         r.stationId?.let { byStationId[it] = r }
                         r.lineId?.let { lid -> r.stationId?.let { byLineStationId[lid to it] = r } }
+                        if (!r.lineColor.isNullOrBlank()) {
+                            r.lineName?.takeIf { it.isNotBlank() }?.let { name ->
+                                lineColorsByCityAndName.putIfAbsent(r.cityId to normalizeRouteLineName(name), r.lineColor)
+                            }
+                            r.lineNameEn?.takeIf { it.isNotBlank() }?.let { name ->
+                                lineColorsByCityAndName.putIfAbsent(r.cityId to normalizeRouteLineName(name), r.lineColor)
+                            }
+                        }
                         byCombinedZh["${r.lineName ?: ""} ${r.stationName ?: ""}".trim()] = r
                         byCombinedEn[
                             "${r.lineNameEn ?: r.lineName ?: ""} ${r.stationNameEn ?: r.stationName ?: ""}".trim()
@@ -486,6 +577,14 @@ object TransitData {
                         if (!r.stationNameEn.isNullOrEmpty()) {
                             byStationNameEn.putIfAbsent(r.stationNameEn, r)
                         }
+                        sequenceOf(r.stationName, r.stationNameEn)
+                            .filterNotNull()
+                            .map(::normalizeLookupName)
+                            .filter(String::isNotEmpty)
+                            .distinct()
+                            .forEach { name ->
+                                byNormalizedStationName.getOrPut(name, ::mutableListOf).add(r)
+                            }
                         deviceCodesByCity.getOrPut(r.cityCode) { mutableListOf() }.add(r.deviceCode)
                     }
                 }
@@ -497,7 +596,14 @@ object TransitData {
         }
     }
 
-    /** 加载 IIN -> 卡名/发卡机构码映射（cardname-tu.csv） */
+    private fun normalizeRouteLineName(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(Regex("[（(].*?[）)]"), "")
+        .replace("轨道交通", "")
+        .replace("地铁", "")
+        .replace(Regex("[\\s·•_\\-]"), "")
+
+    /** 加载 IIN -> 卡名映射（cardname-tu.csv），Name 列非空的才入库 */
     private fun loadCardNames() {
         val ctx = appContext ?: return
         for (row in readCsv("$ROOT/TU/cardname-tu.csv")) {

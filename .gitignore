@@ -11,5 +11,4 @@ keystore.properties
 tools/osm_coords/cache/*
 CLAUDE.md
 local.properties
-.pr14-review/
 .claude

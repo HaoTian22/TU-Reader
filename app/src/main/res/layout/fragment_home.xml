@@ -59,6 +59,52 @@
             android:text="支持 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通"
             android:textColor="#CCCCCC"
             android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="已有历史数据？"
+            android:textColor="#8E8E93"
+            android:textSize="13sp" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnImportOldData"
+            android:layout_width="200dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_import_old_data_button"
+            android:enabled="true"
+            android:gravity="center"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="导入旧数据"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="导入数据库备份"
+            android:textColor="#B0B0B5"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvImportOldDataStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="32dp"
+            android:gravity="center"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Content: shown when card data is available -->
