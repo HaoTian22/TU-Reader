@@ -25,8 +25,8 @@ class OverridePayload(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     type: str = Field(min_length=1, max_length=32)
     standard: str = Field(min_length=1, max_length=16)
-    line: str = Field(min_length=1, max_length=128)
-    station: str = Field(min_length=1, max_length=128)
+    line: str = Field(max_length=128)
+    station: str = Field(max_length=128)
 
     @field_validator("prefix", "code")
     @classmethod
@@ -36,15 +36,22 @@ class OverridePayload(BaseModel):
             raise ValueError("code must contain only ASCII letters and digits")
         return value
 
-    @field_validator("type", "standard", "line", "station")
+    @field_validator("type", "standard")
     @classmethod
-    def validate_text(cls, value: str) -> str:
+    def validate_required_text(cls, value: str) -> str:
         if "\n" in value or "\r" in value:
             raise ValueError("text must contain no newlines")
         value = value.strip()
         if not value:
             raise ValueError("text must be non-empty and contain no newlines")
         return value
+
+    @field_validator("line", "station")
+    @classmethod
+    def validate_optional_text(cls, value: str) -> str:
+        if "\n" in value or "\r" in value:
+            raise ValueError("text must contain no newlines")
+        return value.strip()
 
 
 def _read_rows() -> dict[str, dict[str, str]]:

@@ -40,18 +40,22 @@ object TransitOverrideImporter {
                     errors += "第 ${index + 2} 行：未知城市码 ${row.prefix}"
                     return@forEachIndexed
                 }
-                val lineId = dao.getLineByName(city.cityId, row.line)?.lineId
-                    ?: dao.insertLine(
-                        LineEntity(
-                            cityId = city.cityId,
-                            lineCode = row.line,
-                            lineName = row.line
+                val lineId = row.line.takeIf { it.isNotBlank() }?.let { line ->
+                    dao.getLineByName(city.cityId, line)?.lineId
+                        ?: dao.insertLine(
+                            LineEntity(
+                                cityId = city.cityId,
+                                lineCode = line,
+                                lineName = line
+                            )
                         )
-                    )
-                val stationId = dao.getStationByName(city.cityId, row.station)?.stationId
-                    ?: dao.insertStation(
-                        StationEntity(cityId = city.cityId, stationName = row.station)
-                    )
+                }
+                val stationId = row.station.takeIf { it.isNotBlank() }?.let { station ->
+                    dao.getStationByName(city.cityId, station)?.stationId
+                        ?: dao.insertStation(
+                            StationEntity(cityId = city.cityId, stationName = station)
+                        )
+                }
                 val existing = dao.getDeviceByCode(row.deviceCode)
                 val standard = snapshot.standards[row.deviceCode]
                     ?.trim()
@@ -99,8 +103,8 @@ object TransitOverrideImporter {
         if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return "Prefix 无效"
         if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return "Code 无效"
         if (row.type.isBlank() || row.type.length > 32) return "Type 无效"
-        if (row.line.isBlank() || row.line.length > 128) return "线路不能为空或过长"
-        if (row.station.isBlank() || row.station.length > 128) return "站名不能为空或过长"
+        if (row.line.length > 128) return "线路过长"
+        if (row.station.length > 128) return "站名过长"
         if (listOf(row.type, row.line, row.station).any { it.contains('\n') || it.contains('\r') }) {
             return "字段不能包含换行"
         }

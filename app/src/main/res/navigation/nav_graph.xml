@@ -73,7 +73,16 @@
         <action
             android:id="@+id/action_settings_to_databaseQuery"
             app:destination="@id/databaseQueryFragment" />
+        <action
+            android:id="@+id/action_settings_to_transitOverrides"
+            app:destination="@id/transitOverridesFragment" />
     </fragment>
+
+    <fragment
+        android:id="@+id/transitOverridesFragment"
+        android:name="com.example.nfctransit.ui.TransitOverridesFragment"
+        android:label="TransitOverrides"
+        tools:layout="@layout/fragment_transit_overrides" />
 
     <fragment
         android:id="@+id/databaseQueryFragment"

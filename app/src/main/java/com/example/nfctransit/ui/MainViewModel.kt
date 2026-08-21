@@ -1,12 +1,14 @@
 package com.example.nfctransit.ui
 
 import android.app.Application
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.example.nfctransit.CardProfile
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.TransitCardReader
@@ -29,6 +31,7 @@ import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
+import com.example.nfctransit.data.db.ReaderDeviceEntity
 import com.example.nfctransit.data.prefs.AppPreferences
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.repo.TransitRepository
@@ -189,6 +192,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _feedbackSaving = MutableLiveData(false)
     val feedbackSaving: LiveData<Boolean> = _feedbackSaving
+
+    private val _overrideRows = MutableLiveData<List<TransitOverrideRow>>(emptyList())
+    val overrideRows: LiveData<List<TransitOverrideRow>> = _overrideRows
+
+    private val _overrideStatus = MutableLiveData<String?>(null)
+    val overrideStatus: LiveData<String?> = _overrideStatus
 
     private val _cacheClearing = MutableLiveData(false)
     val cacheClearing: LiveData<Boolean> = _cacheClearing
@@ -685,10 +694,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _allTransactions.value?.find { it.id == id }
     }
 
+    fun consumeFeedbackStatus() {
+        _feedbackStatus.value = null
+    }
+
+    fun consumeOverrideStatus() {
+        _overrideStatus.value = null
+    }
+
     fun saveFeedbackOverride(
         transaction: UiTransaction,
         prefix: String,
         code: String,
+        type: String,
         line: String,
         station: String,
         publish: Boolean
@@ -699,24 +717,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val normalized = TransitOverrideRow(
-                    prefix.trim(), code.trim(), transaction.transitType,
+                    prefix.trim(), code.trim(), type.trim(),
                     line.trim(), station.trim()
                 )
                 val standard = transaction.cardType.ifBlank { transaction.protocol.ifBlank { "OVERRIDE" } }
                 val result = withContext(Dispatchers.IO) {
+                    val context = getApplication<Application>()
+                    val database = AppDatabase.get(context)
+                    val snapshot = TransitOverrideStore.read(context)
+                    val original = if (snapshot.originals.containsKey(normalized.deviceCode)) {
+                        snapshot.originals[normalized.deviceCode]
+                    } else {
+                        database.transitDao().getDeviceByCode(normalized.deviceCode)
+                    }
                     TransitOverrideStore.upsert(
-                        getApplication(),
-                        FeedbackOverride(normalized, standard, publish)
+                        context,
+                        FeedbackOverride(normalized, standard, publish),
+                        original
                     )
-                    val summary = TransitOverrideImporter.import(getApplication())
+                    val summary = TransitOverrideImporter.import(context)
                     TransitData.reload()
+                    _overrideRows.postValue(TransitOverrideStore.list(context))
                     summary
                 }
                 rebuildAllCardsAndRefresh()
                 val uploadStatus = if (publish) {
                     withContext(Dispatchers.IO) {
                         FeedbackUploader.upload(
-                            getApplication(), normalized, transaction.transitType, standard
+                            getApplication(), normalized, type.trim(), standard
                         )
                     }
                 } else null
@@ -729,6 +757,134 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _feedbackSaving.value = false
             }
+        }
+    }
+    fun refreshOverrideRows() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { TransitOverrideStore.list(getApplication()) }
+                .onSuccess { _overrideRows.postValue(it) }
+        }
+    }
+
+    fun updateOverride(oldDeviceCode: String, row: TransitOverrideRow) {
+        viewModelScope.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) {
+                    val context = getApplication<Application>()
+                    val database = AppDatabase.get(context)
+                    val snapshot = TransitOverrideStore.read(context)
+                    if (!snapshot.rows.containsKey(oldDeviceCode)) {
+                        throw IllegalArgumentException("override 不存在")
+                    }
+                    if (oldDeviceCode != row.deviceCode && snapshot.rows.containsKey(row.deviceCode)) {
+                        throw IllegalArgumentException("新的 Prefix+Code 已存在")
+                    }
+                    val standard = snapshot.standards[oldDeviceCode]
+                        ?: snapshot.standards[row.deviceCode]
+                        ?: "OVERRIDE"
+                    if (oldDeviceCode != row.deviceCode) {
+                        database.withTransaction {
+                            restoreOriginal(context, database.transitDao(), oldDeviceCode, snapshot)
+                        }
+                        TransitOverrideStore.remove(context, oldDeviceCode)
+                    }
+                    val latest = TransitOverrideStore.read(context)
+                    val original = if (latest.originals.containsKey(row.deviceCode)) {
+                        latest.originals[row.deviceCode]
+                    } else {
+                        database.transitDao().getDeviceByCode(row.deviceCode)
+                    }
+                    TransitOverrideStore.upsert(
+                        context,
+                        FeedbackOverride(row, standard, false),
+                        original
+                    )
+                    val result = TransitOverrideImporter.import(context)
+                    TransitData.reload()
+                    _overrideRows.postValue(TransitOverrideStore.list(context))
+                    result
+                }
+                rebuildAllCardsAndRefresh()
+                _overrideStatus.value = "override 已保存：${summary.message()}"
+            } catch (e: Exception) {
+                _overrideStatus.value = "override 保存失败：${e.message ?: "未知错误"}"
+            }
+        }
+    }
+
+    fun deleteOverride(deviceCode: String) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val context = getApplication<Application>()
+                    val database = AppDatabase.get(context)
+                    val snapshot = TransitOverrideStore.read(context)
+                    if (!snapshot.rows.containsKey(deviceCode)) {
+                        throw IllegalArgumentException("override 不存在")
+                    }
+                    database.withTransaction {
+                        restoreOriginal(context, database.transitDao(), deviceCode, snapshot)
+                    }
+                    TransitOverrideStore.remove(context, deviceCode)
+                    TransitOverrideImporter.import(context)
+                    TransitData.reload()
+                    _overrideRows.postValue(TransitOverrideStore.list(context))
+                }
+                rebuildAllCardsAndRefresh()
+                _overrideStatus.value = "override 已删除并恢复原映射"
+            } catch (e: Exception) {
+                _overrideStatus.value = "override 删除失败：${e.message ?: "未知错误"}"
+            }
+        }
+    }
+
+    private suspend fun restoreOriginal(
+        context: Application,
+        dao: com.example.nfctransit.data.db.TransitDao,
+        deviceCode: String,
+        snapshot: com.example.nfctransit.data.OverrideSnapshot
+    ) {
+        val original = if (snapshot.originals.containsKey(deviceCode)) {
+            snapshot.originals[deviceCode]
+        } else {
+            // 旧版本未记录覆盖前状态时，以内置库为恢复源；找不到则说明该设备由 override 新增。
+            deviceFromAsset(context, deviceCode)
+        }
+        original?.let { dao.restoreDevice(it) } ?: dao.deleteDeviceByCode(deviceCode)
+    }
+
+    private fun deviceFromAsset(context: Application, deviceCode: String): ReaderDeviceEntity? {
+        val copy = File(context.cacheDir, "transit-asset-lookup.db")
+        return try {
+            context.assets.open("data/transit.db").use { input ->
+                copy.outputStream().use { output -> input.copyTo(output) }
+            }
+            SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+                database.rawQuery(
+                    "SELECT device_id, standard, device_code, city_id, line_id, station_id, " +
+                        "transit_type, match_key, updated_at FROM reader_device WHERE device_code = ?",
+                    arrayOf(deviceCode)
+                ).use { cursor ->
+                    if (!cursor.moveToFirst()) return@use null
+                    fun nullableString(column: String): String? = cursor.getColumnIndexOrThrow(column)
+                        .let { index -> if (cursor.isNull(index)) null else cursor.getString(index) }
+                    fun nullableLong(column: String): Long? = cursor.getColumnIndexOrThrow(column)
+                        .let { index -> if (cursor.isNull(index)) null else cursor.getLong(index) }
+                    ReaderDeviceEntity(
+                        deviceId = cursor.getLong(cursor.getColumnIndexOrThrow("device_id")),
+                        standard = cursor.getString(cursor.getColumnIndexOrThrow("standard")),
+                        deviceCode = cursor.getString(cursor.getColumnIndexOrThrow("device_code")),
+                        cityId = cursor.getLong(cursor.getColumnIndexOrThrow("city_id")),
+                        lineId = nullableLong("line_id"),
+                        stationId = nullableLong("station_id"),
+                        transitType = cursor.getString(cursor.getColumnIndexOrThrow("transit_type")),
+                        matchKey = nullableString("match_key"),
+                        updatedAt = nullableString("updated_at")
+                    )
+                }
+            }
+        } finally {
+            copy.delete()
         }
     }
 

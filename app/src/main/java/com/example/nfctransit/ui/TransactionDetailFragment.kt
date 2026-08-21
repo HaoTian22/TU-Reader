@@ -93,8 +93,23 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         viewModel.feedbackStatus.observe(viewLifecycleOwner) { status ->
             if (!status.isNullOrBlank()) {
-                android.widget.Toast.makeText(requireContext(), status, android.widget.Toast.LENGTH_LONG).show()
+                showFeedbackStatus(
+                    status,
+                    if (
+                        status.contains("失败") || status.contains("未配置") ||
+                            status.contains("HTTP") || status.contains("网络")
+                    ) {
+                        0xFFFF3B30.toInt()
+                    } else {
+                        0xFF34C759.toInt()
+                    }
+                )
+                viewModel.consumeFeedbackStatus()
             }
+        }
+        viewModel.feedbackSaving.observe(viewLifecycleOwner) { saving ->
+            feedbackDialog?.findViewById<TextView>(R.id.feedbackConfirm)?.isEnabled = !saving
+            if (saving) showFeedbackStatus("正在保存并应用本地覆盖…", 0xFF666666.toInt())
         }
 
     }
@@ -102,8 +117,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun showFeedbackDialog() {
         val txn = viewModel.getTransactionById(args.transactionId) ?: return
         val fullCode = txn.deviceCode.orEmpty()
-        val isLnt = txn.cardType == "YCT" || txn.protocol == "LNT"
-        val isTu = txn.cardType == "TU" || txn.protocol == "TU" || txn.protocols.contains("TU")
+        val isLnt = txn.protocol == "LNT"
+        val isTu = txn.protocol == "TU"
         val tuLineStationCode = txn.journeyHex
             ?.takeIf { it.isNotBlank() }
             ?.let { hexRange(it, 10, 17) }
@@ -138,33 +153,51 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             }
             .orEmpty()
         feedbackDialog?.dismiss()
+        viewModel.consumeFeedbackStatus()
         feedbackDialog = AppDialogs.feedback(
             context = requireContext(),
             prefix = prefix,
             code = code,
             line = line,
             station = station,
+            type = txn.transitType,
             accentColor = accentColor
-        ) { enteredPrefix, enteredCode, enteredLine, enteredStation, publish ->
+        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, publish ->
+            val normalizedPrefix = enteredPrefix.trim()
+            val normalizedCode = enteredCode.trim()
+            val normalizedLine = enteredLine.trim()
+            val normalizedStation = enteredStation.trim()
             val codeRegex = Regex("[0-9A-Za-z]+")
-            val valid = enteredPrefix.trim().matches(codeRegex) &&
-                enteredCode.trim().matches(codeRegex) &&
-                enteredLine.trim().isNotEmpty() &&
-                enteredStation.trim().isNotEmpty()
-            if (!valid) {
-                android.widget.Toast.makeText(
-                    requireContext(), "请填写有效的 Prefix、Code、线路和站名", android.widget.Toast.LENGTH_SHORT
-                ).show()
+            val error = when {
+                !normalizedPrefix.matches(codeRegex) -> "请填写有效的 Prefix"
+                !normalizedCode.matches(codeRegex) -> "请填写有效的 Code"
+                normalizedLine.length > 128 || normalizedLine.contains('\n') || normalizedLine.contains('\r') ->
+                    "线路不能包含换行且最多 128 个字符"
+                normalizedStation.length > 128 || normalizedStation.contains('\n') || normalizedStation.contains('\r') ->
+                    "站名不能包含换行且最多 128 个字符"
+                else -> null
+            }
+            if (error != null) {
+                showFeedbackStatus(error, 0xFFFF3B30.toInt())
                 return@feedback
             }
             viewModel.saveFeedbackOverride(
                 txn,
-                enteredPrefix,
-                enteredCode,
-                enteredLine,
-                enteredStation,
+                normalizedPrefix,
+                normalizedCode,
+                enteredType,
+                normalizedLine,
+                normalizedStation,
                 publish
             )
+        }
+    }
+
+    private fun showFeedbackStatus(message: String, color: Int) {
+        feedbackDialog?.findViewById<TextView>(R.id.feedbackStatus)?.apply {
+            text = message
+            setTextColor(color)
+            visibility = View.VISIBLE
         }
     }
 

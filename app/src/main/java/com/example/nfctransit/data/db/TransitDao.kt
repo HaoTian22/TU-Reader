@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 
 /** 站名解析结果：device_code 命中的城市/线路/站点（含英文，缺省回退中文由调用方处理）。
  *  站名字段可空——大类 fallback 设备（空站名的类别行，如 51804=地铁）station_id/station_name 为 NULL。
@@ -99,6 +100,12 @@ interface TransitDao {
         transitType: String,
         updatedAt: String
     )
+
+    @Update
+    suspend fun restoreDevice(device: ReaderDeviceEntity)
+
+    @Query("DELETE FROM reader_device WHERE device_code = :deviceCode")
+    suspend fun deleteDeviceByCode(deviceCode: String)
 
     @Query("SELECT * FROM city WHERE city_id = :cityId LIMIT 1")
     suspend fun getCityById(cityId: Long): CityEntity?

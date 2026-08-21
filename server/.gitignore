@@ -1,4 +1,5 @@
 data/*.csv
 data/*.json
+.env
 __pycache__/
 .pytest_cache/

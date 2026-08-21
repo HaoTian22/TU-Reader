@@ -1,5 +1,6 @@
 package com.example.nfctransit.data
 
+import com.example.nfctransit.data.db.ReaderDeviceEntity
 import java.util.LinkedHashMap
 
 const val OVERRIDE_HEADER = "Prefix,Code,Type,Line,Station"
@@ -38,5 +39,12 @@ data class FeedbackOverride(
 
 data class OverrideSnapshot(
     val rows: LinkedHashMap<String, TransitOverrideRow>,
-    val standards: MutableMap<String, String>
+    val standards: MutableMap<String, String>,
+    val originals: MutableMap<String, ReaderDeviceEntity?> = mutableMapOf()
+)
+
+data class OverrideRemoval(
+    val row: TransitOverrideRow,
+    val original: ReaderDeviceEntity?,
+    val hasOriginal: Boolean
 )

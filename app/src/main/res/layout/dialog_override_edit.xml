@@ -2,14 +2,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="320dp"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
     android:background="@drawable/bg_content_card"
-    android:elevation="8dp">
+    android:elevation="8dp"
+    android:orientation="vertical">
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="false"
         android:padding="20dp">
 
         <LinearLayout
@@ -18,11 +17,11 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/feedbackTitle"
+                android:id="@+id/overrideEditorTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="反馈站名纠错"
+                android:text="编辑站名覆盖"
                 android:textColor="#1A1A1A"
                 android:textSize="17sp"
                 android:textStyle="bold" />
@@ -31,7 +30,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="保存后会立即应用到本机站名映射表"
+                android:text="修改后会立即应用到本机站名映射表"
                 android:textColor="#666666"
                 android:textSize="12sp" />
 
@@ -42,9 +41,8 @@
                 android:text="Prefix"
                 android:textColor="#666666"
                 android:textSize="12sp" />
-
             <EditText
-                android:id="@+id/feedbackPrefix"
+                android:id="@+id/overridePrefix"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
@@ -63,9 +61,8 @@
                 android:text="Code"
                 android:textColor="#666666"
                 android:textSize="12sp" />
-
             <EditText
-                android:id="@+id/feedbackCode"
+                android:id="@+id/overrideCode"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
@@ -81,54 +78,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="类型"
+                android:text="Type"
                 android:textColor="#666666"
                 android:textSize="12sp" />
-
-            <RadioGroup
-                android:id="@+id/feedbackType"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:orientation="horizontal">
-
-                <RadioButton
-                    android:id="@+id/feedbackTypeBus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:text="公交"
-                    android:textColor="#333333"
-                    android:textSize="14sp" />
-
-                <RadioButton
-                    android:id="@+id/feedbackTypeMetro"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="8dp"
-                    android:text="地铁"
-                    android:textColor="#333333"
-                    android:textSize="14sp" />
-
-                <RadioButton
-                    android:id="@+id/feedbackTypeIntercity"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="8dp"
-                    android:text="城际"
-                    android:textColor="#333333"
-                    android:textSize="14sp" />
-            </RadioGroup>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="线路（可留空）"
-                android:textColor="#666666"
-                android:textSize="12sp" />
-
             <EditText
-                android:id="@+id/feedbackLine"
+                android:id="@+id/overrideType"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
@@ -144,12 +98,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="站名（可留空）"
+                android:text="线路"
                 android:textColor="#666666"
                 android:textSize="12sp" />
-
             <EditText
-                android:id="@+id/feedbackStation"
+                android:id="@+id/overrideLine"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
@@ -161,24 +114,25 @@
                 android:textColor="#1A1A1A"
                 android:textSize="15sp" />
 
-            <CheckBox
-                android:id="@+id/feedbackPublish"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:paddingStart="8dp"
-                android:text="上传并公开纠错结果以提升数据准确度"
-                android:textColor="#333333"
-                android:textSize="13sp" />
-
             <TextView
-                android:id="@+id/feedbackStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="12dp"
+                android:text="站名"
                 android:textColor="#666666"
-                android:textSize="12sp"
-                android:visibility="gone" />
+                android:textSize="12sp" />
+            <EditText
+                android:id="@+id/overrideStation"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_chip_default"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:textColor="#1A1A1A"
+                android:textSize="15sp" />
         </LinearLayout>
     </ScrollView>
 
@@ -193,7 +147,7 @@
         android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/feedbackCancel"
+            android:id="@+id/overrideCancel"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -210,7 +164,7 @@
             android:background="#E5E5EA" />
 
         <TextView
-            android:id="@+id/feedbackConfirm"
+            android:id="@+id/overrideSave"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"

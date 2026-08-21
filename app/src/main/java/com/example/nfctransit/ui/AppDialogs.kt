@@ -16,6 +16,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.model.UiCard
 
 /** 与应用整体风格一致的确认弹窗（白色圆角卡片 + 双按钮），替代系统 AlertDialog */
@@ -110,8 +111,16 @@ object AppDialogs {
         code: String,
         line: String,
         station: String,
+        type: String,
         accentColor: Int = 0xFF0066FF.toInt(),
-        onConfirm: (prefix: String, code: String, line: String, station: String, publish: Boolean) -> Unit
+        onConfirm: (
+            prefix: String,
+            code: String,
+            type: String,
+            line: String,
+            station: String,
+            publish: Boolean
+        ) -> Unit
     ): Dialog {
         val dialog = Dialog(context)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -126,8 +135,21 @@ object AppDialogs {
         val codeInput = view.findViewById<EditText>(R.id.feedbackCode)
         val lineInput = view.findViewById<EditText>(R.id.feedbackLine)
         val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
+        val typeInput = view.findViewById<android.widget.RadioGroup>(R.id.feedbackType)
         val publishInput = view.findViewById<android.widget.CheckBox>(R.id.feedbackPublish)
         publishInput.buttonTintList = ColorStateList.valueOf(accentColor)
+        listOf(
+            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeBus),
+            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeMetro),
+            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeIntercity)
+        ).forEach { it.buttonTintList = ColorStateList.valueOf(accentColor) }
+        typeInput.check(
+            when (type) {
+                "地铁" -> R.id.feedbackTypeMetro
+                "城际" -> R.id.feedbackTypeIntercity
+                else -> R.id.feedbackTypeBus
+            }
+        )
         prefixInput.setText(prefix)
         codeInput.setText(code)
         lineInput.setText(line)
@@ -138,14 +160,19 @@ object AppDialogs {
         view.findViewById<TextView>(R.id.feedbackConfirm).apply {
             setTextColor(accentColor)
             setOnClickListener {
+                val selectedType = when (typeInput.checkedRadioButtonId) {
+                    R.id.feedbackTypeMetro -> "地铁"
+                    R.id.feedbackTypeIntercity -> "城际"
+                    else -> "公交"
+                }
                 onConfirm(
                     prefixInput.text.toString(),
                     codeInput.text.toString(),
+                    selectedType,
                     lineInput.text.toString(),
                     stationInput.text.toString(),
                     publishInput.isChecked
                 )
-                dialog.dismiss()
             }
         }
         view.findViewById<TextView>(R.id.feedbackCancel).setOnClickListener { dialog.dismiss() }
@@ -154,6 +181,55 @@ object AppDialogs {
             dialog.window?.setSoftInputMode(
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             )
+        }
+        dialog.show()
+        return dialog
+    }
+
+    fun overrideEditor(
+        context: Context,
+        row: TransitOverrideRow,
+        accentColor: Int = 0xFF0066FF.toInt(),
+        onSave: (prefix: String, code: String, type: String, line: String, station: String) -> Unit
+    ): Dialog {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_override_edit, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+        val inputs = listOf(
+            view.findViewById<EditText>(R.id.overridePrefix),
+            view.findViewById<EditText>(R.id.overrideCode),
+            view.findViewById<EditText>(R.id.overrideType),
+            view.findViewById<EditText>(R.id.overrideLine),
+            view.findViewById<EditText>(R.id.overrideStation)
+        )
+        inputs.zip(listOf(row.prefix, row.code, row.type, row.line, row.station))
+            .forEach { (input, value) ->
+                input.setText(value)
+                input.setSelection(input.text.length)
+            }
+        view.findViewById<TextView>(R.id.overrideSave).apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                onSave(
+                    inputs[0].text.toString(),
+                    inputs[1].text.toString(),
+                    inputs[2].text.toString(),
+                    inputs[3].text.toString(),
+                    inputs[4].text.toString()
+                )
+                dialog.dismiss()
+            }
+        }
+        view.findViewById<TextView>(R.id.overrideCancel).setOnClickListener { dialog.dismiss() }
+        dialog.setOnShowListener {
+            inputs.first().requestFocus()
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         dialog.show()
         return dialog

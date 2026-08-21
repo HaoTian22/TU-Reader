@@ -157,7 +157,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 主题色跟随卡片：返回按钮、各选项行首图标一起变
         val optionIcons = intArrayOf(
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
-            R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconDataExport, R.id.iconImportData,
+            R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconTransitOverrides,
+            R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache, R.id.iconClearData, R.id.iconPrivacy,
             R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconCurrentTripRoute,
             R.id.iconMapSpeed, R.id.iconLanguage,
@@ -225,6 +226,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     )
                 }
             )
+        }
+
+        binding.root.findViewById<View>(R.id.rowTransitOverrides)?.setOnClickListener {
+            findNavController().navigate(R.id.action_settings_to_transitOverrides)
         }
 
         binding.root.findViewById<View>(R.id.rowDataExport)?.setOnClickListener {

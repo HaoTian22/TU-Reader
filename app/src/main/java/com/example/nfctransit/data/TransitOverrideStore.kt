@@ -3,17 +3,21 @@ package com.example.nfctransit.data
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.example.nfctransit.data.db.ReaderDeviceEntity
 import java.io.File
 import java.nio.charset.StandardCharsets
 
 object TransitOverrideStore {
     private const val CSV_NAME = "overrides.csv"
     private const val META_NAME = "overrides.meta.json"
+    private const val ORIGINAL_NAME = "overrides.originals.json"
     private val gson = Gson()
 
     fun csvFile(context: Context): File = File(context.filesDir, CSV_NAME)
 
     private fun metaFile(context: Context): File = File(context.filesDir, META_NAME)
+
+    private fun originalFile(context: Context): File = File(context.filesDir, ORIGINAL_NAME)
 
     @Synchronized
     fun read(context: Context): OverrideSnapshot {
@@ -41,16 +45,50 @@ object TransitOverrideStore {
                 standards.putAll(gson.fromJson<Map<String, String>>(meta.readText(), type).orEmpty())
             }
         }
-        return OverrideSnapshot(rows, standards)
+        val originals = mutableMapOf<String, ReaderDeviceEntity?>()
+        val originalsFile = originalFile(context)
+        if (originalsFile.isFile) {
+            val type = object : TypeToken<Map<String, ReaderDeviceEntity?>>() {}.type
+            runCatching {
+                originals.putAll(gson.fromJson<Map<String, ReaderDeviceEntity?>>(originalsFile.readText(), type).orEmpty())
+            }
+        }
+        return OverrideSnapshot(rows, standards, originals)
     }
 
     @Synchronized
-    fun upsert(context: Context, feedback: FeedbackOverride) {
+    fun upsert(
+        context: Context,
+        feedback: FeedbackOverride,
+        original: ReaderDeviceEntity? = null
+    ) {
         val snapshot = read(context)
-        snapshot.rows[feedback.row.deviceCode] = feedback.row
-        snapshot.standards[feedback.row.deviceCode] = feedback.standard
+        val deviceCode = feedback.row.deviceCode
+        if (!snapshot.rows.containsKey(deviceCode)) {
+            snapshot.originals[deviceCode] = original
+        }
+        snapshot.rows[deviceCode] = feedback.row
+        snapshot.standards[deviceCode] = feedback.standard
+        writeSnapshot(context, snapshot)
+    }
+
+    @Synchronized
+    fun remove(context: Context, deviceCode: String): OverrideRemoval? {
+        val snapshot = read(context)
+        val row = snapshot.rows.remove(deviceCode) ?: return null
+        val hasOriginal = snapshot.originals.containsKey(deviceCode)
+        val removal = OverrideRemoval(row, snapshot.originals.remove(deviceCode), hasOriginal)
+        snapshot.standards.remove(deviceCode)
+        writeSnapshot(context, snapshot)
+        return removal
+    }
+
+    fun list(context: Context): List<TransitOverrideRow> = read(context).rows.values.toList()
+
+    private fun writeSnapshot(context: Context, snapshot: OverrideSnapshot) {
         writeCsv(context, snapshot.rows.values)
         writeMeta(context, snapshot.standards)
+        writeOriginals(context, snapshot.originals)
     }
 
     private fun writeCsv(context: Context, rows: Collection<TransitOverrideRow>) {
@@ -79,6 +117,15 @@ object TransitOverrideStore {
         }
     }
 
+    private fun writeOriginals(context: Context, originals: Map<String, ReaderDeviceEntity?>) {
+        val destination = originalFile(context)
+        val temp = File(context.filesDir, "$ORIGINAL_NAME.tmp")
+        temp.writeText(gson.toJson(originals), StandardCharsets.UTF_8)
+        if (!temp.renameTo(destination)) {
+            temp.copyTo(destination, overwrite = true)
+            temp.delete()
+        }
+    }
     private fun csvEscape(value: String): String {
         val escaped = value.replace("\"", "\"\"")
         return if (escaped.any { it == ',' || it == '"' }) "\"$escaped\"" else escaped
