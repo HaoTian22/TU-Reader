@@ -81,6 +81,8 @@ jobs:
           gradle-version: '9.6.1'
 
       - name: Build debug APK
+        env:
+          FEEDBACK_UPLOAD_URL: ${{ vars.FEEDBACK_UPLOAD_URL }}
         run: gradle :app:assembleDebug --no-daemon --console=plain
 
       - name: Prepare APK metadata
