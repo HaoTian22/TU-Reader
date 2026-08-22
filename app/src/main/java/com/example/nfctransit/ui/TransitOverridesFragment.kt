@@ -56,7 +56,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         container.removeAllViews()
         if (rows.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
-                text = "暂无本地站名覆盖"
+                text = "暂无本地映射数据"
                 gravity = Gravity.CENTER
                 setTextColor(0xFF8E8E93.toInt())
                 textSize = 14f
@@ -135,7 +135,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
     private fun showDeleteDialog(row: TransitOverrideRow) {
         AppDialogs.confirm(
             context = requireContext(),
-            title = "删除站名覆盖",
+            title = "删除本地映射数据",
             message = "删除后将恢复该设备原来的站名映射。确定删除吗？",
             confirmLabel = "删除",
             confirmColor = 0xFFFF3B30.toInt()

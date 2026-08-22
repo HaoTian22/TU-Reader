@@ -173,6 +173,7 @@ object AppDialogs {
                     stationInput.text.toString(),
                     publishInput.isChecked
                 )
+                dialog.dismiss()
             }
         }
         view.findViewById<TextView>(R.id.feedbackCancel).setOnClickListener { dialog.dismiss() }

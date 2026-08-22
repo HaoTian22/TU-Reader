@@ -170,15 +170,6 @@
                 android:text="上传并公开纠错结果以提升数据准确度"
                 android:textColor="#333333"
                 android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/feedbackStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:textColor="#666666"
-                android:textSize="12sp"
-                android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
 
