@@ -1440,8 +1440,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (t in uiTxns) {
             // 充值/无金额旅程事件不是乘车记录，不统计站点
             if (t.typeHex == "02" || t.amountYuan <= 0) continue
-            // 去掉末尾的方向箭头（"花地湾 ↑" -> "花地湾"）
-            val name = t.stationName.replace(Regex(" [↑↓]$"), "")
+            val name = t.stationName
             if (name.isNotEmpty() && name != "未知" &&
                 !name.startsWith("轨道交通") && !name.startsWith("公共交通") && !name.startsWith("广州公交")) {
                 val key = t.cityName to name

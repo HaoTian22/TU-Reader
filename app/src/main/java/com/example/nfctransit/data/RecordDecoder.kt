@@ -2,6 +2,7 @@ package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import java.security.MessageDigest
 import java.util.Calendar
@@ -24,35 +25,48 @@ object RecordDecoder {
         val hex: String
     )
 
-    /** 1E 终端映射表条目（站点/线路/方向/ID/命中设备码） */
+    /** 站点解析条目（站点/线路/方向/ID/命中设备码）。 */
     private data class StationRef(
         val station: String,
         val line: String,
         val transitType: String,
-        val direction: String,
+        val direction: TransitDirection? = null,
+        /** 命中 reader_device 的原始 Type，用于与 LNT type/subtype 进行语义兼容判断。 */
+        val mappingTransitType: String? = null,
         val lineColor: String? = null,
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,
         val deviceCode: String? = null,
         val spRule: String? = null
-    ) {
-        val stationWithDir: String get() = if (direction.isNotEmpty()) "$station $direction" else station
-    }
+    )
+
+    /** 能由 LNT type/subtype 可靠判定进出站的闸机轨道交通类别。 */
+    private enum class TransitCategory { GATED_RAIL, CONVENIENCE }
 
     /** LNT 0x18 原始交易类型覆盖；type/subtype 均按记录中的十六进制字节比较。 */
     private data class LntType(
         val transitType: String,
-        val direction: String = ""
+        val category: TransitCategory,
+        val direction: TransitDirection? = null
     )
 
     private fun resolveLntType(typeByte: Int, subtype: Int?): LntType? {
         return when {
-            typeByte == 0x09 && (subtype == 0x31 || subtype == 0x17) -> LntType("地铁", "↑")
-            typeByte == 0x09 && subtype == 0x11 -> LntType("地铁", "↓")
-            typeByte == 0x06 && subtype == 0x17 -> LntType("便利店")
+            typeByte == 0x09 && (subtype == 0x31 || subtype == 0x17) ->
+                LntType("地铁", TransitCategory.GATED_RAIL, TransitDirection.EXIT)
+            typeByte == 0x09 && subtype == 0x11 ->
+                LntType("地铁", TransitCategory.GATED_RAIL, TransitDirection.ENTRY)
+            typeByte == 0x06 && subtype == 0x17 ->
+                LntType("便利店", TransitCategory.CONVENIENCE)
             else -> null
         }
+    }
+
+    private fun mappingCategory(type: String?): TransitCategory? = when (type) {
+        "地铁", "城际" -> TransitCategory.GATED_RAIL
+        "便利店" -> TransitCategory.CONVENIENCE
+        else -> null
     }
 
     /** TU 1E 建表结果；balanceMap 值为 null = 该记录无余额数据 */
@@ -297,9 +311,9 @@ object RecordDecoder {
 
             val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal, rawCode)
             val direction = when {
-                data[0] == 0x03.toByte() -> "↓"
-                data[0] == 0x04.toByte() -> "↑"
-                else -> ""
+                data[0] == 0x03.toByte() -> TransitDirection.ENTRY
+                data[0] == 0x04.toByte() -> TransitDirection.EXIT
+                else -> null
             }
             // 0x1E 类型字节 data[0]：0x06 = 公交。公交行程解析到地铁站或无站可解时一律回退公交，
             // 否则同时间戳 0x18 的地铁站会经 mergeJourneyAndFare 覆盖显示为地铁
@@ -310,6 +324,7 @@ object RecordDecoder {
                 line = busRef?.line ?: "",
                 transitType = if (busRef != null) TransitData.transitTypeLabel(busRef.type) else "公交",
                 direction = direction,
+                mappingTransitType = busRef?.type,
                 lineColor = busRef?.lineColor,
                 lineId = busRef?.lineId,
                 stationId = busRef?.stationId,
@@ -336,7 +351,8 @@ object RecordDecoder {
                         sfi = 0x1E, protocol = rec.protocol, hex = rec.hex,
                         sequence = 0, amountFen = amountFen, typeHex = ApduUtil.bytesToHex(byteArrayOf(data[0])),
                         terminal = terminal,
-                        stationName = ref.stationWithDir, lineName = ref.line, lineColor = ref.lineColor,
+                        stationName = ref.station, direction = ref.direction,
+                        lineName = ref.line, lineColor = ref.lineColor,
                         lineId = ref.lineId, stationId = ref.stationId,
                         transitType = ref.transitType,
                         cityCode = entry?.cityCode ?: if (cityCode.isNotEmpty()) cityCode else null,
@@ -432,15 +448,22 @@ object RecordDecoder {
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
             val isRecharge = posIsRecharge || typeHex == "02"
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
-            // 设备映射是站点、城市和交通类型的权威来源；记录 type/subtype 仅在未命中设备时兜底。
-            // 例如部分岭南通记录的 type/subtype 为地铁，但位置码实际命中公交设备。
+            // 设备映射是站点、城市和交通类型的权威来源。LNT type/subtype 只能在
+            // 未命中映射时兜底类型，或在与命中设备类型严格兼容时提供进出站方向。
             val ref = if (isRecharge) {
-                StationRef("", "", "充值", "")
+                StationRef("", "", "充值")
             } else {
                 resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
             val mappingMatched = !isRecharge && ref.deviceCode != null
-            val direction = if (mappingMatched) "" else lntType?.direction.orEmpty()
+            val lntDirection = lntType?.direction
+            val direction = when {
+                isRecharge -> null
+                mappingMatched -> lntDirection?.takeIf {
+                    mappingCategory(ref.mappingTransitType) == lntType?.category
+                }
+                else -> lntDirection
+            }
             val transitType = if (mappingMatched) ref.transitType else lntType?.transitType ?: ref.transitType
 
             // 站点命中后优先使用设备所属城市；未命中时再沿用记录/钱包城市码。
@@ -466,11 +489,8 @@ object RecordDecoder {
                     sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
-                    stationName = if (direction.isNotEmpty() && (ref.station.isNotEmpty() || lntType != null)) {
-                        "${ref.station.ifEmpty { transitType }} $direction"
-                    } else {
-                        ref.stationWithDir
-                    }, lineName = ref.line, lineColor = ref.lineColor,
+                    stationName = ref.station, direction = direction,
+                    lineName = ref.line, lineColor = ref.lineColor,
                     lineId = ref.lineId, stationId = ref.stationId,
                     transitType = transitType,
                     cityCode = cityForTx,
@@ -493,6 +513,7 @@ object RecordDecoder {
         typeHex: String,
         terminal: String,
         stationName: String,
+        direction: TransitDirection?,
         lineName: String,
         lineColor: String?,
         lineId: Long?,
@@ -516,6 +537,7 @@ object RecordDecoder {
             lineId = lineId,
             stationId = stationId,
             stationName = stationName,
+            direction = direction,
             lineName = lineName,
             lineColor = lineColor,
             transitType = transitType,
@@ -559,6 +581,7 @@ object RecordDecoder {
             if (j != null) {
                 out.add(f.copy(
                     stationName = j.stationName,
+                    direction = j.direction,
                     lineName = j.lineName,
                     lineColor = j.lineColor,
                     lineId = j.lineId,
@@ -599,27 +622,34 @@ object RecordDecoder {
             }
             val fallback = TransitData.resolveByStandard("TU", cityCode, posHex, terminal)
             if (fallback != null) return fallback.toStationRef()
-            return StationRef("轨道交通", "", "轨道交通 (Metro)", "")
+            return StationRef("轨道交通", "", "轨道交通 (Metro)")
         }
         val entry = TransitData.resolveByStandard(cardType, cityCode, posHex, terminal)
         if (entry != null) return entry.toStationRef()
         return StationRef(
-            when (cardType) {
+            station = when (cardType) {
                 "CU" -> "轨道交通"
                 "YCT" -> "公共交通"
                 "SZT" -> "深圳通"
                 else -> "公共交通"
             },
-            "",
-            "公共交通",
-            ""
+            line = "",
+            transitType = "公共交通"
         )
     }
 
     private fun TransitData.StationEntry.toStationRef(): StationRef {
         return StationRef(
-            station, line, TransitData.transitTypeLabel(type), "", lineColor, lineId, stationId,
-            cityCode = cityCode, deviceCode = code, spRule = spRule
+            station = station,
+            line = line,
+            transitType = TransitData.transitTypeLabel(type),
+            mappingTransitType = type,
+            lineColor = lineColor,
+            lineId = lineId,
+            stationId = stationId,
+            cityCode = cityCode,
+            deviceCode = code,
+            spRule = spRule
         )
     }
 

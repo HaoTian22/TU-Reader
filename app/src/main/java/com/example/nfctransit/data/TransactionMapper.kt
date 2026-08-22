@@ -5,6 +5,7 @@ import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.TransitDirection
 import kotlin.math.abs
 
 /**
@@ -63,10 +64,10 @@ object TransactionMapper {
         val amountText = when {
             isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
             isTicketProcessing && amountYuan == 0.0 -> "票务处理"
-            amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when {
-                resolved.stationName.contains("↓") -> "进站"
-                resolved.stationName.contains("↑") -> "出站"
-                else -> "乘车"
+            amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when (direction) {
+                TransitDirection.ENTRY -> "进站"
+                TransitDirection.EXIT -> "出站"
+                null -> "乘车"
             }
             else -> "-¥${String.format("%.2f", amountAbs)}"
         }
@@ -87,6 +88,7 @@ object TransactionMapper {
             stationName = resolved.stationName.takeIf { it.isNotBlank() && it != "未知" }
                 ?: resolved.lineName.takeIf { it.isNotBlank() && it != "—" }
                 ?: transitType,
+            direction = direction,
             cityName = if (isRecharge) "" else (resolved.cityCode?.let { TransitData.cityZh(it) } ?: ""),
             cityCode = resolved.cityCode,
             lineName = resolved.lineName,
@@ -122,12 +124,7 @@ object TransactionMapper {
         if (typeHex == "02" || (amountFen ?: 0L) < 0) {  // 充值无站点
             return ResolvedNames(stationName, lineName, lineColor, transitType, cityCode, lineId, stationId)
         }
-        val direction = when {
-            stationName.endsWith("↑") -> "↑"
-            stationName.endsWith("↓") -> "↓"
-            else -> ""
-        }
-        val base = stationName.removeSuffix("↑").removeSuffix("↓").trim()
+        val base = stationName.trim()
 
         var entry = if (lineId != null && stationId != null) {
             TransitData.entryOf(lineId, stationId)
@@ -143,7 +140,7 @@ object TransactionMapper {
         val line = entry.line
         val station = entry.station
         return ResolvedNames(
-            stationName = if (direction.isNotEmpty()) "$station $direction" else station,
+            stationName = station,
             lineName = line.ifEmpty { lineName },
             lineColor = entry.lineColor ?: lineColor,
             transitType = TransitData.transitTypeLabel(entry.type),

@@ -114,7 +114,9 @@
 
             <!-- 交易时间 -->
             <include layout="@layout/item_detail_row" />
-            <!-- 地点/站名 -->
+            <!-- 地点 -->
+            <include layout="@layout/item_detail_row" />
+            <!-- 站名 -->
             <include layout="@layout/item_detail_row" />
             <!-- 线路 -->
             <include layout="@layout/item_detail_row" />

@@ -17,6 +17,8 @@ data class CanonicalTransaction(
     val lineId: Long? = null,
     val stationId: Long? = null,
     val stationName: String = "",
+    /** 独立的进出站方向；不再编码到站名。 */
+    val direction: TransitDirection? = null,
     val lineName: String = "",
     val lineColor: String? = null,
     val transitType: String = "未知",

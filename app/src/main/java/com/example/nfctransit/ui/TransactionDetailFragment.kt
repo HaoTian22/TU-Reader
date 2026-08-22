@@ -25,6 +25,7 @@ import com.example.nfctransit.R
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.TransitDirection
 
 class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail) {
 
@@ -163,8 +164,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             }
             .orEmpty()
         val station = txn.stationName
-            .removeSuffix("↑")
-            .removeSuffix("↓")
             .trim()
             .takeIf {
                 it.isNotBlank() && it != "未知" && it != "—" && it != "公共交通" &&
@@ -223,13 +222,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
 
         val detailContainer = binding.detailRowsContainer
-        // 站名末尾的方向箭头只用于判定出入站，展示时去掉
-        val cleanStation = txn.stationName.removeSuffix("↑").removeSuffix("↓").trim()
-        val placeText = listOf(txn.cityName ?: "", txn.transitType, cleanStation)
-            .filter { it.isNotEmpty() }
-            .joinToString(" ")
-        val isEntry = txn.stationName.endsWith("↓")
-        val isExit = txn.stationName.endsWith("↑")
+        // 站名保持原样，进出站方向由独立字段提供。
+        val cleanStation = txn.stationName.trim()
+        // 地点仅显示城市；站名不再回退到线路或交通类型。
+        val placeText = txn.cityName.takeIf { it.isNotEmpty() } ?: "-"
+        val stationText = cleanStation.takeIf {
+            txn.stationId != null && it.isNotEmpty() && it != "未知" && it != "—"
+        } ?: "-"
+        val isEntry = txn.direction == TransitDirection.ENTRY
+        val isExit = txn.direction == TransitDirection.EXIT
         val transactionType = if (txn.amountText == "票务处理") {
             "票务处理"
         } else {
@@ -242,14 +243,16 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 else -> txn.transitType
             }
         }
+        val detailAmountText = if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText
         // 进出站图标用 FontAwesome：入站 = 箭头进框，出站 = 箭头出框
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
         val fields = listOf(
             "交易时间" to txn.displayDateTime,
-            "地点/站名" to placeText,
-            "线路" to txn.lineName,
+            "地点" to placeText,
+            "站名" to stationText,
+            "线路" to (txn.lineName.takeIf { it.isNotBlank() && it != "—" && it != "未知" } ?: "-"),
             "交易类型" to transactionType,
-            "扣款金额" to txn.amountText,
+            "交易金额" to detailAmountText,
             "交易后余额" to (txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-"),
             "协议" to txn.protocols.joinToString(" / "),
             "终端编号" to txn.terminal
@@ -270,14 +273,14 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 if (fields[i].first == "协议") {
                     row.visibility = if (fields[i].second.isEmpty()) View.GONE else View.VISIBLE
                 }
-                // 交易类型行：入站绿色 ↓ 进框、出站红色 ↑ 出框
+                // 交易类型行：入站绿色进框、出站红色出框
                 if (fields[i].first == "交易类型" && (isEntry || isExit)) {
                     icon?.visibility = View.VISIBLE
                     // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
                     icon?.text = if (isEntry) "" else ""
                     icon?.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
                 }
-                if (fields[i].first == "扣款金额" && txn.amountText.startsWith("+")) {
+                if (fields[i].first == "交易金额" && txn.amountText.startsWith("+")) {
                     value?.setTextColor(0xFF34C759.toInt())
                 }
                 if (fields[i].first == "终端编号") {

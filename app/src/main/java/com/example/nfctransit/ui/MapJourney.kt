@@ -3,13 +3,14 @@ package com.example.nfctransit.ui
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.route.TransitFamily
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.util.CoordTransform
 import java.util.Locale
 
 /**
  * 地图轨迹的行程模型：从交易记录（数据库）构建时间线事件 + 站间出行线段。
  *
- * 每笔地铁/公交交易是一个「事件」（进站 ↓ / 出站 ↑），进出站配对成一条「线段」（行程），
+ * 每笔地铁/公交交易是一个「事件」（入站/出站），进出站配对成一条「线段」（行程），
  * 地图上画贝塞尔曲线表示站间出行。坐标取 WGS84 后转 GCJ-02（腾讯地图坐标系）；
  * 坐标缺失的站点直接丢弃，不出现在地图上。
  */
@@ -108,12 +109,12 @@ class JourneyModel private constructor(
             for (tx in txns) {
                 if (!isTransit(tx)) continue
                 val stationId = tx.stationId ?: continue
-                val direction = when {
-                    tx.stationName.trimEnd().endsWith("↓") -> MapDirection.ENTRY
-                    tx.stationName.trimEnd().endsWith("↑") -> MapDirection.EXIT
-                    else -> MapDirection.NONE
+                val direction = when (tx.direction) {
+                    TransitDirection.ENTRY -> MapDirection.ENTRY
+                    TransitDirection.EXIT -> MapDirection.EXIT
+                    null -> MapDirection.NONE
                 }
-                val name = tx.stationName.trim().removeSuffix("↓").removeSuffix("↑").trim()
+                val name = tx.stationName.trim()
                 val coords = TransitData.coordsByStationName(name, tx.cityName, tx.lineName)
                     ?: TransitData.coordsOf(stationId)
                     ?: continue

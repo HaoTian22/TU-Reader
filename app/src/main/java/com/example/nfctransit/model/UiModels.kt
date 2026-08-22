@@ -43,6 +43,7 @@ data class UiTransaction(
     val transitType: String,       // "地铁", "公交", "消费", "便利店", "充值"
     val terminal: String,
     val stationName: String,
+    val direction: TransitDirection? = null,
     val cityName: String = "",     // 城市中文名（如 "广州"）
     val cityCode: String? = null,   // 交易原始城市码，供反馈覆盖预填
     val lineName: String,          // e.g. "2号线", "M373"

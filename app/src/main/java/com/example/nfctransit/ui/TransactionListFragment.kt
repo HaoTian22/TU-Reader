@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentTransactionListBinding
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.TransitDirection
 
 class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
@@ -213,11 +214,10 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             private val line = itemView.findViewById<TextView>(R.id.txnLine)
 
             fun bind(txn: UiTransaction) {
-                // 站名末尾的方向箭头换成 FontAwesome 图标
-                val isEntry = txn.stationName.endsWith("↓")
-                val isExit = txn.stationName.endsWith("↑")
-                // 去掉方向箭头后的站名；线路名已由解析层单独提供
-                val stationText = txn.stationName.replace(Regex(" [↑↓]$"), "")
+                // 方向由交易字段统一提供，站名始终保持无标记文本。
+                val isEntry = txn.direction == TransitDirection.ENTRY
+                val isExit = txn.direction == TransitDirection.EXIT
+                val stationText = txn.stationName
                 val lineText = txn.lineName
 
                 icon.text = txn.icon

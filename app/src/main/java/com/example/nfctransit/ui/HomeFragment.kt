@@ -25,6 +25,7 @@ import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.DiscountPolicy
 import com.example.nfctransit.model.UiCard
+import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.model.amountLabel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -403,11 +404,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val station = itemView.findViewById<TextView>(R.id.txnStation)
             val time = itemView.findViewById<TextView>(R.id.txnTime)
 
-            // 站名末尾的方向箭头换成 FontAwesome 图标
-            val isEntry = txn.stationName.endsWith("↓")
-            val isExit = txn.stationName.endsWith("↑")
-            // 去掉方向箭头后的站名（线路名由列表页单独展示）
-            val stationText = txn.stationName.replace(Regex(" [↑↓]$"), "")
+            // 方向由交易字段统一提供，站名始终保持无标记文本。
+            val isEntry = txn.direction == TransitDirection.ENTRY
+            val isExit = txn.direction == TransitDirection.EXIT
+            val stationText = txn.stationName
 
             icon.text = txn.icon
             // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
