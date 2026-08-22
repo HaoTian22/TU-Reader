@@ -87,9 +87,9 @@ object TransactionMapper {
             stationName = resolved.stationName.takeIf { it.isNotBlank() && it != "未知" }
                 ?: resolved.lineName.takeIf { it.isNotBlank() && it != "—" }
                 ?: transitType,
-            cityName = if (isRecharge) "" else (cityCode?.let { TransitData.cityZh(it) } ?: ""),
-            cityCode = cityCode,
-            lineName = lineName,
+            cityName = if (isRecharge) "" else (resolved.cityCode?.let { TransitData.cityZh(it) } ?: ""),
+            cityCode = resolved.cityCode,
+            lineName = resolved.lineName,
             lineColor = resolved.lineColor,
             lineId = resolved.lineId,
             stationId = resolved.stationId,
@@ -117,10 +117,10 @@ object TransactionMapper {
             (data[9].toInt() and 0xFF) == 0x01
     }
 
-    /** 按 ID（或旧数据反查）解析站名/线路名，跟随界面语言；ID 缺失回退存档名 */
+    /** 按 ID（或旧数据反查）优先解析匹配记录；命中后站名、线路、城市和类型均以记录为准。 */
     private fun CanonicalTransaction.resolveDisplayNames(): ResolvedNames {
         if (typeHex == "02" || (amountFen ?: 0L) < 0) {  // 充值无站点
-            return ResolvedNames(stationName, lineName, lineColor, transitType, lineId, stationId)
+            return ResolvedNames(stationName, lineName, lineColor, transitType, cityCode, lineId, stationId)
         }
         val direction = when {
             stationName.endsWith("↑") -> "↑"
@@ -138,7 +138,7 @@ object TransactionMapper {
         if (entry == null) entry = TransitData.resolveByCombined("${lineName} $base".trim())
         if (entry == null) entry = TransitData.resolveByStationName(base)
         if (entry == null) {
-            return ResolvedNames(stationName, lineName, lineColor, transitType, lineId, stationId)
+            return ResolvedNames(stationName, lineName, lineColor, transitType, cityCode, lineId, stationId)
         }
         val line = entry.line
         val station = entry.station
@@ -146,7 +146,8 @@ object TransactionMapper {
             stationName = if (direction.isNotEmpty()) "$station $direction" else station,
             lineName = line.ifEmpty { lineName },
             lineColor = entry.lineColor ?: lineColor,
-            transitType = transitType,
+            transitType = TransitData.transitTypeLabel(entry.type),
+            cityCode = entry.cityCode ?: cityCode,
             lineId = entry.lineId ?: lineId,
             stationId = entry.stationId ?: stationId
         )
@@ -167,6 +168,7 @@ object TransactionMapper {
         val lineName: String,
         val lineColor: String?,
         val transitType: String,
+        val cityCode: String?,
         val lineId: Long?,
         val stationId: Long?
     )

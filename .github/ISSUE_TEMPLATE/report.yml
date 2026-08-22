@@ -1,21 +1,23 @@
-name: TU-Reader 问题反馈 / 数据请求
-description: 反馈 Bug、建议新功能或提交交通卡数据问题。发布后会自动为 issue 打上类型 / 协议 / 版本 / 城市 / 交通工具标签。
-title: "[Bug] 一句话描述问题"
+name: TU-Reader 问题反馈 / 数据请求 | Issue Report / Data Request
+description: 反馈 Bug、建议新功能或提交交通卡数据问题。发布后会自动为 issue 打上类型 / 协议 / 版本 / 城市 / 交通工具标签。Report a bug, request a feature, or submit transit card data. Labels are added automatically after submission.
+title: "[Bug] 一句话描述问题 / Briefly describe the issue"
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        ## TU-Reader Issue 模板
+        ## TU-Reader Issue 模板 / Issue Template
 
         请如实填写带 <kbd>*</kbd> 的必选项。提交后 GitHub Actions 会根据你的选择自动打标签：
         **类型 / 协议 / 版本 / 城市 / 交通工具**，无需手动添加。
+        Please complete all required fields marked with <kbd>*</kbd>. GitHub Actions will automatically add labels based on your selections:
+        **type / protocol / version / city / transport**.
 
   - type: dropdown
     id: issue-type
     attributes:
-      label: 类型
-      description: 本 issue 属于哪一类？
+      label: 类型 / Type
+      description: 本 issue 属于哪一类？What kind of issue is this?
       options:
         - Bug
         - Feature
@@ -26,81 +28,100 @@ body:
   - type: dropdown
     id: protocol
     attributes:
-      label: 协议
-      description: 涉及哪种互联互通协议？
+      label: 协议 / Protocol
+      description: 涉及哪种互联互通协议？Which interoperability protocol is involved?
       options:
-        - TU（交通联合）
-        - CU（住建部）
-        - SZT（深圳通）
-        - LNT（岭南通/羊城通）
+        - TU（交通联合） / TU (China T-Union)
+        - CU（住建部） / CU (MoHURD)
+        - SZT（深圳通） / SZT (Shenzhen Tong)
+        - LNT（岭南通/羊城通） / LNT (Lingnan Tong/Yangcheng Tong)
     validations:
       required: true
 
   - type: dropdown
     id: version
     attributes:
-      label: 版本
-      description: 使用的 App 版本（可在设置页查看）
+      label: 版本 / Version
+      description: 使用的 App 版本（可在设置页查看）Which app version are you using? (See the Settings page.)
       options:
         - 1.0.0
-        - 其他（请在正文注明）
+        - 其他（请在正文注明） / Other (please specify in the description)
     validations:
       required: true
 
   - type: input
     id: city
     attributes:
-      label: 城市
-      description: 涉及的卡片城市，例如：深圳、广州、苏州
-      placeholder: 请输入城市名称
+      label: 城市 / City
+      description: 涉及的卡片城市，例如：深圳、广州、苏州. City associated with the card, e.g. Shenzhen, Guangzhou, or Suzhou.
+      placeholder: 请输入城市名称 / Enter the city name
     validations:
       required: true
 
   - type: dropdown
     id: transport
     attributes:
-      label: 交通工具
-      description: 涉及哪种交通工具？
+      label: 交通工具 / Transport
+      description: 涉及哪种交通工具？Which type of transport is involved?
       options:
-        - 地铁
-        - 公交
-        - 其他
+        - 地铁 / Metro
+        - 公交 / Bus
+        - 城际 / Intercity rail
+        - 其他 / Other
     validations:
       required: false
 
   - type: input
     id: card-info
     attributes:
-      label: 卡片信息（可选）
-      description: 卡类型 / 卡号前几位 / 卡面标识，例如：深圳通、卡号 3104 开头
+      label: 卡片信息（可选） / Card Information (optional)
+      description: 卡类型 / 卡号前几位 / 卡面标识，例如：深圳通、卡号 3104 开头. Card type, first digits, or card marking, e.g. Shenzhen Tong or a card number starting with 3104.
     validations:
       required: false
 
   - type: textarea
-    id: description
+    id: symptom
     attributes:
-      label: 详细描述
-      description: 具体描述问题或请求
+      label: 现象 / Observed Behavior
+      description: 请描述实际发生了什么。Describe what actually happened.
       placeholder: |
-        - Bug：现象 + 期望结果
-        - Feature：使用场景 + 想要的能力
-        - Data：缺失/错误的线路或站名
+        - Bug 示例：读取深圳通后，卡片余额一直显示为 0 元
+          Bug example: After reading a Shenzhen Tong card, the balance is always shown as 0 yuan.
+        - Feature 示例：希望在交易记录中支持按日期筛选
+          Feature example: I would like to filter transaction records by date.
+        - Data 示例：深圳地铁 1 号线缺少“车公庙”站
+          Data example: Chegongmiao Station is missing from Shenzhen Metro Line 1.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: 原本期望结果 / Expected Result
+      description: 请描述在正常情况下原本希望看到什么结果。Describe what you expected to see.
+      placeholder: |
+        - Bug 示例：原本期望显示卡片的实际余额，例如 32.50 元
+          Bug example: The actual card balance should be displayed, for example 32.50 yuan.
+        - Feature 示例：可以选择开始和结束日期，只显示该时间段内的交易
+          Feature example: I should be able to choose a start and end date and see only transactions in that period.
+        - Data 示例：补充深圳地铁 1 号线的“车公庙”站，编号为 xxxx
+          Data example: Add Chegongmiao Station to Shenzhen Metro Line 1 with ID xxxx.
     validations:
       required: true
 
   - type: textarea
     id: repro
     attributes:
-      label: 复现步骤 / 数据来源（可选）
-      description: Bug 请给出复现步骤；Data 请给出数据来源（如官网线路图、站牌照片、卡号段等）
+      label: 复现步骤 / 数据来源（可选） / Reproduction Steps / Data Source (optional)
+      description: Bug 请给出复现步骤；Data 请给出数据来源（如官网线路图、站牌照片、卡号段等）。For bugs, provide reproduction steps; for data requests, provide the source (such as an official route map, station sign photo, or card number range).
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: raw-records
     attributes:
-      label: 原始记录（可选）
-      description: 如有 App 内的原始卡数据 / 日志，请粘贴在此，便于排查。建议点进交易详情复制数据，并附上预期的行为。如果可以，也可以导出并上传整个 db，但是可能会导致你的隐私被泄露
+      label: 原始记录（可选） / Raw Records (optional)
+      description: 如有 App 内的原始卡数据 / 日志，请粘贴在此，便于排查。建议点进交易详情复制数据，并附上预期的行为。如果可以，也可以导出并上传整个 db，但是可能会导致你的隐私被泄露。Paste raw card data or logs from the app here to help with investigation. You can copy data from transaction details and include the expected behavior. You may also export and upload the entire database, but this could expose your private information.
       render: shell
     validations:
       required: false

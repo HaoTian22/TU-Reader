@@ -432,14 +432,16 @@ object RecordDecoder {
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
             val isRecharge = posIsRecharge || typeHex == "02"
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
-            val direction = lntType?.direction.orEmpty()
-
-            val ref = when {
-                isRecharge -> StationRef("", "", "充值", "")
-                lntType?.transitType == "便利店" -> StationRef("", "", "便利店", "")
-                else -> resolveStation(cardType, cityCode18, posHex, terminal, tu)
+            // 设备映射是站点、城市和交通类型的权威来源；记录 type/subtype 仅在未命中设备时兜底。
+            // 例如部分岭南通记录的 type/subtype 为地铁，但位置码实际命中公交设备。
+            val ref = if (isRecharge) {
+                StationRef("", "", "充值", "")
+            } else {
+                resolveStation(cardType, cityCode18, posHex, terminal, tu)
             }
-            val transitType = lntType?.transitType ?: ref.transitType
+            val mappingMatched = !isRecharge && ref.deviceCode != null
+            val direction = if (mappingMatched) "" else lntType?.direction.orEmpty()
+            val transitType = if (mappingMatched) ref.transitType else lntType?.transitType ?: ref.transitType
 
             // 站点命中后优先使用设备所属城市；未命中时再沿用记录/钱包城市码。
             val cityForTx = when {

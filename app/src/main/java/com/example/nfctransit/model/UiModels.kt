@@ -52,7 +52,7 @@ data class UiTransaction(
     val date: String,              // "2024-09-15"
     val time: String,              // "08:23:15"
     val displayDateTime: String,   // "2024-09-15 08:23:15" or "09-15 08:23"
-    val balanceAfterYuan: Double?, // 无余额数据为 null（详情页显示"无"）
+    val balanceAfterYuan: Double?, // 无余额数据为 null（详情页显示"-"）
     val balanceAfterText: String?, // "余额 ¥45.50"；无余额数据为 null（列表行隐藏）
     val icon: String,              // emoji: 🚇 🚌 💳 🛒
     val iconBgColor: Long,         // background color for icon circle

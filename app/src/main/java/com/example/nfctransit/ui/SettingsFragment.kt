@@ -546,7 +546,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             sb.appendLine("  类型: ${txn.transitType}  金额: ${txn.amountText}")
             sb.appendLine("  站点: ${txn.stationName}  线路: ${txn.lineName}")
             sb.appendLine("  终端: ${txn.terminal}  TypeHex: ${txn.typeHex}")
-            sb.appendLine("  余额: ${txn.balanceAfterText ?: "无"}")
+            sb.appendLine("  余额: ${txn.balanceAfterText ?: "-"}")
         }
 
         sb.appendLine()

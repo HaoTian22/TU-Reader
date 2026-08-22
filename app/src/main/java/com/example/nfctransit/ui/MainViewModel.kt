@@ -935,7 +935,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         for (t in _allTransactions.value.orEmpty()) {
             sb.appendLine(
                 "${t.seq},${t.displayDateTime},${t.transitType},${t.lineName}," +
-                "\"${t.stationName}\",${t.amountText},${t.balanceAfterText ?: "无"},${t.terminal}"
+                "\"${t.stationName}\",${t.amountText},${t.balanceAfterText ?: "-"},${t.terminal}"
             )
         }
         return sb.toString()
