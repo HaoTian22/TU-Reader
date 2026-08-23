@@ -1452,24 +1452,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return if (terminal.length >= 4) terminal.takeLast(4) else terminal
     }
 
-    private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> {
-        // 以 (城市, 站点) 为 key：不同城市的同名车站（如多地都有"老街站"）分开统计
-        val counts = mutableMapOf<Pair<String, String>, Int>()
-        for (t in uiTxns) {
-            // 充值/无金额旅程事件不是乘车记录，不统计站点
-            if (t.typeHex == "02" || t.amountYuan <= 0) continue
-            val name = t.stationName
-            if (name.isNotEmpty() && name != "未知" &&
-                !name.startsWith("轨道交通") && !name.startsWith("公共交通") && !name.startsWith("广州公交")) {
-                val key = t.cityName to name
-                counts[key] = (counts[key] ?: 0) + 1
-            }
-        }
-        val max = counts.values.maxOrNull() ?: 1
-        return counts.entries.sortedByDescending { it.value }
-            .take(5)
-            .map { StationStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first) }
-    }
+    private fun computeTopStations(uiTxns: List<UiTransaction>): List<StationStat> =
+        computeTopStationsForStats(uiTxns)
 
     private fun computeTopLines(uiTxns: List<UiTransaction>): List<LineStat> {
         // 以 (城市, 线路) 为 key：不同城市的同名线路（如多地都有"1号线"）分开统计
@@ -1718,4 +1702,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             date.substring(5)
         }
     }
+}
+
+internal fun computeTopStationsForStats(uiTxns: List<UiTransaction>): List<StationStat> {
+    // 0 元进/出站旅程事件也代表一次车站访问，应纳入最常去车站统计。
+    val counts = mutableMapOf<Pair<String, String>, Int>()
+    for (t in uiTxns) {
+        if (t.typeHex == "02" || (t.amountYuan <= 0 && t.direction == null)) continue
+        val name = t.stationName
+        if (name.isNotEmpty() && name != "未知" &&
+            !name.startsWith("轨道交通") && !name.startsWith("公共交通") && !name.startsWith("广州公交")) {
+            val key = t.cityName to name
+            counts[key] = (counts[key] ?: 0) + 1
+        }
+    }
+    val max = counts.values.maxOrNull() ?: 1
+    return counts.entries.sortedByDescending { it.value }
+        .take(5)
+        .map { StationStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first) }
 }

@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.ui.MainViewModel
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 
@@ -25,6 +26,7 @@ class MainActivity : AppCompatActivity() {
         TencentMapInitializer.setAgreePrivacy(true)
         setContentView(R.layout.activity_main)
 
+        UiCache.clearOnPackageUpdate(applicationContext)
         TransitData.init(applicationContext)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)

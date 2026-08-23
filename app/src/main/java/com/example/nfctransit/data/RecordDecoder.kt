@@ -285,6 +285,12 @@ object RecordDecoder {
         }
     }
 
+    internal fun tuDirectionForType(typeByte: Int): TransitDirection? = when (typeByte) {
+        0x03 -> TransitDirection.ENTRY
+        0x04 -> TransitDirection.EXIT
+        else -> null
+    }
+
     /**
      * 从 SFI 0x1E 循环记录建立 终端→站点 映射表 + 余额映射表 + 旅程交易（进站/出站事件）。
      * 空槽（整条全 0）跳过。返回按记录号排序处理后的结果。
@@ -310,29 +316,39 @@ object RecordDecoder {
             // bcdToString 会把 0x1F 半字节展开成 "115"（append(15)），破坏重叠匹配，hex 站全部退化到大类。
             val rawCode = if (data.size >= 17) ApduUtil.bytesToHex(data.copyOfRange(10, 17)) else ""
 
-            val entry = TransitData.resolveTuStation(cityCode, lineCode, stationCode, terminal, rawCode)
-            val direction = when {
-                data[0] == 0x03.toByte() -> TransitDirection.ENTRY
-                data[0] == 0x04.toByte() -> TransitDirection.EXIT
-                else -> null
+            // TU 1E：byte 0 是记录类型，byte 9 是交通 subtype。
+            // subtype 01/02 先决定轨道/公交，再约束设备映射候选；未知 subtype 不限制匹配。
+            val subtype = data[9].toInt() and 0xFF
+            val expectedFamily = TransitData.tuTransitFamilyForSubtype(subtype)
+            val entry = TransitData.resolveTuStation(
+                cityCode, lineCode, stationCode, terminal, rawCode,
+                expectedFamily = expectedFamily
+            )
+            val direction = tuDirectionForType(data[0].toInt() and 0xFF)
+            val fallbackStation = when (expectedFamily) {
+                TransitData.TuTransitFamily.RAIL -> "轨道交通"
+                else -> "公共交通"
             }
-            // 0x1E 类型字节 data[0]：0x06 = 公交。公交行程解析到地铁站或无站可解时一律回退公交，
-            // 否则同时间戳 0x18 的地铁站会经 mergeJourneyAndFare 覆盖显示为地铁
-            val isBusType = data[0] == 0x06.toByte()
-            val busRef = if (isBusType && (entry == null || entry.type == "地铁")) null else entry
+            val fallbackTransitType = when (expectedFamily) {
+                TransitData.TuTransitFamily.RAIL -> "地铁"
+                TransitData.TuTransitFamily.BUS -> "公交"
+                null -> "公交"
+            }
+            val mappedRef = entry
             val ref = StationRef(
-                station = busRef?.station ?: "公共交通",
-                line = busRef?.line ?: "",
-                transitType = if (busRef != null) TransitData.transitTypeLabel(busRef.type) else "公交",
+                station = mappedRef?.station ?: fallbackStation,
+                line = mappedRef?.line ?: "",
+                transitType = mappedRef?.let { TransitData.transitTypeLabel(it.type) }
+                    ?: fallbackTransitType,
                 direction = direction,
-                mappingTransitType = busRef?.type,
-                lineColor = busRef?.lineColor,
-                lineId = busRef?.lineId,
-                stationId = busRef?.stationId,
-                cityCode = busRef?.cityCode,
-                deviceLocation = busRef?.deviceLocation,
-                deviceCode = busRef?.code,
-                spRule = busRef?.spRule
+                mappingTransitType = mappedRef?.type,
+                lineColor = mappedRef?.lineColor,
+                lineId = mappedRef?.lineId,
+                stationId = mappedRef?.stationId,
+                cityCode = mappedRef?.cityCode,
+                deviceLocation = mappedRef?.deviceLocation,
+                deviceCode = mappedRef?.code,
+                spRule = mappedRef?.spRule
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(19, 21)) else 0L
@@ -477,6 +493,13 @@ object RecordDecoder {
                 else -> displayCityCode
             }
 
+            // LNT 未命中设备映射时，18 的终端号前缀不是可靠城市码，city/rawCity 都必须保持为空。
+            val rawCityCodeForTx = when {
+                isRecharge -> null
+                protocol == "LNT" && !mappingMatched -> null
+                else -> cityCode18
+            }
+
             // 无余额数据 = null（区别于真实的 ¥0.00）：
             // LNT 记录本身不含余额字段（旧实现把钱包级快照套到每条历史交易上，属捏造），一律 null；
             // 归档优先用已解析值（含 null，不重新推导）；TU 用 1E 嵌入余额匹配，匹配不到为 null
@@ -497,7 +520,7 @@ object RecordDecoder {
                     lineId = ref.lineId, stationId = ref.stationId,
                     transitType = transitType,
                     cityCode = cityForTx,
-                    rawCityCode = cityCode18,
+                    rawCityCode = rawCityCodeForTx,
                     date = date, time = time,
                     balanceAfterFen = balanceAfterFen,
                     deviceCode = ref.deviceCode,

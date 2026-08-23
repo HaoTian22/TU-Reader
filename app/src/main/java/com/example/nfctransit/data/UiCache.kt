@@ -32,7 +32,20 @@ data class CardUiCache(
 
 object UiCache {
     private const val DIR = "ui_cache"
+    private const val LIFECYCLE_PREFS = "ui_cache_lifecycle"
+    private const val LAST_PACKAGE_UPDATE = "last_package_update"
     private val gson = Gson()
+
+    fun clearOnPackageUpdate(context: Context) {
+        val packageUpdate = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        }.getOrNull() ?: return
+        val prefs = context.getSharedPreferences(LIFECYCLE_PREFS, Context.MODE_PRIVATE)
+        if (prefs.getLong(LAST_PACKAGE_UPDATE, Long.MIN_VALUE) != packageUpdate) {
+            clearAll(context)
+            prefs.edit().putLong(LAST_PACKAGE_UPDATE, packageUpdate).apply()
+        }
+    }
 
     fun file(context: Context, cardId: String): File =
         File(File(context.cacheDir, DIR), "$cardId.json")
