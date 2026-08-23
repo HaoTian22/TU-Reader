@@ -119,7 +119,7 @@
         <!-- Status Bar Spacer -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="24dp"
+            android:layout_height="@dimen/status_bar_spacer_height"
             android:background="#F8F9FA" />
 
         <!-- Nav Header (常驻置顶) -->

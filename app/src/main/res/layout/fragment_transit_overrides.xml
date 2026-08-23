@@ -7,7 +7,7 @@
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="24dp" />
+        android:layout_height="@dimen/status_bar_spacer_height" />
 
     <LinearLayout
         android:layout_width="match_parent"
