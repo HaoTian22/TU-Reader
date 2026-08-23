@@ -1,6 +1,7 @@
 package com.example.nfctransit.ui
 
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.route.TransitFamily
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
@@ -26,7 +27,8 @@ data class MapEvent(
     val timeMillis: Long,
     val direction: MapDirection,
     val transitFamily: TransitFamily = TransitFamily.ANY,
-    val cityName: String = ""
+    val cityName: String = "",
+    val locationSource: LocationSource = LocationSource.STATION_GEO
 )
 
 data class MapSegment(
@@ -71,6 +73,8 @@ internal fun isTransitRouteEligible(
     val family = segment.from.transitFamily
     return fromCityId != null &&
         fromCityId == toCityId &&
+        segment.from.locationSource == LocationSource.STATION_GEO &&
+        to.locationSource == LocationSource.STATION_GEO &&
         family != TransitFamily.ANY &&
         family == to.transitFamily
 }
@@ -115,8 +119,8 @@ class JourneyModel private constructor(
                     null -> MapDirection.NONE
                 }
                 val name = tx.stationName.trim()
-                val coords = TransitData.coordsByStationName(name, tx.cityName, tx.lineName)
-                    ?: TransitData.coordsOf(stationId)
+                val coords = TransitData.coordsOf(stationId)
+                    ?: TransitData.coordsByStationName(name, tx.cityName, tx.lineName, tx.cityCode)
                     ?: continue
                 val (gcjLng, gcjLat) = CoordTransform.wgs84ToGcj02(coords.first, coords.second)
                 events.add(
@@ -130,7 +134,8 @@ class JourneyModel private constructor(
                         timeMillis = parseTime(tx.date, tx.time),
                         direction = direction,
                         transitFamily = transitFamilyOf(tx.transitType),
-                        cityName = tx.cityName
+                        cityName = tx.cityName,
+                        locationSource = tx.locationSource
                     )
                 )
             }

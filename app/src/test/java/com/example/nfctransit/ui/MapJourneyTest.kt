@@ -1,5 +1,6 @@
 package com.example.nfctransit.ui
 
+import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.route.TransitFamily
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,6 +54,25 @@ class MapJourneyTest {
         )
         assertFalse(isTransitRouteEligible(unknownTrip, fromCityId = 1, toCityId = 1))
     }
+
+    @Test
+    fun approximateDirectoryLocations_areNotRouteEligible() {
+        val destination = boarding.copy(
+            stationId = 2,
+            timeMillis = boarding.timeMillis + 600_000,
+            locationSource = LocationSource.PARENT_DIRECTORY
+        )
+        val segment = MapSegment(
+            from = boarding,
+            to = destination,
+            lineName = boarding.lineName,
+            lineColor = boarding.lineColor,
+            startTime = boarding.timeMillis,
+            endTime = destination.timeMillis
+        )
+        assertFalse(isTransitRouteEligible(segment, fromCityId = 1, toCityId = 1))
+    }
+
 
     @Test
     fun transitFamily_keepsTransfersWithinRecordedMode() {

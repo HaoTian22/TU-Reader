@@ -14,6 +14,8 @@ data class CanonicalTransaction(
     val typeHex: String,
     val terminal: String,
     val cityCode: String? = null,
+    /** 原始记录中的设备/卡城市码，不能被跨城站点匹配结果覆盖。 */
+    val rawCityCode: String? = null,
     val lineId: Long? = null,
     val stationId: Long? = null,
     val stationName: String = "",

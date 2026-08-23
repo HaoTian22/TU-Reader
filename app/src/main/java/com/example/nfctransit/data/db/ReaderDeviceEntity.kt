@@ -42,6 +42,7 @@ data class ReaderDeviceEntity(
     @ColumnInfo(name = "line_id") val lineId: Long? = null,
     @ColumnInfo(name = "station_id") val stationId: Long? = null,
     @ColumnInfo(name = "transit_type") val transitType: String, // CSV Type 列：地铁/公交/BRT/城际/…
+    @ColumnInfo(name = "device_location") val deviceLocation: String? = null, // 实际地点城市码；仅 station_id 为空时使用
     @ColumnInfo(name = "match_key") val matchKey: String? = null,
     @ColumnInfo(name = "updated_at") val updatedAt: String? = null
 )

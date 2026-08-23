@@ -10,12 +10,15 @@ import java.nio.charset.StandardCharsets
 object TransitOverrideStore {
     private const val CSV_NAME = "overrides.csv"
     private const val META_NAME = "overrides.meta.json"
+    private const val LOCATION_NAME = "overrides.locations.json"
     private const val ORIGINAL_NAME = "overrides.originals.json"
     private val gson = Gson()
 
     fun csvFile(context: Context): File = File(context.filesDir, CSV_NAME)
 
     private fun metaFile(context: Context): File = File(context.filesDir, META_NAME)
+
+    private fun locationFile(context: Context): File = File(context.filesDir, LOCATION_NAME)
 
     private fun originalFile(context: Context): File = File(context.filesDir, ORIGINAL_NAME)
 
@@ -45,6 +48,14 @@ object TransitOverrideStore {
                 standards.putAll(gson.fromJson<Map<String, String>>(meta.readText(), type).orEmpty())
             }
         }
+        val locations = mutableMapOf<String, String>()
+        val location = locationFile(context)
+        if (location.isFile) {
+            val type = object : TypeToken<Map<String, String>>() {}.type
+            runCatching {
+                locations.putAll(gson.fromJson<Map<String, String>>(location.readText(), type).orEmpty())
+            }
+        }
         val originals = mutableMapOf<String, ReaderDeviceEntity?>()
         val originalsFile = originalFile(context)
         if (originalsFile.isFile) {
@@ -53,7 +64,7 @@ object TransitOverrideStore {
                 originals.putAll(gson.fromJson<Map<String, ReaderDeviceEntity?>>(originalsFile.readText(), type).orEmpty())
             }
         }
-        return OverrideSnapshot(rows, standards, originals)
+        return OverrideSnapshot(rows, standards, locations, originals)
     }
 
     @Synchronized
@@ -69,6 +80,9 @@ object TransitOverrideStore {
         }
         snapshot.rows[deviceCode] = feedback.row
         snapshot.standards[deviceCode] = feedback.standard
+        feedback.locationCityCode?.takeIf { it.isNotBlank() }?.let {
+            snapshot.locations[deviceCode] = it
+        } ?: snapshot.locations.remove(deviceCode)
         writeSnapshot(context, snapshot)
     }
 
@@ -79,15 +93,22 @@ object TransitOverrideStore {
         val hasOriginal = snapshot.originals.containsKey(deviceCode)
         val removal = OverrideRemoval(row, snapshot.originals.remove(deviceCode), hasOriginal)
         snapshot.standards.remove(deviceCode)
+        snapshot.locations.remove(deviceCode)
         writeSnapshot(context, snapshot)
         return removal
     }
 
-    fun list(context: Context): List<TransitOverrideRow> = read(context).rows.values.toList()
+    fun list(context: Context): List<TransitOverrideRow> {
+        val snapshot = read(context)
+        return snapshot.rows.values.map { row ->
+            row.copy(locationCityCode = snapshot.locations[row.deviceCode])
+        }
+    }
 
     private fun writeSnapshot(context: Context, snapshot: OverrideSnapshot) {
         writeCsv(context, snapshot.rows.values)
         writeMeta(context, snapshot.standards)
+        writeLocations(context, snapshot.locations)
         writeOriginals(context, snapshot.originals)
     }
 
@@ -111,6 +132,16 @@ object TransitOverrideStore {
         val destination = metaFile(context)
         val temp = File(context.filesDir, "$META_NAME.tmp")
         temp.writeText(gson.toJson(standards), StandardCharsets.UTF_8)
+        if (!temp.renameTo(destination)) {
+            temp.copyTo(destination, overwrite = true)
+            temp.delete()
+        }
+    }
+
+    private fun writeLocations(context: Context, locations: Map<String, String>) {
+        val destination = locationFile(context)
+        val temp = File(context.filesDir, "$LOCATION_NAME.tmp")
+        temp.writeText(gson.toJson(locations), StandardCharsets.UTF_8)
         if (!temp.renameTo(destination)) {
             temp.copyTo(destination, overwrite = true)
             temp.delete()

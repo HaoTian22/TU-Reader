@@ -10,7 +10,8 @@ data class TransitOverrideRow(
     val code: String,
     val type: String,
     val line: String,
-    val station: String
+    val station: String,
+    val locationCityCode: String? = null
 ) {
     val deviceCode: String get() = prefix + code
 }
@@ -34,12 +35,15 @@ data class OverrideImportSummary(
 data class FeedbackOverride(
     val row: TransitOverrideRow,
     val standard: String,
-    val publish: Boolean
+    val publish: Boolean,
+    val locationCityCode: String? = null,
+    val locationCityName: String? = null
 )
 
 data class OverrideSnapshot(
     val rows: LinkedHashMap<String, TransitOverrideRow>,
     val standards: MutableMap<String, String>,
+    val locations: MutableMap<String, String> = mutableMapOf(),
     val originals: MutableMap<String, ReaderDeviceEntity?> = mutableMapOf()
 )
 

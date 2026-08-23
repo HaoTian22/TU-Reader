@@ -258,7 +258,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存；
             // 单张卡失败不影响其余卡片（缓存命中的直接恢复，未命中的重建）
             cachedTxnsByCard.clear()
-            val dbVersion = AppPreferences.getDbVersion(getApplication())
+            val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
             cardEntities.forEach { card ->
                 val state = try {
                     withContext(Dispatchers.Default) { loadCardState(card, dbVersion = dbVersion) }
@@ -336,7 +336,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存，刷新当前选中卡 */
     private suspend fun rebuildAllCardsAndRefresh() {
         cachedTxnsByCard.clear()
-        val dbVersion = AppPreferences.getDbVersion(getApplication())
+        val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
         cardEntities.forEach { card ->
             try {
                 val state = withContext(Dispatchers.Default) {
@@ -495,7 +495,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             // 以数据库为准重建完成 → 回写磁盘缓存（下次启动直接命中）
-            val dbVersion = AppPreferences.getDbVersion(getApplication())
+            val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
             UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns, dbVersion))
         }
         return if (isNew) index else null
@@ -709,6 +709,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         type: String,
         line: String,
         station: String,
+        locationCityCode: String,
+        locationCityName: String,
         publish: Boolean
     ) {
         if (_feedbackSaving.value == true) return
@@ -732,7 +734,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     TransitOverrideStore.upsert(
                         context,
-                        FeedbackOverride(normalized, standard, publish),
+                        FeedbackOverride(
+                            normalized,
+                            standard,
+                            publish,
+                            locationCityCode,
+                            locationCityName
+                        ),
                         original
                     )
                     val summary = TransitOverrideImporter.import(context)
@@ -744,7 +752,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val uploadStatus = if (publish) {
                     withContext(Dispatchers.IO) {
                         FeedbackUploader.upload(
-                            getApplication(), normalized, type.trim(), standard
+                            getApplication(), normalized, type.trim(), standard,
+                            locationCityCode, locationCityName, transaction.locationSource.name
                         )
                     }
                 } else null
@@ -794,9 +803,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         database.transitDao().getDeviceByCode(row.deviceCode)
                     }
+                    val locationCity = row.locationCityCode?.let { code ->
+                        TransitData.cityOptions().firstOrNull { it.code == code }
+                    }
                     TransitOverrideStore.upsert(
                         context,
-                        FeedbackOverride(row, standard, false),
+                        FeedbackOverride(
+                            row,
+                            standard,
+                            false,
+                            locationCity?.code,
+                            locationCity?.name
+                        ),
                         original
                     )
                     val result = TransitOverrideImporter.import(context)

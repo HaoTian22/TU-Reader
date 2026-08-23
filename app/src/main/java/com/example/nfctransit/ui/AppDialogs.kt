@@ -12,10 +12,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.nfctransit.R
+import com.example.nfctransit.data.CityOption
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.model.UiCard
 
@@ -112,6 +116,10 @@ object AppDialogs {
         line: String,
         station: String,
         type: String,
+        actualCityCode: String?,
+        actualCityName: String,
+        title: String = "反馈站名纠错",
+        showPublish: Boolean = true,
         accentColor: Int = 0xFF0066FF.toInt(),
         onConfirm: (
             prefix: String,
@@ -119,8 +127,10 @@ object AppDialogs {
             type: String,
             line: String,
             station: String,
+            cityCode: String,
+            cityName: String,
             publish: Boolean
-        ) -> Unit
+        ) -> Boolean
     ): Dialog {
         val dialog = Dialog(context)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -135,8 +145,13 @@ object AppDialogs {
         val codeInput = view.findViewById<EditText>(R.id.feedbackCode)
         val lineInput = view.findViewById<EditText>(R.id.feedbackLine)
         val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
+        val cityInput = view.findViewById<AutoCompleteTextView>(R.id.feedbackCity)
         val typeInput = view.findViewById<android.widget.RadioGroup>(R.id.feedbackType)
         val publishInput = view.findViewById<android.widget.CheckBox>(R.id.feedbackPublish)
+        view.findViewById<TextView>(R.id.feedbackTitle).text = title
+        publishInput.visibility = View.VISIBLE
+        publishInput.isEnabled = showPublish
+        if (!showPublish) publishInput.isChecked = false
         publishInput.buttonTintList = ColorStateList.valueOf(accentColor)
         listOf(
             view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeBus),
@@ -150,6 +165,31 @@ object AppDialogs {
                 else -> R.id.feedbackTypeBus
             }
         )
+        val cityOptions = TransitData.cityOptions()
+        val cityLabels = cityOptions.map(CityOption::displayName)
+        cityInput.setAdapter(
+            ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, cityLabels)
+        )
+        var selectedCity: CityOption? = cityOptions.firstOrNull { it.code == actualCityCode }
+        var applyingCity = false
+        selectedCity?.let {
+            applyingCity = true
+            cityInput.setText(it.displayName, false)
+            applyingCity = false
+        }
+        cityInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (!applyingCity) selectedCity = null
+            }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
+        cityInput.setOnItemClickListener { parent, _, position, _ ->
+            val label = parent.getItemAtPosition(position) as? String
+            selectedCity = cityOptions.firstOrNull { it.displayName == label }
+        }
+        if (selectedCity == null && actualCityName.isNotBlank()) cityInput.setText(actualCityName, false)
+
         prefixInput.setText(prefix)
         codeInput.setText(code)
         lineInput.setText(line)
@@ -165,15 +205,17 @@ object AppDialogs {
                     R.id.feedbackTypeIntercity -> "城际"
                     else -> "公交"
                 }
-                onConfirm(
+                val accepted = onConfirm(
                     prefixInput.text.toString(),
                     codeInput.text.toString(),
                     selectedType,
                     lineInput.text.toString(),
                     stationInput.text.toString(),
+                    selectedCity?.code.orEmpty(),
+                    selectedCity?.name.orEmpty(),
                     publishInput.isChecked
                 )
-                dialog.dismiss()
+                if (accepted) dialog.dismiss()
             }
         }
         view.findViewById<TextView>(R.id.feedbackCancel).setOnClickListener { dialog.dismiss() }
@@ -191,49 +233,35 @@ object AppDialogs {
         context: Context,
         row: TransitOverrideRow,
         accentColor: Int = 0xFF0066FF.toInt(),
-        onSave: (prefix: String, code: String, type: String, line: String, station: String) -> Unit
+        onSave: (
+            prefix: String,
+            code: String,
+            type: String,
+            line: String,
+            station: String,
+            cityCode: String,
+            cityName: String
+        ) -> Unit
     ): Dialog {
-        val dialog = Dialog(context)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_override_edit, null)
-        dialog.setContentView(view)
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        val city = row.locationCityCode?.let { code ->
+            TransitData.cityOptions().firstOrNull { it.code == code }
+        } ?: TransitData.cityOptions().firstOrNull { it.code == row.prefix }
+        return feedback(
+            context = context,
+            prefix = row.prefix,
+            code = row.code,
+            line = row.line,
+            station = row.station,
+            type = row.type,
+            actualCityCode = city?.code,
+            actualCityName = city?.name.orEmpty(),
+            title = "编辑本地映射表",
+            showPublish = false,
+            accentColor = accentColor
+        ) { prefix, code, type, line, station, cityCode, cityName, _ ->
+            onSave(prefix, code, type, line, station, cityCode, cityName)
+            true
         }
-        dialog.setCancelable(true)
-        val inputs = listOf(
-            view.findViewById<EditText>(R.id.overridePrefix),
-            view.findViewById<EditText>(R.id.overrideCode),
-            view.findViewById<EditText>(R.id.overrideType),
-            view.findViewById<EditText>(R.id.overrideLine),
-            view.findViewById<EditText>(R.id.overrideStation)
-        )
-        inputs.zip(listOf(row.prefix, row.code, row.type, row.line, row.station))
-            .forEach { (input, value) ->
-                input.setText(value)
-                input.setSelection(input.text.length)
-            }
-        view.findViewById<TextView>(R.id.overrideSave).apply {
-            setTextColor(accentColor)
-            setOnClickListener {
-                onSave(
-                    inputs[0].text.toString(),
-                    inputs[1].text.toString(),
-                    inputs[2].text.toString(),
-                    inputs[3].text.toString(),
-                    inputs[4].text.toString()
-                )
-                dialog.dismiss()
-            }
-        }
-        view.findViewById<TextView>(R.id.overrideCancel).setOnClickListener { dialog.dismiss() }
-        dialog.setOnShowListener {
-            inputs.first().requestFocus()
-            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        }
-        dialog.show()
-        return dialog
     }
 
     fun options(

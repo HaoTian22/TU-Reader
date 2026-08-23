@@ -37,6 +37,7 @@ object RecordDecoder {
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,
+        val deviceLocation: String? = null,
         val deviceCode: String? = null,
         val spRule: String? = null
     )
@@ -329,6 +330,7 @@ object RecordDecoder {
                 lineId = busRef?.lineId,
                 stationId = busRef?.stationId,
                 cityCode = busRef?.cityCode,
+                deviceLocation = busRef?.deviceLocation,
                 deviceCode = busRef?.code,
                 spRule = busRef?.spRule
             )
@@ -356,6 +358,7 @@ object RecordDecoder {
                         lineId = ref.lineId, stationId = ref.stationId,
                         transitType = ref.transitType,
                         cityCode = entry?.cityCode ?: if (cityCode.isNotEmpty()) cityCode else null,
+                        rawCityCode = cityCode,
                         date = timestamp.substring(0, 8), time = timestamp.substring(8, 14),
                         balanceAfterFen = balanceFen,
                         deviceCode = ref.deviceCode,
@@ -494,6 +497,7 @@ object RecordDecoder {
                     lineId = ref.lineId, stationId = ref.stationId,
                     transitType = transitType,
                     cityCode = cityForTx,
+                    rawCityCode = cityCode18,
                     date = date, time = time,
                     balanceAfterFen = balanceAfterFen,
                     deviceCode = ref.deviceCode,
@@ -520,6 +524,7 @@ object RecordDecoder {
         stationId: Long?,
         transitType: String,
         cityCode: String?,
+        rawCityCode: String? = null,
         date: String,
         time: String,
         balanceAfterFen: Long?,
@@ -534,6 +539,7 @@ object RecordDecoder {
             typeHex = typeHex,
             terminal = terminal,
             cityCode = cityCode,
+            rawCityCode = rawCityCode,
             lineId = lineId,
             stationId = stationId,
             stationName = stationName,
@@ -557,7 +563,7 @@ object RecordDecoder {
      *  - 只有 18 → 原样
      *  - 只有 1E → 保留为旅程交易（金额可能为 0）
      */
-    private fun mergeJourneyAndFare(
+    internal fun mergeJourneyAndFare(
         journey: List<CanonicalTransaction>,
         fare: List<CanonicalTransaction>
     ): List<CanonicalTransaction> {
@@ -572,8 +578,10 @@ object RecordDecoder {
             val journeyAtTs = journeyByTs[ts]
             // 城市/原始数据独立于站名解析：只要有 1E 就用它的城市码与 hex（公交/异地行程的 18 城市码是卡归属城市，不可靠）
             val journeyCity = journeyAtTs?.firstOrNull()?.cityCode
+            val journeyRawCity = journeyAtTs?.firstOrNull()?.rawCityCode
             val journeyHex = journeyAtTs?.firstOrNull()?.hex
             val city = journeyCity ?: f.cityCode
+            val rawCity = journeyRawCity ?: f.rawCityCode
             // 站名解析单独处理：只取解析成功的旅程覆盖站名；城市与 hex 已在上方独立决定
             val j = journeyAtTs?.firstOrNull {
                 it.stationName.isNotEmpty() && it.stationName != "未知"
@@ -591,13 +599,14 @@ object RecordDecoder {
                     // 否则会出现「地铁站名 + 公交类型」的矛盾展示
                     transitType = j.transitType,
                     cityCode = city,
+                    rawCityCode = rawCity,
                     balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
                     journeyHex = journeyHex ?: j.hex,
                     deviceCode = j.deviceCode,
                     spRule = j.spRule
                 ))
             } else {
-                out.add(f.copy(journeyHex = journeyHex, cityCode = city))
+                out.add(f.copy(journeyHex = journeyHex, cityCode = city, rawCityCode = rawCity))
             }
         }
         for (j in journey) {
@@ -648,6 +657,7 @@ object RecordDecoder {
             lineId = lineId,
             stationId = stationId,
             cityCode = cityCode,
+            deviceLocation = deviceLocation,
             deviceCode = code,
             spRule = spRule
         )

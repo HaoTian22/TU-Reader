@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 import tempfile
@@ -27,6 +28,9 @@ class OverridePayload(BaseModel):
     standard: str = Field(min_length=1, max_length=16)
     line: str = Field(max_length=128)
     station: str = Field(max_length=128)
+    locationCityCode: str | None = Field(default=None, max_length=16)
+    locationCityName: str | None = Field(default=None, max_length=128)
+    locationSource: str | None = Field(default=None, max_length=32)
 
     @field_validator("prefix", "code")
     @classmethod
@@ -53,6 +57,39 @@ class OverridePayload(BaseModel):
             raise ValueError("text must contain no newlines")
         return value.strip()
 
+    @field_validator("locationCityCode")
+    @classmethod
+    def validate_location_code(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        value = value.strip()
+        if not re.fullmatch(r"[0-9A-Za-z]+", value):
+            raise ValueError("location city code must contain only ASCII letters and digits")
+        return value
+
+    @field_validator("locationCityName")
+    @classmethod
+    def validate_location_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if "\n" in value or "\r" in value:
+            raise ValueError("location metadata must contain no newlines")
+        return value.strip() or None
+
+    @field_validator("locationSource")
+    @classmethod
+    def validate_location_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if "\n" in value or "\r" in value:
+            raise ValueError("location metadata must contain no newlines")
+        value = value.strip()
+        if not value:
+            return None
+        if value not in {"STATION_GEO", "PARENT_DIRECTORY", "DECLARED_CITY_FALLBACK"}:
+            raise ValueError("invalid location source")
+        return value
+
 
 def _read_rows() -> dict[str, dict[str, str]]:
     if not CSV_FILE.is_file():
@@ -77,6 +114,25 @@ def _write_rows(rows: dict[str, dict[str, str]]) -> None:
     temporary.replace(CSV_FILE)
 
 
+def _read_metadata() -> dict[str, dict[str, str | None]]:
+    metadata_file = DATA_DIR / "overrides.locations.json"
+    if not metadata_file.is_file():
+        return {}
+    try:
+        value = json.loads(metadata_file.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_metadata(metadata: dict[str, dict[str, str | None]]) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    metadata_file = DATA_DIR / "overrides.locations.json"
+    temporary = DATA_DIR / f"{metadata_file.name}.tmp"
+    temporary.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(metadata_file)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -94,8 +150,16 @@ def receive_override(payload: OverridePayload) -> dict[str, str]:
     key = payload.prefix + payload.code
     with WRITE_LOCK:
         rows = _read_rows()
+        metadata = _read_metadata()
         existed = key in rows
         if rows.get(key) != row:
             rows[key] = row
             _write_rows(rows)
+        metadata[key] = {
+            "standard": payload.standard,
+            "locationCityCode": payload.locationCityCode,
+            "locationCityName": payload.locationCityName,
+            "locationSource": payload.locationSource,
+        }
+        _write_metadata(metadata)
     return {"status": "updated" if existed else "created", "device_code": key}

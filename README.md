@@ -97,10 +97,10 @@ CI 构建使用同名环境变量 `TENCENT_MAP_WEB_SERVICE_KEY` 和 `TENCENT_MAP
 
 | 数据库 | Room 版本 | 内容 | 存储位置 |
 |---|---|---|---|
-| `transit.db` | v1 (AppDatabase) | 城市/线路/站点/读卡器设备 | assets/data/ → 应用私有目录 |
+| `transit.db` | v2 (AppDatabase) | 城市/线路/站点/读卡器设备（含线路级实际地点） | assets/data/ → 应用私有目录 |
 | `user_data.db` | v4 (UserDatabase) | 卡片/原始记录/交易归档 | 应用私有目录 |
 
-**重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致
+**重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致。当前 Room v2 identity hash 为 `54a2c8a30362af8a1d7aecd3d7d0f22f`。
 
 界面构建结果和地图路线等可再生成数据不进入用户数据库，而是按 JSON 文件存放在应用的 `cacheDir`：
 

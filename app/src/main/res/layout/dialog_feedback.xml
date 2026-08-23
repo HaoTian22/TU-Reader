@@ -122,6 +122,28 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="实际城市（请选择数据库城市）"
+                android:textColor="#666666"
+                android:textSize="12sp" />
+
+            <AutoCompleteTextView
+                android:id="@+id/feedbackCity"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_chip_default"
+                android:completionThreshold="1"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:textColor="#1A1A1A"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="线路（可留空）"
                 android:textColor="#666666"

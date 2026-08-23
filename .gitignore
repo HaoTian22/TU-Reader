@@ -12,3 +12,4 @@ tools/osm_coords/cache/*
 CLAUDE.md
 local.properties
 .claude
+tools/*_cache/

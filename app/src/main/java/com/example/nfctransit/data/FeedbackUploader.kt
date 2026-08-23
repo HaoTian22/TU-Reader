@@ -15,14 +15,20 @@ object FeedbackUploader {
         val type: String,
         val standard: String,
         val line: String,
-        val station: String
+        val station: String,
+        val locationCityCode: String? = null,
+        val locationCityName: String? = null,
+        val locationSource: String? = null
     )
 
     fun upload(
         context: Context,
         row: TransitOverrideRow,
         type: String,
-        standard: String
+        standard: String,
+        locationCityCode: String? = null,
+        locationCityName: String? = null,
+        locationSource: String? = null
     ): String {
         val endpoint = BuildConfig.FEEDBACK_UPLOAD_URL.trim()
         if (endpoint.isEmpty()) return "未配置公开上传地址"
@@ -35,7 +41,19 @@ object FeedbackUploader {
             setRequestProperty("Accept", "application/json")
         }
         return try {
-            val body = gson.toJson(Payload(row.prefix, row.code, type, standard, row.line, row.station))
+            val body = gson.toJson(
+                Payload(
+                    row.prefix,
+                    row.code,
+                    type,
+                    standard,
+                    row.line,
+                    row.station,
+                    locationCityCode,
+                    locationCityName,
+                    locationSource
+                )
+            )
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             when (val code = connection.responseCode) {
                 in 200..299 -> "公开纠错已上传"

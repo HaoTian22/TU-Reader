@@ -1,4 +1,5 @@
 import csv
+import json
 
 from fastapi.testclient import TestClient
 
@@ -41,7 +42,48 @@ def test_rejects_newline_and_extra_fields(tmp_path, monkeypatch):
         "station": "天河客运站",
         "unexpected": "x",
     }
+    assert client.post("/v1/overrides", json=payload).status_code == 422
 
+
+def test_accepts_location_metadata_and_keeps_standard(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(app, "CSV_FILE", tmp_path / "overrides.csv")
+    client = TestClient(app.app)
+    payload = {
+        "prefix": "6020",
+        "code": "0010101",
+        "type": "公交",
+        "standard": "TU",
+        "line": "1",
+        "station": "",
+        "locationCityCode": "6020",
+        "locationCityName": "东莞",
+        "locationSource": "PARENT_DIRECTORY",
+    }
+    assert client.post("/v1/overrides", json=payload).status_code == 201
+    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
+    assert metadata["60200010101"] == {
+        "standard": "TU",
+        "locationCityCode": "6020",
+        "locationCityName": "东莞",
+        "locationSource": "PARENT_DIRECTORY",
+    }
+
+
+def test_rejects_invalid_location_source(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(app, "CSV_FILE", tmp_path / "overrides.csv")
+    client = TestClient(app.app)
+    payload = {
+        "prefix": "6020",
+        "code": "0010101",
+        "type": "公交",
+        "standard": "TU",
+        "line": "1",
+        "station": "",
+        "locationSource": "free text",
+    }
+    assert client.post("/v1/overrides", json=payload).status_code == 422
 
 def test_accepts_independently_blank_line_or_station(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "DATA_DIR", tmp_path)

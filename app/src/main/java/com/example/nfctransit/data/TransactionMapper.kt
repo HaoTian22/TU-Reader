@@ -72,6 +72,13 @@ object TransactionMapper {
             else -> "-¥${String.format("%.2f", amountAbs)}"
         }
 
+        val declaredCityCode = rawCityCode ?: cityCode
+        val actualLocation = if (isRecharge) {
+            ActualLocation(null, "", LocationSource.DECLARED_CITY_FALLBACK)
+        } else {
+            TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode)
+        }
+
         return UiTransaction(
             id = index,
             seq = sequence ?: 0,
@@ -89,8 +96,8 @@ object TransactionMapper {
                 ?: resolved.lineName.takeIf { it.isNotBlank() && it != "—" }
                 ?: transitType,
             direction = direction,
-            cityName = if (isRecharge) "" else (resolved.cityCode?.let { TransitData.cityZh(it) } ?: ""),
-            cityCode = resolved.cityCode,
+            cityName = actualLocation.cityName,
+            cityCode = declaredCityCode,
             lineName = resolved.lineName,
             lineColor = resolved.lineColor,
             lineId = resolved.lineId,
@@ -106,7 +113,9 @@ object TransactionMapper {
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
             journeyHex = journeyHex,
             deviceCode = deviceCode,
-            spRule = spRule
+            spRule = spRule,
+            actualCityCode = actualLocation.cityCode,
+            locationSource = actualLocation.source
         )
     }
 

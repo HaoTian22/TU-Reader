@@ -15,6 +15,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.databinding.FragmentTransitOverridesBinding
 
@@ -119,9 +120,10 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             context = requireContext(),
             row = row,
             accentColor = accentColor
-        ) { prefix, code, type, line, station ->
+        ) { prefix, code, type, line, station, cityCode, _ ->
             val updated = TransitOverrideRow(
-                prefix.trim(), code.trim(), type.trim(), line.trim(), station.trim()
+                prefix.trim(), code.trim(), type.trim(), line.trim(), station.trim(),
+                cityCode.trim().takeIf { it.isNotEmpty() }
             )
             val error = validate(updated)
             if (error != null) {
@@ -151,6 +153,10 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         if (row.type.isBlank() || row.type.length > 32) return "Type 无效"
         if (row.line.length > 128) return "线路过长"
         if (row.station.length > 128) return "站名过长"
+        val locationCityCode = row.locationCityCode
+        if (locationCityCode.isNullOrBlank() ||
+            TransitData.cityOptions().none { it.code == locationCityCode }
+        ) return "请选择数据库中的实际城市"
         if (listOf(row.type, row.line, row.station).any { it.contains('\n') || it.contains('\r') }) {
             return "字段不能包含换行"
         }

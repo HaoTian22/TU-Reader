@@ -22,6 +22,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
 import com.example.nfctransit.model.UiTransaction
@@ -179,14 +180,18 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             line = line,
             station = station,
             type = txn.transitType,
+            actualCityCode = txn.actualCityCode,
+            actualCityName = txn.cityName,
             accentColor = accentColor
-        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, publish ->
+        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, publish ->
             val normalizedPrefix = enteredPrefix.trim()
             val normalizedCode = enteredCode.trim()
             val normalizedLine = enteredLine.trim()
             val normalizedStation = enteredStation.trim()
             val codeRegex = Regex("[0-9A-Za-z]+")
+            val cityValid = TransitData.cityOptions().any { it.code == enteredCityCode }
             val error = when {
+                !cityValid -> "请选择数据库中的实际城市"
                 !normalizedPrefix.matches(codeRegex) -> "请填写有效的 Prefix"
                 !normalizedCode.matches(codeRegex) -> "请填写有效的 Code"
                 normalizedLine.length > 128 || normalizedLine.contains('\n') || normalizedLine.contains('\r') ->
@@ -199,7 +204,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 android.widget.Toast.makeText(
                     requireContext(), error, android.widget.Toast.LENGTH_LONG
                 ).show()
-                return@feedback
+                return@feedback false
             }
             viewModel.saveFeedbackOverride(
                 txn,
@@ -208,8 +213,11 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 enteredType,
                 normalizedLine,
                 normalizedStation,
+                enteredCityCode,
+                enteredCityName,
                 publish
             )
+            true
         }
     }
 

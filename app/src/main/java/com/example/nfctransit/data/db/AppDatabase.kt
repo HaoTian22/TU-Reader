@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.io.File
 import kotlinx.coroutines.runBlocking
 
@@ -20,7 +22,7 @@ import kotlinx.coroutines.runBlocking
         StationEntity::class,
         ReaderDeviceEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +36,12 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `reader_device` ADD COLUMN `device_location` TEXT")
+            }
+        }
+
         /** databases/transit.db 是否已存在（getDatabasePath 不会创建文件）。 */
         fun hasDatabaseFile(context: Context): Boolean =
             context.getDatabasePath(DB_NAME).exists()
@@ -46,6 +54,7 @@ abstract class AppDatabase : RoomDatabase() {
                     DB_NAME
                 )
                     .createFromAsset(ASSET_PATH)
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also { instance = it }
             }
@@ -64,7 +73,9 @@ abstract class AppDatabase : RoomDatabase() {
             // 兼容性校验：schema 版本不同或文件损坏会在打开时抛 IllegalStateException
             val validation = Room.databaseBuilder(
                 appContext, AppDatabase::class.java, downloaded.absolutePath
-            ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE).build()
+            ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .addMigrations(MIGRATION_1_2)
+                .build()
             try {
                 runBlocking { validation.transitDao().countDevices() }
             } finally {

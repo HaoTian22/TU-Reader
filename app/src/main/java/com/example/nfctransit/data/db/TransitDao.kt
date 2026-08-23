@@ -24,6 +24,7 @@ data class StationResolution(
     @ColumnInfo(name = "standard") val standard: String,
     @ColumnInfo(name = "transit_type") val transitType: String,
     @ColumnInfo(name = "device_code") val deviceCode: String,
+    @ColumnInfo(name = "device_location") val deviceLocation: String?,
     @ColumnInfo(name = "match_key") val matchKey: String?,
     @ColumnInfo(name = "longitude") val longitude: Double? = null,
     @ColumnInfo(name = "latitude") val latitude: Double? = null
@@ -49,7 +50,7 @@ interface TransitDao {
         SELECT c.city_id, c.city_code, c.city_name, c.city_name_en,
                l.line_id, l.line_name, l.line_name_en, l.line_color,
                s.station_id, s.station_name, s.station_name_en,
-               r.standard, r.transit_type, r.device_code, r.match_key,
+               r.standard, r.transit_type, r.device_code, r.device_location, r.match_key,
                s.longitude, s.latitude
         FROM reader_device r
         JOIN city c ON c.city_id = r.city_id
@@ -88,7 +89,7 @@ interface TransitDao {
         """
         UPDATE reader_device
         SET standard = :standard, line_id = :lineId, station_id = :stationId,
-            transit_type = :transitType, updated_at = :updatedAt
+            transit_type = :transitType, device_location = :deviceLocation, updated_at = :updatedAt
         WHERE device_code = :deviceCode
         """
     )
@@ -98,6 +99,7 @@ interface TransitDao {
         lineId: Long?,
         stationId: Long?,
         transitType: String,
+        deviceLocation: String?,
         updatedAt: String
     )
 

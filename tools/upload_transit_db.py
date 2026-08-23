@@ -43,7 +43,7 @@ DEFAULT_OBJECT = "transit.db"
 DEFAULT_PUBLIC_URL = "https://assets2.haotian22.top/transit.db"
 DEFAULT_VERSION_OBJECT = "transit.db.version"
 DEFAULT_VERSION_PUBLIC_URL = "https://assets2.haotian22.top/transit.db.version"
-DEFAULT_HASH = "d655117dc122c44ad0b193eacfbeb8a4"
+DEFAULT_HASH = "54a2c8a30362af8a1d7aecd3d7d0f22f"
 
 
 def sha256_hex(data: bytes) -> str:

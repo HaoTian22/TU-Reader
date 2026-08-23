@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.StationResolution
+import com.google.gson.Gson
 import java.util.Locale
 import kotlinx.coroutines.runBlocking
 
@@ -47,6 +48,7 @@ object TransitData {
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
+        val deviceLocation: String? = null, // 无具体站点时由 CSV 上层目录确定的实际城市码
         val spRule: String? = null       // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行展示
     )
 
@@ -56,6 +58,9 @@ object TransitData {
     private var appContext: Context? = null
 
     private val cityInfos = mutableMapOf<String, CityInfo>()             // 城市码 -> 中英文名
+    private val cityBoundaries = mutableListOf<CityBoundary>()
+    @Volatile
+    private var boundaryVersion: String = "0"
     private val byDeviceCode = mutableMapOf<String, StationResolution>() // device_code -> 解析结果
     private val byMatchKey = mutableMapOf<String, StationResolution>()   // 去前导0 match_key -> 解析结果
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
@@ -126,6 +131,67 @@ object TransitData {
         ensureLoaded()
         val info = cityInfos[cityCode] ?: return "城市码:$cityCode"
         return if (info.en.isNullOrEmpty()) info.zh else "${info.zh} (${info.en})"
+    }
+
+    /** 当前数据库中可供反馈选择的城市。 */
+    fun cityOptions(): List<CityOption> {
+        ensureLoaded()
+        return cityInfos.entries
+            .map { (code, info) -> CityOption(code, info.zh, info.en) }
+            .sortedBy { it.displayName }
+    }
+
+    fun locationDataVersion(): String {
+        ensureLoaded()
+        return boundaryVersion
+    }
+
+    /** 根据站点 GEO、线路级设备地点和 declared city 生成实际地点。 */
+    fun actualLocation(
+        stationId: Long?,
+        deviceCode: String?,
+        declaredCityCode: String?
+    ): ActualLocation {
+        ensureLoaded()
+        val resolution = stationId?.let { byStationId[it] }
+        val longitude = resolution?.longitude
+        val latitude = resolution?.latitude
+        if (longitude != null && latitude != null && longitude.isFinite() && latitude.isFinite()) {
+            cityBoundaries.firstOrNull { boundary ->
+                boundary.polygons.any { polygon -> pointInPolygon(longitude, latitude, polygon) }
+            }?.let { boundary ->
+                return ActualLocation(boundary.cityCode, boundary.cityName, LocationSource.STATION_GEO)
+            }
+        }
+        val deviceLocation = deviceCode?.let { byDeviceCode[it]?.deviceLocation }
+        if (stationId == null && !deviceLocation.isNullOrBlank()) {
+            return ActualLocation(deviceLocation, cityZh(deviceLocation), LocationSource.PARENT_DIRECTORY)
+        }
+        val fallback = declaredCityCode?.takeIf { it.isNotBlank() }
+        return ActualLocation(fallback, fallback?.let(::cityZh).orEmpty(), LocationSource.DECLARED_CITY_FALLBACK)
+    }
+
+    private fun pointInPolygon(lon: Double, lat: Double, polygon: List<List<Double>>): Boolean {
+        if (polygon.size < 3) return false
+        var inside = false
+        var j = polygon.lastIndex
+        for (i in polygon.indices) {
+            val current = polygon[i]
+            val previous = polygon[j]
+            if (current.size < 2 || previous.size < 2) {
+                j = i
+                continue
+            }
+            val xi = current[0]
+            val yi = current[1]
+            val xj = previous[0]
+            val yj = previous[1]
+            val crosses = (yi > lat) != (yj > lat) &&
+                lon < (xj - xi) * (lat - yi) / (yj - yi) + xi
+            if (crosses) inside = !inside
+            j = i
+        }
+        return inside
     }
 
     /** 城市码 -> 中文城市名（如 "广州"），未知时返回原城市码 */
@@ -321,7 +387,8 @@ object TransitData {
     fun coordsByStationName(
         stationName: String,
         cityName: String = "",
-        lineName: String = ""
+        lineName: String = "",
+        cityCode: String? = null
     ): Pair<Double, Double>? {
         ensureLoaded()
         val wantedStation = normalizeLookupName(stationName)
@@ -331,8 +398,11 @@ object TransitData {
             .filter { it.longitude != null && it.latitude != null }
         if (stationMatches.isEmpty()) return null
 
+        val cityCodeMatches = cityCode?.let { code ->
+            stationMatches.filter { it.cityCode == code }
+        }.orEmpty().ifEmpty { stationMatches }
         val wantedCity = normalizeLookupName(cityName)
-        val cityMatches = stationMatches.filter { resolution ->
+        val cityMatches = cityCodeMatches.filter { resolution ->
             wantedCity.isNotEmpty() && sequenceOf(resolution.cityName, resolution.cityNameEn)
                 .filterNotNull()
                 .any { candidate ->
@@ -518,13 +588,42 @@ object TransitData {
             line,
             transitType
         ).firstOrNull { !it.isNullOrEmpty() } ?: ""
-        return StationEntry(deviceCode, transitType, line ?: "", station, lineColor, lineId, stationId, cityCode, spRule)
+        return StationEntry(
+            code = deviceCode,
+            type = transitType,
+            line = line ?: "",
+            station = station,
+            lineColor = lineColor,
+            lineId = lineId,
+            stationId = stationId,
+            cityCode = cityCode,
+            deviceLocation = deviceLocation,
+            spRule = spRule
+        )
+    }
+
+    private fun loadBoundaries(context: Context) {
+        cityBoundaries.clear()
+        boundaryVersion = "0"
+        try {
+            val asset = context.assets.open("$ROOT/city_boundaries.json")
+            asset.use { input ->
+                val json = input.reader(Charsets.UTF_8).use { it.readText() }
+                val data = Gson().fromJson(json, CityBoundaryAsset::class.java)
+                boundaryVersion = data.version.ifBlank { "0" }
+                cityBoundaries += data.cities.filter { it.cityCode.isNotBlank() && it.cityName.isNotBlank() }
+            }
+        } catch (e: Exception) {
+            Log.w("TransitData", "City boundary asset unavailable", e)
+        }
     }
 
     /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换） */
     fun reload() {
         synchronized(loadLock) {
             cityInfos.clear()
+            cityBoundaries.clear()
+            boundaryVersion = "0"
             byDeviceCode.clear()
             byMatchKey.clear()
             byStationId.clear()
@@ -548,6 +647,7 @@ object TransitData {
             if (loaded) return@ensureLoaded
             try {
                 val ctx = appContext ?: return@ensureLoaded
+                loadBoundaries(ctx)
                 runBlocking {
                     val dao = AppDatabase.get(ctx).transitDao()
                     for (c in dao.getAllCities()) {
