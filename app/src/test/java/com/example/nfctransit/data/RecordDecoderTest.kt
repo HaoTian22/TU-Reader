@@ -46,6 +46,7 @@ class RecordDecoderTest {
         assertFalse(TransitData.matchesTuTransitFamily("公交", TransitData.TuTransitFamily.RAIL))
         assertTrue(TransitData.matchesTuTransitFamily("公交", TransitData.TuTransitFamily.BUS))
         assertTrue(TransitData.matchesTuTransitFamily("BRT", TransitData.TuTransitFamily.BUS))
+        assertTrue(TransitData.matchesTuTransitFamily("有轨电车", TransitData.TuTransitFamily.BUS))
         assertFalse(TransitData.matchesTuTransitFamily("地铁", TransitData.TuTransitFamily.BUS))
     }
 

@@ -237,21 +237,25 @@ object TransitData {
 
     private data class CityMatch(
         val resolution: StationResolution,
+        val matchedIndex: Int,
         val matchedLength: Int,
         val spRule: String? = null
     )
 
-    /** 连表取优：优先选择 raw 重叠更长者；同长度才偏向原始城市。 */
+    /** 连表取优：先比较匹配起始位置，再比较重叠长度；同位置同长度才偏向原始城市。 */
     private fun pickBetter(a: CityMatch?, b: CityMatch?, preferCity: String): CityMatch? {
         if (a == null) return b
         if (b == null) return a
+        if (a.matchedIndex != b.matchedIndex) {
+            return if (a.matchedIndex < b.matchedIndex) a else b
+        }
         if (a.matchedLength != b.matchedLength) {
             return if (a.matchedLength > b.matchedLength) a else b
         }
         return if (a.resolution.cityCode == preferCity) a else b
     }
 
-    /** TU 匹配顺序固定为 raw 长重叠 → 终端精确。 */
+    /** TU 匹配顺序固定为 raw/终端从前往后扫描，起点相同再取更长重叠。 */
     private fun matchInCity(
         effectiveCity: String,
         lineCode: String,
@@ -261,22 +265,38 @@ object TransitData {
         expectedFamily: TuTransitFamily?
     ): CityMatch? {
         val isSZ = effectiveCity == "5180"
-        val body = if (isSZ) terminal else rawCode
-        if (!body.isNullOrEmpty()) {
+        val rawMatch = if (!rawCode.isNullOrEmpty() && (!isSZ || expectedFamily == TuTransitFamily.BUS)) {
             longestTuMatch(
                 effectiveCity,
-                body,
+                rawCode,
                 expectedFamily,
                 if (isSZ) SP_RULE_SHENZHEN else null
-            )?.let { return it }
+            )
+        } else null
+        val terminalMatch = if (isSZ && terminal.isNotEmpty()) {
+            longestTuMatch(
+                effectiveCity,
+                terminal,
+                expectedFamily,
+                SP_RULE_SHENZHEN,
+                minLength = 1
+            )
+        } else null
+        if (rawMatch != null || terminalMatch != null) {
+            return when {
+                rawMatch == null -> terminalMatch
+                terminalMatch == null -> rawMatch
+                rawMatch.matchedLength >= terminalMatch.matchedLength -> rawMatch
+                else -> terminalMatch
+            }
         }
-
         if (!isSZ && terminal.isNotEmpty()) {
             longestTuMatch(
                 effectiveCity,
                 terminal,
                 expectedFamily,
-                null
+                null,
+                minLength = 8
             )?.let { return it }
         }
         return null
@@ -286,10 +306,12 @@ object TransitData {
         prefix: String,
         body: String,
         expectedFamily: TuTransitFamily?,
-        spRule: String?
+        spRule: String?,
+        minLength: Int = 1
     ): CityMatch? {
         val candidate = prefix + body
         var best: StationResolution? = null
+        var bestIndex = Int.MAX_VALUE
         var bestLength = 0
         var bestAligned = false
         for (dev in deviceCodesByCity[prefix].orEmpty()) {
@@ -301,20 +323,22 @@ object TransitData {
                 listOf(dev)
             }
             for (pattern in patterns) {
-                if (pattern.isEmpty()) continue
+                if (pattern.length < minLength) continue
                 val index = candidate.indexOf(pattern, prefix.length)
                 if (index < prefix.length || index + pattern.length <= prefix.length) continue
                 val aligned = (index - prefix.length) % 2 == 0
-                if (pattern.length > bestLength ||
-                    (pattern.length == bestLength && aligned && !bestAligned)
+                if (index < bestIndex ||
+                    (index == bestIndex && pattern.length > bestLength) ||
+                    (index == bestIndex && pattern.length == bestLength && aligned && !bestAligned)
                 ) {
                     best = resolution
+                    bestIndex = index
                     bestLength = pattern.length
                     bestAligned = aligned
                 }
             }
         }
-        return best?.let { CityMatch(it, bestLength, spRule) }
+        return best?.let { CityMatch(it, bestIndex, bestLength, spRule) }
     }
 
     internal fun matchesTuTransitFamily(
@@ -324,7 +348,8 @@ object TransitData {
         val normalized = type?.trim()?.lowercase(Locale.ROOT).orEmpty()
         return when (expectedFamily) {
             TuTransitFamily.BUS -> normalized.contains("公交") || normalized.contains("brt") ||
-                normalized.contains("bus")
+                normalized.contains("bus") || normalized.contains("有轨电车") ||
+                normalized.contains("tram")
             TuTransitFamily.RAIL -> normalized.contains("地铁") || normalized.contains("城际") ||
                 normalized.contains("轨") || normalized.contains("metro") ||
                 normalized.contains("subway") || normalized.contains("tram") ||

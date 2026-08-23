@@ -11,7 +11,7 @@
 
 规则（由现有 transit.db 反推 build_db.py 的映射）：
   - device_code = City/Prefix + Code（广州 yct.csv 用 Prefix 列）。
-  - standard = CSV 文件名最后一个 '-' 段的大写（cu→CU, metro-tu→TU, metro-yct→YCT）。
+  - standard = 文件名中协议标识段的大写（cu→CU, metro-tu→TU, metro-yct→YCT）；其它后缀（如 1E）不覆盖协议标识。
   - line_code：优先复用现有 (city_id, line_name) 对应的 line_code；否则取该线路组里
     「空站名的表头行 Code」中最长的、能作为全部站点码前缀的那个（北京 1号线表头 Code=0100，
     深圳 10号线表头 Code=40）；仍取不到则用站点码公共前缀。
@@ -66,7 +66,11 @@ def read_csv(path):
 
 def standard_from(filename):
     stem = os.path.basename(filename).rsplit(".", 1)[0]
-    return stem.rsplit("-", 1)[-1].upper()
+    parts = [part.upper() for part in stem.split("-")]
+    for standard in ("YCT", "CU", "TU"):
+        if standard in parts:
+            return standard
+    return parts[-1]
 
 
 def common_prefix(codes):
