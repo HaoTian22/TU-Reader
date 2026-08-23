@@ -1,6 +1,5 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
     id 'androidx.navigation.safeargs.kotlin'
     id 'com.google.devtools.ksp'
 }
@@ -38,7 +37,7 @@ def feedbackUploadUrl = System.getenv('FEEDBACK_UPLOAD_URL')?.trim() ?: localPro
 def appVersionName = project.findProperty('versionName') ?: '1.0.0'
 
 android {
-    namespace 'com.example.nfctransit'
+    namespace = 'com.example.nfctransit'
     compileSdk 37
 
     defaultConfig {
@@ -55,12 +54,9 @@ android {
     }
 
     buildFeatures {
-        viewBinding true
-        buildConfig true
-    }
-
-    ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
+        viewBinding = true
+        buildConfig = true
+        resValues = true
     }
 
     signingConfigs {
@@ -78,10 +74,10 @@ android {
         release {
             minifyEnabled false
             if (releaseKeystoreConfigured) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             } else {
                 // 未配置 keystore：退回 debug 签名以便安装
-                signingConfig signingConfigs.debug
+                signingConfig = signingConfigs.debug
             }
         }
     }
@@ -89,8 +85,15 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    kotlinOptions {
-        jvmTarget = '1.8'
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
     }
 }
 
