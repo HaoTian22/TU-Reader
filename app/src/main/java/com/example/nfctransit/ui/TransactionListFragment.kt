@@ -7,6 +7,8 @@ import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
@@ -34,6 +36,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     /** 离开页面（进详情/切后台）时保存的滚动位置，返回后恢复一次；null = 无需恢复 */
     private var pendingScrollState: Parcelable? = null
     private var scrollRestored = false
+
+    /** 点击「查看上下文」后，等待完整列表提交，再滚动到该交易。 */
+    private var pendingContextTransactionId: Int? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -79,6 +84,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 scrollRestored = true
                 pendingScrollState?.let { binding.transactionList.layoutManager?.onRestoreInstanceState(it) }
             }
+            scrollToPendingContext()
         }
     }
 
@@ -143,6 +149,71 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
      *  无有效颜色时必须重置为默认灰色，否则 RecyclerView 复用时会残留上一行的线路色。 */
     private fun applyLineColor(line: TextView, color: String?) = line.applyLinePill(color)
 
+    private fun showTransactionActions(txn: UiTransaction, anchor: View) {
+        val density = resources.displayMetrics.density
+        val popupWidth = (150 * density).toInt()
+        val action = TextView(requireContext()).apply {
+            text = "查看上下文"
+            textSize = 15f
+            setTextColor(0xFF1A1A1A.toInt())
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (48 * density).toInt()
+            )
+        }
+        val content = LinearLayout(requireContext()).apply {
+            setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+            addView(action)
+        }
+        val popup = PopupWindow(
+            content,
+            popupWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        ).apply {
+            setBackgroundDrawable(GradientDrawable().apply {
+                cornerRadius = (12 * density)
+                setColor(0xFFFFFFFF.toInt())
+                setStroke((1 * density).toInt(), 0xFFE5E5EA.toInt())
+            })
+            isOutsideTouchable = true
+            elevation = 8 * density
+        }
+        action.setOnClickListener {
+            popup.dismiss()
+            showTransactionContext(txn)
+        }
+        popup.showAsDropDown(anchor, anchor.width - popupWidth, -anchor.height)
+    }
+
+    private fun showTransactionContext(txn: UiTransaction) {
+        pendingContextTransactionId = txn.id
+        selectedFilters.clear()
+        updateFilterButton()
+        viewModel.setFilter(emptySet())
+        binding.searchInput.setText("")
+        viewModel.setSearchQuery("")
+        scrollToPendingContext()
+    }
+
+    private fun scrollToPendingContext() {
+        val id = pendingContextTransactionId ?: return
+        val position = adapter.positionOf(id)
+        if (position < 0) return
+        binding.transactionList.post {
+            val list = _binding?.transactionList ?: return@post
+            val currentPosition = adapter.positionOf(id)
+            if (currentPosition < 0) return@post
+            (list.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(
+                currentPosition,
+                (list.height / 3).coerceAtLeast(0)
+            )
+            pendingContextTransactionId = null
+        }
+    }
+
     private fun updateCardBadgeBg() {
         // 卡信息标签背景用主题色淡色填充（保留 10dp 圆角）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
@@ -187,6 +258,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             items.addAll(list)
             notifyDataSetChanged()
         }
+
+        fun positionOf(id: Int): Int = items.indexOfFirst { it.id == id }
 
         override fun getItemCount(): Int = items.size
 
@@ -274,6 +347,10 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                     val action = TransactionListFragmentDirections
                         .actionTransactionListToTransactionDetail(txn.id)
                     findNavController().navigate(action)
+                }
+                itemView.setOnLongClickListener {
+                    showTransactionActions(txn, itemView)
+                    true
                 }
             }
         }
