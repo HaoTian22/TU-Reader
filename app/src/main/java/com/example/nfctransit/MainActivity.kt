@@ -2,6 +2,7 @@ package com.example.nfctransit
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Color
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
@@ -10,21 +11,40 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.fragment.NavHostFragment
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.ui.MainViewModel
+import com.example.nfctransit.ui.PredictiveBackFragmentAnimator
+import com.example.nfctransit.ui.PredictiveBackLayout
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 
 class MainActivity : AppCompatActivity() {
 
     private var nfcAdapter: NfcAdapter? = null
     private val viewModel: MainViewModel by viewModels()
+    private var predictiveBackAnimator: PredictiveBackFragmentAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 腾讯地图 SDK 合规：本应用无独立隐私弹窗，进入即视为同意地图组件隐私政策
         TencentMapInitializer.setAgreePrivacy(true)
         setContentView(R.layout.activity_main)
+
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        val predictiveBackLayout = findViewById<PredictiveBackLayout>(R.id.predictive_back_layout)
+        navHost.viewLifecycleOwnerLiveData.observe(this) { owner ->
+            if (owner != null && predictiveBackAnimator == null) {
+                navHost.requireView().setBackgroundColor(Color.TRANSPARENT)
+                predictiveBackAnimator = PredictiveBackFragmentAnimator(
+                    navHost.navController,
+                    navHost,
+                    predictiveBackLayout,
+                    navHost.requireView()
+                )
+                onBackPressedDispatcher.addCallback(this, predictiveBackAnimator!!)
+            }
+        }
 
         UiCache.clearOnPackageUpdate(applicationContext)
         TransitData.init(applicationContext)
@@ -33,6 +53,20 @@ class MainActivity : AppCompatActivity() {
         if (nfcAdapter == null) {
             Toast.makeText(this, R.string.nfc_not_supported, Toast.LENGTH_LONG).show()
         }
+    }
+
+    fun animatePredictiveBack() {
+        predictiveBackAnimator?.startBackNavigation()
+    }
+
+    fun capturePredictiveBackSnapshot() {
+        predictiveBackAnimator?.captureCurrentForNavigation()
+    }
+
+    override fun onDestroy() {
+        predictiveBackAnimator?.dispose()
+        predictiveBackAnimator = null
+        super.onDestroy()
     }
 
     override fun onResume() {

@@ -20,6 +20,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.db.DatabaseQueryEngine
 import com.example.nfctransit.data.db.DatabaseQueryResult
@@ -64,7 +65,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             return
         }
         databaseSpec = spec
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
         binding.tvDatabaseTitle.text = spec.displayName
         binding.tvPrompt.text = spec.prompt
         binding.btnCopyPrompt.setOnClickListener { copyPrompt(spec.prompt) }

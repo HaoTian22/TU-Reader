@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.DailySpending
@@ -37,6 +38,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
+
+    private fun capturePredictiveBackSnapshot() {
+        (activity as? MainActivity)?.capturePredictiveBackSnapshot()
+    }
+
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
     private var cardAdapter: CardPagerAdapter? = null
@@ -219,28 +225,35 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.btnSettings.typeface = fa
 
         binding.actionCardInfo.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_cardInfo)
         }
         binding.actionTransactions.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_transactionList)
         }
         binding.actionStats.setOnClickListener {
             // 首页进入统计页默认落在"本周"视图
             viewModel.setStatsPeriod("本周")
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_stats)
         }
         binding.actionMapTrace.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_mapTrace)
         }
         binding.btnSettings.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_settings)
         }
         binding.btnViewAll.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_transactionList)
         }
         binding.btnMiniStatsAll.setOnClickListener {
             // 迷你图固定为"本周"，跳转统计页也默认"本周"视图，保持一致
             viewModel.setStatsPeriod("本周")
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_home_to_stats)
         }
     }
@@ -438,6 +451,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             time.text = txn.date + " " + txn.time.substring(0, 5)
 
             itemView.setOnClickListener {
+                capturePredictiveBackSnapshot()
                 findNavController().navigate(R.id.action_home_to_transactionList)
             }
 

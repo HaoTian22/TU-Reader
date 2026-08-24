@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
@@ -30,7 +31,6 @@ import com.example.nfctransit.data.route.RoutePlan
 import com.example.nfctransit.data.route.TransitRouteQuery
 import com.example.nfctransit.data.route.TransitRouteRepository
 import com.example.nfctransit.databinding.FragmentMapTraceBinding
-import androidx.navigation.fragment.findNavController
 import com.tencent.tencentmap.mapsdk.maps.CameraUpdateFactory
 import com.tencent.tencentmap.mapsdk.maps.MapView
 import com.tencent.tencentmap.mapsdk.maps.TencentMap
@@ -136,7 +136,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         // 主题色跟随卡片；进度条填充改圆角
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->

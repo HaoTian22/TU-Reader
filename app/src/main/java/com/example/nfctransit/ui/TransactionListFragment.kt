@@ -16,6 +16,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentTransactionListBinding
 import com.example.nfctransit.model.UiTransaction
@@ -25,6 +26,11 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     private var _binding: FragmentTransactionListBinding? = null
     private val binding get() = _binding!!
+
+    private fun capturePredictiveBackSnapshot() {
+        (activity as? MainActivity)?.capturePredictiveBackSnapshot()
+    }
+
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
     /** 多选筛选中已勾选的类别（空 = 全部显示） */
@@ -52,7 +58,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         binding.transactionList.layoutManager = LinearLayoutManager(requireContext())
         binding.transactionList.adapter = adapter
@@ -346,6 +352,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 itemView.setOnClickListener {
                     val action = TransactionListFragmentDirections
                         .actionTransactionListToTransactionDetail(txn.id)
+                    capturePredictiveBackSnapshot()
                     findNavController().navigate(action)
                 }
                 itemView.setOnLongClickListener {

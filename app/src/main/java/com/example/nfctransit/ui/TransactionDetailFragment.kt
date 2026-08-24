@@ -18,9 +18,9 @@ import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
-import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
@@ -64,7 +64,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         // 主题色跟随卡片：返回按钮、badge、复制按钮一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->

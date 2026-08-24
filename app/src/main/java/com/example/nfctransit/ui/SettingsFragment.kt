@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.db.DatabaseQuerySpec
@@ -29,6 +30,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
+
+    private fun capturePredictiveBackSnapshot() {
+        (activity as? MainActivity)?.capturePredictiveBackSnapshot()
+    }
+
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
     private var pendingExportContent: String? = null
@@ -142,7 +148,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         // FontAwesome 字体从 assets 加载，应用到所有带 fa 标记的图标/箭头
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
@@ -220,6 +226,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
                 onSelect = { index ->
                     val spec = DatabaseQuerySpec.values()[index]
+                    capturePredictiveBackSnapshot()
                     findNavController().navigate(
                         R.id.action_settings_to_databaseQuery,
                         Bundle().apply { putString("databaseKey", spec.key) }
@@ -229,6 +236,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
 
         binding.root.findViewById<View>(R.id.rowTransitOverrides)?.setOnClickListener {
+            capturePredictiveBackSnapshot()
             findNavController().navigate(R.id.action_settings_to_transitOverrides)
         }
 

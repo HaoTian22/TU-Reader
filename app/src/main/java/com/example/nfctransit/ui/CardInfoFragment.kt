@@ -13,7 +13,7 @@ import android.widget.Toast
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.navigation.fragment.findNavController
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.db.CardAppEntity
@@ -53,7 +53,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
         binding.btnEditName.typeface = Typeface.createFromAsset(
             requireContext().assets,
             "fonts/fa-solid-900.ttf"

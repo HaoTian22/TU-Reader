@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.navigation.fragment.findNavController
+import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentStatsBinding
 import com.example.nfctransit.model.CategorySpending
@@ -46,7 +46,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+        binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         // 回到当前周期按钮的 ↻ 图标用 FontAwesome 渲染（汉字部分自动回退系统字体）
         binding.cardTrend.btnBackCurrent.typeface =
