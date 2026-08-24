@@ -183,16 +183,16 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 导出读取数据
         binding.rowExportData.setOnClickListener {
             pendingExportContent = buildDataReport()
-            pendingExportName = "tu-reader-data.txt"
-            exportLauncher.launch("tu-reader-data.txt")
+            pendingExportName = "transitu-data.txt"
+            exportLauncher.launch("transitu-data.txt")
         }
 
         // 导出 APDU 日志
         binding.rowExportLog.setOnClickListener {
             val log = viewModel.nfcLog.value?.joinToString("\n") ?: "暂无数据"
             pendingExportContent = log
-            pendingExportName = "tu-reader-apdu-log.txt"
-            exportLauncher.launch("tu-reader-apdu-log.txt")
+            pendingExportName = "transitu-apdu-log.txt"
+            exportLauncher.launch("transitu-apdu-log.txt")
         }
 
         // 已绑定卡片数量
@@ -483,7 +483,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                         pendingExportName = "transactions.json"
                         exportLauncher.launch("transactions.json")
                     }
-                    2 -> dbExportLauncher.launch("tu-reader-data.db")
+                    2 -> dbExportLauncher.launch("transitu-data.db")
                 }
             }
         )
@@ -539,7 +539,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private fun buildDataReport(): String {
         val sb = StringBuilder()
-        sb.appendLine("=== TU Reader 读取数据 ===")
+        sb.appendLine("=== TransitU 读取数据 ===")
 
         val card = viewModel.selectedCard.value
         if (card != null) {

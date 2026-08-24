@@ -101,7 +101,7 @@ class TencentTransitRouteClient(private val context: Context) {
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "TU-Reader/${appVersionName()}")
+        connection.setRequestProperty("User-Agent", "TransitU/${appVersionName()}")
         connection.setRequestProperty("x-legacy-url-decode", "no")
         return try {
             connection.connect()

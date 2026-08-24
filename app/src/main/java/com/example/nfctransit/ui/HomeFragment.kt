@@ -120,7 +120,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
-    /** 首页无数据时直接导入 TU Reader / TripReader 数据库备份。 */
+    /** 首页无数据时直接导入 TransitU / TripReader 数据库备份。 */
     private fun setupOldDataImport() {
         renderOldDataImportState(importing = isImportingOldData)
         binding.btnImportOldData.setOnClickListener {

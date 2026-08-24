@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TUReader" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.TransitU" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- 文本选中手柄：套用 appcompat 手柄轮廓，着色为 MD3 主色，取代原生蓝灰 -->
         <item name="android:textSelectHandle">@drawable/tu_text_select_handle_middle</item>
         <item name="android:textSelectHandleLeft">@drawable/tu_text_select_handle_left</item>

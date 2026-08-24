@@ -1,5 +1,8 @@
 <resources>
-    <string name="app_name">TU Reader</string>
+    <string name="app_name">行旅录</string>
+    <string name="brand_english_name">TransitU</string>
+    <string name="app_slogan">读交通卡，记每一程</string>
+    <string name="brand_lockup">TransitU · 读交通卡，记每一程</string>
 
     <!-- Home -->
     <string name="my_cards">我的卡片</string>
