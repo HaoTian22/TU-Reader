@@ -1,6 +1,30 @@
-# NFC 交通卡读取器
+<div align="center">
+  <h1>行旅录 · TransitU</h1>
+  <p><strong>读交通卡，记每一程</strong></p>
+  <p>把卡里的每一次经过，整理成可回看的出行记录。</p>
+</div>
 
-基于公开交通卡协议文档（NFC Wiki 智能卡手册）搭建的 Android NFC 交通卡读取应用，支持多种主流交通卡的余额、交易记录和统计数据读取。
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="25%"><strong>读卡</strong><br />余额 · 卡号 · 有效期</td>
+      <td align="center" width="25%"><strong>记账</strong><br />交易 · 充值 · 导出</td>
+      <td align="center" width="25%"><strong>分析</strong><br />趋势 · 频次 · 消费</td>
+      <td align="center" width="25%"><strong>回看</strong><br />地图 · 线路 · 行程</td>
+    </tr>
+  </table>
+</div>
+
+<p align="center">
+  <a href="https://github.com/HaoTian22/TU-Reader/actions/workflows/build-prerelease.yml"><img src="https://github.com/HaoTian22/TU-Reader/actions/workflows/build-prerelease.yml/badge.svg" alt="Build status" /></a>
+  <a href="https://github.com/HaoTian22/TU-Reader/releases"><img src="https://img.shields.io/github/v/release/HaoTian22/TU-Reader?include_prereleases&label=release" alt="Latest release" /></a>
+  <a href="https://github.com/HaoTian22/TU-Reader/blob/main/LICENSE"><img src="https://img.shields.io/github/license/HaoTian22/TU-Reader" alt="License" /></a>
+  <a href="https://github.com/HaoTian22/TU-Reader/stargazers"><img src="https://img.shields.io/github/stars/HaoTian22/TU-Reader?style=flat" alt="GitHub stars" /></a>
+</p>
+
+行旅录（TransitU）是一款专注于交通卡读取与出行记录的 Android 应用。将手机靠近交通卡，即可读取余额、交易记录和城市线路信息，把每一次经过都留存下来。
+
+基于公开交通卡协议文档（NFC Wiki 智能卡手册）搭建，支持多种主流交通卡的余额、交易记录和统计数据读取。
 
 **⚠️ 本项目 99% 由 AI 辅助开发（Vibe-Coding），基于公开协议文档实现。**
 
@@ -21,14 +45,43 @@
 - **优惠统计** — 本月乘车次数、累计优惠金额
 - **城市信息** — 发卡城市代码、线路信息
 
+### 分析图表
+- **消费趋势** — 按周、月、年或自定义时间范围查看消费变化
+- **核心指标** — 总消费、乘车次数、日均消费，快速了解出行开销
+- **高频出行** — 统计最常去的车站和最常乘坐的线路
+- **卡片优惠** — 查看月度乘车次数与累计优惠金额
+
+### 行程地图与路线
+- **地图轨迹** — 根据交易中的站点信息回看行程经过的城市、线路和车站
+- **路线播放** — 支持播放/暂停、播放速度调整，按时间顺序回放行程
+- **路线规划** — 结合腾讯地图站点搜索与公交路线规划，查看站点间的换乘方案
+- **换乘展示** — 可选择仅显示起终点，或展开完整换乘过程
+
+### 数据管理
+- **数据导出** — 支持 CSV、JSON、SQLite 数据库及读取日志导出
+- **站名更新** — 在线更新站名、线路和城市映射，无需重新安装应用
+- **本地优先** — 卡片与交易记录保存在设备本地，可单独清除或迁移
+
 ## 截图演示
 
-<div align="center">
-<img width="320" alt="主界面 - 卡片列表" src="https://github.com/user-attachments/assets/24c639c7-0086-455b-a588-ea10b1cb6009" />
-<img width="320" alt="读取详情 - 交易记录" src="https://github.com/user-attachments/assets/860dece1-ab59-4caf-afa1-dfd8e8c1286e" />
-<img width="320" alt="统计分析 - 乘车图表" src="https://github.com/user-attachments/assets/e6e1468e-2b22-40c7-b624-d9f726cd9bf8" />
-<img width="320" alt="设置 - 数据库更新" src="https://github.com/user-attachments/assets/a4634852-ee96-46b3-81d7-013e2aee6c5b" />
-</div>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img height="560" alt="主界面 - 卡片列表" src="https://github.com/user-attachments/assets/860dece1-ab59-4caf-afa1-dfd8e8c1286e" />
+    </td>
+    <td align="center" width="50%">
+      <img height="560" alt="交易记录 - 交易列表" src="https://github.com/user-attachments/assets/24c639c7-0086-455b-a588-ea10b1cb6009" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img height="560" alt="统计分析 - 消费与乘车图表" src="https://github.com/user-attachments/assets/e6e1468e-2b22-40c7-b624-d9f726cd9bf8" />
+    </td>
+    <td align="center" width="50%">
+      <img height="560" alt="交易记录 - 交易详情" src="https://github.com/user-attachments/assets/a4634852-ee96-46b3-81d7-013e2aee6c5b" />
+    </td>
+  </tr>
+</table>
 
 ## 快速开始
 
@@ -39,7 +92,7 @@
 
 ### 安装使用
 
-1. **下载 APK** — 从 [Releases](https://github.com/你的用户名/TU-Reader/releases) 下载最新版本
+1. **下载 APK** — 从 [Releases](https://github.com/HaoTian22/TU-Reader/releases) 下载最新版本
 2. **安装并打开** — 授权 NFC 权限
 3. **贴近卡片** — 将交通卡贴近手机背面 NFC 区域
 4. **查看结果** — 自动识别卡类型并显示详细信息
@@ -56,7 +109,7 @@
 
 ### 技术特点
 - 🔍 **自动卡类型识别** — 根据 AID (Application Identifier) 自动判断卡类型
-- 📱 **NFC-HCE 支持** — 基于 Android Host-based Card Emulation 实现
+- 👍 **统一智能匹配** — 通过线路/站点编码和终端号解析站点信息，连表取优：长度 → 2字符对齐 → 非0字符长度 → 起始位置
 - 🔄 **在线数据库更新** — 支持远程更新站名映射表，无需重新安装
 - 💾 **本地数据存储** — 使用 Room 数据库安全保存卡片信息
 
