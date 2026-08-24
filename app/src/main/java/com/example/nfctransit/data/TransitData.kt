@@ -206,7 +206,7 @@ object TransitData {
      *      5810 记录一律按双城联查解析并打 spRule 标记；5840 记录重定向到 5180 后解析（→ spRule 标记）
      *   1. 前缀分桶 + 最长重叠：只扫同前缀（=同城，device_code[:4]==city_code）reader_device，
      *      候选主体 = 深圳用终端号（其 [10..14) 非线路/站点，线路+站点编码在终端号里）、
-     *      其余用 raw [10..17) hex 切片；取最长重叠，同长优先字节对齐（真实站码按字节存，跨字节伪重叠不误取）
+     *      其余用 raw [10..17) hex 切片；候选按重叠长度、2字符对齐、非0字符长度、起始位置依次取优
      *   2. 终端号精确匹配（杭州 TU / 广州 YCT 等终端号城市）
      */
     fun resolveTuStation(
@@ -239,23 +239,41 @@ object TransitData {
         val resolution: StationResolution,
         val matchedIndex: Int,
         val matchedLength: Int,
+        val aligned: Boolean,
+        val nonZeroLength: Int,
         val spRule: String? = null
     )
 
-    /** 连表取优：先比较匹配起始位置，再比较重叠长度；同位置同长度才偏向原始城市。 */
+    /** 连表取优：长度 → 2字符对齐 → 非0字符长度 → 起始位置。 */
     private fun pickBetter(a: CityMatch?, b: CityMatch?, preferCity: String): CityMatch? {
         if (a == null) return b
         if (b == null) return a
-        if (a.matchedIndex != b.matchedIndex) {
-            return if (a.matchedIndex < b.matchedIndex) a else b
-        }
-        if (a.matchedLength != b.matchedLength) {
-            return if (a.matchedLength > b.matchedLength) a else b
-        }
+        if (isBetterTuCandidate(
+                length = a.matchedLength,
+                aligned = a.aligned,
+                nonZeroLength = a.nonZeroLength,
+                index = a.matchedIndex,
+                bestLength = b.matchedLength,
+                bestAligned = b.aligned,
+                bestNonZeroLength = b.nonZeroLength,
+                bestIndex = b.matchedIndex
+            )
+        ) return a
+        if (isBetterTuCandidate(
+                length = b.matchedLength,
+                aligned = b.aligned,
+                nonZeroLength = b.nonZeroLength,
+                index = b.matchedIndex,
+                bestLength = a.matchedLength,
+                bestAligned = a.aligned,
+                bestNonZeroLength = a.nonZeroLength,
+                bestIndex = a.matchedIndex
+            )
+        ) return b
         return if (a.resolution.cityCode == preferCity) a else b
     }
 
-    /** TU 匹配顺序固定为 raw/终端从前往后扫描，起点相同再取更长重叠。 */
+    /** TU 匹配顺序固定为重叠长度、2字符对齐、非0字符长度、起始位置。 */
     private fun matchInCity(
         effectiveCity: String,
         lineCode: String,
@@ -286,8 +304,7 @@ object TransitData {
             return when {
                 rawMatch == null -> terminalMatch
                 terminalMatch == null -> rawMatch
-                rawMatch.matchedLength >= terminalMatch.matchedLength -> rawMatch
-                else -> terminalMatch
+                else -> pickBetter(rawMatch, terminalMatch, effectiveCity)
             }
         }
         if (!isSZ && terminal.isNotEmpty()) {
@@ -302,6 +319,22 @@ object TransitData {
         return null
     }
 
+    internal fun isBetterTuCandidate(
+        length: Int,
+        aligned: Boolean,
+        nonZeroLength: Int,
+        index: Int,
+        bestLength: Int,
+        bestAligned: Boolean,
+        bestNonZeroLength: Int,
+        bestIndex: Int
+    ): Boolean = when {
+        length != bestLength -> length > bestLength
+        aligned != bestAligned -> aligned
+        nonZeroLength != bestNonZeroLength -> nonZeroLength > bestNonZeroLength
+        else -> index < bestIndex
+    }
+
     private fun longestTuMatch(
         prefix: String,
         body: String,
@@ -314,6 +347,7 @@ object TransitData {
         var bestIndex = Int.MAX_VALUE
         var bestLength = 0
         var bestAligned = false
+        var bestNonZeroLength = 0
         for (dev in deviceCodesByCity[prefix].orEmpty()) {
             val resolution = byDeviceCode[dev] ?: continue
             if (expectedFamily != null && !matchesTuTransitFamily(resolution.transitType, expectedFamily)) continue
@@ -327,18 +361,36 @@ object TransitData {
                 val index = candidate.indexOf(pattern, prefix.length)
                 if (index < prefix.length || index + pattern.length <= prefix.length) continue
                 val aligned = (index - prefix.length) % 2 == 0
-                if (index < bestIndex ||
-                    (index == bestIndex && pattern.length > bestLength) ||
-                    (index == bestIndex && pattern.length == bestLength && aligned && !bestAligned)
-                ) {
+                val nonZeroLength = pattern.count { it != '0' }
+                val better = isBetterTuCandidate(
+                    length = pattern.length,
+                    aligned = aligned,
+                    nonZeroLength = nonZeroLength,
+                    index = index,
+                    bestLength = bestLength,
+                    bestAligned = bestAligned,
+                    bestNonZeroLength = bestNonZeroLength,
+                    bestIndex = bestIndex
+                )
+                if (better) {
                     best = resolution
                     bestIndex = index
                     bestLength = pattern.length
                     bestAligned = aligned
+                    bestNonZeroLength = nonZeroLength
                 }
             }
         }
-        return best?.let { CityMatch(it, bestIndex, bestLength, spRule) }
+        return best?.let {
+            CityMatch(
+                resolution = it,
+                matchedIndex = bestIndex,
+                matchedLength = bestLength,
+                aligned = bestAligned,
+                nonZeroLength = bestNonZeroLength,
+                spRule = spRule
+            )
+        }
     }
 
     internal fun matchesTuTransitFamily(

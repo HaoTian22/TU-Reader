@@ -51,6 +51,58 @@ class RecordDecoderTest {
     }
 
     @Test
+    fun tuCandidatePriorityUsesLengthAlignmentNonZeroThenPosition() {
+        assertTrue(
+            TransitData.isBetterTuCandidate(
+                length = 8,
+                aligned = false,
+                nonZeroLength = 1,
+                index = 10,
+                bestLength = 7,
+                bestAligned = true,
+                bestNonZeroLength = 7,
+                bestIndex = 2
+            )
+        )
+        assertTrue(
+            TransitData.isBetterTuCandidate(
+                length = 8,
+                aligned = true,
+                nonZeroLength = 1,
+                index = 10,
+                bestLength = 8,
+                bestAligned = false,
+                bestNonZeroLength = 8,
+                bestIndex = 2
+            )
+        )
+        assertTrue(
+            TransitData.isBetterTuCandidate(
+                length = 8,
+                aligned = true,
+                nonZeroLength = 8,
+                index = 10,
+                bestLength = 8,
+                bestAligned = true,
+                bestNonZeroLength = 7,
+                bestIndex = 2
+            )
+        )
+        assertTrue(
+            TransitData.isBetterTuCandidate(
+                length = 8,
+                aligned = true,
+                nonZeroLength = 8,
+                index = 2,
+                bestLength = 8,
+                bestAligned = true,
+                bestNonZeroLength = 8,
+                bestIndex = 10
+            )
+        )
+    }
+
+    @Test
     fun tuType03And04AreEntryAndExitForAnyTransitFamily() {
         assertEquals(TransitDirection.ENTRY, RecordDecoder.tuDirectionForType(0x03))
         assertEquals(TransitDirection.EXIT, RecordDecoder.tuDirectionForType(0x04))

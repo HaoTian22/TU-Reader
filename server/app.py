@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 import re
 import tempfile
@@ -15,6 +16,19 @@ HEADER = ["Prefix", "Code", "Type", "Line", "Station"]
 DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).with_name("data")))
 CSV_FILE = DATA_DIR / "overrides.csv"
 WRITE_LOCK = Lock()
+
+LOGGER = logging.getLogger("tu_reader.server")
+LOGGER.setLevel(logging.INFO)
+if not LOGGER.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S%z",
+        )
+    )
+    LOGGER.addHandler(handler)
+LOGGER.propagate = False
 
 app = FastAPI(title="TU-Reader feedback")
 
@@ -162,4 +176,11 @@ def receive_override(payload: OverridePayload) -> dict[str, str]:
             "locationSource": payload.locationSource,
         }
         _write_metadata(metadata)
-    return {"status": "updated" if existed else "created", "device_code": key}
+    status = "updated" if existed else "created"
+    LOGGER.info(
+        "override received status=%s device_code=%s content=%s",
+        status,
+        key,
+        json.dumps(payload.model_dump(exclude_none=True), ensure_ascii=False, separators=(",", ":")),
+    )
+    return {"status": status, "device_code": key}
