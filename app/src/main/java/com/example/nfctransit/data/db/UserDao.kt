@@ -101,6 +101,9 @@ interface UserDao {
     @Query("SELECT * FROM card_app WHERE card_id = :cardId ORDER BY read_at DESC, row_id DESC")
     suspend fun getCardApps(cardId: String): List<CardAppEntity>
 
+    @Query("SELECT * FROM card_app")
+    suspend fun getAllCardApps(): List<CardAppEntity>
+
     @Query("DELETE FROM card_app WHERE card_id = :cardId")
     suspend fun clearCardApps(cardId: String)
 }

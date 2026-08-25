@@ -29,6 +29,24 @@ import java.util.UUID
 /** 导入数据库的结果统计（新增卡片/原始记录/交易行数） */
 data class ImportSummary(val cards: Int, val raw: Int, val archive: Int)
 
+private data class CardAppImportKey(
+    val cardId: String,
+    val readAt: Long,
+    val selectedAid: String,
+    val selectResp: String,
+    val balanceFen: Long?,
+    val balanceResp: String?
+)
+
+private fun CardAppEntity.cardAppImportKey(cardId: String) = CardAppImportKey(
+    cardId = cardId,
+    readAt = readAt,
+    selectedAid = selectedAid,
+    selectResp = selectResp,
+    balanceFen = balanceFen,
+    balanceResp = balanceResp
+)
+
 /**
  * 用户数据仓库：协调 Room 用户库（cards/raw_records/transactions_archive）、
  * DataStore（轻量设置）与日志文件（SessionLogStore）。
@@ -168,6 +186,7 @@ class TransitRepository(private val context: Context) {
         val importedCards = srcDao.getAllCards()
         val importedRaws = srcDao.getAllRawRecords()
         val importedArchives = srcDao.getAllArchive()
+        val importedApps = srcDao.getAllCardApps()
         src.close()
 
         val now = System.currentTimeMillis()
@@ -211,6 +230,15 @@ class TransitRepository(private val context: Context) {
                     raw.copy(cardId = targetId, rowId = 0, firstSeenAt = now, lastSeenAt = now)
                 )
                 newRaw++
+            }
+        }
+
+        val existingAppKeys = dao.getAllCardApps()
+            .mapTo(mutableSetOf()) { it.cardAppImportKey(it.cardId) }
+        for (app in importedApps) {
+            val targetId = idMap[app.cardId] ?: continue
+            if (existingAppKeys.add(app.cardAppImportKey(targetId))) {
+                dao.insertCardApp(app.copy(cardId = targetId, rowId = 0))
             }
         }
 
