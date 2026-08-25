@@ -264,7 +264,7 @@ SELECT 1002 → SFI 0x1A → 12 个月逐月余额
 #### 6. 住建部 CU
 ```
 SFI 0x18
-FI 0x10
+SFI 0x10
 SFI 0x06
 上海: SFI 0x1A
 ```
