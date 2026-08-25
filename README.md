@@ -188,13 +188,13 @@ cache/
 
 | AID / 命令 | 命中即判定 |
 |---|---|
-| A00000000386980701 | 交通联合（代码日志"CU"） |
-| A000000632010105 | 住建部 CPU（日志"TU"） |
-| PAY.SZT | 深圳通 |
-| SUXIN.DDF01 | 苏州（需 PIN） |
-| SZTK_ZYY | 苏州 CIKA |
-| PAY.APPY | 岭南通 YCT1 |
-| PAY.TICL | 岭南通 YCT2 |
+| A00000000386980701 | 住建部 CPU 交通卡 / 数字城市一卡通（CU） |
+| A000000632010105 | 交通联合 |
+| PAY.SZT（AID使用ASCII解析） | 深圳通 |
+| SUXIN.DDF01（AID使用ASCII解析） | 苏州（需 PIN） |
+| SZTK_ZYY（AID使用ASCII解析） | 苏州 CIKA |
+| PAY.APPY（AID使用ASCII解析） | 岭南通 YCT1 |
+| PAY.TICL（AID使用ASCII解析） | 岭南通 YCT2 |
 | 91560000 144D4F542E424D4143303031 | 北京 |
 | D1560000 15B9ABB9B2D3A6D3C3 | 天津 |
 | 00 A4 00 00 02 3F 00/01 | SELECT MF / 3F01 |

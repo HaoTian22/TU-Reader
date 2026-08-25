@@ -15,6 +15,11 @@ import java.util.Calendar
  * 参考：wiki.nfc.im 智能卡手册 交通卡章节 APDU/SFI 定义
  *     + tripreader-technical.md（Trip Reader 1.7.17 逆向：APDU 序列与字段偏移）
  */
+internal fun parseSztCardNumber(data: ByteArray): String {
+    val cardNumberBytes = data.copyOfRange(16, 20).reversedArray()
+    return ApduUtil.hexToLong(cardNumberBytes).toString()
+}
+
 class TransitCardReader(private val isoDep: IsoDep) {
 
     private val TAG = "TransitCardReader"
@@ -521,9 +526,13 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 validFrom = ApduUtil.bcdToString(data.copyOfRange(20, 24))
                 validTo = ApduUtil.bcdToString(data.copyOfRange(24, 28))
             }
-            // 应用序列号（卡号）: offset 10-19 (10B BCD)，IIN 取前 8 位匹配卡名
+            // 应用序列号（卡号）：SZT 使用专用 4 字节倒序规则，其他卡种使用 10 字节 BCD
             val cardNumber = if (data.size >= 20) {
-                ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
+                if (profile.cardType == "SZT") {
+                    parseSztCardNumber(data)
+                } else {
+                    ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
+                }
             } else ""
             CardInfo(profile.name, validFrom, validTo, cardNumber, hex)
         } catch (e: Exception) {

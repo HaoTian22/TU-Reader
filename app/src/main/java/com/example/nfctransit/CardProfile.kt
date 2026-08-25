@@ -3,7 +3,6 @@ package com.example.nfctransit
 /**
  * 交通卡卡种档案：AID / 关键 SFI / 交易记录字段布局
  * 数据来源：NFC Wiki 智能卡手册 (wiki.nfc.im) 交通卡章节
- *        + tripreader-technical.md（Trip Reader 1.7.17 逆向：APDU 序列与识别顺序）
  * 覆盖：岭南通(YCT1/PAY.APPY、YCT2/PAY.TICL)、深圳通(SZT)、苏州(SUXIN/SZTK)、
  *       天津(TFT)、数字城市一卡通(CU)、交通联合卡(TU)
  * 识别顺序（首个 SELECT 成功即判定卡型）见 CardProfiles.known 的排列顺序。
