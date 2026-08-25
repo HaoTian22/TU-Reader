@@ -13,7 +13,6 @@ import java.util.Calendar
  * 4. 收集各交易区原始 hex（SFI 0x18 + 附加区 + TU 0x1E），带 protocol 标签，
  *    由 RecordDecoder 统一解码为 CanonicalTransaction（读卡展示与启动渲染共用同一条解析路径）
  * 参考：wiki.nfc.im 智能卡手册 交通卡章节 APDU/SFI 定义
- *     + tripreader-technical.md（Trip Reader 1.7.17 逆向：APDU 序列与字段偏移）
  */
 internal fun parseSztCardNumber(data: ByteArray): String {
     val cardNumberBytes = data.copyOfRange(16, 20).reversedArray()

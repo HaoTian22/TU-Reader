@@ -308,11 +308,24 @@ class TransitRepository(private val context: Context) {
             }
 
             val hasLnt = src.isLNT == true || src.isYCT || lntRows.isNotEmpty()
-            val importedCardType = if (src.isSZT) "SZT" else if (hasLnt) "YCT" else "TU"
+            val importedCardType = when {
+                src.isSZT -> "SZT"
+                src.isCU -> "CU"
+                hasLnt -> "YCT"
+                else -> "TU"
+            }
             val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
             val cardId = if (existing != null) {
                 val merged = mergeCardNumbers(existing, src.cdNo, src.cdNo2).let {
-                    if (importedCardType == "SZT") it.copy(cardType = "SZT") else it
+                    if (importedCardType in setOf("SZT", "CU")) {
+                        it.copy(cardType = importedCardType)
+                    } else {
+                        it
+                    }
+                }.let {
+                    src.cdBalance.takeIf { balance -> balance >= 0 }?.let { balance ->
+                        it.copy(latestBalanceFen = balance)
+                    } ?: it
                 }
                 if (merged != existing) {
                     dao.upsertCard(merged)
