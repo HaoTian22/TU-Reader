@@ -457,10 +457,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val logLines = result.rawLog
         val appRows = cardAppsByCard[cardId].orEmpty()
         viewModelScope.launch(Dispatchers.IO) {
-            repo.upsertCard(entity)
-            repo.syncRawRecords(cardId, rawRecords)
-            repo.archiveTransactions(cardId, decoded.archive)
-            repo.syncCardApps(cardId, appRows)
+            repo.persistNfcRead(entity, rawRecords, decoded.archive, appRows)
             repo.setCardOrder(cardEntities.map { it.cardId })
             repo.writeSessionLog(cardId, logLines)
             // 写库完成后以数据库为唯一来源重建内存与 UI（读卡后与重启走同一条 decodeArchive 路径，

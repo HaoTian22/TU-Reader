@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
@@ -54,7 +55,8 @@ private fun CardAppEntity.cardAppImportKey(cardId: String) = CardAppImportKey(
  */
 class TransitRepository(private val context: Context) {
 
-    private val dao = UserDatabase.get(context).userDao()
+    private val database = UserDatabase.get(context)
+    private val dao = database.userDao()
 
     // ── cards ──
 
@@ -130,6 +132,20 @@ class TransitRepository(private val context: Context) {
         }
     }
 
+    suspend fun persistNfcRead(
+        card: CardEntity,
+        rawRecords: List<RawRecord>,
+        transactions: List<CanonicalTransaction>,
+        apps: List<CardAppEntity>
+    ) {
+        database.withTransaction {
+            dao.upsertCard(card)
+            syncRawRecords(card.cardId, rawRecords)
+            archiveTransactions(card.cardId, transactions)
+            syncCardApps(card.cardId, apps)
+        }
+    }
+
     suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =
         dao.getArchive(cardId)
 
@@ -165,7 +181,9 @@ class TransitRepository(private val context: Context) {
     /** 导出用户库为单文件：先 checkpoint WAL 到主库，再整体拷贝（避免只拷主文件丢失 WAL 中未落盘数据） */
     suspend fun exportDatabase(dest: Uri) {
         val db = UserDatabase.get(context)
-        db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").close()
+        db.openHelper.writableDatabase
+            .query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .use { cursor -> cursor.moveToFirst() }
         val src = context.getDatabasePath(UserDatabase.DB_NAME)
         val out = context.contentResolver.openOutputStream(dest)
             ?: throw IOException("无法写入目标文件")

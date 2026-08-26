@@ -17,7 +17,7 @@ import java.util.Calendar
  */
 object RecordDecoder {
 
-    /** 读卡时带槽位的原始记录；recNo 是物理槽位，LNT 年份推断按内容开头的 Record No. 排序 */
+    /** 读卡时带槽位的原始记录；recNo 是卡内物理循环槽位，LNT 年份推断按 recNo 顺序处理 */
     data class ZoneRecord(
         val sfi: Int,
         val recNo: Int,
@@ -127,27 +127,10 @@ object RecordDecoder {
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
 
-                // 统计月份缺失时，用 TU 交易锚点兜底 LNT 年份（mmdd 对齐，否则出现最多的年份）
-                val finalLnt = if (statsMonth == null && tuMerged.isNotEmpty() && lnt.isNotEmpty()) {
-                    val anchor = tuMerged.mapNotNull { t ->
-                        if (t.date.length >= 8) t.date.substring(4, 8) to t.date.take(4) else null
-                    }.toMap()
-                    val fallback = tuMerged.mapNotNull { t ->
-                        if (t.date.length >= 8) t.date.take(4) else null
-                    }.groupBy { it }.maxByOrNull { it.value.size }?.key
-                    if (anchor.isNotEmpty() || fallback != null) {
-                        lnt.map { t ->
-                            val mmdd = t.date.takeLast(4)
-                            val y = anchor[mmdd] ?: fallback
-                            if (y != null && y != t.date.take(4)) t.copy(date = y + mmdd) else t
-                        }
-                    } else lnt
-                } else lnt
-
-                val display = (finalLnt + tuMerged).sortedWith(
+                val display = (lnt + tuMerged).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
-                DecodeResult(display, finalLnt + tu.journey + tuFare)
+                DecodeResult(display, lnt + tu.journey + tuFare)
             }
             "CU" -> {
                 val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
@@ -293,7 +276,7 @@ object RecordDecoder {
 
     /**
      * 从 SFI 0x1E 循环记录建立 终端→站点 映射表 + 余额映射表 + 旅程交易（进站/出站事件）。
-     * 空槽（整条全 0）跳过。返回按记录号排序处理后的结果。
+     * 空槽（整条全 0）跳过。返回按物理 recNo 顺序处理后的结果。
      */
     private fun buildTuMap(records: List<ZoneRecord>): TuMap {
         val stationMap = mutableMapOf<String, StationRef>()
@@ -403,18 +386,13 @@ object RecordDecoder {
         storedBalance: Map<String, Long?>? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
-        var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) else null
         val hasSubtype18 = cardType == "CU" || (cardType == "YCT" && isLnt)
-        var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) else null
         val today = todayDate()
-        val orderedRecords = if (isLnt || hasSubtype18) {
-            records.sortedWith(
-                compareByDescending<ZoneRecord> { contentRecordNo(it.hex) ?: -1 }
-                    .thenBy { it.recNo }
-            )
-        } else {
-            records.sortedBy { it.recNo }
-        }
+        val todayMonth = today.substring(4, 6).toInt()
+        var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) ?: currentYear else null
+        var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) ?: todayMonth else null
+        // LNT content sequence counters are independent across transaction types; only recNo is chronological.
+        val orderedRecords = records.sortedBy { it.recNo }
         val results = mutableListOf<CanonicalTransaction>()
 
         for (rec in orderedRecords) {
@@ -702,11 +680,6 @@ object RecordDecoder {
             }
         }
         return best
-    }
-
-    private fun contentRecordNo(hex: String): Int? {
-        val data = ApduUtil.hexToBytes(hex)
-        return if (data.size >= 2) ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt() else null
     }
 
     private fun todayDate(): String {
