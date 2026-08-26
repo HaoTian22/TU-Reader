@@ -513,7 +513,9 @@ class TransitRepository(private val context: Context) {
             cardId = cardId,
             cardNumber = src.cdNo,
             secondCardNumber = src.cdNo2.ifEmpty { null },
-            name = TransitData.cardName(src.cdNo) ?: src.cdTitle,
+            name = sequenceOf(src.cdNo, src.cdNo2)
+                .mapNotNull(TransitData::cardName)
+                .firstOrNull() ?: src.cdTitle,
             cardType = cardType,
             lastFour = src.cdNo.takeLast(4).ifEmpty { src.cdNo2.takeLast(4) },
             gradientStartColor = gradient.first,
