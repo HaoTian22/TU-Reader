@@ -104,7 +104,7 @@ object RecordDecoder {
             "TU" -> {
                 val tu = buildTuMap(records)
                 val fare = parseFareRecords(cardType, records, "TU", tu, currentYear, null)
-                val display = mergeJourneyAndFare(tu.journey, fare).sortedWith(
+                val display = mergeForDisplay(mergeJourneyAndFare(tu.journey, fare)).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
                 DecodeResult(display, tu.journey + fare)
@@ -127,7 +127,7 @@ object RecordDecoder {
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
 
-                val display = (lnt + tuMerged).sortedWith(
+                val display = mergeForDisplay(lnt + tuMerged).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
                 DecodeResult(display, lnt + tu.journey + tuFare)
@@ -143,7 +143,7 @@ object RecordDecoder {
                     "TU", tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
-                val display = (cu + tuMerged).sortedWith(
+                val display = mergeForDisplay(cu + tuMerged).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
                 DecodeResult(display, cu + tu.journey + tuFare)
@@ -163,7 +163,7 @@ object RecordDecoder {
                     cardType, tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
-                val display = (szt + tuMerged).sortedWith(
+                val display = mergeForDisplay(szt + tuMerged).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
                 DecodeResult(display, szt + tu.journey + tuFare)
@@ -171,8 +171,9 @@ object RecordDecoder {
             else -> {
                 // 通用（CU/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
                 val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null)
-                val display = fare.distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
-                    .sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
+                val display = mergeForDisplay(fare).sortedWith(
+                    compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
+                )
                 DecodeResult(display, fare)
             }
         }
@@ -238,9 +239,9 @@ object RecordDecoder {
             }
             else -> parseFareRecords(
                 cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
-            ).distinctBy { "${it.date}|${it.time}|${it.terminal}|${it.amountFen}|${it.typeHex}" }
+            )
         }
-        return mergeByIdentity(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
+        return mergeForDisplay(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
     }
 
     /** 多个 canonical 的协议并集（优先用 protocols 集合，空则回退单 protocol），去重保持顺序 */
@@ -267,6 +268,39 @@ object RecordDecoder {
             else group[0].copy(protocols = unionProtocols(*group.toTypedArray()))
         }
     }
+
+    /** 展示层合并：同内容或跨应用写入的同一笔交易只保留一条。 */
+    fun mergeForDisplay(list: List<CanonicalTransaction>): List<CanonicalTransaction> {
+        if (list.size <= 1) return list
+        val byKey = LinkedHashMap<DisplayKey, CanonicalTransaction>()
+        for (transaction in mergeByIdentity(list)) {
+            val key = DisplayKey(
+                date = transaction.date,
+                time = transaction.time,
+                amountFen = transaction.amountFen,
+                terminal = transaction.terminal,
+                typeHex = transaction.typeHex
+            )
+            val previous = byKey[key]
+            if (previous == null) {
+                byKey[key] = transaction
+            } else {
+                val protocols = unionProtocols(previous, transaction)
+                if (protocols != previous.protocols) {
+                    byKey[key] = previous.copy(protocols = protocols)
+                }
+            }
+        }
+        return byKey.values.toList()
+    }
+
+    private data class DisplayKey(
+        val date: String,
+        val time: String,
+        val amountFen: Long?,
+        val terminal: String,
+        val typeHex: String
+    )
 
     internal fun tuDirectionForType(typeByte: Int): TransitDirection? = when (typeByte) {
         0x03 -> TransitDirection.ENTRY

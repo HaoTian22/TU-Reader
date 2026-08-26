@@ -1260,29 +1260,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _statsSummary.value = computeStatsSummary(periodTxns, start, end)
     }
 
-    /** 内容去重合并（identity = content_hash；同内容变体合并为一条并保留协议并集，内容不同追加为新 key） */
+    /** 展示层合并（identity + 时间/金额/终端号/类型），内容不同但同一笔跨应用交易也只显示一条。 */
     private fun mergeCanonical(
         existing: List<CanonicalTransaction>,
         fresh: List<CanonicalTransaction>
-    ): List<CanonicalTransaction> {
-        val byId = existing.associateBy { it.identity }.toMutableMap()
-        val order = existing.map { it.identity }.toMutableList()
-        for (t in fresh) {
-            val prev = byId[t.identity]
-            if (prev == null) {
-                byId[t.identity] = t
-                order.add(t.identity)
-            } else {
-                val union = RecordDecoder.unionProtocols(prev, t)
-                if (union.isNotEmpty() && union != prev.protocols) {
-                    byId[t.identity] = prev.copy(protocols = union)
-                }
-            }
-        }
-        return order.map { byId[it]!! }.sortedWith(
-            compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
-        )
-    }
+    ): List<CanonicalTransaction> = RecordDecoder.mergeForDisplay(existing + fresh).sortedWith(
+        compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
+    )
 
     private fun filterTransactions(
         txns: List<UiTransaction>,

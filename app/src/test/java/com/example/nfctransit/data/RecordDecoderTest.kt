@@ -148,6 +148,30 @@ class RecordDecoderTest {
         )
     }
 
+    @Test
+    fun mergeForDisplayMergesSameTransactionAcrossProtocols() {
+        val cu = transaction("cu").copy(protocol = "CU")
+        val tu = transaction("tu").copy(protocol = "TU")
+
+        val merged = RecordDecoder.mergeForDisplay(listOf(cu, tu))
+
+        assertEquals(1, merged.size)
+        assertEquals(setOf("CU", "TU"), merged.single().protocols)
+    }
+
+    @Test
+    fun mergeForDisplayKeepsTransactionsWhenDisplayKeyDiffers() {
+        val base = transaction("base")
+        val variants = listOf(
+            base.copy(identity = "time", time = "120001"),
+            base.copy(identity = "amount", amountFen = 300),
+            base.copy(identity = "terminal", terminal = "4131000001"),
+            base.copy(identity = "type", typeHex = "02")
+        )
+
+        assertEquals(5, RecordDecoder.mergeForDisplay(listOf(base) + variants).size)
+    }
+
     private fun lntRecord(
         recNo: Int,
         sequence: Int,
@@ -174,9 +198,9 @@ class RecordDecoderTest {
 
     private fun transaction(
         identity: String,
-        cityCode: String,
-        rawCityCode: String,
-        stationName: String
+        cityCode: String = "0755",
+        rawCityCode: String = "0755",
+        stationName: String = "公共交通"
     ) = CanonicalTransaction(
         identity = identity,
         sequence = 1,
