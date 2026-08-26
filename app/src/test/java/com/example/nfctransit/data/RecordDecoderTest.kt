@@ -149,6 +149,40 @@ class RecordDecoderTest {
     }
 
     @Test
+    fun cuAndTu18CopiesWithSameTransactionFieldsMerge() {
+        val records = listOf(
+            RecordDecoder.ZoneRecord(
+                sfi = 0x18,
+                recNo = 1,
+                protocol = "CU",
+                hex = "00070000C8000001900941310088943720260606194202"
+            ),
+            RecordDecoder.ZoneRecord(
+                sfi = 0x18,
+                recNo = 1,
+                protocol = "TU",
+                hex = "0007000320000001900941310088943720260606194202"
+            ),
+            RecordDecoder.ZoneRecord(
+                sfi = 0x1E,
+                recNo = 1,
+                protocol = "TU",
+                hex = "040000000263033114010000000000001600000190000000C820260606194202584012215840FFFF"
+            )
+        )
+        val decoded = RecordDecoder.decodeCard("CU", records, null, 2026)
+
+        assertEquals(1, decoded.display.size)
+        assertEquals("194202", decoded.display.single().time)
+        assertEquals(setOf("CU", "TU"), decoded.display.single().protocols)
+        assertEquals(
+            listOf("00070000C8000001900941310088943720260606194202"),
+            decoded.display.single().rawVariants.map { it.hex }
+        )
+        assertEquals(3, decoded.archive.size)
+    }
+
+    @Test
     fun mergeForDisplayMergesSameTransactionAcrossProtocols() {
         val cu = transaction("cu").copy(protocol = "CU")
         val tu = transaction("tu").copy(protocol = "TU")

@@ -5,6 +5,12 @@ package com.example.nfctransit.model
  * 站点映射、文案、图标改动时只需重新映射为 UiTransaction，不影响 NFC 原始数据。
  * 金额/余额统一为 Long 分，UI 层再转元。
  */
+data class RawHexBlock(
+    val sfi: Int,
+    val protocol: String,
+    val hex: String
+)
+
 data class CanonicalTransaction(
     /** 内容去重键 = content_hash（SHA-256(hex)），不含 rec_no（rec_no 只是卡内循环槽位） */
     val identity: String,
@@ -35,6 +41,8 @@ data class CanonicalTransaction(
     val spRule: String? = null,
     /** 1E 旅程记录对应的原始 hex（TU 卡 1E+18 合并展示时携带，详情页原始数据显示两份）；仅内存，不落库 */
     val journeyHex: String? = null,
+    /** 合并展示交易的其他原始记录（如跨应用的另一份 0x18）；仅内存，不落库 */
+    val rawVariants: List<RawHexBlock> = emptyList(),
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
     val protocols: Set<String> = emptySet()
 )

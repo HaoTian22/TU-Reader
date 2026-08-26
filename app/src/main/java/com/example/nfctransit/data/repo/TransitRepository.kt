@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.TransitData
@@ -37,6 +38,12 @@ private data class CardAppImportKey(
     val selectResp: String,
     val balanceFen: Long?,
     val balanceResp: String?
+)
+
+private data class ArchiveKey(
+    val contentHash: String,
+    val protocol: String,
+    val sfi: String
 )
 
 private fun CardAppEntity.cardAppImportKey(cardId: String) = CardAppImportKey(
@@ -128,6 +135,52 @@ class TransitRepository(private val context: Context) {
             if (inserted == -1L) {
                 // 完全一样（同内容同协议同扇区）→ 只更新 last_seen_at；不同协议/扇区的变体已作为新行插入
                 dao.touchArchive(cardId, t.identity, t.protocol, t.sfi.toSfiHex(), now)
+            }
+        }
+    }
+
+    suspend fun backfillArchiveFromRaw(
+        cardId: String,
+        cardType: String,
+        rawRecords: List<RawRecord>,
+        currentYear: Int
+    ): Boolean {
+        val profile = CardProfiles.known.firstOrNull { it.cardType == cardType }
+        val transactionSfis = profile?.transactionSfis ?: setOf(0x18)
+        val records = rawRecords
+            .filter { it.sfi in transactionSfis }
+            .map { RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex) }
+        if (records.isEmpty()) return false
+
+        fun archiveKey(contentHash: String, protocol: String, sfi: String) =
+            ArchiveKey(contentHash, protocol, sfi)
+
+        val existingKeys = dao.getArchive(cardId).mapTo(mutableSetOf()) {
+            archiveKey(it.contentHash, it.protocol, it.sfi)
+        }
+        if (records.none { archiveKey(RecordDecoder.contentHash(it.hex), it.protocol, it.sfi.toSfiHex()) !in existingKeys }) {
+            return false
+        }
+
+        val statsMonth = RecordDecoder.parseTuDiscountStats(rawRecords)?.statsMonth
+        val decoded = RecordDecoder.decodeCard(cardType, records, statsMonth, currentYear)
+        val missing = decoded.archive.filter {
+            archiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) !in existingKeys
+        }
+        if (missing.isEmpty()) return false
+
+        return database.withTransaction {
+            val currentKeys = dao.getArchive(cardId).mapTo(mutableSetOf()) {
+                archiveKey(it.contentHash, it.protocol, it.sfi)
+            }
+            val pending = missing.filter {
+                archiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) !in currentKeys
+            }
+            if (pending.isEmpty()) {
+                false
+            } else {
+                archiveTransactions(cardId, pending)
+                true
             }
         }
     }

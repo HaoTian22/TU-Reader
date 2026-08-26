@@ -2,6 +2,7 @@ package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import java.security.MessageDigest
@@ -274,24 +275,64 @@ object RecordDecoder {
         if (list.size <= 1) return list
         val byKey = LinkedHashMap<DisplayKey, CanonicalTransaction>()
         for (transaction in mergeByIdentity(list)) {
-            val key = DisplayKey(
-                date = transaction.date,
-                time = transaction.time,
-                amountFen = transaction.amountFen,
-                terminal = transaction.terminal,
-                typeHex = transaction.typeHex
-            )
-            val previous = byKey[key]
-            if (previous == null) {
-                byKey[key] = transaction
+            val exactKey = displayKey(transaction)
+            val exact = byKey[exactKey]
+            if (exact != null) {
+                byKey[exactKey] = mergeDisplayVariants(exact, transaction)
+                continue
+            }
+
+            // 跨应用 0x18 可能把末字节按不同格式解析；其他字段相同且界面时间同分钟时合并。
+            val crossAppKey = byKey.entries.firstOrNull { (key, existing) ->
+                key.date == transaction.date &&
+                    key.time.take(4) == transaction.time.take(4) &&
+                    key.amountFen == transaction.amountFen &&
+                    key.terminal == transaction.terminal &&
+                    key.typeHex == transaction.typeHex &&
+                    transactionProtocols(existing) != transactionProtocols(transaction)
+            }?.key
+            if (crossAppKey != null) {
+                byKey[crossAppKey] = mergeDisplayVariants(byKey.getValue(crossAppKey), transaction)
             } else {
-                val protocols = unionProtocols(previous, transaction)
-                if (protocols != previous.protocols) {
-                    byKey[key] = previous.copy(protocols = protocols)
-                }
+                byKey[exactKey] = transaction
             }
         }
         return byKey.values.toList()
+    }
+
+    private fun displayKey(transaction: CanonicalTransaction) = DisplayKey(
+        date = transaction.date,
+        time = transaction.time,
+        amountFen = transaction.amountFen,
+        terminal = transaction.terminal,
+        typeHex = transaction.typeHex
+    )
+
+    private fun transactionProtocols(transaction: CanonicalTransaction): Set<String> =
+        unionProtocols(transaction)
+
+    private fun mergeDisplayVariants(
+        first: CanonicalTransaction,
+        second: CanonicalTransaction
+    ): CanonicalTransaction {
+        val preferred = if (first.journeyHex == null && second.journeyHex != null) second else first
+        val primaryBlocks = buildList {
+            add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex))
+            preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
+        }.toSet()
+        val allBlocks = buildList {
+            addAll(first.rawVariants)
+            addAll(second.rawVariants)
+            add(RawHexBlock(first.sfi, first.protocol, first.hex))
+            first.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
+            add(RawHexBlock(second.sfi, second.protocol, second.hex))
+            second.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
+        }
+        val variants = allBlocks.distinct().filterNot { it in primaryBlocks }
+        return preferred.copy(
+            rawVariants = variants,
+            protocols = unionProtocols(first, second)
+        )
     }
 
     private data class DisplayKey(
@@ -605,7 +646,7 @@ object RecordDecoder {
         if (journey.isEmpty()) return fare
         val fareByTs = fare.groupBy { it.date + it.time }
         // 1E 旅程是 TU 站点权威来源：0x18 终端号是卡发行前缀（如广州卡 4131…），在外地（如深圳）时
-        // 无法定位站，必须用同时间戳的 1E 记录取站点/线路/余额。journeyHex 也取 1E 的原始记录。
+        // 无法定位站，必须用同时间戳的 1E 记录取站点/线路/方向/余额。journeyHex 也取 1E 的原始记录。
         val journeyByTs = journey.groupBy { it.date + it.time }
         val out = mutableListOf<CanonicalTransaction>()
         for (f in fare) {

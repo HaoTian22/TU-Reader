@@ -310,10 +310,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()
         val cardId = card.cardId
-        val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
         val rawRecs = repo.loadRawRecords(cardId).map {
             RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
         }
+        repo.backfillArchiveFromRaw(
+            cardId = cardId,
+            cardType = card.cardType,
+            rawRecords = rawRecs,
+            currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        )
+        val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
         val appRows = repo.loadCardApps(cardId)
             .groupBy { it.selectedAid }
             .values

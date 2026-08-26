@@ -40,6 +40,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
+    private data class RawBlock(val sfi: Int, val protocol: String, val hex: String)
     private var feedbackDialog: Dialog? = null
     private var feedbackProgressToast: Toast? = null
     private val feedbackToastHandler = Handler(Looper.getMainLooper())
@@ -298,27 +299,35 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
-    /** 原始数据：展示该交易在 transactions_archive 中的 hex，按解析字段位置着色；TU 卡同时有 0x18 与 0x1E 时两份都显示，框底附颜色图例 */
+    /** 原始数据：展示该交易在 transactions_archive 中的所有 hex，按解析字段位置着色。 */
     private fun bindRawHex(txn: UiTransaction) {
         val hexContainer = binding.hexPanel
         hexContainer.removeAllViews()
         val mainHex = txn.hex
         val journeyHex = txn.journeyHex
-        if (mainHex.isBlank() && journeyHex.isNullOrBlank()) {
+        val variants = txn.rawVariants.orEmpty()
+        if (mainHex.isBlank() && journeyHex.isNullOrBlank() && variants.isEmpty()) {
             rawHexToCopy = ""
             addMonospaceLine(binding.hexPanel, "无该交易原始数据", dim = true)
             return
         }
-        val blocks = mutableListOf<Pair<Int, String>>()  // (sfi, hex)
+        val blocks = mutableListOf<RawBlock>()
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
             appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol)
-            blocks.add(txn.sfi to mainHex)
+            blocks.add(RawBlock(txn.sfi, txn.protocol, mainHex))
             sb.append(mainHex)
         }
-        if (!journeyHex.isNullOrBlank() && journeyHex != mainHex) {
+        for (variant in variants) {
+            if (variant.hex.isBlank() || blocks.any { it.hex == variant.hex } || variant.hex == journeyHex) continue
+            appendHexBlock(binding.hexPanel, variant.sfi, variant.hex, variant.protocol)
+            blocks.add(RawBlock(variant.sfi, variant.protocol, variant.hex))
+            if (sb.isNotEmpty()) sb.append('\n')
+            sb.append(variant.hex)
+        }
+        if (!journeyHex.isNullOrBlank() && journeyHex != mainHex && blocks.none { it.hex == journeyHex }) {
             appendHexBlock(binding.hexPanel, 0x1E, journeyHex, "TU")
-            blocks.add(0x1E to journeyHex)
+            blocks.add(RawBlock(0x1E, "TU", journeyHex))
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
         }
@@ -328,10 +337,12 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         addMonospaceLine(binding.hexPanel, if (txn.spRule != null) "$matchCode ${txn.spRule}" else matchCode)
         // 颜色图例：含义 + 区域 + 解析方式 + 颜色
         addDivider(binding.hexPanel)
-        for ((sfi, hex) in blocks) {
-            val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, txn.protocol)
+        for (block in blocks) {
+            val fields = RawHexFormatter.fieldsFor(
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol
+            )
             if (fields.isEmpty()) continue
-            addMonospaceLine(binding.hexPanel, "SFI ${sfi.toSfiHex()} fields", dim = true)
+            addMonospaceLine(binding.hexPanel, "SFI ${block.sfi.toSfiHex()} fields", dim = true)
             for (f in fields) addLegendRow(binding.hexPanel, f)
         }
         rawHexToCopy = buildCopyText(sb.toString(), blocks, txn)
@@ -339,19 +350,21 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     private fun buildCopyText(
         rawValue: String,
-        blocks: List<Pair<Int, String>>,
+        blocks: List<RawBlock>,
         txn: UiTransaction
     ): String {
         val out = StringBuilder(rawValue)
         out.append("\n\n")
-        for ((sfi, hex) in blocks) {
-            val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, txn.protocol)
+        for (block in blocks) {
+            val fields = RawHexFormatter.fieldsFor(
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol
+            )
             if (fields.isEmpty()) continue
-            out.append("SFI ${sfi.toSfiHex()}\n")
+            out.append("SFI ${block.sfi.toSfiHex()}\n")
             for (f in fields) {
                 val methodPart = if (f.method.isEmpty()) "" else " ${f.method}"
                 out.append("[${f.label} ${rangeText(f.start, f.end)}$methodPart] ")
-                    .append(hexRange(hex, f.start, f.end))
+                    .append(hexRange(block.hex, f.start, f.end))
                     .append('\n')
             }
         }
