@@ -96,7 +96,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     private fun setupSearchAndFilter() {
         // 漏斗/搜索图标用 FontAwesome（fa-filter / fa-magnifying-glass）
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         binding.filterButton.typeface = fa
         binding.searchIcon.typeface = fa
         // 搜索框：输入即过滤（时间/站点/类型/城市/金额/协议/原始值等）
@@ -257,7 +257,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         private val items = mutableListOf<UiTransaction>()
         // lazy：适配器在 Fragment 构造时即创建（字段初始化，见 onViewCreated 前 adapter 字段），此时尚未 attach，
         // requireContext() 会抛 IllegalStateException；首次 bind（已 attach）时才真正加载字体
-        private val fa by lazy { Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf") }
+        private val fa by lazy { Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf") }
 
         fun submit(list: List<UiTransaction>) {
             items.clear()

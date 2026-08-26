@@ -216,7 +216,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun setupQuickActions() {
         // 快捷操作图标用 FontAwesome 字体渲染
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         binding.iconCardInfo.typeface = fa
         binding.iconTransactions.typeface = fa
         binding.iconStats.typeface = fa
@@ -439,7 +439,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (isEntry || isExit) {
                 dirIcon.visibility = View.VISIBLE
                 dirIcon.typeface =
-                    Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+                    Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
                 // 入站 = U+F090 箭头进框（绿），出站 = U+F08B 箭头出框（红）
                 dirIcon.text = if (isEntry) "" else ""
                 dirIcon.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
@@ -713,7 +713,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 // 右上角删除按钮
                 val deleteBtn = TextView(page.context).apply {
                     text = ""
-                    typeface = Typeface.createFromAsset(page.context.assets, "fonts/fa-solid-900.ttf")
+                    typeface = Typeface.createFromAsset(page.context.assets, "fonts/fa-solid-900.otf")
                     setTextColor(0xE6FFFFFF.toInt())
                     textSize = 17f
                     gravity = android.view.Gravity.CENTER

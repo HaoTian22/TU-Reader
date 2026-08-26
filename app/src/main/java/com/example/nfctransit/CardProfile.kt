@@ -116,7 +116,7 @@ data class CardInfo(
     val cardName: String,
     val validFrom: String,
     val validTo: String,
-    val cardNumber: String = "",  // 应用序列号（卡号），来自 SFI 0x15 bytes 10-19 BCD
+    val cardNumber: String = "",  // 应用序列号（卡号），字段布局按卡型解析
     val rawHex: String,
     val issuerCode: String? = null
 )

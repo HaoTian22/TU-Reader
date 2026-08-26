@@ -56,7 +56,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
         binding.btnEditName.typeface = Typeface.createFromAsset(
             requireContext().assets,
-            "fonts/fa-solid-900.ttf"
+            "fonts/fa-solid-900.otf"
         )
         binding.btnChangeColor.typeface = binding.btnEditName.typeface
         binding.btnEditName.setOnClickListener { showRenameDialog() }

@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.CardProfiles
+import com.example.nfctransit.parseCuCardNumber
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.TransitData
@@ -68,6 +69,28 @@ class TransitRepository(private val context: Context) {
     // ── cards ──
 
     suspend fun loadCards(): List<CardEntity> = dao.getAllCards()
+
+    suspend fun migrateCuCardNumbers(): List<CardEntity> = database.withTransaction {
+        val cards = dao.getAllCards()
+        val rawByCard = dao.getAllRawRecords().groupBy { it.cardId }
+        val migrated = cards.map { card ->
+            if (card.cardType != "CU") return@map card
+            val info = rawByCard[card.cardId].orEmpty().firstOrNull {
+                it.sfi == "0x15" && it.recNo == 0
+            } ?: return@map card
+            val data = ApduUtil.hexToBytes(info.hex)
+            if (data.size < 20) return@map card
+            val cardNumber = parseCuCardNumber(data)
+            if (cardNumber.isEmpty() || cardNumber == card.cardNumber) {
+                card
+            } else {
+                card.copy(cardNumber = cardNumber, lastFour = cardNumber.takeLast(4))
+            }
+        }
+        migrated.filterIndexed { index, card -> card != cards[index] }
+            .forEach { dao.upsertCard(it) }
+        migrated
+    }
 
     suspend fun findCardByCardNumber(cardNumber: String): CardEntity? =
         dao.findByCardNumber(cardNumber)

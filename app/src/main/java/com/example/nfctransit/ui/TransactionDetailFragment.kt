@@ -95,7 +95,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         // 复制原始数据按钮
         binding.btnCopyHex.typeface =
-            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         binding.btnFeedbackHex.typeface = binding.btnCopyHex.typeface
         binding.btnCopyHex.setOnClickListener {
             if (rawHexToCopy.isNotBlank()) {
@@ -254,7 +254,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
         val detailAmountText = if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText
         // 进出站图标用 FontAwesome：入站 = 箭头进框，出站 = 箭头出框
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         val fields = listOf(
             "交易时间" to txn.displayDateTime,
             "地点" to placeText,

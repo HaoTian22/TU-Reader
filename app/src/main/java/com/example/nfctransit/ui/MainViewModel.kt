@@ -12,6 +12,7 @@ import androidx.room.withTransaction
 import com.example.nfctransit.CardProfile
 import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.parseLegacyCuCardNumber
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.data.CardUiCache
 import com.example.nfctransit.data.RawRecord
@@ -248,7 +249,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
-            val cards = repo.loadCards()
+            val cards = repo.migrateCuCardNumbers()
                 .map { card ->
                     val mappedName = sequenceOf(card.cardNumber, card.secondCardNumber.orEmpty())
                         .filter { it.isNotEmpty() }
@@ -386,6 +387,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val profile = result.matchedProfile ?: return null
         val cardNumber = result.cardInfo?.cardNumber ?: ""
         val secondCardNumber = result.secondCardInfo?.cardNumber ?: ""
+        val legacyCardNumber = if (profile.cardType == "CU") {
+            result.cardInfo?.rawHex?.let { parseLegacyCuCardNumber(ApduUtil.hexToBytes(it)) }.orEmpty()
+        } else ""
         val balanceFen = result.balanceFen
         val displayName = cardDisplayName(profile, cardNumber, secondCardNumber)
 
@@ -415,9 +419,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var existing = if (cardNumber.isNotEmpty()) {
             cardEntities.firstOrNull { it.cardNumber == cardNumber }
         } else null
+        if (existing == null && legacyCardNumber.isNotEmpty() && legacyCardNumber != cardNumber) {
+            existing = cardEntities.firstOrNull {
+                it.cardNumber == legacyCardNumber || it.secondCardNumber == legacyCardNumber
+            }
+        }
         if (existing == null && secondCardNumber.isNotEmpty()) {
             existing = cardEntities.firstOrNull {
                 it.cardNumber == secondCardNumber || it.secondCardNumber == secondCardNumber
+            }
+        }
+        if (existing == null && profile.cardType == "CU") {
+            val infoHex = result.cardInfo?.rawHex.orEmpty()
+            if (infoHex.isNotEmpty()) {
+                existing = cardEntities.firstOrNull { card ->
+                    rawRecordsByCard[card.cardId].orEmpty().any { raw ->
+                        raw.sfi == profile.infoSfi && raw.recNo == 0 &&
+                            raw.hex.equals(infoHex, ignoreCase = true)
+                    }
+                }
             }
         }
         if (existing == null) existing = cardEntities.firstOrNull { it.lastFour == lastFour }

@@ -3,6 +3,7 @@ package com.example.nfctransit
 import android.nfc.tech.IsoDep
 import android.util.Log
 import com.example.nfctransit.data.RawRecord
+import java.math.BigInteger
 import java.util.Calendar
 
 /**
@@ -17,6 +18,15 @@ import java.util.Calendar
 internal fun parseSztCardNumber(data: ByteArray): String {
     val cardNumberBytes = data.copyOfRange(16, 20).reversedArray()
     return ApduUtil.hexToLong(cardNumberBytes).toString()
+}
+
+internal fun parseLegacyCuCardNumber(data: ByteArray): String {
+    if (data.size < 20) return ""
+    return ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
+}
+
+internal fun parseCuCardNumber(data: ByteArray): String {
+    return BigInteger(1, data.copyOfRange(12, 20)).toString()
 }
 
 class TransitCardReader(private val isoDep: IsoDep) {
@@ -525,12 +535,12 @@ class TransitCardReader(private val isoDep: IsoDep) {
                 validFrom = ApduUtil.bcdToString(data.copyOfRange(20, 24))
                 validTo = ApduUtil.bcdToString(data.copyOfRange(24, 28))
             }
-            // 应用序列号（卡号）：SZT 使用专用 4 字节倒序规则，其他卡种使用 10 字节 BCD
+            // 应用序列号（卡号）：SZT 使用 4 字节倒序规则，CU 使用 8 字节 HEX，其他卡种使用 10 字节 BCD
             val cardNumber = if (data.size >= 20) {
-                if (profile.cardType == "SZT") {
-                    parseSztCardNumber(data)
-                } else {
-                    ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
+                when (profile.cardType) {
+                    "SZT" -> parseSztCardNumber(data)
+                    "CU" -> parseCuCardNumber(data)
+                    else -> ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
                 }
             } else ""
             CardInfo(profile.name, validFrom, validTo, cardNumber, hex)

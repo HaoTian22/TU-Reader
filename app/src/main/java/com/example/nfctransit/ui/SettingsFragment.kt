@@ -151,7 +151,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
         // FontAwesome 字体从 assets 加载，应用到所有带 fa 标记的图标/箭头
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         fun applyFaFont(view: View) {
             if (view.tag == "fa" && view is TextView) view.typeface = fa
             if (view is ViewGroup) {

@@ -154,6 +154,29 @@ object RawHexFormatter {
                 FieldSpec("Institution", 48, 52, "hex", INSTITUTION).takeIf { size >= 52 }
             ).filterNotNull()
         }
+        if (sfi == 0x15 && protocol == "CU" && size >= 30) {
+            return listOf(
+                FieldSpec("Issuer Code", 0, 2, "BCD", INSTITUTION),
+                FieldSpec("City / Project Code", 2, 4, "hex", AREA),
+                FieldSpec("Multi-Algorithm Support", 4, 5, "BCD", SELECT_UNKNOWN),
+                FieldSpec("Industry Code", 5, 6, "BCD", SELECT_UNKNOWN),
+                FieldSpec("Reserved", 6, 8, "hex", SELECT_UNKNOWN),
+                FieldSpec("Interoperability Enabled", 8, 9, "hex", SELECT_SFI),
+                FieldSpec("Application Version", 9, 10, "hex", SELECT_LABEL),
+                FieldSpec("Interoperability ID", 10, 12, "hex", SELECT_SFI),
+                FieldSpec("Card Number", 12, 20, "HEX→dec", CARD_NUMBER),
+                FieldSpec("Issue Date", 20, 24, "BCD", ISSUE_DATE),
+                FieldSpec("Valid Until", 24, 28, "BCD", VALID_UNTIL),
+                FieldSpec("Reserved", 28, 30, "hex", SELECT_UNKNOWN)
+            )
+        }
+        if (sfi == 0x15 && protocol == "SZT" && size >= 28) {
+            return listOf(
+                FieldSpec("Card Number", 16, 20, "HEX reverse→dec", CARD_NUMBER),
+                FieldSpec("Issue Date", 20, 24, "BCD", ISSUE_DATE),
+                FieldSpec("Valid Until", 24, 28, "BCD", VALID_UNTIL)
+            )
+        }
         if (sfi == 0x15 && size >= 28) {
             return listOf(
                 FieldSpec("Card Number", 10, 20, "BCD", CARD_NUMBER),
@@ -172,6 +195,29 @@ object RawHexFormatter {
                 FieldSpec("Timestamp", 25, 32, "BCD", TIMESTAMP),
                 FieldSpec("Area", 32, 34, "BCD", AREA),
                 FieldSpec("Institution", 34, 42, "hex", INSTITUTION)
+            )
+        }
+        if (sfi == 0x17 && protocol == "CU" && size >= 3) {
+            return listOf(
+                FieldSpec("Record Identifier", 0, 1, "hex", RECORD),
+                FieldSpec("Composite Data Length", 1, 2, "hex", RECORD),
+                FieldSpec("Composite Lock Flag", 2, 3, "hex", SELECT_SFI),
+                FieldSpec("Application Custom Data", 3, minOf(48, size), "custom", RAW)
+            ).filter { it.start < it.end }
+        }
+        if (protocol == "CU" && sfi in setOf(0x18, 0x10, 0x06, 0x1A) && size >= 23) {
+            val typeLabel = when (sfi) {
+                0x1A -> "Recharge Type"
+                else -> "Transaction Type"
+            }
+            return listOf(
+                FieldSpec("Record No.", 0, 2, "dec", RECORD),
+                FieldSpec("Reserved", 2, 5, "hex", SELECT_UNKNOWN),
+                FieldSpec("Amount", 5, 9, "hex", AMOUNT),
+                FieldSpec(typeLabel, 9, 10, "hex", TYPE),
+                FieldSpec("Terminal", 10, 16, "BCD", TERMINAL),
+                FieldSpec("Date", 16, 20, "BCD", TIMESTAMP),
+                FieldSpec("Time", 20, 23, "BCD", TIMESTAMP)
             )
         }
         if (sfi == 0x18 && size >= 23 && protocol == "LNT") {

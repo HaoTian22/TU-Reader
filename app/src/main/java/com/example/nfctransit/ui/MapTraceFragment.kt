@@ -209,7 +209,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun wireControls() {
         // 播放控件图标用 FontAwesome（fa-play/fa-pause/fa-step-backward/fa-step-forward）
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         binding.btnPrev.typeface = fa
         binding.btnPlay.typeface = fa
         binding.btnNext.typeface = fa

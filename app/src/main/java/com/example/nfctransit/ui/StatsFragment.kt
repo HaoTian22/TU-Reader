@@ -50,7 +50,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         // 回到当前周期按钮的 ↻ 图标用 FontAwesome 渲染（汉字部分自动回退系统字体）
         binding.cardTrend.btnBackCurrent.typeface =
-            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.ttf")
+            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
 
         // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
         // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认

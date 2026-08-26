@@ -70,7 +70,7 @@ object DateRangeDialog {
         dialog.setCancelable(true)
 
         // FontAwesome 图标
-        val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.ttf")
+        val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
         fun icon(code: String, size: Int, color: Int) = TextView(context).apply {
             text = code
             typeface = fa

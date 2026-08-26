@@ -444,7 +444,7 @@ object AppDialogs {
         dialog.show()
     }
 
-    /** 卡片排序弹窗：每张卡一行（行名前置主题色圆点，行名与箭头黑色），↑↓ 箭头调整顺序，切换时滑动动画，完成后回调新顺序的 cardId 列表 */
+    /** 卡片排序弹窗：每张卡一行（行名前置主题色圆点，行名与操作按钮黑色），置顶/↑↓ 调整顺序，完成后回调新顺序的 cardId 列表 */
     fun reorder(
         context: Context,
         cards: List<UiCard>,
@@ -464,8 +464,11 @@ object AppDialogs {
         view.findViewById<TextView>(R.id.dialogReorderTitle)?.text = "卡片排序"
         val container = view.findViewById<LinearLayout>(R.id.dialogReorderContainer)
             ?: return
+        val reorderScroll = view.findViewById<android.widget.ScrollView>(R.id.dialogReorderScroll)
+            ?: return
         val density = context.resources.displayMetrics.density
-        val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.ttf")
+        val maxScrollHeightPx = (300 * density).toInt()
+        val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
         val order = cards.toMutableList()
         val rowViews = mutableMapOf<String, LinearLayout>()  // card.id -> 行 View
         var animating = false
@@ -487,15 +490,17 @@ object AppDialogs {
             } else {
                 "${card.name} (${card.lastFour})"
             }
-            fun arrow(chevron: String) = TextView(context).apply {
-                text = chevron
-                typeface = fa
-                textSize = 16f
-                layoutParams = LinearLayout.LayoutParams(
-                    (44 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                gravity = Gravity.CENTER
-            }
+            fun actionButton(label: String, contentDescription: String) =
+                TextView(context).apply {
+                    text = label
+                    typeface = fa
+                    this.contentDescription = contentDescription
+                    textSize = 14f
+                    layoutParams = LinearLayout.LayoutParams(
+                        (36 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    gravity = Gravity.CENTER
+                }
             return LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -525,8 +530,9 @@ object AppDialogs {
                         gravity = Gravity.CENTER_VERTICAL
                     }
                 )
-                addView(arrow(""))
-                addView(arrow(""))
+                addView(actionButton("", "置顶"))
+                addView(actionButton("", "上移"))
+                addView(actionButton("", "下移"))
             }
         }
 
@@ -541,22 +547,56 @@ object AppDialogs {
                 container.addView(row)
                 if (i < order.lastIndex) container.addView(divider())
             }
-            // 按当前索引挂箭头事件与启用态颜色；动画期间禁用点击
+            // 按当前索引挂操作事件与启用态颜色；动画期间禁用点击
             order.forEachIndexed { i, card ->
                 val row = rowViews[card.id]!!
+                val top = row.getChildAt(row.childCount - 3) as TextView
                 val up = row.getChildAt(row.childCount - 2) as TextView
                 val down = row.getChildAt(row.childCount - 1) as TextView
+                top.setTextColor(if (i > 0) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
                 up.setTextColor(if (i > 0) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
                 down.setTextColor(if (i < order.lastIndex) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
+                top.isClickable = i > 0 && !animating
                 up.isClickable = i > 0 && !animating
                 down.isClickable = i < order.lastIndex && !animating
+                top.isFocusable = top.isClickable
                 up.isFocusable = up.isClickable
                 down.isFocusable = down.isClickable
+                top.setOnClickListener {
+                    if (i > 0 && !animating) {
+                        animating = true
+                        val movedRow = rowViews[order[i].id]!!
+                        val step = rowHeightPx + divHeightPx
+                        movedRow.animate().translationYBy(-step * i)
+                            .setDuration(180)
+                            .withEndAction {
+                                order.add(0, order.removeAt(i))
+                                animating = false
+                                render()
+                                reorderScroll.post { reorderScroll.fullScroll(View.FOCUS_UP) }
+                            }
+                            .start()
+                        for (j in 0 until i) {
+                            rowViews[order[j].id]?.animate()
+                                ?.translationYBy(step)
+                                ?.setDuration(180)
+                                ?.start()
+                        }
+                    }
+                }
                 up.setOnClickListener {
                     if (i > 0 && !animating) swap(i, i - 1)
                 }
                 down.setOnClickListener {
                     if (i < order.lastIndex && !animating) swap(i, i + 1)
+                }
+            }
+            reorderScroll.post {
+                val contentHeight = container.measuredHeight
+                if (contentHeight > 0) {
+                    reorderScroll.layoutParams = reorderScroll.layoutParams.apply {
+                        height = contentHeight.coerceAtMost(maxScrollHeightPx)
+                    }
                 }
             }
         }
