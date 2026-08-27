@@ -47,6 +47,8 @@ android {
         versionCode 1
         versionName appVersionName
         resValue "string", "app_version", appVersionName
+        // 腾讯地图 SDK 仅 arm ABI 达标 16KB 页对齐；排除 x86 系（模拟器用 ARM 转译）
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "TENCENT_MAP_WEB_SERVICE_KEY", buildConfigString(tencentMapWebServiceKey)
         buildConfigField "String", "TENCENT_MAP_SECRET_KEY", buildConfigString(tencentMapSecretKey)
@@ -129,8 +131,8 @@ dependencies {
     implementation 'androidx.room:room-ktx:2.8.4'
     ksp 'androidx.room:room-compiler:2.8.4'
 
-    // 腾讯地图 SDK（4.5.x 兼容经典 5 段式 Key 格式，自包含无传递依赖）
-    implementation 'com.tencent.map:tencent-map-vector-sdk:4.5.14.5'
+    // 腾讯地图 SDK
+    implementation 'com.tencent.map:tencent-map-vector-sdk:5.8.3'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.6.2'
