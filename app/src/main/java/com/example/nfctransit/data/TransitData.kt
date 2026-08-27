@@ -627,37 +627,35 @@ object TransitData {
         return r.toEntry()
     }
 
-    /** CSV Type 列 -> 界面交通类型标签（跟随显示语言） */
+    /** CSV Type 列 -> 界面交通类型标签（跟随显示语言）：已知类型给译名，未知类型透传数据库原始串 */
     fun transitTypeLabel(type: String?): String {
-        return when {
-            useEnglish() -> when (type) {
-                "地铁" -> "Metro"
-                "BRT", "公交", "bus" -> "Bus"
-                "有轨电车" -> "Tram"
-                "城际" -> "Intercity"
-                "单轨" -> "Monorail"
-                "轻轨" -> "Light Rail"
-                "快轨" -> "Express Rail"
-                "铁路" -> "Railway"
-                "磁浮" -> "Maglev"
-                "train" -> "Rail"
-                "bike" -> "Bike"
-                else -> "Other"
-            }
-            else -> when (type) {
-                "地铁" -> "地铁 (Metro)"
-                "BRT", "公交", "bus" -> "公交 (Bus)"
-                "有轨电车" -> "有轨电车 (Tram)"
-                "城际" -> "城际 (Intercity)"
-                "单轨" -> "单轨 (Monorail)"
-                "轻轨" -> "轻轨 (Light Rail)"
-                "快轨" -> "快轨 (Express Rail)"
-                "铁路" -> "铁路 (Railway)"
-                "磁浮" -> "磁浮 (Maglev)"
-                "train" -> "轨道交通 (Rail)"
-                "bike" -> "公共自行车 (Bike)"
-                else -> "其他 (Other)"
-            }
+        if (type.isNullOrEmpty()) return ""
+        if (!useEnglish()) return type
+        return when (type) {
+            "地铁" -> "Metro"
+            "BRT", "公交", "bus" -> "Bus"
+            "有轨电车" -> "Tram"
+            "城际" -> "Intercity"
+            "单轨" -> "Monorail"
+            "轻轨" -> "Light Rail"
+            "快轨" -> "Express Rail"
+            "铁路" -> "Railway"
+            "磁浮" -> "Maglev"
+            "train" -> "Rail"
+            "bike", "自行车" -> "Bike"
+            "轮渡" -> "Ferry"
+            "出租车" -> "Taxi"
+            "购物" -> "Retail"
+            "加油站" -> "Gas Station"
+            "停车场" -> "Parking"
+            "高速公路" -> "Toll Road"
+            "定制公交" -> "Customized Bus"
+            "地铁服务中心" -> "Metro Service Center"
+            "交通卡服务站" -> "Card Service Center"
+            "充值" -> "Recharge"
+            "自助充值" -> "Self-service Recharge"
+            "网上充值" -> "Online Recharge"
+            else -> type
         }
     }
 

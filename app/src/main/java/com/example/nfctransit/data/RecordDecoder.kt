@@ -518,15 +518,20 @@ object RecordDecoder {
             val displayCityCode = if (protocol == "TU") (tu.cardCityCode ?: cityCode18) else cityCode18
 
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
-            val isRecharge = posIsRecharge || typeHex == "02"
-            val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
             // 设备映射是站点、城市和交通类型的权威来源。LNT type/subtype 只能在
             // 未命中映射时兜底类型，或在与命中设备类型严格兼容时提供进出站方向。
-            val ref = if (isRecharge) {
-                StationRef("", "", "充值")
-            } else {
-                resolveStation(cardType, cityCode18, posHex, terminal, tu)
-            }
+            // 映射命中充值类设备（如深圳 APP 充值终端）也与充值一样没有站点/方向/城市；
+            // 但充值终端同样办理退款且卡内无专用类型字节，因此不改写 typeHex——
+            // 是否真正入账由展示层按原生 type "02" 判定（"+" 绿色并豁免消费统计，
+            // 非 "02" 视为退款/扣款，显示 "-" 并计入消费）。
+            val resolvedRef =
+                if (posIsRecharge || typeHex == "02") null
+                else resolveStation(cardType, cityCode18, posHex, terminal, tu)
+            val isRecharge = resolvedRef == null ||
+                resolvedRef.mappingTransitType?.contains("充值") == true
+            val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
+            val ref = if (!isRecharge && resolvedRef != null) resolvedRef
+                else StationRef("", "", "充值")
             val mappingMatched = !isRecharge && ref.deviceCode != null
             val lntDirection = lntType?.direction
             val direction = when {

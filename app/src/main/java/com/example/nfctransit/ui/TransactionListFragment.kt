@@ -111,9 +111,21 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         updateFilterButton()
     }
 
-    /** 漏斗 → App 风格多选类别弹窗 */
+    /** 漏斗 → App 风格多选类别弹窗；
+     *  类别从当前卡交易集合动态收集：标准大类固定顺序在前，其余类型（轮渡/出租车等）
+     *  按出现次数降序补充，无数据时回退到大类全集。 */
     private fun showFilterDialog() {
-        val categories = listOf("地铁", "公交", "充值", "消费", "便利店", "城际", "有轨电车")
+        val known = listOf("地铁", "公交", "充值", "消费", "便利店", "城际", "有轨电车")
+        val counts = viewModel.allTransactions.value.orEmpty()
+            .groupingBy { it.transitType }.eachCount()
+        val categories = buildList {
+            addAll(known.filter { it in counts })
+            addAll(counts.entries.asSequence()
+                .filter { it.key !in known }
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .map { it.key })
+            if (isEmpty()) addAll(known)
+        }
         AppDialogs.multiSelect(
             context = requireContext(),
             title = "筛选类别",

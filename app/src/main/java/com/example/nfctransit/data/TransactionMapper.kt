@@ -36,32 +36,40 @@ object TransactionMapper {
         val amountAbs = abs(amountYuan)
 
         val resolved = resolveDisplayNames()
+        // 分类判定键：DB 命中用原始 Type 列；解码侧推断/兜底本身已是中文类别串。
+        // 大分类之外但确有数据库类型 → 统一兜底图标 + 原始类型串；
+        // 未命中数据库与任何推断逻辑的才回退公交。
+        val categoryKey = resolved.dbType ?: resolved.transitType
+        // 充值类展示（💳 图标）：含映射命中的充值设备（可能同时承载退款）；
+        // 但入账与否（"+" 符号、统计豁免）仍按原生 type "02" 判定——非 "02" 按 "-" 计消费
+        val effRecharge = isRecharge ||
+            resolved.dbType?.contains("充值") == true ||
+            resolved.transitType == "充值"
 
         val (icon, iconBgColor, transitType, lineName) = when {
-            isRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
-            resolved.transitType.contains("地铁") || resolved.transitType.contains("Metro") ||
-                resolved.transitType.contains("轨道交通") ->
+            effRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
+            categoryKey == "地铁" ->
                 Quad("🚇", 0xFFE3F2FD, "地铁", resolved.lineName.ifEmpty { "—" })
-            resolved.transitType.contains("公交") || resolved.transitType.contains("Bus") ->
+            categoryKey in BUS_LIKE_TYPES ->
                 Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
-            resolved.transitType.contains("有轨电车") || resolved.transitType.contains("Tram") ->
+            categoryKey == "有轨电车" ->
                 Quad("🚊", 0xFFE0F7FA, "有轨电车", resolved.lineName.ifEmpty { "—" })
-            resolved.transitType.contains("城际") || resolved.transitType.contains("Intercity") ->
+            categoryKey == "城际" ->
                 Quad("🚄", 0xFFE8EAF6, "城际", resolved.lineName.ifEmpty { "—" })
-            resolved.transitType.contains("消费") || resolved.transitType.contains("便利店") ->
-                Quad("🛒", 0xFFFCE4EC, if (resolved.transitType.contains("便利店")) "便利店" else "消费", "—")
-            else -> {
-                if (resolved.lineName.isNotEmpty() && resolved.lineName[0].isDigit())
-                    Quad("🚇", 0xFFE3F2FD, "地铁", resolved.lineName)
-                else
-                    Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
-            }
+            categoryKey == "便利店" || categoryKey == "消费" ->
+                Quad("🛒", 0xFFFCE4EC, categoryKey, "—")
+            // 大分类之外的确证类型（轮渡/出租车/铁路……）：沿用数据库原始类型串 + 统一图标
+            resolved.dbType != null ->
+                Quad("🎫", 0xFFEDE7F6, resolved.transitType, resolved.lineName.ifEmpty { "—" })
+            else ->
+                Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
         }
 
         val formattedDate = formatBcdDate(date)
         val formattedTime = formatBcdTime(time)
         val balanceAfterYuan = balanceAfterFen?.div(100.0)   // 无余额数据为 null（区别于真实的 ¥0.00）
         val amountText = when {
+            // 原生充值（02）才按入账显示 "+"；映射类充值/退款保持 "-"，红色计入消费
             isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
             isTicketProcessing && amountYuan == 0.0 -> "票务处理"
             amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when (direction) {
@@ -73,7 +81,7 @@ object TransactionMapper {
         }
 
         val declaredCityCode = rawCityCode ?: cityCode
-        val actualLocation = if (isRecharge) {
+        val actualLocation = if (effRecharge) {
             ActualLocation(null, "", LocationSource.DECLARED_CITY_FALLBACK)
         } else {
             TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode)
@@ -156,7 +164,8 @@ object TransactionMapper {
             transitType = TransitData.transitTypeLabel(entry.type),
             cityCode = entry.cityCode ?: cityCode,
             lineId = entry.lineId ?: lineId,
-            stationId = entry.stationId ?: stationId
+            stationId = entry.stationId ?: stationId,
+            dbType = entry.type
         )
     }
 
@@ -177,7 +186,9 @@ object TransactionMapper {
         val transitType: String,
         val cityCode: String?,
         val lineId: Long?,
-        val stationId: Long?
+        val stationId: Long?,
+        /** 数据库命中的原始 Type 列（未命中/充值早退为 null），用于大分类外类型的统一展示 */
+        val dbType: String? = null
     )
 
     private data class Quad(
@@ -186,4 +197,7 @@ object TransactionMapper {
         val transitType: String,
         val lineName: String
     )
+
+    /** 归并到"公交"大类的类型：含解码侧兜底串"公共交通"与 CSV 里的公交族 */
+    private val BUS_LIKE_TYPES = setOf("公交", "公共交通", "BRT", "bus", "定制公交")
 }
