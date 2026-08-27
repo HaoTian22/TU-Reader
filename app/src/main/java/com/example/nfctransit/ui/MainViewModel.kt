@@ -27,7 +27,7 @@ import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.TransactionMapper.toUiCard
 import com.example.nfctransit.data.TransactionMapper.toUiTransaction
-import com.example.nfctransit.data.TuDiscountStats
+import com.example.nfctransit.data.MonthlyAccumulation
 import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.AppDatabase
@@ -40,7 +40,9 @@ import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.data.route.RouteCacheStore
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CategorySpending
+import com.example.nfctransit.model.CityDiscountUi
 import com.example.nfctransit.model.DailySpending
+import com.example.nfctransit.model.DiscountRegistry
 import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
 import com.example.nfctransit.model.StatsSummary
@@ -67,8 +69,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val cardEntities = mutableListOf<CardEntity>()                 // 卡片列表（镜像 cards 表）
     private val canonicalByCard = mutableMapOf<String, List<CanonicalTransaction>>()  // 镜像 transactions_archive
-    /** 卡内折扣统计（SFI 0x19 rec1）快照，镜像 raw_records；用于首页优惠卡片（比交易累加权威、无重复计数） */
-    private val discountStatsByCard = mutableMapOf<String, TuDiscountStats?>()
 
     /** 每卡最近一次读取的应用 SELECT/BALANCE 快照 */
     private val cardAppsByCard = mutableMapOf<String, List<CardAppEntity>>()
@@ -124,13 +124,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _allTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
     val allTransactions: LiveData<List<UiTransaction>> = _allTransactions
 
-    /** 当前卡本月累计乘车金额（分），来自卡内折扣统计（SFI 0x19 / LNT 0x08）；null = 无扇区数据/非本月 */
-    private val _selectedDiscountMonthlyFen = MutableLiveData<Long?>(null)
-    val selectedDiscountMonthlyFen: LiveData<Long?> = _selectedDiscountMonthlyFen
-
-    /** 当前卡折扣统计对应月份（"2026-08"），首页优惠标题旁展示；null = 无折扣统计/非本月 */
-    private val _selectedDiscountStatsMonth = MutableLiveData<String?>(null)
-    val selectedDiscountStatsMonth: LiveData<String?> = _selectedDiscountStatsMonth
+    /**
+     * 当前卡各城市优惠展示数据（来自 DiscountRegistry 配置解析卡内月累乘统计；
+     * 已按"卡片在该城有消费 + 统计月份 = 当前月份"过滤，顺序与注册表一致）
+     */
+    private val _selectedCityDiscounts = MutableLiveData<List<CityDiscountUi>>(emptyList())
+    val selectedCityDiscounts: LiveData<List<CityDiscountUi>> = _selectedCityDiscounts
 
     /** 多选筛选：空集合 = 显示全部；非空 = 只显示 transitType 命中的类别 */
     private val _currentFilter = MutableLiveData<Set<String>>(emptySet())
@@ -302,13 +301,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 一张卡构建完成的全部渲染状态（在后台线程组装，回主线程经 applyCardState 落内存） */
+    /** 一张卡构建完成的全部渲染状态（在后台线程组装，回主线程经 applyCardState 落内存）。
+     *  月累乘统计不在此列：展示前现算（emitCardData），避免跨月/重读后的陈旧快照 */
     private data class BuiltCardState(
         val canonicals: List<CanonicalTransaction>,
         val txns: List<UiTransaction>,
         val raws: List<RawRecord>,
-        val apps: List<CardAppEntity>,
-        val discountStats: TuDiscountStats?
+        val apps: List<CardAppEntity>
     )
 
     private fun applyCardState(cardId: String, state: BuiltCardState) {
@@ -316,13 +315,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cachedTxnsByCard[cardId] = state.txns
         rawRecordsByCard[cardId] = state.raws
         cardAppsByCard[cardId] = state.apps
-        discountStatsByCard[cardId] = state.discountStats
     }
 
     /**
      * 载入一张卡的渲染状态：缓存命中（archive row_id 未变）→ 直接恢复已构建的 canonical + UI 交易；
-     * 否则重建（decodeArchive → toUiTransaction）并回写缓存。raw_records 总是现读（折扣统计现算，
-     * 避免跨月/重读后的陈旧快照），CPU 密集部分在调用方线程执行。不直接改内存 map，由调用方回主线程应用。
+     * 否则重建（decodeArchive → toUiTransaction）并回写缓存。raw_records 总是现读，
+     * CPU 密集部分在调用方线程执行。不直接改内存 map，由调用方回主线程应用。
      *
      * @param forceRebuild 忽略缓存强制重建（站名映射表更新/清缓存后站名与 ID 可能变化，须重新解析）
      */
@@ -346,15 +344,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .sortedBy { it.selectedAid }
         val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId, dbVersion)
         return if (cached != null) {
-            BuiltCardState(
-                cached.canonicals, cached.txns, rawRecs, appRows, RecordDecoder.parseTuDiscountStats(rawRecs)
-            )
+            BuiltCardState(cached.canonicals, cached.txns, rawRecs, appRows)
         } else {
             val archive = repo.loadArchive(cardId)
             val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
             val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions(card.cardType)
             UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns, dbVersion))
-            BuiltCardState(canonicals, txns, rawRecs, appRows, RecordDecoder.parseTuDiscountStats(rawRecs))
+            BuiltCardState(canonicals, txns, rawRecs, appRows)
         }
     }
 
@@ -470,7 +466,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 balanceResp = app.balanceResp
             )
         }
-        discountStatsByCard[cardId] = RecordDecoder.parseTuDiscountStats(result.rawRecords)
 
         val entity = CardEntity(
             cardId = cardId,
@@ -523,12 +518,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val txns = withContext(Dispatchers.Default) {
                 enrichProtocols(canon, rawRecs).toUiTransactions(effectiveCardType)
             }
-            val stats = withContext(Dispatchers.Default) { RecordDecoder.parseTuDiscountStats(rawRecs) }
             withContext(Dispatchers.Main) {
                 canonicalByCard[cardId] = canon
                 rawRecordsByCard[cardId] = rawRecs
                 cardAppsByCard[cardId] = appRecs
-                discountStatsByCard[cardId] = stats
                 cachedTxnsByCard[cardId] = txns
                 val idx = cardEntities.indexOfFirst { it.cardId == cardId }
                 if (idx >= 0 && _selectedIndex.value == idx) {
@@ -965,8 +958,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCardApps.value = emptyList()
         _cardAdded.value = null
         _allTransactions.value = emptyList()
-        _selectedDiscountMonthlyFen.value = null
-        _selectedDiscountStatsMonth.value = null
+        _selectedCityDiscounts.value = emptyList()
         _filteredTransactions.value = emptyList()
         _nfcLog.value = emptyList()
         _topStations.value = emptyList()
@@ -1249,10 +1241,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCardApps.value = cardAppsByCard[cardId].orEmpty()
         _mainAccent.value = card.gradientStartColor
         _allTransactions.value = txns
-        val stats = discountStatsByCard[cardId]
-        val monthlyFen = usableMonthlyFen(stats)
-        _selectedDiscountMonthlyFen.value = monthlyFen
-        _selectedDiscountStatsMonth.value = if (monthlyFen != null) statsMonthLabel(stats) else null
+        _selectedCityDiscounts.value = buildCityDiscountUis(cardId, txns)
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
         _nfcLog.value = currentSessionNfcLog
         emitStats(txns)
@@ -1264,17 +1253,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             computeDailySpending(txns.filter { it.date in weekStart..weekEnd }, "本周", weekStart, weekEnd)
     }
 
-    /** 折扣统计的"本月累计金额"：卡内统计月与当前月一致才采用，避免跨月陈旧值 */
-    private fun usableMonthlyFen(stats: TuDiscountStats?): Long? {
-        if (stats?.statsMonth == null) return null
-        val now = Calendar.getInstance()
-        val current = now.get(Calendar.YEAR) * 100 + (now.get(Calendar.MONTH) + 1)
-        return if (stats.statsMonth == current) stats.totalFen else null
+    /**
+     * 首页城市优惠展示数据：按 DiscountRegistry 配置解析卡内月累乘统计。
+     * 共用同一份统计记录的方案（stats 配置相等，如广州/佛山）归为一组：
+     * 组内任一城市有交易 && 统计当月有效 → 整组所有城市一起展示（广佛共用一条记录、政策并行展示）；
+     * 每组只解析一次。
+     */
+    private fun buildCityDiscountUis(cardId: String, txns: List<UiTransaction>): List<CityDiscountUi> {
+        if (txns.isEmpty()) return emptyList()
+        val records = rawRecordsByCard[cardId].orEmpty()
+        val out = mutableListOf<CityDiscountUi>()
+        for ((spec, groupSchemes) in DiscountRegistry.schemes.groupBy { it.stats }) {
+            val groupHasRide = groupSchemes.any { scheme ->
+                txns.any { it.cityName.startsWith(scheme.cityZh) }
+            }
+            if (!groupHasRide) continue
+            val acc = RecordDecoder.parseMonthAccumulation(records, spec)
+            val fen = usableMonthlyFen(acc) ?: continue
+            val label = monthLabel(acc)
+            groupSchemes.forEach { out.add(CityDiscountUi(it.cityZh, fen, label)) }
+        }
+        return out
     }
 
-    /** 折扣统计月份 → "2026-08"；无数据返回 null */
-    private fun statsMonthLabel(stats: TuDiscountStats?): String? {
-        val m = stats?.statsMonth ?: return null
+    /** 月累乘的本月有效性：统计/刷新月份与当前月份一致才采用（卡不跨月主动清零） */
+    private fun usableMonthlyFen(acc: MonthlyAccumulation?): Long? {
+        val a = acc ?: return null
+        val m = a.month ?: return null
+        val now = Calendar.getInstance()
+        val current = now.get(Calendar.YEAR) * 100 + (now.get(Calendar.MONTH) + 1)
+        return if (m == current) a.totalFen else null
+    }
+
+    /** 统计月份 → "2026-08"；无数据返回 null */
+    private fun monthLabel(acc: MonthlyAccumulation?): String? {
+        val m = acc?.month ?: return null
         return "${m / 100}-${String.format("%02d", m % 100)}"
     }
 
@@ -1437,7 +1450,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         canonicalByCard.remove(cardId)
         rawRecordsByCard.remove(cardId)
         cardAppsByCard.remove(cardId)
-        discountStatsByCard.remove(cardId)
         cachedTxnsByCard.remove(cardId)
         val updated = cardEntities.map { it.toUiCard() }
         _cards.value = updated
@@ -1450,7 +1462,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCardApps.value = emptyList()
             _cardAdded.value = null
             _allTransactions.value = emptyList()
-            _selectedDiscountMonthlyFen.value = null
+            _selectedCityDiscounts.value = emptyList()
             _filteredTransactions.value = emptyList()
             _nfcLog.value = emptyList()
             _topStations.value = emptyList()

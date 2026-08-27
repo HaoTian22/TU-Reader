@@ -20,6 +20,7 @@ import com.example.nfctransit.data.db.UserDatabase
 import com.example.nfctransit.data.prefs.AppPreferences
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.DiscountRegistry
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -185,7 +186,10 @@ class TransitRepository(private val context: Context) {
             return false
         }
 
-        val statsMonth = RecordDecoder.parseTuDiscountStats(rawRecords)?.statsMonth
+        // LNT 交易无年份字段：用月累乘统计记录的年月做解码年份锚点（岭南通 0x08 / TU 0x19 rec1）
+        val statsMonth = RecordDecoder.parseMonthAccumulation(
+            rawRecords, DiscountRegistry.walletMonthStats
+        )?.month
         val decoded = RecordDecoder.decodeCard(cardType, records, statsMonth, currentYear)
         val missing = decoded.archive.filter {
             archiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) !in existingKeys

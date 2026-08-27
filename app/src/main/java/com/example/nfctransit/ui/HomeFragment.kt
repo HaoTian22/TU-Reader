@@ -23,6 +23,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentHomeBinding
+import com.example.nfctransit.model.CityDiscountUi
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.DiscountPolicy
 import com.example.nfctransit.model.UiCard
@@ -299,22 +300,16 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (card != null) {
                 binding.tvBalance.text = "¥${String.format("%.2f", card.balanceYuan)}"
                 binding.tvLastRead.text = formatLastRead(card.lastReadAt)
-                updateDiscountProgress()
             }
         }
 
         viewModel.allTransactions.observe(viewLifecycleOwner) { txns ->
             bindRecentTransactions(txns.take(4))
-            updateDiscountProgress()
         }
 
-        // 卡内折扣统计（SFI 0x19 / LNT 0x08）就绪后刷新优惠卡片
-        viewModel.selectedDiscountMonthlyFen.observe(viewLifecycleOwner) {
-            updateDiscountProgress()
-        }
-        // 优惠标题旁展示统计月份
-        viewModel.selectedDiscountStatsMonth.observe(viewLifecycleOwner) {
-            binding.tvDiscountMonth.text = it ?: ""
+        // 城市优惠展示数据（DiscountRegistry 各方案按卡内月累乘统计解析）就绪后刷新优惠卡片
+        viewModel.selectedCityDiscounts.observe(viewLifecycleOwner) { uis ->
+            renderDiscount(uis)
         }
 
         // 首页迷你图固定用"本周"视图（周一~周日 7 根柱，与固定标签一一对应）
@@ -333,60 +328,79 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     /**
-     * 城市累计票款优惠：按卡内折扣统计（广州/佛山 TU 0x19 或岭南通 YCT LNT 0x08）当月累计金额计算，
-     * 广州/佛山政策自动识别；未读到折扣统计时隐藏卡片，不做交易累加回退。
+     * 城市累计票款优惠卡片：数据由 ViewModel 按 DiscountRegistry 配置解析卡内月累乘统计得到
+     * （每城一条 [CityDiscountUi]，已过滤"该城无交易/统计非本月"的方案）。
+     * 城市胶囊与进度行按方案动态生成，本页不含任何城市特判。
      */
-    private fun updateDiscountProgress() {
-        val txns = viewModel.allTransactions.value ?: return
-        val cityName = txns.firstNotNullOfOrNull { t ->
-            (t.cityName ?: "").takeIf { it.isNotBlank() && (it.startsWith("广州") || it.startsWith("佛山")) }
-        } ?: txns.firstNotNullOfOrNull { t -> (t.cityName ?: "").takeIf { it.isNotBlank() } }
-
-        val policy = DiscountPolicy.policyFor(cityName)
-        if (policy == null) {
-            binding.discountCard.visibility = View.GONE
-            return
-        }
-        // 当月实际支出票款取自卡内折扣统计（广州/佛山 TU 0x19 或岭南通 YCT LNT 0x08，卡自行维护、无重复计数）。
-        // 未读到（尚未读卡/无该扇区）时直接隐藏优惠卡片，不做本月交易累加回退。
-        val monthlyFen = viewModel.selectedDiscountMonthlyFen.value
-        if (monthlyFen == null) {
+    private fun renderDiscount(uis: List<CityDiscountUi>) {
+        val pillRow = binding.discountPillsRow
+        val hintColumn = binding.discountHintsColumn
+        if (uis.isEmpty()) {
             binding.discountCard.visibility = View.GONE
             return
         }
         binding.discountCard.visibility = View.VISIBLE
 
-        // 城市胶囊（广州/佛山）背景用卡片主题色，与快捷图标/按钮保持一致
-        val pillBg = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = resources.displayMetrics.density * 20
-            setColor(accentColor)
+        // 标题月份 + 大字号金额取第一个方案（各方案共享同一份统计，多城时金额一致）
+        binding.tvDiscountMonth.text = uis.first().monthLabel ?: ""
+        binding.tvProgress.text = "¥${String.format("%.2f", uis.first().monthlyFen / 100.0)}"
+
+        pillRow.removeAllViews()
+        hintColumn.removeAllViews()
+        val density = resources.displayMetrics.density
+        uis.forEachIndexed { index, ui ->
+            val policy = DiscountPolicy.policyFor(ui.cityZh) ?: return@forEachIndexed
+            // 城市胶囊：背景用卡片主题色，与快捷图标/按钮保持一致
+            val pill = TextView(requireContext()).apply {
+                text = ui.cityZh
+                setTextColor(0xFFFFFFFF.toInt())
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = density * 20
+                    setColor(accentColor)
+                }
+                setPadding((10 * density).toInt(), (3 * density).toInt(), (10 * density).toInt(), (3 * density).toInt())
+            }
+            pillRow.addView(pill, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { if (index > 0) marginStart = (6 * density).toInt() })
+
+            hintColumn.addView(TextView(requireContext()).apply {
+                text = "${ui.cityZh}：" + hintFor(policy, ui.monthlyFen)
+                setTextColor(0xFF8E8E93.toInt())
+                textSize = 11f
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = (6 * density).toInt() })
         }
-        binding.tvDiscountCity.text = "广州"
-        binding.tvDiscountCity.background = pillBg
-        binding.tvDiscountCityFoshan.text = "佛山"
-        binding.tvDiscountCityFoshan.background = pillBg
-
-        binding.tvProgress.text = "¥${String.format("%.2f", monthlyFen / 100.0)}"
-
-        // 广州行：动态进度（前缀"广州："）
-        val gz = DiscountPolicy.policyFor("广州") ?: return
-        binding.tvDiscountHint.text = "广州：" + hintFor(gz, monthlyFen)
-
-        // 佛山行：动态进度（前缀"佛山："）
-        val fs = DiscountPolicy.policyFor("佛山") ?: return
-        binding.tvDiscountHintFoshan.text = "佛山：" + hintFor(fs, monthlyFen)
     }
 
     private fun hintFor(p: DiscountPolicy, monthlyFen: Long): String {
-        val t1 = p.tier1ThresholdFen
-        val t2 = p.tier2ThresholdFen
-        return when {
-            monthlyFen < t1 ->
-                "当月消费满 ¥${t1 / 100} 享 8 折 · 还差 ¥${String.format("%.2f", (t1 - monthlyFen) / 100.0)}"
-            monthlyFen < t2 ->
-                "已享 8 折 · 超 ¥${t2 / 100} 部分享 5 折，还差 ¥${String.format("%.2f", (t2 - monthlyFen) / 100.0)}"
-            else ->
-                "已超 ¥${t2 / 100}，超出部分享 5 折"
+        val fmtDiff = { fen: Long -> String.format("%.2f", fen / 100.0) }
+        val t = p.tiers
+        return if (t.first().minFen == 0L && t.first().discountPercent < 100) {
+            // 首乘即打折的政策（杭州）：提示当前档与下一档门槛
+            when {
+                monthlyFen < t[1].minFen ->
+                    "已享 ${t[0].discountPercent / 10} 折 · 满 ¥${t[1].minFen / 100} 起 ${t[1].discountPercent / 10} 折，还差 ¥${fmtDiff(t[1].minFen - monthlyFen)}"
+                monthlyFen < t[2].minFen ->
+                    "已享 ${t[1].discountPercent / 10} 折 · 满 ¥${t[2].minFen / 100} 起 ${t[2].discountPercent / 10} 折，还差 ¥${fmtDiff(t[2].minFen - monthlyFen)}"
+                else ->
+                    "已满 ¥${t[2].minFen / 100}，每乘次享 ${t[2].discountPercent / 10} 折"
+            }
+        } else {
+            // 满 X 元后的部分才打折的政策（广州/佛山），文案与历史版本一致
+            val t1 = t[1].minFen
+            val t2 = t[2].minFen
+            when {
+                monthlyFen < t1 ->
+                    "当月消费满 ¥${t1 / 100} 享 ${t[1].discountPercent / 10} 折 · 还差 ¥${fmtDiff(t1 - monthlyFen)}"
+                monthlyFen < t2 ->
+                    "已享 ${t[1].discountPercent / 10} 折 · 超 ¥${t2 / 100} 部分享 ${t[2].discountPercent / 10} 折，还差 ¥${fmtDiff(t2 - monthlyFen)}"
+                else ->
+                    "已超 ¥${t2 / 100}，超出部分享 ${t[2].discountPercent / 10} 折"
+            }
         }
     }
 

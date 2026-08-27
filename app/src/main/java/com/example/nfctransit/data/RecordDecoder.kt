@@ -2,6 +2,7 @@ package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.MonthAccumSpec
 import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
@@ -794,34 +795,105 @@ object RecordDecoder {
     }
 
     /**
-     * 从卡原始记录解析折扣统计，两种来源共用一套字段偏移（[3-4] 年月 / [6] 地铁次 / [7] 总次 / [10-12) 地铁金额 / [12-14) 总金额）：
-     *  - 广州(5810)/佛山(5880) TU 卡：SFI 0x19 rec1
-     *  - 岭南通 YCT 卡：LNT 钱包 SFI 0x08 rec1
-     * 无对应记录或数据过短返回 null。
+     * 通用月累乘统计解析：按 [MonthAccumSpec] 配置的读卡位置与字段区域，从卡原始记录提取
+     * (月份 YYYYMM, 当月累计金额分)。城市差异全部由配置表达（见 DiscountRegistry），
+     * 本函数不含任何城市/卡型分支：
+     *  - Fixed 定长记录式：候选 Source 按 recNo 精确匹配、协议标签过滤，固定偏移直取
+     *  - Anchored 锚点扫描式：扫描匹配 Source 的全部记录字节流找锚点条目，取刷新日期最新
      */
-    fun parseTuDiscountStats(records: List<RawRecord>): TuDiscountStats? {
-        val rec = records.firstOrNull { it.sfi == 0x19 && it.recNo == 1 }
-            ?: records.firstOrNull { it.sfi == 0x08 && it.recNo == 1 && it.protocol == "LNT" }
-            ?: return null
-        val data = ApduUtil.hexToBytes(rec.hex)
-        if (data.size < 14) return null
-        val year = 2000 + bcdNibble(data[3])
-        val month = bcdNibble(data[4])
-        return TuDiscountStats(
-            statsMonth = if (month in 1..12) year * 100 + month else null,
-            metroCount = data[6].toInt() and 0xFF,
-            totalCount = data[7].toInt() and 0xFF,
-            metroFen = ApduUtil.hexToLong(data.copyOfRange(10, 12)),
-            totalFen = ApduUtil.hexToLong(data.copyOfRange(12, 14))
+    fun parseMonthAccumulation(records: List<RawRecord>, spec: MonthAccumSpec): MonthlyAccumulation? {
+        return when (spec) {
+            is MonthAccumSpec.Fixed -> parseFixedAccumulation(records, spec)
+            is MonthAccumSpec.Anchored -> parseAnchoredAccumulation(records, spec)
+        }
+    }
+
+    /** 从候选位置读取定长统计记录；BCD 月份非法时 month=null（金额仍返回，展示层判月丢弃） */
+    private fun parseFixedAccumulation(records: List<RawRecord>, spec: MonthAccumSpec.Fixed): MonthlyAccumulation? {
+        for (source in spec.sources) {
+            val rec = records.firstOrNull { raw ->
+                raw.sfi == source.sfi &&
+                    raw.recNo == source.recNo &&
+                    (source.protocol == null || source.protocol.equals(raw.protocol, ignoreCase = true))
+            } ?: continue
+            val data = ApduUtil.hexToBytes(rec.hex)
+            if (data.size < spec.minDataSize) continue
+            val year = 2000 + bcdNibble(data[spec.yearBcdOffset])
+            val month = bcdNibble(data[spec.monthBcdOffset])
+            val totalFen = ApduUtil.hexToLong(
+                data.copyOfRange(spec.totalFenBeOffset, spec.totalFenBeOffset + 2)
+            )
+            return MonthlyAccumulation(
+                month = if (month in 1..12) year * 100 + month else null,
+                totalFen = totalFen
+            )
+        }
+        return null
+    }
+
+    /** 扫描候选位置的全部记录找锚点条目；多条命中（循环文件跨月残留）取刷新日期最新 */
+    private fun parseAnchoredAccumulation(records: List<RawRecord>, spec: MonthAccumSpec.Anchored): MonthlyAccumulation? {
+        var best: AnchorHit? = null
+        for (source in spec.sources) {
+            val matched = records.filter {
+                it.sfi == source.sfi &&
+                    (source.protocol == null || source.protocol.equals(it.protocol, ignoreCase = true))
+            }
+            for (rec in matched) {
+                val data = ApduUtil.hexToBytes(rec.hex)
+                // 锚点条目最短长度 = dateBcdOffset + 4B 日期；金额按 offset 独立校验边界
+                for (f in 0..data.size - (spec.dateBcdOffset + 4)) {
+                    if (data[f] != spec.anchorByte.toByte()) continue
+                    val hit = anchoredAccumulationAt(data, f, spec) ?: continue
+                    if (best == null || hit.dateYmd > best!!.dateYmd) best = hit
+                }
+            }
+        }
+        return best?.let { MonthlyAccumulation(it.month, it.fen) }
+    }
+
+    /** 锚点式解析的中间结果 */
+    private data class AnchorHit(val dateYmd: String, val month: Int, val fen: Long)
+
+    /** 校验 data[f] 起是否为锚点式月累乘条目并解析；不匹配返回 null。日期区域 = 4B BCD YYYYMMDD，金额 = 大端 u16 分 */
+    private fun anchoredAccumulationAt(
+        data: ByteArray,
+        f: Int,
+        spec: MonthAccumSpec.Anchored
+    ): AnchorHit? {
+        val d0 = f + spec.dateBcdOffset
+        if (d0 < 0 || d0 + 4 > data.size) return null
+        for (i in d0 until d0 + 4) if (!isBcdByte(data[i])) return null
+        if (data[d0].toInt() != 0x20) return null  // 年份固定 20xx
+        val year = bcdNibble(data[d0]) * 100 + bcdNibble(data[d0 + 1])
+        val month = bcdNibble(data[d0 + 2])
+        val day = bcdNibble(data[d0 + 3])
+        if (month !in 1..12 || day !in 1..31) return null
+        val a0 = f + spec.amountBeOffset
+        if (a0 < 0 || a0 + 2 > data.size) return null
+        val amountFen = ApduUtil.hexToLong(data.copyOfRange(a0, a0 + 2))
+        // 金额合理性上限 ¥50,000/月，过滤纯巧合数据
+        if (amountFen !in 1..5_000_000L) return null
+        return AnchorHit(
+            String.format("%04d%02d%02d", year, month, day),
+            year * 100 + month,
+            amountFen
         )
+    }
+
+    /** 字节两个 nibble 均为 BCD 数字（≤9），排除 A-F 的伪 BCD */
+    private fun isBcdByte(b: Byte): Boolean {
+        val v = b.toInt() and 0xFF
+        return (v shr 4) <= 9 && (v and 0x0F) <= 9
     }
 }
 
-/** 折扣统计（广州/佛山 TU 卡 SFI 0x19 rec1 或岭南通 YCT LNT 钱包 SFI 0x08 rec1）——卡内本月乘车汇总，乘车时由卡自行维护 */
-data class TuDiscountStats(
-    val statsMonth: Int?,   // YYYYMM（[3-4] BCD 年+月），null = 月份非法
-    val metroCount: Int,    // [6] 地铁次数（二进制）
-    val totalCount: Int,    // [7] 总乘车次数（二进制）
-    val metroFen: Long,     // [10-11] 地铁累计金额（分）
-    val totalFen: Long      // [12-13] 总累计金额（分）
+/**
+ * 卡内"自然月累乘金额"统计的解析结果（两种读取配置共用，见 model/MonthAccumSpec）：
+ * month = 统计/刷新月份 YYYYMM，非法时为 null（展示层按当前月份判效后丢弃）；
+ * totalFen = 当月累计消费金额（分）。
+ */
+data class MonthlyAccumulation(
+    val month: Int?,    // YYYYMM；BCD 月份非法 / 锚点条目缺失时 null
+    val totalFen: Long  // 当月累计消费金额（分）
 )
