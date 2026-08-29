@@ -1,4 +1,3 @@
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1
+# The feedback server itself has no runtime dependencies (standard library
+# only). This file only installs the development/test extras:
 pytest>=8,<9
-httpx>=0.27,<1
