@@ -31,7 +31,13 @@ import java.util.Locale
 import java.util.UUID
 
 /** 导入数据库的结果统计（新增卡片/原始记录/交易行数） */
-data class ImportSummary(val cards: Int, val raw: Int, val archive: Int)
+data class ImportSummary(
+    val cards: Int,
+    val raw: Int,
+    val archive: Int,
+    /** 本地已有的重复卡在导入前合并的数量（不计为新增卡）。 */
+    val merged: Int = 0
+)
 
 private data class CardAppImportKey(
     val cardId: String,
@@ -56,6 +62,13 @@ private fun CardAppEntity.cardAppImportKey(cardId: String) = CardAppImportKey(
     balanceFen = balanceFen,
     balanceResp = balanceResp
 )
+
+/** 卡号由协议字段产生，导入时忽略意外的首尾空白；空值不参与身份比较。 */
+internal fun cardIdentityNumbers(vararg values: String?): Set<String> =
+    values.map { it.orEmpty().trim() }.filter { it.isNotEmpty() }.toSet()
+
+internal fun sharesCardIdentity(first: Set<String>, second: Set<String>): Boolean =
+    first.any(second::contains)
 
 /**
  * 用户数据仓库：协调 Room 用户库（cards/raw_records/transactions_archive）、
@@ -288,6 +301,9 @@ class TransitRepository(private val context: Context) {
         src.close()
 
         val now = System.currentTimeMillis()
+        // 早期版本可能已把同一物理卡写成多张 cards 行。先按完整卡号合并本地旧数据，
+        // 再让本次导入的记录落到唯一的 card_id，避免“再次导入也还是两张卡”。
+        val mergedCards = coalesceDuplicateCards()
         val existingCards = dao.getAllCards().toMutableList()
         val idMap = mutableMapOf<String, String>()
         val newCardIds = mutableListOf<String>()
@@ -351,7 +367,7 @@ class TransitRepository(private val context: Context) {
             }
         }
 
-        return ImportSummary(newCardIds.size, newRaw, newArchive)
+        return ImportSummary(newCardIds.size, newRaw, newArchive, mergedCards)
     }
 
     /**
@@ -488,6 +504,97 @@ class TransitRepository(private val context: Context) {
     /** 判断所选文件是否为 TripReader 库（含 card_table 且非本应用 user_data 库） */
     fun isTripReaderDatabase(file: File): Boolean = TripReaderDatabase.isTripReaderDatabase(file)
 
+    /**
+     * 合并早期版本留下的重复卡。只接受完整 primary/secondary 卡号有交集的卡，绝不以尾号作为
+     * 删除依据；尾号相同的不同实体卡会继续独立保留。
+     */
+    private suspend fun coalesceDuplicateCards(): Int {
+        val replacementIds = mutableMapOf<String, String>()
+        val mergedCount = database.withTransaction {
+            val canonicalCards = mutableListOf<CardEntity>()
+            var count = 0
+            for (candidate in dao.getAllCards()) {
+                val canonicalIndex = canonicalCards.indexOfFirst { canonical ->
+                    sharesCardIdentity(
+                        cardIdentityNumbers(canonical.cardNumber, canonical.secondCardNumber),
+                        cardIdentityNumbers(candidate.cardNumber, candidate.secondCardNumber)
+                    )
+                }
+                if (canonicalIndex < 0) {
+                    canonicalCards.add(candidate)
+                    continue
+                }
+
+                val canonical = canonicalCards[canonicalIndex]
+                val merged = mergeDuplicateCardMetadata(canonical, candidate)
+                dao.upsertCard(merged)
+                mergeDuplicateCardRows(merged.cardId, candidate.cardId)
+                dao.deleteCard(candidate.cardId)
+                canonicalCards[canonicalIndex] = merged
+                replacementIds[candidate.cardId] = merged.cardId
+                count++
+            }
+            count
+        }
+        if (replacementIds.isEmpty()) return mergedCount
+
+        val order = AppPreferences.getCardOrder(context)
+        AppPreferences.setCardOrder(
+            context,
+            order.map { cardId -> replacementIds[cardId] ?: cardId }.distinct()
+        )
+        AppPreferences.getSelectedCardId(context)?.let { selectedId ->
+            replacementIds[selectedId]?.let { AppPreferences.setSelectedCardId(context, it) }
+        }
+        return mergedCount
+    }
+
+    /** 将冗余卡的所有尚不存在的记录迁移到保留卡，再由调用方删除冗余卡。 */
+    private suspend fun mergeDuplicateCardRows(targetCardId: String, duplicateCardId: String) {
+        for (raw in dao.getRawRecords(duplicateCardId)) {
+            if (dao.getRawSlot(targetCardId, raw.protocol, raw.sfi, raw.recNo) == null) {
+                dao.insertRawRecord(raw.copy(cardId = targetCardId, rowId = 0))
+            }
+        }
+        for (archive in dao.getArchive(duplicateCardId)) {
+            if (dao.getArchiveSlot(targetCardId, archive.contentHash, archive.protocol, archive.sfi) == null) {
+                dao.insertArchiveRow(archive.copy(cardId = targetCardId, rowId = 0))
+            }
+        }
+        val targetAppKeys = dao.getCardApps(targetCardId)
+            .mapTo(mutableSetOf()) { it.cardAppImportKey(targetCardId) }
+        for (app in dao.getCardApps(duplicateCardId)) {
+            if (targetAppKeys.add(app.cardAppImportKey(targetCardId))) {
+                dao.insertCardApp(app.copy(cardId = targetCardId, rowId = 0))
+            }
+        }
+    }
+
+    private fun mergeDuplicateCardMetadata(
+        canonical: CardEntity,
+        duplicate: CardEntity
+    ): CardEntity {
+        val withNumbers = mergeCardNumbers(
+            canonical, duplicate.cardNumber, duplicate.secondCardNumber.orEmpty()
+        )
+        val duplicateIsNewer = duplicate.lastReadAt > canonical.lastReadAt
+        return withNumbers.copy(
+            cardType = if (withNumbers.cardType == "TU" && duplicate.cardType != "TU") {
+                duplicate.cardType
+            } else {
+                withNumbers.cardType
+            },
+            lastFour = withNumbers.lastFour.ifEmpty { duplicate.lastFour },
+            latestBalanceFen = if (duplicateIsNewer || withNumbers.latestBalanceFen == null) {
+                duplicate.latestBalanceFen
+            } else {
+                withNumbers.latestBalanceFen
+            },
+            createdAt = minOf(withNumbers.createdAt, duplicate.createdAt),
+            lastReadAt = maxOf(withNumbers.lastReadAt, duplicate.lastReadAt)
+        )
+    }
+
     private fun matchTripReaderCard(
         existing: List<CardEntity>,
         cdNo: String,
@@ -500,15 +607,15 @@ class TransitRepository(private val context: Context) {
         second: String,
         fallbackLastFour: String = ""
     ): CardEntity? {
-        val numbers = listOf(first, second).filter { it.isNotEmpty() }.toSet()
+        val numbers = cardIdentityNumbers(first, second)
         if (numbers.isNotEmpty()) {
             existing.firstOrNull { card ->
-                numbers.any { it == card.cardNumber || it == card.secondCardNumber }
+                sharesCardIdentity(numbers, cardIdentityNumbers(card.cardNumber, card.secondCardNumber))
             }?.let { return it }
         }
         val lastFours = buildSet {
             addAll(numbers.map { it.takeLast(4) }.filter { it.isNotEmpty() })
-            if (fallbackLastFour.isNotEmpty()) add(fallbackLastFour)
+            fallbackLastFour.trim().takeIf { it.isNotEmpty() }?.let(::add)
         }
         return if (lastFours.isNotEmpty()) {
             existing.firstOrNull { it.lastFour in lastFours }
@@ -518,7 +625,7 @@ class TransitRepository(private val context: Context) {
     }
 
     private fun mergeCardNumbers(existing: CardEntity, first: String, second: String): CardEntity {
-        val numbers = listOf(first, second).filter { it.isNotEmpty() }
+        val numbers = cardIdentityNumbers(first, second)
         val primary = existing.cardNumber.ifEmpty { numbers.firstOrNull().orEmpty() }
         val secondary = existing.secondCardNumber?.takeIf { it.isNotEmpty() }
             ?: numbers.firstOrNull { it != primary }

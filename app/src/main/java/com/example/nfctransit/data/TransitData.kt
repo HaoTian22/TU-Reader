@@ -206,7 +206,7 @@ object TransitData {
      *      5810 记录一律按双城联查解析并打 spRule 标记；5840 记录重定向到 5180 后解析（→ spRule 标记）
      *   1. 前缀分桶 + 最长重叠：只扫同前缀（=同城，device_code[:4]==city_code）reader_device，
      *      候选主体 = 深圳用终端号（其 [10..14) 非线路/站点，线路+站点编码在终端号里）、
-     *      其余用 raw [10..17) hex 切片；候选按重叠长度、2字符对齐、非0字符长度、起始位置依次取优
+     *      其余用 raw [10..17) hex 切片；候选按重叠长度、2字符对齐、起始位置、非0字符长度依次取优
      *   2. 终端号精确匹配（杭州 TU / 广州 YCT 等终端号城市）
      */
     fun resolveTuStation(
@@ -244,7 +244,7 @@ object TransitData {
         val spRule: String? = null
     )
 
-    /** 连表取优：长度 → 2字符对齐 → 非0字符长度 → 起始位置。 */
+    /** 连表取优：长度 → 2字符对齐 → 起始位置 → 非0字符长度。 */
     private fun pickBetter(a: CityMatch?, b: CityMatch?, preferCity: String): CityMatch? {
         if (a == null) return b
         if (b == null) return a
@@ -273,7 +273,7 @@ object TransitData {
         return if (a.resolution.cityCode == preferCity) a else b
     }
 
-    /** TU 匹配顺序固定为重叠长度、2字符对齐、非0字符长度、起始位置。 */
+    /** TU 匹配顺序固定为重叠长度、2字符对齐、起始位置、非0字符长度。 */
     private fun matchInCity(
         effectiveCity: String,
         lineCode: String,
@@ -331,8 +331,8 @@ object TransitData {
     ): Boolean = when {
         length != bestLength -> length > bestLength
         aligned != bestAligned -> aligned
-        nonZeroLength != bestNonZeroLength -> nonZeroLength > bestNonZeroLength
-        else -> index < bestIndex
+        index != bestIndex -> index < bestIndex
+        else -> nonZeroLength > bestNonZeroLength
     }
 
     private fun longestTuMatch(

@@ -53,7 +53,7 @@ class RecordDecoderTest {
     }
 
     @Test
-    fun tuCandidatePriorityUsesLengthAlignmentNonZeroThenPosition() {
+    fun tuCandidatePriorityUsesLengthAlignmentPositionThenNonZero() {
         assertTrue(
             TransitData.isBetterTuCandidate(
                 length = 8,
@@ -78,7 +78,7 @@ class RecordDecoderTest {
                 bestIndex = 2
             )
         )
-        assertTrue(
+        assertFalse(
             TransitData.isBetterTuCandidate(
                 length = 8,
                 aligned = true,
@@ -98,8 +98,8 @@ class RecordDecoderTest {
                 index = 2,
                 bestLength = 8,
                 bestAligned = true,
-                bestNonZeroLength = 8,
-                bestIndex = 10
+                bestNonZeroLength = 1,
+                bestIndex = 2
             )
         )
     }

@@ -411,9 +411,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else lastFourFromCanonical(decoded.display)
         val now = System.currentTimeMillis()
 
-        // 匹配已有卡：按卡号复用 UUID；双协议卡换协议识别时（如坏数据存的纯 TU → YCT）按第二个卡号兜底；最后按尾号
+        // 匹配已有卡：主/次卡号均可复用 UUID；双协议卡换协议识别时（如坏数据存的纯 TU → YCT）
+        // 也不能因为本次读到的号恰好是旧卡的第二卡号而新建一张卡。
         var existing = if (cardNumber.isNotEmpty()) {
-            cardEntities.firstOrNull { it.cardNumber == cardNumber }
+            cardEntities.firstOrNull {
+                it.cardNumber == cardNumber || it.secondCardNumber == cardNumber
+            }
         } else null
         if (existing == null && legacyCardNumber.isNotEmpty() && legacyCardNumber != cardNumber) {
             existing = cardEntities.firstOrNull {
@@ -1019,10 +1022,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         restore()
+        val mergedMessage = summary.merged.takeIf { it > 0 }?.let { "、合并 $it 张重复卡" }.orEmpty()
         return if (fromTripReader) {
-            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易"
+            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易$mergedMessage"
         } else {
-            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录"
+            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录$mergedMessage"
         }
     }
 
