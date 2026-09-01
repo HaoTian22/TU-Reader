@@ -107,18 +107,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         setupQuickActions()
         setupCardPager()
         observeViewModel()
-
-        // 从二级页返回时，恢复之前选中的卡片（而不是跳回第一张）
-        binding.cardPager.post {
-            val idx = viewModel.selectedIndex.value ?: 0
-            val count = binding.cardPager.adapter?.itemCount ?: 0
-            if (count > 0 && idx in 0 until count) {
-                binding.cardPager.setCurrentItem(idx, false)
-                updatePageDots(idx)
-            }
-            // 等恢复布局完成后放开回调，允许用户滑动切换卡片
-            binding.cardPager.post { suppressPagerCallback = false }
-        }
     }
 
     /** 首页无数据时直接导入 TransitU / TripReader 数据库备份。 */
@@ -261,7 +249,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun observeViewModel() {
         // 启动恢复中显示加载态；恢复完成后再按 hasData 切空态/内容，避免重建缓存期间误显示"请靠近交通卡"
-        viewModel.isRestoring.observe(viewLifecycleOwner) { updateRootVisibility() }
+        viewModel.isRestoring.observe(viewLifecycleOwner) { restoring ->
+            updateRootVisibility()
+            // 系统从后台恢复时，个别动态 View（最近交易/优惠/迷你图）可能已被系统重新
+            // 布局，但没有再次收到 LiveData 的渲染回调。恢复完成后用当前状态补绘一次。
+            if (!restoring) refreshCurrentCardUi()
+        }
         viewModel.hasData.observe(viewLifecycleOwner) { updateRootVisibility() }
 
         // 主题色跟随卡片：快捷操作图标、进度文字/条、迷你图、指示点、查看全部一起变
@@ -281,6 +274,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.tvCardCount.text = getString(R.string.card_count_format, cards.size)
             val active = if (cards.isEmpty()) 0
                 else (viewModel.selectedIndex.value?.coerceIn(0, cards.size - 1) ?: 0)
+            // 在 ViewPager2 首次布局前就设置目标页，让它的首帧直接绑定当前卡。
+            // 不能等 post：预测返回动画结束的那一帧会短暂露出默认第 0 页。
+            if (suppressPagerCallback && cards.isNotEmpty()) {
+                binding.cardPager.setCurrentItem(active, false)
+                binding.cardPager.post { suppressPagerCallback = false }
+            }
             updatePageDots(active)
             // 首次启动数据晚于 UI 就绪：布局完成后补渲染一次圆点，避免指示点缺失
             binding.pageIndicator.post { updatePageDots(active) }
@@ -315,6 +314,43 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         // 首页迷你图固定用"本周"视图（周一~周日 7 根柱，与固定标签一一对应）
         viewModel.homeWeeklySpending.observe(viewLifecycleOwner) { daily ->
             if (daily.isNotEmpty()) bindMiniChart(daily)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // View 树从 stopped 状态恢复后，下一轮消息再补绘，确保容器已重新挂到窗口。
+        // 这里从 ViewModel 的当前值渲染，不依赖一次可能被系统恢复流程错过的通知。
+        binding.root.post {
+            if (_binding?.root?.isAttachedToWindow == true) {
+                refreshCurrentCardUi()
+            }
+        }
+    }
+
+    /** 恢复后强制重新发布当前卡的派生状态，再重建首页动态区域。 */
+    private fun refreshCurrentCardUi() {
+        if (viewModel.isRestoring.value == true || viewModel.hasData.value != true) return
+        viewModel.refreshSelectedCardData()
+        renderCurrentSnapshot()
+    }
+
+    /** 用 ViewModel 当前快照重建首页的代码生成区域，处理后台恢复后的局部空白。 */
+    private fun renderCurrentSnapshot() {
+        if (viewModel.isRestoring.value == true || viewModel.hasData.value != true) return
+
+        viewModel.selectedCard.value?.let { card ->
+            binding.tvBalance.text = "¥${String.format("%.2f", card.balanceYuan)}"
+            binding.tvLastRead.text = formatLastRead(card.lastReadAt)
+        }
+        bindRecentTransactions(viewModel.allTransactions.value.orEmpty().take(4))
+        renderDiscount(viewModel.selectedCityDiscounts.value.orEmpty())
+
+        val weeklySpending = viewModel.homeWeeklySpending.value.orEmpty()
+        if (weeklySpending.isNotEmpty()) {
+            bindMiniChart(weeklySpending)
+        } else {
+            binding.chartMiniArea.removeAllViews()
         }
     }
 

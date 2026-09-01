@@ -105,12 +105,15 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
 
     private fun showSqlDialog() {
         val dialog = android.app.Dialog(requireContext())
+        var clearImeInsets: (() -> Unit)? = null
         sqlDialog = dialog
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val dialogBinding = DialogSqlInputBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)
         dialog.setCancelable(true)
         dialog.setOnDismissListener {
+            clearImeInsets?.invoke()
+            clearImeInsets = null
             if (sqlDialog === dialog) sqlDialog = null
         }
         dialogBinding.dialogSqlInput.setText(savedSql)
@@ -130,19 +133,24 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             persistSql(savedSql)
             dialog.dismiss()
         }
-        dialog.show()
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(
-                (resources.displayMetrics.widthPixels * 0.92f).toInt(),
-                WindowManager.LayoutParams.WRAP_CONTENT
-            )
-            setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                    WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-            )
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                setLayout(
+                    (resources.displayMetrics.widthPixels * 0.92f).toInt(),
+                    WindowManager.LayoutParams.WRAP_CONTENT
+                )
+            }
+            dialogBinding.dialogSqlInput.requestFocus()
+            dialog.window?.let { window ->
+                clearImeInsets = DialogImeInsets.install(
+                    window,
+                    dialogBinding.dialogSqlContent,
+                    dialogBinding.dialogSqlInput
+                )
+            }
         }
-        dialogBinding.dialogSqlInput.requestFocus()
+        dialog.show()
     }
 
     private fun persistSql(sql: String) {

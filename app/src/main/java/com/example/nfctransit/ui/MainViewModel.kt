@@ -547,6 +547,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emitCardData(cardId)
     }
 
+    /**
+     * 重新发布当前卡的派生 UI 状态，不改变选中卡，也不写入持久层。
+     * 用于系统从后台恢复后，Fragment 的动态子视图需要重新绑定当前值的场景。
+     */
+    fun refreshSelectedCardData() {
+        val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId ?: return
+        emitCardData(cardId)
+    }
+
     /** 更新当前卡片的展示名并持久化到 cards.name。 */
     fun renameSelectedCard(name: String): Boolean {
         val normalized = name.trim()
@@ -812,10 +821,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateOverride(oldDeviceCode: String, row: TransitOverrideRow) {
+    fun updateOverride(oldDeviceCode: String, row: TransitOverrideRow, publish: Boolean = false) {
         viewModelScope.launch {
             try {
-                val summary = withContext(Dispatchers.IO) {
+                val update = withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
@@ -848,7 +857,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         FeedbackOverride(
                             row,
                             standard,
-                            false,
+                            publish,
                             locationCity?.code,
                             locationCity?.name
                         ),
@@ -857,10 +866,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val result = TransitOverrideImporter.import(context)
                     TransitData.reload()
                     _overrideRows.postValue(TransitOverrideStore.list(context))
-                    result
+                    Triple(result, standard, locationCity)
                 }
                 rebuildAllCardsAndRefresh()
-                _overrideStatus.value = "override 已保存：${summary.message()}"
+                val uploadStatus = if (publish) {
+                    withContext(Dispatchers.IO) {
+                        FeedbackUploader.upload(
+                            getApplication(), row, row.type, update.second,
+                            update.third?.code, update.third?.name
+                        )
+                    }
+                } else null
+                _overrideStatus.value = buildString {
+                    append("override 已保存：").append(update.first.message())
+                    if (uploadStatus != null) append("；").append(uploadStatus)
+                }
             } catch (e: Exception) {
                 _overrideStatus.value = "override 保存失败：${e.message ?: "未知错误"}"
             }

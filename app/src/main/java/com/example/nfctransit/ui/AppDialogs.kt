@@ -121,6 +121,7 @@ object AppDialogs {
         title: String = "反馈站名纠错",
         showPublish: Boolean = true,
         accentColor: Int = 0xFF0066FF.toInt(),
+        maxScrollHeightDp: Int? = null,
         onConfirm: (
             prefix: String,
             code: String,
@@ -133,9 +134,18 @@ object AppDialogs {
         ) -> Boolean
     ): Dialog {
         val dialog = Dialog(context)
+        var clearImeInsets: (() -> Unit)? = null
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_feedback, null)
         dialog.setContentView(view)
+        val formScroll = view.findViewById<android.widget.ScrollView>(R.id.feedbackScroll)
+        maxScrollHeightDp?.let { heightDp ->
+            formScroll?.let { scroll ->
+                scroll.layoutParams = scroll.layoutParams.apply {
+                    height = (heightDp * context.resources.displayMetrics.density).toInt()
+                }
+            }
+        }
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -219,11 +229,15 @@ object AppDialogs {
             }
         }
         view.findViewById<TextView>(R.id.feedbackCancel).setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener {
+            clearImeInsets?.invoke()
+            clearImeInsets = null
+        }
         dialog.setOnShowListener {
             prefixInput.requestFocus()
-            dialog.window?.setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            )
+            dialog.window?.let { window ->
+                clearImeInsets = DialogImeInsets.install(window, view, formScroll ?: view)
+            }
         }
         dialog.show()
         return dialog
@@ -240,8 +254,9 @@ object AppDialogs {
             line: String,
             station: String,
             cityCode: String,
-            cityName: String
-        ) -> Unit
+            cityName: String,
+            publish: Boolean
+        ) -> Boolean
     ): Dialog {
         val city = row.locationCityCode?.let { code ->
             TransitData.cityOptions().firstOrNull { it.code == code }
@@ -256,11 +271,11 @@ object AppDialogs {
             actualCityCode = city?.code,
             actualCityName = city?.name.orEmpty(),
             title = "编辑本地映射表",
-            showPublish = false,
-            accentColor = accentColor
-        ) { prefix, code, type, line, station, cityCode, cityName, _ ->
-            onSave(prefix, code, type, line, station, cityCode, cityName)
-            true
+            showPublish = true,
+            accentColor = accentColor,
+            maxScrollHeightDp = 480
+        ) { prefix, code, type, line, station, cityCode, cityName, publish ->
+            onSave(prefix, code, type, line, station, cityCode, cityName, publish)
         }
     }
 

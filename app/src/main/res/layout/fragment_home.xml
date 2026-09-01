@@ -194,7 +194,8 @@
         <ScrollView
             android:id="@+id/contentScroll"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:background="#F8F9FA"
             android:fillViewport="true">
 
