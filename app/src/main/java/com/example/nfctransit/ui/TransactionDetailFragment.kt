@@ -86,11 +86,14 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             }
         }
 
-        // Look up transaction by ID
-        val txn = viewModel.getTransactionById(args.transactionId)
-        if (txn != null) {
-            bindTransactionData(txn)
-            bindRawHex(txn)
+        // 进程被系统回收后，Navigation 会先还原本页，而 ViewModel 仍在从磁盘恢复交易。
+        // 因此不能只在创建时查询一次；恢复完成后 allTransactions 会再次发出真正的交易。
+        viewModel.allTransactions.observe(viewLifecycleOwner) { transactions ->
+            renderTransaction(transactions.firstOrNull { it.id == args.transactionId })
+        }
+        viewModel.isRestoring.observe(viewLifecycleOwner) {
+            // allTransactions 初始值为空；恢复状态变化时刷新提示，避免把布局预览值当成交易数据。
+            renderTransaction(viewModel.getTransactionById(args.transactionId))
         }
 
         // 复制原始数据按钮
@@ -222,6 +225,35 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
     }
 
+    /** 渲染交易或明确的恢复/缺失状态，绝不保留布局中的示例值。 */
+    private fun renderTransaction(txn: UiTransaction?) {
+        if (txn != null) {
+            binding.detailRowsContainer.visibility = View.VISIBLE
+            binding.btnCopyHex.isEnabled = true
+            binding.btnFeedbackHex.isEnabled = true
+            binding.btnCopyHex.alpha = 1f
+            binding.btnFeedbackHex.alpha = 1f
+            bindTransactionData(txn)
+            bindRawHex(txn)
+            return
+        }
+
+        binding.tvAmountHeader.text = "正在加载数据..."
+        binding.tvAmountHeader.setTextColor(0xFF8E8E93.toInt())
+        binding.detailRowsContainer.visibility = View.GONE
+        binding.btnCopyHex.isEnabled = false
+        binding.btnFeedbackHex.isEnabled = false
+        binding.btnCopyHex.alpha = 0.45f
+        binding.btnFeedbackHex.alpha = 0.45f
+        rawHexToCopy = ""
+        binding.hexPanel.removeAllViews()
+        addMonospaceLine(
+            binding.hexPanel,
+            "正在加载数据...",
+            dim = true
+        )
+    }
+
     private fun bindTransactionData(txn: UiTransaction) {
         binding.tvAmountHeader.text = txn.amountText
         if (txn.amountText.startsWith("+")) {
@@ -278,6 +310,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 value?.setTextColor(0xFF1A1A1A.toInt())
                 icon?.visibility = View.GONE
                 icon?.typeface = fa
+                row.visibility = View.VISIBLE
                 // 协议行为空（单协议卡）时整行隐藏
                 if (fields[i].first == "协议") {
                     row.visibility = if (fields[i].second.isEmpty()) View.GONE else View.VISIBLE
