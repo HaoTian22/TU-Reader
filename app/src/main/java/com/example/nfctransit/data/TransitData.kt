@@ -244,7 +244,7 @@ object TransitData {
         val spRule: String? = null
     )
 
-    /** 连表取优：长度 → 2字符对齐 → 起始位置 → 非0字符长度。 */
+    /** 连表取优：长度 → 末尾对齐 → 起始位置 → 非0字符长度。 */
     private fun pickBetter(a: CityMatch?, b: CityMatch?, preferCity: String): CityMatch? {
         if (a == null) return b
         if (b == null) return a
@@ -273,7 +273,7 @@ object TransitData {
         return if (a.resolution.cityCode == preferCity) a else b
     }
 
-    /** TU 匹配顺序固定为重叠长度、2字符对齐、起始位置、非0字符长度。 */
+    /** TU 匹配顺序固定为重叠长度、末尾对齐、起始位置、非0字符长度。 */
     private fun matchInCity(
         effectiveCity: String,
         lineCode: String,
@@ -335,6 +335,21 @@ object TransitData {
         else -> nonZeroLength > bestNonZeroLength
     }
 
+    /**
+     * 数据库设备码按两位 BCD 单元的末端对齐：模式末位必须落在字节边界。
+     * 保留原始字段后续内容，避免把 `306901000` 等仍带有效编码的数据误判为填充。
+     *
+     * 返回最靠右的有效模式在 [body] 中的起点；无末端对齐匹配时返回 -1。
+     */
+    internal fun tuTailAlignedPatternIndex(pattern: String, body: String): Int {
+        var index = body.lastIndexOf(pattern)
+        while (index >= 0) {
+            if ((index + pattern.length) % 2 == 0) return index
+            index = body.lastIndexOf(pattern, index - 1)
+        }
+        return -1
+    }
+
     private fun longestTuMatch(
         prefix: String,
         body: String,
@@ -342,7 +357,6 @@ object TransitData {
         spRule: String?,
         minLength: Int = 1
     ): CityMatch? {
-        val candidate = prefix + body
         var best: StationResolution? = null
         var bestIndex = Int.MAX_VALUE
         var bestLength = 0
@@ -358,9 +372,10 @@ object TransitData {
             }
             for (pattern in patterns) {
                 if (pattern.length < minLength) continue
-                val index = candidate.indexOf(pattern, prefix.length)
-                if (index < prefix.length || index + pattern.length <= prefix.length) continue
-                val aligned = (index - prefix.length) % 2 == 0
+                val bodyIndex = tuTailAlignedPatternIndex(pattern, body)
+                if (bodyIndex < 0) continue
+                val index = prefix.length + bodyIndex
+                val aligned = true
                 val nonZeroLength = pattern.count { it != '0' }
                 val better = isBetterTuCandidate(
                     length = pattern.length,

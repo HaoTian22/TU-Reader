@@ -105,6 +105,13 @@ class RecordDecoderTest {
     }
 
     @Test
+    fun tuTailAlignmentAnchorsAtBcdByteEnd() {
+        assertEquals(1, TransitData.tuTailAlignedPatternIndex(pattern = "069", body = "30690000000000"))
+        assertEquals(-1, TransitData.tuTailAlignedPatternIndex(pattern = "306", body = "30690000000000"))
+        assertEquals(1, TransitData.tuTailAlignedPatternIndex(pattern = "069", body = "306901000"))
+    }
+
+    @Test
     fun tuType03And04AreEntryAndExitForAnyTransitFamily() {
         assertEquals(TransitDirection.ENTRY, RecordDecoder.tuDirectionForType(0x03))
         assertEquals(TransitDirection.EXIT, RecordDecoder.tuDirectionForType(0x04))
