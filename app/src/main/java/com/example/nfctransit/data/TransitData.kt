@@ -297,7 +297,8 @@ object TransitData {
                 terminal,
                 expectedFamily,
                 SP_RULE_SHENZHEN,
-                minLength = 1
+                minLength = 1,
+                requireTailAlignment = false
             )
         } else null
         if (rawMatch != null || terminalMatch != null) {
@@ -313,7 +314,8 @@ object TransitData {
                 terminal,
                 expectedFamily,
                 null,
-                minLength = 8
+                minLength = 8,
+                requireTailAlignment = false
             )?.let { return it }
         }
         return null
@@ -355,7 +357,8 @@ object TransitData {
         body: String,
         expectedFamily: TuTransitFamily?,
         spRule: String?,
-        minLength: Int = 1
+        minLength: Int = 1,
+        requireTailAlignment: Boolean = true
     ): CityMatch? {
         var best: StationResolution? = null
         var bestIndex = Int.MAX_VALUE
@@ -372,10 +375,14 @@ object TransitData {
             }
             for (pattern in patterns) {
                 if (pattern.length < minLength) continue
-                val bodyIndex = tuTailAlignedPatternIndex(pattern, body)
+                val bodyIndex = if (requireTailAlignment) {
+                    tuTailAlignedPatternIndex(pattern, body)
+                } else {
+                    body.indexOf(pattern)
+                }
                 if (bodyIndex < 0) continue
                 val index = prefix.length + bodyIndex
-                val aligned = true
+                val aligned = requireTailAlignment || bodyIndex % 2 == 0
                 val nonZeroLength = pattern.count { it != '0' }
                 val better = isBetterTuCandidate(
                     length = pattern.length,
