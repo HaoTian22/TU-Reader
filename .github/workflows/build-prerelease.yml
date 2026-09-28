@@ -30,6 +30,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 旧 tools 包已停止提供；cmdline-tools 由 action 自动安装。
+          packages: 'platform-tools'
 
       # 仓库没有 gradle wrapper jar，不能用 ./gradlew，直接装 9.6.1 调 gradle
       - name: Set up Gradle
