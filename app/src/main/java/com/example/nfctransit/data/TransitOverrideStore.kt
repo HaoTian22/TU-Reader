@@ -1,7 +1,7 @@
 package com.example.nfctransit.data
 
 import android.content.Context
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.example.nfctransit.data.db.ReaderDeviceEntity
 import java.io.File
@@ -12,20 +12,22 @@ object TransitOverrideStore {
     private const val META_NAME = "overrides.meta.json"
     private const val LOCATION_NAME = "overrides.locations.json"
     private const val ORIGINAL_NAME = "overrides.originals.json"
-    private val gson = Gson()
+    private val gson = GsonBuilder().serializeNulls().create()
 
     fun csvFile(context: Context): File = File(context.filesDir, CSV_NAME)
 
-    private fun metaFile(context: Context): File = File(context.filesDir, META_NAME)
+    private fun metaFile(directory: File): File = File(directory, META_NAME)
 
-    private fun locationFile(context: Context): File = File(context.filesDir, LOCATION_NAME)
+    private fun locationFile(directory: File): File = File(directory, LOCATION_NAME)
 
-    private fun originalFile(context: Context): File = File(context.filesDir, ORIGINAL_NAME)
+    private fun originalFile(directory: File): File = File(directory, ORIGINAL_NAME)
+
+    fun read(context: Context): OverrideSnapshot = read(context.filesDir)
 
     @Synchronized
-    fun read(context: Context): OverrideSnapshot {
+    internal fun read(directory: File): OverrideSnapshot {
         val rows = LinkedHashMap<String, TransitOverrideRow>()
-        val file = csvFile(context)
+        val file = File(directory, CSV_NAME)
         if (file.isFile) {
             file.useLines { lines ->
                 val all = lines.toList()
@@ -35,13 +37,13 @@ object TransitOverrideStore {
                 all.drop(1).forEachIndexed { index, line ->
                     if (line.isBlank()) return@forEachIndexed
                     parseCsvLine(line)?.let { row ->
-                        rows[row.deviceCode] = row
+                        rows[row.mappingKey] = row
                     } ?: throw IllegalStateException("override CSV 第 ${index + 2} 行格式无效")
                 }
             }
         }
         val standards = mutableMapOf<String, String>()
-        val meta = metaFile(context)
+        val meta = metaFile(directory)
         if (meta.isFile) {
             val type = object : TypeToken<Map<String, String>>() {}.type
             runCatching {
@@ -49,7 +51,7 @@ object TransitOverrideStore {
             }
         }
         val locations = mutableMapOf<String, String>()
-        val location = locationFile(context)
+        val location = locationFile(directory)
         if (location.isFile) {
             val type = object : TypeToken<Map<String, String>>() {}.type
             runCatching {
@@ -57,64 +59,83 @@ object TransitOverrideStore {
             }
         }
         val originals = mutableMapOf<String, ReaderDeviceEntity?>()
-        val originalsFile = originalFile(context)
+        val originalsFile = originalFile(directory)
         if (originalsFile.isFile) {
             val type = object : TypeToken<Map<String, ReaderDeviceEntity?>>() {}.type
             runCatching {
                 originals.putAll(gson.fromJson<Map<String, ReaderDeviceEntity?>>(originalsFile.readText(), type).orEmpty())
             }
         }
+        // 旧 sidecar 按编号存储；从对应 CSV 行补上类型，保留原映射及显式 null。
+        migrateKeys(standards, rows.values)
+        migrateKeys(locations, rows.values)
+        migrateKeys(originals, rows.values)
         return OverrideSnapshot(rows, standards, locations, originals)
     }
 
-    @Synchronized
+    private fun <T> migrateKeys(values: MutableMap<String, T>, rows: Collection<TransitOverrideRow>) {
+        for (row in rows) {
+            if (values.containsKey(row.deviceCode)) {
+                if (!values.containsKey(row.mappingKey)) {
+                    values[row.mappingKey] = values.getValue(row.deviceCode)
+                }
+                values.remove(row.deviceCode)
+            }
+        }
+    }
+
     fun upsert(
         context: Context,
         feedback: FeedbackOverride,
         original: ReaderDeviceEntity? = null
-    ) {
-        val snapshot = read(context)
-        val deviceCode = feedback.row.deviceCode
-        if (!snapshot.rows.containsKey(deviceCode)) {
-            snapshot.originals[deviceCode] = original
-        }
-        snapshot.rows[deviceCode] = feedback.row
-        snapshot.standards[deviceCode] = feedback.standard
-        feedback.locationCityCode?.takeIf { it.isNotBlank() }?.let {
-            snapshot.locations[deviceCode] = it
-        } ?: snapshot.locations.remove(deviceCode)
-        writeSnapshot(context, snapshot)
-    }
+    ) = upsert(context.filesDir, feedback, original)
 
     @Synchronized
-    fun remove(context: Context, deviceCode: String): OverrideRemoval? {
-        val snapshot = read(context)
-        val row = snapshot.rows.remove(deviceCode) ?: return null
-        val hasOriginal = snapshot.originals.containsKey(deviceCode)
-        val removal = OverrideRemoval(row, snapshot.originals.remove(deviceCode), hasOriginal)
-        snapshot.standards.remove(deviceCode)
-        snapshot.locations.remove(deviceCode)
-        writeSnapshot(context, snapshot)
+    internal fun upsert(directory: File, feedback: FeedbackOverride, original: ReaderDeviceEntity? = null) {
+        val snapshot = read(directory)
+        val key = feedback.row.mappingKey
+        if (!snapshot.rows.containsKey(key)) {
+            snapshot.originals[key] = original
+        }
+        snapshot.rows[key] = feedback.row
+        snapshot.standards[key] = feedback.standard
+        feedback.locationCityCode?.takeIf { it.isNotBlank() }?.let {
+            snapshot.locations[key] = it
+        } ?: snapshot.locations.remove(key)
+        writeSnapshot(directory, snapshot)
+    }
+
+    fun remove(context: Context, key: String): OverrideRemoval? = remove(context.filesDir, key)
+
+    @Synchronized
+    internal fun remove(directory: File, key: String): OverrideRemoval? {
+        val snapshot = read(directory)
+        val row = snapshot.rows.remove(key) ?: return null
+        val hasOriginal = snapshot.originals.containsKey(key)
+        val removal = OverrideRemoval(row, snapshot.originals.remove(key), hasOriginal)
+        snapshot.standards.remove(key)
+        snapshot.locations.remove(key)
+        writeSnapshot(directory, snapshot)
         return removal
     }
 
     fun list(context: Context): List<TransitOverrideRow> {
         val snapshot = read(context)
         return snapshot.rows.values.map { row ->
-            row.copy(locationCityCode = snapshot.locations[row.deviceCode])
+            row.copy(locationCityCode = snapshot.locations[row.mappingKey])
         }
     }
 
-    private fun writeSnapshot(context: Context, snapshot: OverrideSnapshot) {
-        writeCsv(context, snapshot.rows.values)
-        writeMeta(context, snapshot.standards)
-        writeLocations(context, snapshot.locations)
-        writeOriginals(context, snapshot.originals)
+    private fun writeSnapshot(directory: File, snapshot: OverrideSnapshot) {
+        writeCsv(directory, snapshot.rows.values)
+        writeMeta(directory, snapshot.standards)
+        writeLocations(directory, snapshot.locations)
+        writeOriginals(directory, snapshot.originals)
     }
 
-    private fun writeCsv(context: Context, rows: Collection<TransitOverrideRow>) {
-        val destination = csvFile(context)
-        val temp = File(context.filesDir, "$CSV_NAME.tmp")
+    private fun writeCsv(directory: File, rows: Collection<TransitOverrideRow>) {
+        val destination = File(directory, CSV_NAME)
+        val temp = File(directory, "$CSV_NAME.tmp")
         temp.bufferedWriter(StandardCharsets.UTF_8).use { writer ->
             writer.appendLine(OVERRIDE_HEADER)
             rows.forEach { row ->
@@ -128,9 +149,9 @@ object TransitOverrideStore {
         }
     }
 
-    private fun writeMeta(context: Context, standards: Map<String, String>) {
-        val destination = metaFile(context)
-        val temp = File(context.filesDir, "$META_NAME.tmp")
+    private fun writeMeta(directory: File, standards: Map<String, String>) {
+        val destination = metaFile(directory)
+        val temp = File(directory, "$META_NAME.tmp")
         temp.writeText(gson.toJson(standards), StandardCharsets.UTF_8)
         if (!temp.renameTo(destination)) {
             temp.copyTo(destination, overwrite = true)
@@ -138,9 +159,9 @@ object TransitOverrideStore {
         }
     }
 
-    private fun writeLocations(context: Context, locations: Map<String, String>) {
-        val destination = locationFile(context)
-        val temp = File(context.filesDir, "$LOCATION_NAME.tmp")
+    private fun writeLocations(directory: File, locations: Map<String, String>) {
+        val destination = locationFile(directory)
+        val temp = File(directory, "$LOCATION_NAME.tmp")
         temp.writeText(gson.toJson(locations), StandardCharsets.UTF_8)
         if (!temp.renameTo(destination)) {
             temp.copyTo(destination, overwrite = true)
@@ -148,9 +169,9 @@ object TransitOverrideStore {
         }
     }
 
-    private fun writeOriginals(context: Context, originals: Map<String, ReaderDeviceEntity?>) {
-        val destination = originalFile(context)
-        val temp = File(context.filesDir, "$ORIGINAL_NAME.tmp")
+    private fun writeOriginals(directory: File, originals: Map<String, ReaderDeviceEntity?>) {
+        val destination = originalFile(directory)
+        val temp = File(directory, "$ORIGINAL_NAME.tmp")
         temp.writeText(gson.toJson(originals), StandardCharsets.UTF_8)
         if (!temp.renameTo(destination)) {
             temp.copyTo(destination, overwrite = true)

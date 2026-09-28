@@ -5,6 +5,9 @@ import java.util.LinkedHashMap
 
 const val OVERRIDE_HEADER = "Prefix,Code,Type,Line,Station"
 
+/** JSON sidecar 的稳定键；编号只允许字母数字，分隔符不会与编号混淆。 */
+fun deviceMappingKey(deviceCode: String, transitType: String): String = "$deviceCode|$transitType"
+
 data class TransitOverrideRow(
     val prefix: String,
     val code: String,
@@ -14,6 +17,7 @@ data class TransitOverrideRow(
     val locationCityCode: String? = null
 ) {
     val deviceCode: String get() = prefix + code
+    val mappingKey: String get() = deviceMappingKey(deviceCode, type)
 }
 
 data class OverrideImportSummary(

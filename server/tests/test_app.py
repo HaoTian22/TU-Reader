@@ -99,7 +99,7 @@ def test_accepts_location_metadata_and_keeps_standard(api, tmp_path):
     }
     assert api("POST", "/v1/overrides", payload)[0] == 201
     metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
-    assert metadata["60200010101"] == {
+    assert metadata["60200010101|公交"] == {
         "standard": "TU",
         "locationCityCode": "6020",
         "locationCityName": "东莞",
@@ -118,6 +118,44 @@ def test_rejects_invalid_location_source(api):
         "locationSource": "free text",
     }
     assert api("POST", "/v1/overrides", payload)[0] == 422
+
+
+def test_shared_code_keeps_each_type_and_metadata(api, tmp_path):
+    bus = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "", "locationCityCode": "3320",
+    }
+    metro = {**bus, "type": "地铁", "line": "1号线", "station": "东环南路",
+             "locationCityCode": None}
+    assert api("POST", "/v1/overrides", bus)[1]["status"] == "created"
+    assert api("POST", "/v1/overrides", metro)[1]["status"] == "created"
+    assert api("POST", "/v1/overrides", {**metro, "station": "更正站名"})[1]["status"] == "updated"
+    with app.CSV_FILE.open(encoding="utf-8", newline="") as handle:
+        rows = {row["Type"]: row for row in csv.DictReader(handle)}
+    assert len(rows) == 2
+    assert rows["公交"]["Line"] == "12"
+    assert rows["地铁"]["Station"] == "更正站名"
+    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
+    assert metadata["33200120|公交"]["locationCityCode"] == "3320"
+    assert metadata["33200120|地铁"]["locationCityCode"] is None
+
+
+def test_legacy_metadata_stays_with_its_existing_type(api, tmp_path):
+    with app.CSV_FILE.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=app.HEADER)
+        writer.writeheader()
+        writer.writerow({"Prefix": "3320", "Code": "0120", "Type": "公交", "Line": "12", "Station": ""})
+    legacy = {"standard": "TU", "locationCityCode": "3320"}
+    (tmp_path / "overrides.locations.json").write_text(
+        json.dumps({"33200120": legacy}), encoding="utf-8"
+    )
+    metro = {"prefix": "3320", "code": "0120", "type": "地铁", "standard": "TU",
+             "line": "1号线", "station": "东环南路"}
+    assert api("POST", "/v1/overrides", metro)[1]["status"] == "created"
+    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
+    assert "33200120" not in metadata
+    assert metadata["33200120|公交"] == legacy
+    assert metadata["33200120|地铁"]["standard"] == "TU"
 
 
 def test_accepts_independently_blank_line_or_station(api):

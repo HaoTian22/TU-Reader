@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 /**
  * 交通卡数据门面。
  *
- * 底层由 Room SQLite（预置 assets/data/transit.db，tools/build_db.py 生成）提供；
+ * 底层由 Room SQLite（预置 assets/data/transit.db，tools/update_transit_db.py 生成）提供；
  * 首次访问时把全部站点解析结果载入内存索引（约 2.7 万行），读卡链路为纯内存查询。
  *
  * 站点/线路在应用内以数据库 ID（stationId / lineId）传递，名称按界面语言（system/zh/en）即时解析，
@@ -54,12 +54,13 @@ object TransitData {
     private val cityBoundaries = mutableListOf<CityBoundary>()
     @Volatile
     private var boundaryVersion: String = "0"
-    private val byDeviceCode = mutableMapOf<String, StationResolution>() // device_code -> 解析结果
+    private val byDeviceCode = mutableMapOf<String, MutableList<StationResolution>>() // 同编号保留所有类型
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
-    // 前缀/城市码（device_code[:4] == city_code 已验证成立）-> 该前缀下全部 device_code；
+    // 前缀/城市码（device_code[:4] == city_code 已验证成立）-> 该前缀下全部设备映射；
     // 最长重叠/终端前缀匹配只扫本桶，避免 DB 增大后每次 O(全部设备)
-    private val deviceCodesByCity = mutableMapOf<String, MutableList<String>>()
+    private val resolutionsByCity = mutableMapOf<String, MutableList<StationResolution>>()
+    private val candidatesByCityAndFamily = mutableMapOf<Pair<String, TuTransitFamily?>, List<StationResolution>>()
     // "线路 站点" 组合串 -> 解析结果（中/英各一），用于修复旧版本按空格误拆线路/站名的持久化数据
     private val byCombinedZh = mutableMapOf<String, StationResolution>()
     private val byCombinedEn = mutableMapOf<String, StationResolution>()
@@ -142,7 +143,8 @@ object TransitData {
     fun actualLocation(
         stationId: Long?,
         deviceCode: String?,
-        declaredCityCode: String?
+        declaredCityCode: String?,
+        lineId: Long? = null
     ): ActualLocation {
         ensureLoaded()
         val resolution = stationId?.let { byStationId[it] }
@@ -155,7 +157,9 @@ object TransitData {
                 return ActualLocation(boundary.cityCode, boundary.cityName, LocationSource.STATION_GEO)
             }
         }
-        val deviceLocation = deviceCode?.let { byDeviceCode[it]?.deviceLocation }
+        val candidates = deviceCode?.let { byDeviceCode[it] }.orEmpty()
+        val deviceLocation = (if (lineId != null) candidates.filter { it.lineId == lineId }
+            else candidates).map { it.deviceLocation }.distinct().singleOrNull()
         if (stationId == null && !deviceLocation.isNullOrBlank()) {
             return ActualLocation(deviceLocation, cityZh(deviceLocation), LocationSource.PARENT_DIRECTORY)
         }
@@ -235,7 +239,7 @@ object TransitData {
         return m.resolution.toEntry(if (shenzhenRedirect) SP_RULE_SHENZHEN else m.spRule)
     }
 
-    private data class CityMatch(
+    internal data class CityMatch(
         val resolution: StationResolution,
         val matchedIndex: Int,
         val matchedLength: Int,
@@ -352,22 +356,24 @@ object TransitData {
         return -1
     }
 
-    private fun longestTuMatch(
+    internal fun longestTuMatch(
         prefix: String,
         body: String,
         expectedFamily: TuTransitFamily?,
         spRule: String?,
         minLength: Int = 1,
-        requireTailAlignment: Boolean = true
+        requireTailAlignment: Boolean = true,
+        candidates: List<StationResolution>? = null
     ): CityMatch? {
         var best: StationResolution? = null
         var bestIndex = Int.MAX_VALUE
         var bestLength = 0
         var bestAligned = false
         var bestNonZeroLength = 0
-        for (dev in deviceCodesByCity[prefix].orEmpty()) {
-            val resolution = byDeviceCode[dev] ?: continue
-            if (expectedFamily != null && !matchesTuTransitFamily(resolution.transitType, expectedFamily)) continue
+        val eligible = candidates?.let { unambiguousCandidates(it, expectedFamily) }
+            ?: candidatesByCityAndFamily[prefix to expectedFamily].orEmpty()
+        for (resolution in eligible) {
+            val dev = resolution.deviceCode
             val patterns = if (dev.startsWith(prefix)) {
                 listOf(dev, dev.removePrefix(prefix)).distinct()
             } else {
@@ -431,6 +437,17 @@ object TransitData {
         }
     }
 
+    /** subtype 先过滤类型；剩下仍重码的候选不按加载顺序猜测，继续使用较短的明确映射。 */
+    internal fun unambiguousCandidates(
+        candidates: List<StationResolution>,
+        expectedFamily: TuTransitFamily? = null
+    ): List<StationResolution> = candidates
+        .filter { expectedFamily == null || matchesTuTransitFamily(it.transitType, expectedFamily) }
+        .groupBy { it.deviceCode }
+        .values
+        .filter { rows -> rows.map { it.transitType }.distinct().size == 1 }
+        .flatten()
+
     /** 根据 TU subtype 决定设备映射允许的交通类型；未知 subtype 不限制候选。 */
     internal fun tuTransitFamilyForSubtype(subtype: Int): TuTransitFamily? = when (subtype) {
         0x01 -> TuTransitFamily.RAIL
@@ -451,9 +468,9 @@ object TransitData {
         var best: StationResolution? = null
         var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
         var bestAligned = false
-        for (dev in deviceCodesByCity[prefix].orEmpty()) {
+        for (r in candidatesByCityAndFamily[prefix to null].orEmpty()) {
+            val dev = r.deviceCode
             if (!dev.startsWith(prefix)) continue
-            val r = byDeviceCode[dev] ?: continue
             val devCode = dev.removePrefix(prefix)
             if (devCode.isEmpty()) continue
             val ov = when {
@@ -758,7 +775,8 @@ object TransitData {
             byStationNameEn.clear()
             byNormalizedStationName.clear()
             lineColorsByCityAndName.clear()
-            deviceCodesByCity.clear()
+            resolutionsByCity.clear()
+            candidatesByCityAndFamily.clear()
             loaded = false
             ensureLoaded()
         }
@@ -778,7 +796,7 @@ object TransitData {
                         cityInfos[c.cityCode] = CityInfo(c.cityName, c.cityNameEn)
                     }
                     for (r in dao.getAllResolutions()) {
-                        byDeviceCode[r.deviceCode] = r
+                        byDeviceCode.getOrPut(r.deviceCode, ::mutableListOf).add(r)
                         r.stationId?.let { byStationId[it] = r }
                         r.lineId?.let { lid -> r.stationId?.let { byLineStationId[lid to it] = r } }
                         if (!r.lineColor.isNullOrBlank()) {
@@ -808,7 +826,12 @@ object TransitData {
                             .forEach { name ->
                                 byNormalizedStationName.getOrPut(name, ::mutableListOf).add(r)
                             }
-                        deviceCodesByCity.getOrPut(r.cityCode) { mutableListOf() }.add(r.deviceCode)
+                        resolutionsByCity.getOrPut(r.cityCode, ::mutableListOf).add(r)
+                    }
+                    for ((city, candidates) in resolutionsByCity) {
+                        for (family in listOf(null, TuTransitFamily.RAIL, TuTransitFamily.BUS)) {
+                            candidatesByCityAndFamily[city to family] = unambiguousCandidates(candidates, family)
+                        }
                     }
                 }
             } catch (e: Exception) {

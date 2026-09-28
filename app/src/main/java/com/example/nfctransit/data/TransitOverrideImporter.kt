@@ -56,8 +56,8 @@ object TransitOverrideImporter {
                             StationEntity(cityId = city.cityId, stationName = station)
                         )
                 }
-                val existing = dao.getDeviceByCode(row.deviceCode)
-                val requestedLocation = snapshot.locations[row.deviceCode]
+                val existing = dao.getDeviceByCode(row.deviceCode, row.type)
+                val requestedLocation = snapshot.locations[row.mappingKey]
                     ?.trim()
                     ?.takeIf { it.isNotEmpty() }
                 if (requestedLocation != null && dao.getCity(requestedLocation) == null) {
@@ -66,7 +66,7 @@ object TransitOverrideImporter {
                     return@forEachIndexed
                 }
                 val deviceLocation = requestedLocation?.takeIf { stationId == null }
-                val standard = snapshot.standards[row.deviceCode]
+                val standard = snapshot.standards[row.mappingKey]
                     ?.trim()
                     ?.takeIf { it.isNotEmpty() }
                     ?: existing?.standard
@@ -94,7 +94,7 @@ object TransitOverrideImporter {
                     existing.deviceLocation != deviceLocation
                 ) {
                     dao.updateDeviceMapping(
-                        deviceCode = row.deviceCode,
+                        deviceId = existing.deviceId,
                         standard = standard,
                         lineId = lineId,
                         stationId = stationId,

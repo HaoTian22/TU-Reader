@@ -79,8 +79,8 @@ interface TransitDao {
     @Insert
     suspend fun insertStation(station: StationEntity): Long
 
-    @Query("SELECT * FROM reader_device WHERE device_code = :deviceCode LIMIT 1")
-    suspend fun getDeviceByCode(deviceCode: String): ReaderDeviceEntity?
+    @Query("SELECT * FROM reader_device WHERE device_code = :deviceCode AND transit_type = :transitType LIMIT 1")
+    suspend fun getDeviceByCode(deviceCode: String, transitType: String): ReaderDeviceEntity?
 
     @Insert
     suspend fun insertDevice(device: ReaderDeviceEntity): Long
@@ -90,11 +90,11 @@ interface TransitDao {
         UPDATE reader_device
         SET standard = :standard, line_id = :lineId, station_id = :stationId,
             transit_type = :transitType, device_location = :deviceLocation, updated_at = :updatedAt
-        WHERE device_code = :deviceCode
+        WHERE device_id = :deviceId
         """
     )
     suspend fun updateDeviceMapping(
-        deviceCode: String,
+        deviceId: Long,
         standard: String,
         lineId: Long?,
         stationId: Long?,
@@ -106,8 +106,8 @@ interface TransitDao {
     @Update
     suspend fun restoreDevice(device: ReaderDeviceEntity)
 
-    @Query("DELETE FROM reader_device WHERE device_code = :deviceCode")
-    suspend fun deleteDeviceByCode(deviceCode: String)
+    @Query("DELETE FROM reader_device WHERE device_code = :deviceCode AND transit_type = :transitType")
+    suspend fun deleteDeviceByCode(deviceCode: String, transitType: String)
 
     @Query("SELECT * FROM city WHERE city_id = :cityId LIMIT 1")
     suspend fun getCityById(cityId: Long): CityEntity?

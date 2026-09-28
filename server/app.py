@@ -179,10 +179,14 @@ def _read_rows() -> dict[str, dict[str, str]]:
         return {}
     with CSV_FILE.open("r", encoding="utf-8", newline="") as handle:
         return {
-            row["Prefix"] + row["Code"]: row
+            _mapping_key(row["Prefix"] + row["Code"], row["Type"]): row
             for row in csv.DictReader(handle)
             if row.get("Prefix") and row.get("Code")
         }
+
+
+def _mapping_key(device_code: str, transit_type: str) -> str:
+    return f"{device_code}|{transit_type}"
 
 
 def _write_rows(rows: dict[str, dict[str, str]]) -> None:
@@ -279,11 +283,17 @@ class FeedbackHandler(BaseHTTPRequestHandler):
         with WRITE_LOCK:
             rows = _read_rows()
             metadata_map = _read_metadata()
-            existed = key in rows
-            if rows.get(key) != row:
-                rows[key] = row
+            # 旧 sidecar 按编号存储，用已存 CSV 的类型迁移，保持现有协议和地点。
+            for storage_key, existing_row in rows.items():
+                legacy_key = existing_row["Prefix"] + existing_row["Code"]
+                if legacy_key in metadata_map:
+                    metadata_map.setdefault(storage_key, metadata_map.pop(legacy_key))
+            storage_key = _mapping_key(key, row["Type"])
+            existed = storage_key in rows
+            if rows.get(storage_key) != row:
+                rows[storage_key] = row
                 _write_rows(rows)
-            metadata_map[key] = metadata
+            metadata_map[storage_key] = metadata
             _write_metadata(metadata_map)
         return "updated" if existed else "created"
 

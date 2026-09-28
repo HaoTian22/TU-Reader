@@ -150,10 +150,14 @@ CI 构建使用同名环境变量 `TENCENT_MAP_WEB_SERVICE_KEY` 和 `TENCENT_MAP
 
 | 数据库 | Room 版本 | 内容 | 存储位置 |
 |---|---|---|---|
-| `transit.db` | v2 (AppDatabase) | 城市/线路/站点/读卡器设备（含线路级实际地点） | assets/data/ → 应用私有目录 |
+| `transit.db` | v3 (AppDatabase) | 城市/线路/站点/读卡器设备（含线路级实际地点） | assets/data/ → 应用私有目录 |
 | `user_data.db` | v4 (UserDatabase) | 卡片/原始记录/交易归档 | 应用私有目录 |
 
-**重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致。当前 Room v2 identity hash 为 `54a2c8a30362af8a1d7aecd3d7d0f22f`。
+**重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致。当前 Room v3 identity hash 为 `58d991d9ea0f85d7bc52c1aa802c3124`。
+
+`reader_device` 以 `(device_code, transit_type)` 为唯一键，允许公交和地铁共用编号。CSV 导入同编号同类型时更新，不同类型时新增；同编号同类型却指向不同映射的 CSV 行会报错并停止导入，查重包含空站名的线路/类别行。TU 匹配先根据 `0x1E` byte 9 的 subtype 筛选交通类型，再按设备编号匹配。无法消歧的重码跳过，继续使用明确的线路/类别映射。
+
+v2→v3 升级保留本地数据和 ID，并从内置库补回旧编号唯一约束丢失的类型映射；界面缓存会失效并重新解析历史交易。v3 数据库需配合支持 v3 的 APK 发布，v2 App 无法直接使用 v3 数据库。
 
 界面构建结果和地图路线等可再生成数据不进入用户数据库，而是按 JSON 文件存放在应用的 `cacheDir`：
 

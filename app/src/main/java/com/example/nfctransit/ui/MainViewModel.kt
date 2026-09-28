@@ -773,10 +773,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
-                    val original = if (snapshot.originals.containsKey(normalized.deviceCode)) {
-                        snapshot.originals[normalized.deviceCode]
+                    val original = if (snapshot.originals.containsKey(normalized.mappingKey)) {
+                        snapshot.originals[normalized.mappingKey]
                     } else {
-                        database.transitDao().getDeviceByCode(normalized.deviceCode)
+                        database.transitDao().getDeviceByCode(normalized.deviceCode, normalized.type)
                     }
                     TransitOverrideStore.upsert(
                         context,
@@ -821,33 +821,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateOverride(oldDeviceCode: String, row: TransitOverrideRow, publish: Boolean = false) {
+    fun updateOverride(oldKey: String, row: TransitOverrideRow, publish: Boolean = false) {
         viewModelScope.launch {
             try {
                 val update = withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
-                    if (!snapshot.rows.containsKey(oldDeviceCode)) {
+                    if (!snapshot.rows.containsKey(oldKey)) {
                         throw IllegalArgumentException("override 不存在")
                     }
-                    if (oldDeviceCode != row.deviceCode && snapshot.rows.containsKey(row.deviceCode)) {
-                        throw IllegalArgumentException("新的 Prefix+Code 已存在")
+                    if (oldKey != row.mappingKey && snapshot.rows.containsKey(row.mappingKey)) {
+                        throw IllegalArgumentException("新的 Prefix+Code+Type 已存在")
                     }
-                    val standard = snapshot.standards[oldDeviceCode]
-                        ?: snapshot.standards[row.deviceCode]
+                    val standard = snapshot.standards[oldKey]
+                        ?: snapshot.standards[row.mappingKey]
                         ?: "OVERRIDE"
-                    if (oldDeviceCode != row.deviceCode) {
+                    if (oldKey != row.mappingKey) {
                         database.withTransaction {
-                            restoreOriginal(context, database.transitDao(), oldDeviceCode, snapshot)
+                            restoreOriginal(context, database.transitDao(), oldKey, snapshot)
                         }
-                        TransitOverrideStore.remove(context, oldDeviceCode)
+                        TransitOverrideStore.remove(context, oldKey)
                     }
                     val latest = TransitOverrideStore.read(context)
-                    val original = if (latest.originals.containsKey(row.deviceCode)) {
-                        latest.originals[row.deviceCode]
+                    val original = if (latest.originals.containsKey(row.mappingKey)) {
+                        latest.originals[row.mappingKey]
                     } else {
-                        database.transitDao().getDeviceByCode(row.deviceCode)
+                        database.transitDao().getDeviceByCode(row.deviceCode, row.type)
                     }
                     val locationCity = row.locationCityCode?.let { code ->
                         TransitData.cityOptions().firstOrNull { it.code == code }
@@ -887,20 +887,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteOverride(deviceCode: String) {
+    fun deleteOverride(key: String) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
-                    if (!snapshot.rows.containsKey(deviceCode)) {
+                    if (!snapshot.rows.containsKey(key)) {
                         throw IllegalArgumentException("override 不存在")
                     }
                     database.withTransaction {
-                        restoreOriginal(context, database.transitDao(), deviceCode, snapshot)
+                        restoreOriginal(context, database.transitDao(), key, snapshot)
                     }
-                    TransitOverrideStore.remove(context, deviceCode)
+                    TransitOverrideStore.remove(context, key)
                     TransitOverrideImporter.import(context)
                     TransitData.reload()
                     _overrideRows.postValue(TransitOverrideStore.list(context))
@@ -916,19 +916,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun restoreOriginal(
         context: Application,
         dao: com.example.nfctransit.data.db.TransitDao,
-        deviceCode: String,
+        key: String,
         snapshot: com.example.nfctransit.data.OverrideSnapshot
     ) {
-        val original = if (snapshot.originals.containsKey(deviceCode)) {
-            snapshot.originals[deviceCode]
+        val row = snapshot.rows.getValue(key)
+        val original = if (snapshot.originals.containsKey(key)) {
+            snapshot.originals[key]
         } else {
             // 旧版本未记录覆盖前状态时，以内置库为恢复源；找不到则说明该设备由 override 新增。
-            deviceFromAsset(context, deviceCode)
+            deviceFromAsset(context, row.deviceCode, row.type)
         }
-        original?.let { dao.restoreDevice(it) } ?: dao.deleteDeviceByCode(deviceCode)
+        val current = dao.getDeviceByCode(row.deviceCode, row.type)
+        if (original != null && original.transitType != row.type) {
+            // 旧版本可把公交行改成地铁行。撤销时删掉该覆盖，再按原类型恢复，避免重码冲突。
+            dao.deleteDeviceByCode(row.deviceCode, row.type)
+            val previous = dao.getDeviceByCode(original.deviceCode, original.transitType)
+            if (previous == null) dao.insertDevice(original.copy(deviceId = 0))
+            else dao.restoreDevice(original.copy(deviceId = previous.deviceId))
+        } else if (original == null) {
+            dao.deleteDeviceByCode(row.deviceCode, row.type)
+        } else if (current != null) {
+            // Asset/OTA 的 device_id 可能不同；只更新正在撤销的映射。
+            dao.restoreDevice(original.copy(deviceId = current.deviceId))
+        } else {
+            dao.insertDevice(original.copy(deviceId = 0))
+        }
     }
 
-    private fun deviceFromAsset(context: Application, deviceCode: String): ReaderDeviceEntity? {
+    private fun deviceFromAsset(context: Application, deviceCode: String, transitType: String): ReaderDeviceEntity? {
         val copy = File(context.cacheDir, "transit-asset-lookup.db")
         return try {
             context.assets.open("data/transit.db").use { input ->
@@ -937,8 +952,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
                 database.rawQuery(
                     "SELECT device_id, standard, device_code, city_id, line_id, station_id, " +
-                        "transit_type, match_key, updated_at FROM reader_device WHERE device_code = ?",
-                    arrayOf(deviceCode)
+                        "transit_type, device_location, match_key, updated_at FROM reader_device " +
+                        "WHERE device_code = ? AND transit_type = ?",
+                    arrayOf(deviceCode, transitType)
                 ).use { cursor ->
                     if (!cursor.moveToFirst()) return@use null
                     fun nullableString(column: String): String? = cursor.getColumnIndexOrThrow(column)
@@ -953,6 +969,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         lineId = nullableLong("line_id"),
                         stationId = nullableLong("station_id"),
                         transitType = cursor.getString(cursor.getColumnIndexOrThrow("transit_type")),
+                        deviceLocation = nullableString("device_location"),
                         matchKey = nullableString("match_key"),
                         updatedAt = nullableString("updated_at")
                     )

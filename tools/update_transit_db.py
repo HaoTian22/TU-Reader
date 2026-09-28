@@ -17,8 +17,8 @@
     深圳 10号线表头 Code=40）；仍取不到则用站点码公共前缀。
   - match_key = city|strip0(line_code)|strip0(station_code)；取不到 line_code 的终端型
     （如南京自行车、广州 yct）不写 match_key。
-  - 空站名的行（公交运营商 / 线路标头）不产生 reader_device。
-  - 已有 device_code 的站只更新 line/station/type 变化，保留 ID、英文、坐标、配色。
+  - 空站名行也产生 reader_device，作为线路/类别 fallback。
+  - 唯一键为 (device_code, transit_type)：同类型更新，不同类型新增，保留已有 ID 和增强数据。
 
 版本 sidecar：应用有变更（或 sidecar 缺失）时在 assets/data/transit.db.version 写
 14 位时间戳（%Y%m%d%H%M%S），供 App 判断内置库与网络库孰新、清缓存时是否重置。
@@ -27,6 +27,7 @@ import argparse
 import collections
 import csv
 import datetime
+import json
 import os
 import shutil
 import sqlite3
@@ -44,8 +45,30 @@ ROOT = os.path.dirname(os.path.abspath(__file__)) + "/../../tripreader-data"
 if not os.path.isdir(ROOT):
     ROOT = r"D:/Code/Android/APPs-Dev/tripreader-data"
 DB = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/transit.db"
-IDENTITY_HASH = "54a2c8a30362af8a1d7aecd3d7d0f22f"
+SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "../app/schemas/com.example.nfctransit.data.db.AppDatabase/3.json")
 VERSION_FILE = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/transit.db.version"
+
+
+def mapping_key(device_code, transit_type):
+    return device_code, transit_type
+
+
+def schema_info():
+    with open(SCHEMA_FILE, encoding="utf-8") as handle:
+        return json.load(handle)["database"]
+
+
+def prepare_schema(db):
+    """升级索引而不重建表，保留当前库的 ID、坐标、英文名及配色。"""
+    schema = schema_info()
+    old_hash = db.execute("SELECT identity_hash FROM room_master_table WHERE id=42").fetchone()
+    changed = old_hash is None or old_hash[0] != schema["identityHash"]
+    db.execute("DROP INDEX IF EXISTS index_reader_device_device_code")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS index_reader_device_device_code_transit_type "
+               "ON reader_device (device_code, transit_type)")
+    db.execute(f"PRAGMA user_version={int(schema['version'])}")
+    return changed
 
 
 def strip0(s):
@@ -121,7 +144,8 @@ class Loader:
         self.station_by_city_name = {}
         for r in self.db.execute("SELECT s.*, c.city_code FROM station s JOIN city c ON c.city_id=s.city_id"):
             self.station_by_city_name[(r["city_code"], r["station_name"])] = r
-        self.device_by_code = {r["device_code"]: r for r in self.db.execute("SELECT * FROM reader_device")}
+        self.device_by_key = {mapping_key(r["device_code"], r["transit_type"]): r
+                              for r in self.db.execute("SELECT * FROM reader_device")}
 
     def city_id(self, code):
         row = self.city_by_code.get(code)
@@ -159,27 +183,28 @@ def scan_csvs():
     return out
 
 
-def dedup_check():
-    """查重：同 device_code 对应不同站 / 跨文件冲突。返回报告行列表。"""
-    dev_owner = {}  # device_code -> (rel, city, line, station)
+def dedup_check(only_files=None):
+    """同编号不同类型合法；同编号同类型的不同映射必须先人工解决。包括空站名行。"""
+    dev_owner = {}
     issues = []
     total_devices = 0
     for rel, std, prefix_mode, has_en, rows in scan_csvs():
+        if only_files and rel not in only_files:
+            continue
         for r in rows:
             city, code, type_, line, station = r[0], r[1], r[2], r[3], r[4]
-            if not station:
+            if not code:
                 continue
             dev = city + code
             total_devices += 1
-            key = (rel, city, line, station)
-            if dev in dev_owner and dev_owner[dev] != key:
-                prev = dev_owner[dev]
-                issues.append(f"  CONFLICT {dev}: {prev[3]} ({prev[1]},{prev[2]}) [in {prev[0]}]  vs  {station} ({city},{line}) [in {rel}]")
+            key = mapping_key(dev, type_)
+            owner = (std, city, line, station, rel)
+            if key in dev_owner and dev_owner[key][:4] != owner[:4]:
+                prev = dev_owner[key]
+                issues.append(f"  CONFLICT {dev} [{type_}]: {prev[3]} ({prev[1]},{prev[2]},{prev[0]}) "
+                              f"[in {prev[4]}] vs {station} ({city},{line},{std}) [in {rel}]")
             else:
-                dev_owner[dev] = key
-    # 同一 (city, line) 内不同 device_code 指向同名站是正常的多终端，不视为重复；
-    # 只有「同 device_code 对应不同站」才算冲突（上面已查）。此处仅提示可能需人工确认的
-    # 跨线路同名站（同名不同线，通常合法，仅提示）。
+                dev_owner[key] = owner
     return total_devices, issues
 
 
@@ -279,12 +304,13 @@ def build_update(loader, only_files=None):
                 if st is not None and (st["station_name_en"] or "") != station_en:
                     upd_station_en.append((st["station_id"], station_en))
             dev = city + code
-            csv_devices.add(dev)
-            if dev in seen_added:
-                continue  # CSV 内同 device_code 多行（如 518050 地铁/公交 都有空站名行）只取第一个
-            if loader.device_by_code.get(dev) is not None:
-                seen_added.add(dev)
-                old = loader.device_by_code[dev]
+            key = mapping_key(dev, type_)
+            csv_devices.add(key)
+            if key in seen_added:
+                continue  # 同编号同类型的相同映射只导入一次，冲突在 dedup_check 中拒绝。
+            if loader.device_by_key.get(key) is not None:
+                seen_added.add(key)
+                old = loader.device_by_key[key]
                 old_line = loader.db.execute(
                     "SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
                 old_stn = loader.db.execute(
@@ -304,12 +330,12 @@ def build_update(loader, only_files=None):
                 mk = f"{city}|{strip0(lc)}|{strip0(station_code)}" if lc and station_code else None
             else:
                 mk = None  # 大类 fallback（空站名）：不参与 match_key，按 device_code 前缀匹配
-            seen_added.add(dev)
+            seen_added.add(key)
             add_device.append((dev, city, lc, lname, station, station_en, type_, std, mk,
                                parent_city if not station else None))
     # 过期检测：DB 中存在但当前 CSV 已不再出现的设备（--only 时无法判断，跳过）
     if only_files is None:
-        stale_device = sorted(dev for dev in loader.device_by_code if dev not in csv_devices)
+        stale_device = sorted(key for key in loader.device_by_key if key not in csv_devices)
     else:
         stale_device = []
     # 孤儿站检测：最终状态（扣掉过期设备后）没有任何 reader_device 的站，
@@ -317,8 +343,8 @@ def build_update(loader, only_files=None):
     dev_count = collections.Counter()
     for sid, in loader.db.execute("SELECT station_id FROM reader_device"):
         dev_count[sid] += 1
-    for dev in stale_device:
-        dev_count[loader.device_by_code[dev]["station_id"]] -= 1
+    for key in stale_device:
+        dev_count[loader.device_by_key[key]["station_id"]] -= 1
     orphan_stations = [s for s in loader.db.execute(
         "SELECT s.station_id, s.station_name, s.longitude, c.city_name "
         "FROM station s JOIN city c ON c.city_id=s.city_id")
@@ -327,8 +353,8 @@ def build_update(loader, only_files=None):
     line_dev_count = collections.Counter()
     for lid, in loader.db.execute("SELECT line_id FROM reader_device WHERE line_id IS NOT NULL"):
         line_dev_count[lid] += 1
-    for dev in stale_device:
-        lid = loader.device_by_code[dev]["line_id"]
+    for key in stale_device:
+        lid = loader.device_by_key[key]["line_id"]
         if lid is not None:
             line_dev_count[lid] -= 1
     orphan_lines = [l for l in loader.db.execute(
@@ -347,14 +373,17 @@ def main():
     ap.add_argument("--only", nargs="+", help="只处理这些 CSV（相对 tripreader-data 的路径，如 Guangdong/Shenzhen/cu.csv）")
     args = ap.parse_args()
 
-    total, issues = dedup_check()
-    print(f"=== CSV 查重 ===  共 {total} 条站点记录")
+    total, issues = dedup_check(args.only)
+    print(f"=== CSV 查重 ===  共 {total} 条设备记录（含线路/类别 fallback）")
     if issues:
-        print(f"device_code 冲突（{len(issues)} 条）：")
+        print(f"device_code + transit_type 冲突（{len(issues)} 条）：")
         for i in issues[:50]:
             print(i)
     else:
-        print("device_code 无冲突（同码不同站）")
+        print("device_code + transit_type 无冲突")
+    if issues:
+        print("请先解决同编号同类型的映射冲突，未写库。")
+        return 1
     if args.check:
         return 0
 
@@ -401,11 +430,12 @@ def main():
     print()
     print(f"=== 待删除检测（CSV 中已不存在，共 {len(stale_device)} 条）===")
     if stale_device:
-        for dev in stale_device[:25]:
-            old = loader.device_by_code[dev]
+        for key in stale_device[:25]:
+            dev, type_ = key
+            old = loader.device_by_key[key]
             ln = loader.db.execute("SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
             st = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
-            print(f"  - {dev:16} line={ln[0] if ln else '-':16} stn={st[0] if st else '-':14} updated={old['updated_at']}")
+            print(f"  - {dev:16} type={type_} line={ln[0] if ln else '-':16} stn={st[0] if st else '-':14} updated={old['updated_at']}")
         if len(stale_device) > 25:
             print(f"  ... 共 {len(stale_device)} 条，请人工核对后再删除")
         print("（人工核对后运行 --delete-stale 才真正删除）")
@@ -442,6 +472,8 @@ def main():
 
     # 应用更新
     db = loader.db
+    db.execute("BEGIN")
+    schema_changed = prepare_schema(db)
     cur = db.cursor()
     added_stations, added_lines, changed_line_codes = 0, 0, 0
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 与原始构建的 updated_at 时间戳格式一致
@@ -511,15 +543,15 @@ def main():
             "VALUES (?,?,?,?,?,?,?,?,?)",
             (std, dev, cid, lid, sid, type_, device_location, mk, ts))
     for dev, city, line_code, lname, station, type_, std, device_location in upd_device:
-        old = loader.device_by_code[dev]
+        old = loader.device_by_key[mapping_key(dev, type_)]
         cid = old["city_id"]
         lid = ensure_line(city, line_code, lname, cid) or old["line_id"]
         sid = ensure_station(city, station, cid, None) if station else None
         if (lid != old["line_id"] or sid != old["station_id"] or type_ != old["transit_type"]
                 or std != old["standard"] or (device_location or "") != (old["device_location"] or "")):
             cur.execute(
-                "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, device_location=?, updated_at=? WHERE device_code=?",
-                (lid, sid, type_, std, device_location, ts, dev))
+                "UPDATE reader_device SET line_id=?, station_id=?, transit_type=?, standard=?, device_location=?, updated_at=? WHERE device_id=?",
+                (lid, sid, type_, std, device_location, ts, old["device_id"]))
     for city, lname, lc in line_code_syncs:
         row = loader.line_by_city_name.get((city, lname))
         if row is None or (row["line_code"] or "") != lname:
@@ -545,8 +577,8 @@ def main():
         if not stale_device:
             print("\n无可删除的过期设备")
         else:
-            for dev in stale_device:
-                cur.execute("DELETE FROM reader_device WHERE device_code=?", (dev,))
+            for dev, type_ in stale_device:
+                cur.execute("DELETE FROM reader_device WHERE device_code=? AND transit_type=?", (dev, type_))
             print(f"\n已删除 {len(stale_device)} 条过期设备")
         # 应用变更后重新计算孤儿（新增设备可能引用原孤儿，过期设备删除可能产生新孤儿）
         orphans_stn = db.execute(
@@ -561,9 +593,10 @@ def main():
             cur.execute("DELETE FROM line WHERE line_id=?", (lid,))
         print(f"孤儿清理：删除 {len(orphans_stn)} 个孤儿站、{len(orphans_ln)} 条孤儿线路")
 
-    db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (IDENTITY_HASH,))
+    identity_hash = schema_info()["identityHash"]
+    db.execute("INSERT OR REPLACE INTO room_master_table (id, identity_hash) VALUES (42, ?)", (identity_hash,))
     db.commit()
-    changed = bool(len(add_device) or len(upd_device) or len(upd_station_en) or changed_line_codes
+    changed = bool(schema_changed or len(add_device) or len(upd_device) or len(upd_station_en) or changed_line_codes
                    or (args.delete_stale and (stale_device or orphans_stn or orphans_ln)))
     if changed or not os.path.isfile(VERSION_FILE):
         with open(VERSION_FILE, "w", encoding="utf-8") as f:
@@ -579,7 +612,7 @@ def main():
     print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射，"
           f"同步 {len(dict(upd_station_en))} 个英文名"
           + (f"，删除 {len(stale_device)} 条过期设备" if args.delete_stale and stale_device else ""))
-    print("identity_hash 保持", IDENTITY_HASH)
+    print("identity_hash", identity_hash)
 
     if args.upload:
         if not changed:

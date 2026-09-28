@@ -43,7 +43,12 @@ DEFAULT_OBJECT = "transit.db"
 DEFAULT_PUBLIC_URL = "https://assets2.haotian22.top/transit.db"
 DEFAULT_VERSION_OBJECT = "transit.db.version"
 DEFAULT_VERSION_PUBLIC_URL = "https://assets2.haotian22.top/transit.db.version"
-DEFAULT_HASH = "54a2c8a30362af8a1d7aecd3d7d0f22f"
+SCHEMA_FILE = os.path.join(HERE, "../app/schemas/com.example.nfctransit.data.db.AppDatabase/3.json")
+
+
+def current_identity_hash():
+    with open(SCHEMA_FILE, encoding="utf-8") as handle:
+        return json.load(handle)["database"]["identityHash"]
 
 
 def sha256_hex(data: bytes) -> str:
@@ -164,7 +169,7 @@ def main():
     ap.add_argument("--version-object", help="版本文件对象键（默认 transit.db.version）")
     ap.add_argument("--version-public-url", help="版本文件上传后 HEAD 校验的公开 URL")
     ap.add_argument("--cache-control", help="Cache-Control 响应头")
-    ap.add_argument("--expected-hash", default=DEFAULT_HASH, help="期望的 identity_hash")
+    ap.add_argument("--expected-hash", default=current_identity_hash(), help="期望的 identity_hash（默认读取 Room schema）")
     ap.add_argument("--no-hash-check", action="store_true", help="跳过 identity_hash 校验")
     ap.add_argument("--check-config", action="store_true", help="只检查配置是否齐全")
     args = ap.parse_args()

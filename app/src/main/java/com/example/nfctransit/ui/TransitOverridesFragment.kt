@@ -130,7 +130,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
                 false
             } else {
-                viewModel.updateOverride(row.deviceCode, updated, publish)
+                viewModel.updateOverride(row.mappingKey, updated, publish)
                 true
             }
         }
@@ -144,7 +144,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             confirmLabel = "删除",
             confirmColor = 0xFFFF3B30.toInt()
         ) {
-            viewModel.deleteOverride(row.deviceCode)
+            viewModel.deleteOverride(row.mappingKey)
         }
     }
 
