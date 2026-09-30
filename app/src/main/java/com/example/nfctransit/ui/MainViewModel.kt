@@ -57,6 +57,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +65,7 @@ import kotlinx.coroutines.withContext
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = TransitRepository(application)
+    private val cardStateCoordinator = CardStateCoordinator()
 
     // ── In-memory working set（镜像持久层；UI 派生的唯一来源）──
 
@@ -227,7 +229,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) + CardProfiles.known.map { it.name }
 
     init {
-        viewModelScope.launch { restore() }
+        viewModelScope.launch {
+            try {
+                cardStateCoordinator.initialize { restore() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "restore 失败", e)
+            }
+        }
     }
 
     /** 启动加载：从 DataStore + Room 用户库恢复；每张卡优先读上次的 UI 构建缓存，无缓存/失效再重建 */
@@ -248,7 +258,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
-            val cards = repo.migrateCuCardNumbers()
+            repo.migrateCuCardNumbers()
+            // 修复旧版本启动抢读留下的重复 UUID，保留全部交易和用户自定义元数据。
+            if (repo.coalesceDuplicateCards() > 0) {
+                withContext(Dispatchers.IO) { UiCache.clearAll(app) }
+            }
+            val cards = repo.loadCards()
                 .map { card ->
                     val mappedName = sequenceOf(card.cardNumber, card.secondCardNumber.orEmpty())
                         .filter { it.isNotEmpty() }
@@ -294,8 +309,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 uiCards.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it }
             } else 0
             selectCardByIndex(idx)
-        } catch (e: Exception) {
-            Log.e("MainViewModel", "restore 失败", e)
         } finally {
             _isRestoring.value = false
         }
@@ -373,14 +386,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (cardId != null) emitCardData(cardId)
     }
 
-    // ── NFC 数据加载（解码 → 内容去重合并 → 渲染 + 异步持久化）──
+    // ── NFC 数据加载（等待恢复 → 串行解码/合并/持久化/重建）──
 
     /**
-     * 处理 NFC 读取结果。返回新卡片在列表中的下标，若为已存在卡片或未读取到数据则返回 null。
+     * 启动期间保留读取结果，恢复成功后才匹配身份。队列由 ViewModel 持有，
+     * 每次处理包含落库和重建，避免后一次读取被较早的异步持久化结果覆盖。
      */
-    fun onNfcDataLoaded(result: TransitCardReader.ReadResult): Int? {
+    fun onNfcDataLoaded(
+        result: TransitCardReader.ReadResult,
+        onComplete: (Int) -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                cardStateCoordinator.withRestoredState {
+                    applyNfcData(result)
+                    onComplete(lastReadCount)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "处理 NFC 读取结果失败", e)
+                onError(e)
+            }
+        }
+    }
+
+    private suspend fun applyNfcData(result: TransitCardReader.ReadResult) {
+        lastReadCount = 0
         currentSessionNfcLog = result.rawLog
-        val profile = result.matchedProfile ?: return null
+        val profile = result.matchedProfile ?: return
         val cardNumber = result.cardInfo?.cardNumber ?: ""
         val secondCardNumber = result.secondCardInfo?.cardNumber ?: ""
         val legacyCardNumber = if (profile.cardType == "CU") {
@@ -402,8 +437,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             profile.cardType, records, result.statsMonth, currentYear
         )
         if (decoded.display.isEmpty()) {
-            lastReadCount = 0
-            return null
+            return
         }
         lastReadCount = decoded.display.size
 
@@ -440,7 +474,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         if (existing == null) existing = cardEntities.firstOrNull { it.lastFour == lastFour }
-        val isNew = existing == null
         val cardId = existing?.cardId ?: UUID.randomUUID().toString()
         val (gradStart, gradEnd) = existing?.let {
             it.gradientStartColor to it.gradientEndColor
@@ -494,13 +527,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 无论新卡还是重复读同一张卡，都让首页滑动到该卡
         _cardAdded.value = index
 
-        // 异步持久化：卡片 + 槽位同步 + 内容去重归档（含 0x1E 旅程记录）+ 应用 SELECT/BALANCE + 顺序 + 会话日志
+        // 持久化与重建都完成后才处理下一次读取；后台线程使用主线程捕获的顺序快照。
         val rawRecords = result.rawRecords
         val logLines = result.rawLog
         val appRows = cardAppsByCard[cardId].orEmpty()
-        viewModelScope.launch(Dispatchers.IO) {
+        val cardOrder = cardEntities.map { it.cardId }
+        withContext(Dispatchers.IO) {
             repo.persistNfcRead(entity, rawRecords, decoded.archive, appRows)
-            repo.setCardOrder(cardEntities.map { it.cardId })
+            repo.setCardOrder(cardOrder)
             repo.writeSessionLog(cardId, logLines)
             // 写库完成后以数据库为唯一来源重建内存与 UI（读卡后与重启走同一条 decodeArchive 路径，
             // 保证界面与重启一致，不依赖读卡时的内存解码结果）
@@ -535,7 +569,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
             UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns, dbVersion))
         }
-        return if (isNew) index else null
     }
 
     fun selectCardByIndex(index: Int) {
@@ -1048,7 +1081,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 导入数据库：自动识别 TripReader（card_table/tran_table）与本应用导出库（cards/…）两种格式，
      * 复制所选文件到缓存 → 去重合并 → 重载界面，返回结果文案。
      */
-    suspend fun importDatabase(uri: Uri): String {
+    suspend fun importDatabase(uri: Uri): String = cardStateCoordinator.withRestoredState {
         val tmp = withContext(Dispatchers.IO) { copyUriToCache(uri) }
         val (summary, fromTripReader) = withContext(Dispatchers.IO) {
             try {
@@ -1060,7 +1093,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         restore()
         val mergedMessage = summary.merged.takeIf { it > 0 }?.let { "、合并 $it 张重复卡" }.orEmpty()
-        return if (fromTripReader) {
+        if (fromTripReader) {
             "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易$mergedMessage"
         } else {
             "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录$mergedMessage"

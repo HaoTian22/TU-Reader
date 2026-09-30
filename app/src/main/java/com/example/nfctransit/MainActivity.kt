@@ -115,22 +115,25 @@ class MainActivity : AppCompatActivity() {
             // 调试：把完整读卡 APDU 日志输出到 logcat，便于真机排查
             android.util.Log.d("TransitReader", result.rawLog.joinToString("\n"))
             runOnUiThread {
-                viewModel.onNfcDataLoaded(result)
-                if (result.matchedProfile != null && viewModel.lastReadCount > 0) {
-                    Toast.makeText(
-                        this,
-                        "识别为：${result.matchedProfile.name}，读取到 ${viewModel.lastReadCount} 条记录",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else if (result.matchedProfile != null) {
-                    Toast.makeText(
-                        this,
-                        "识别为：${result.matchedProfile.name}，但未读取到交易记录",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    Toast.makeText(this, "未识别出支持的卡种", Toast.LENGTH_SHORT).show()
-                }
+                viewModel.onNfcDataLoaded(result, onComplete = { readCount ->
+                    if (result.matchedProfile != null && readCount > 0) {
+                        Toast.makeText(
+                            this,
+                            "识别为：${result.matchedProfile.name}，读取到 $readCount 条记录",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else if (result.matchedProfile != null) {
+                        Toast.makeText(
+                            this,
+                            "识别为：${result.matchedProfile.name}，但未读取到交易记录",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(this, "未识别出支持的卡种", Toast.LENGTH_SHORT).show()
+                    }
+                }, onError = {
+                    Toast.makeText(this, "加载或保存卡片失败，请重试", Toast.LENGTH_LONG).show()
+                })
             }
         }.start()
     }

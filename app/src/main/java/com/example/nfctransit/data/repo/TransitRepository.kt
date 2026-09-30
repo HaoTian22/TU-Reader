@@ -12,6 +12,7 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
+import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
@@ -508,7 +509,7 @@ class TransitRepository(private val context: Context) {
      * 合并早期版本留下的重复卡。只接受完整 primary/secondary 卡号有交集的卡，绝不以尾号作为
      * 删除依据；尾号相同的不同实体卡会继续独立保留。
      */
-    private suspend fun coalesceDuplicateCards(): Int {
+    suspend fun coalesceDuplicateCards(): Int {
         val replacementIds = mutableMapOf<String, String>()
         val mergedCount = database.withTransaction {
             val canonicalCards = mutableListOf<CardEntity>()
@@ -526,6 +527,17 @@ class TransitRepository(private val context: Context) {
                 }
 
                 val canonical = canonicalCards[canonicalIndex]
+                // 旧版本可能只有 raw_records；覆盖当前槽位前先把两张卡的历史交易补入归档。
+                for (card in listOf(canonical, candidate)) {
+                    backfillArchiveFromRaw(
+                        card.cardId,
+                        card.cardType,
+                        dao.getRawRecords(card.cardId).map {
+                            RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+                        },
+                        Calendar.getInstance().get(Calendar.YEAR)
+                    )
+                }
                 val merged = mergeDuplicateCardMetadata(canonical, candidate)
                 dao.upsertCard(merged)
                 mergeDuplicateCardRows(merged.cardId, candidate.cardId)
@@ -549,11 +561,17 @@ class TransitRepository(private val context: Context) {
         return mergedCount
     }
 
-    /** 将冗余卡的所有尚不存在的记录迁移到保留卡，再由调用方删除冗余卡。 */
+    /** 合并归档及应用记录，并保留最新原始槽位，再由调用方删除冗余卡。 */
     private suspend fun mergeDuplicateCardRows(targetCardId: String, duplicateCardId: String) {
         for (raw in dao.getRawRecords(duplicateCardId)) {
-            if (dao.getRawSlot(targetCardId, raw.protocol, raw.sfi, raw.recNo) == null) {
+            val existing = dao.getRawSlot(targetCardId, raw.protocol, raw.sfi, raw.recNo)
+            if (existing == null) {
                 dao.insertRawRecord(raw.copy(cardId = targetCardId, rowId = 0))
+            } else if (raw.lastSeenAt > existing.lastSeenAt) {
+                dao.overwriteRawSlot(
+                    targetCardId, raw.protocol, raw.sfi, raw.recNo,
+                    raw.hex, raw.contentHash, raw.lastSeenAt
+                )
             }
         }
         for (archive in dao.getArchive(duplicateCardId)) {
