@@ -138,9 +138,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
-        // 主题色跟随卡片；进度条填充改圆角
+        // 主题色跟随卡片；进度条填充改圆角。
+        // 本页是深色底：直接用浅色卡面色（马卡龙），而不是为浅色页面压暗的 mainAccent
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
-            mainAccent = accent.toInt()
+            mainAccent = viewModel.selectedCard.value?.gradientStartColor?.toInt() ?: accent.toInt()
             binding.progressPlayback.background = GradientDrawable().apply {
                 cornerRadius = 2f * resources.displayMetrics.density
                 setColor(mainAccent)
@@ -151,7 +152,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
+                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
             }
         }
 
