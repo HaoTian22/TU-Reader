@@ -57,7 +57,7 @@ data class UiTransaction(
     val displayDateTime: String,   // "2024-09-15 08:23:15" or "09-15 08:23"
     val balanceAfterYuan: Double?, // 无余额数据为 null（详情页显示"-"）
     val balanceAfterText: String?, // "余额 ¥45.50"；无余额数据为 null（列表行隐藏）
-    val icon: String,              // emoji: 🚇 🚌 💳 🛒
+    val icon: String,              // Font Awesome 7 solid 字形（fa-solid-900.otf）
     val iconBgColor: Long,         // background color for icon circle
     val protocols: List<String> = emptyList(),  // 该记录被哪些协议写入（LNT/TU），排序后展示
     val journeyHex: String? = null, // TU 卡同笔交易的 1E 旅程原始 hex（详情页原始数据显示两份）；null=无配对 1E

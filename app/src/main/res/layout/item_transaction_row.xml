@@ -16,14 +16,14 @@
     <FrameLayout
         android:layout_width="36dp"
         android:layout_height="36dp"
-        android:background="@drawable/bg_icon_circle_blue">
+        android:background="@drawable/bg_icon_circle">
 
         <TextView
             android:id="@+id/txnIcon"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:text="🚇"
-            android:textSize="16sp"
+            android:textColor="@color/ink_2"
+            android:textSize="15sp"
             android:gravity="center" />
     </FrameLayout>
 
@@ -45,7 +45,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="广州"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="10sp"
                 android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
@@ -60,7 +60,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="地铁"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="10sp"
                 android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
@@ -75,7 +75,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="1号线"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="10sp"
                 android:singleLine="true"
                 android:background="@drawable/bg_chip_default"
@@ -107,7 +107,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="体育中心"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="14sp"
                 android:fontFamily="sans-serif-medium"
                 android:singleLine="true"
@@ -121,7 +121,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="09-15 08:23"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="10sp"
             android:layout_marginTop="3dp" />
     </LinearLayout>
@@ -137,7 +137,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="-¥3.00"
-            android:textColor="#FF3B30"
+            android:textColor="@color/danger"
             android:textSize="15sp"
             android:textStyle="bold"
             android:fontFamily="monospace" />
@@ -147,7 +147,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="余额 ¥45.50"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="11sp" />
 
         <!-- 协议药丸：该记录被哪些协议写入（LNT/TU），最多两个；空则隐藏 -->
@@ -163,7 +163,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TU"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="8sp"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="4dp"
@@ -177,7 +177,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="LNT"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="8sp"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="4dp"

@@ -21,7 +21,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:text="@string/brand_lockup"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -38,7 +38,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="关于"
-        android:textColor="#8E8E93"
+        android:textColor="@color/ink_3"
         android:textSize="12sp"
         android:textStyle="bold"
         android:paddingStart="16dp"
@@ -62,7 +62,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf02b;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -71,13 +71,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="版本号"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/app_version"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -98,7 +98,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf1da;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -107,13 +107,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="更新日志"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -135,7 +135,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf0ae;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -144,13 +144,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="支持的卡种列表"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -172,7 +172,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf004;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -181,13 +181,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="开源致谢"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -212,7 +212,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf0e0;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -221,13 +221,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="反馈入口"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf0c1;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>

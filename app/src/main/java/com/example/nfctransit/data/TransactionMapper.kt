@@ -14,6 +14,9 @@ import kotlin.math.abs
  */
 object TransactionMapper {
 
+    /** 交易类型图标底色：统一中性灰，类型差异只靠 Font Awesome 图形区分 */
+    private const val ICON_BG = 0xFFECEEF1
+
     fun CardEntity.toUiCard(): UiCard = UiCard(
         id = cardId,
         name = name,
@@ -40,29 +43,29 @@ object TransactionMapper {
         // 大分类之外但确有数据库类型 → 统一兜底图标 + 原始类型串；
         // 未命中数据库与任何推断逻辑的才回退公交。
         val categoryKey = resolved.dbType ?: resolved.transitType
-        // 充值类展示（💳 图标）：含映射命中的充值设备（可能同时承载退款）；
+        // 充值类展示（银行卡图标）：含映射命中的充值设备（可能同时承载退款）；
         // 但入账与否（"+" 符号、统计豁免）仍按原生 type "02" 判定——非 "02" 按 "-" 计消费
         val effRecharge = isRecharge ||
             resolved.dbType?.contains("充值") == true ||
             resolved.transitType == "充值"
 
-        val (icon, iconBgColor, transitType, lineName) = when {
-            effRecharge -> Quad("💳", 0xFFE8F5E9, "充值", "—")
+        val (icon, transitType, lineName) = when {
+            effRecharge -> Triple("", "充值", "—")
             categoryKey == "地铁" ->
-                Quad("🚇", 0xFFE3F2FD, "地铁", resolved.lineName.ifEmpty { "—" })
+                Triple("", "地铁", resolved.lineName.ifEmpty { "—" })
             categoryKey in BUS_LIKE_TYPES ->
-                Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
+                Triple("", "公交", resolved.lineName.ifEmpty { "—" })
             categoryKey == "有轨电车" ->
-                Quad("🚊", 0xFFE0F7FA, "有轨电车", resolved.lineName.ifEmpty { "—" })
+                Triple("", "有轨电车", resolved.lineName.ifEmpty { "—" })
             categoryKey == "城际" ->
-                Quad("🚄", 0xFFE8EAF6, "城际", resolved.lineName.ifEmpty { "—" })
+                Triple("", "城际", resolved.lineName.ifEmpty { "—" })
             categoryKey == "便利店" || categoryKey == "消费" ->
-                Quad("🛒", 0xFFFCE4EC, categoryKey, "—")
+                Triple("", categoryKey, "—")
             // 大分类之外的确证类型（轮渡/出租车/铁路……）：沿用数据库原始类型串 + 统一图标
             resolved.dbType != null ->
-                Quad("🎫", 0xFFEDE7F6, resolved.transitType, resolved.lineName.ifEmpty { "—" })
+                Triple("", resolved.transitType, resolved.lineName.ifEmpty { "—" })
             else ->
-                Quad("🚌", 0xFFFFF3E0, "公交", resolved.lineName.ifEmpty { "—" })
+                Triple("", "公交", resolved.lineName.ifEmpty { "—" })
         }
 
         val formattedDate = formatBcdDate(date)
@@ -116,7 +119,7 @@ object TransactionMapper {
             balanceAfterYuan = balanceAfterYuan,
             balanceAfterText = balanceAfterFen?.let { "余额 ¥${String.format("%.2f", it / 100.0)}" },
             icon = icon,
-            iconBgColor = iconBgColor,
+            iconBgColor = ICON_BG,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
             journeyHex = journeyHex,
@@ -189,13 +192,6 @@ object TransactionMapper {
         val stationId: Long?,
         /** 数据库命中的原始 Type 列（未命中/充值早退为 null），用于大分类外类型的统一展示 */
         val dbType: String? = null
-    )
-
-    private data class Quad(
-        val icon: String,
-        val bgColor: Long,
-        val transitType: String,
-        val lineName: String
     )
 
     /** 归并到"公交"大类的类型：含解码侧兜底串"公共交通"与 CSV 里的公交族 */

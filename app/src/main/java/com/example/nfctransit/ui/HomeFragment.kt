@@ -49,7 +49,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var cardAdapter: CardPagerAdapter? = null
     private var lastKnownSize = -1
     private var suppressPagerCallback = false
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
     private var isImportingOldData = false
 
     private val importOldDataLauncher = registerForActivityResult(
@@ -131,9 +131,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             text = message.orEmpty()
             setTextColor(
                 when {
-                    importing -> 0xFF8E8E93.toInt()
-                    success -> 0xFF34C759.toInt()
-                    else -> 0xFFFF3B30.toInt()
+                    importing -> Palette.INK_3
+                    success -> Palette.SUCCESS
+                    else -> Palette.DANGER
                 }
             )
             visibility = if (importing || message != null) View.VISIBLE else View.GONE
@@ -182,7 +182,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 // 圆点用圆角矩形，当前页填充主题色，其余浅灰
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = size / 2f
-                    setColor(if (i == activeIndex) accentColor else 0xFFD5D5DA.toInt())
+                    setColor(if (i == activeIndex) accentColor else Palette.INK_DISABLED)
                 }
             }
             binding.pageIndicator.addView(dot)
@@ -404,7 +404,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
             hintColumn.addView(TextView(requireContext()).apply {
                 text = "${ui.cityZh}：" + hintFor(policy, ui.monthlyFen)
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 11f
             }, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -446,7 +446,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         if (transactions.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
                 text = "暂无交易记录"
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = android.view.Gravity.CENTER
                 setPadding(0, 16.dpToPx(), 0, 16.dpToPx())
@@ -472,7 +472,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val isExit = txn.direction == TransitDirection.EXIT
             val stationText = txn.stationName
 
+            icon.typeface =
+                Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
             icon.text = txn.icon
+            Palette.applyTransitIcon(icon, icon, txn.transitType)
             // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
             val cityText = txn.cityName ?: "未知"
             city.text = cityText
@@ -480,9 +483,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             type.text = txn.transitType
             type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
             amount.text = txn.amountText
-            amount.setTextColor(
-                if (txn.amountText.startsWith("+")) 0xFF34C759.toInt() else 0xFFFF3B30.toInt()
-            )
+            amount.setTextColor(Palette.amountColor(txn.amountText))
 
             // 第一行：出入站图标 + 站名
             station.text = stationText.ifEmpty { "未知" }
@@ -490,9 +491,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 dirIcon.visibility = View.VISIBLE
                 dirIcon.typeface =
                     Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-                // 入站 = U+F090 箭头进框（绿），出站 = U+F08B 箭头出框（红）
+                // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框；形状已区分，统一中性色
                 dirIcon.text = if (isEntry) "" else ""
-                dirIcon.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                dirIcon.setTextColor(Palette.INK_3)
             } else {
                 dirIcon.visibility = View.GONE
             }
@@ -581,7 +582,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
             val value = TextView(requireContext()).apply {
                 text = if (showValues) d.amountLabel() else ""
-                setTextColor(0xFF555555.toInt())
+                setTextColor(Palette.INK_2)
                 // 7 列窄列里金额放不下（¥350.00 / 全角￥会溢出或换行被 13dp 高度裁掉），字号调小并强制单行
                 textSize = 7f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -617,7 +618,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val dateLabel = if (parts.size == 3) "${parts[1].toInt()}/${parts[2].toInt()}" else d.dayLabel
             val label = TextView(requireContext()).apply {
                 text = dateLabel
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 8f
                 gravity = android.view.Gravity.CENTER
                 setSingleLine(true)
@@ -696,6 +697,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     cornerRadius = 16f.dpToPx()
                 }
                 page.background = gradient
+                // 卡面文字色随底色：马卡龙浅色卡面用深色字，深色卡面（用户旧色/自定义）用白字
+                val onCard = if (isDarkColor(card.gradientStartColor.toInt())) Color.WHITE else Palette.INK
+                fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
 
                 // 底部文字区
                 val textCol = LinearLayout(page.context).apply {
@@ -709,7 +713,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
                 val typeLabel = TextView(page.context).apply {
                     text = card.name
-                    setTextColor(Color.argb(204, 255, 255, 255))
+                    setTextColor(onCardAlpha(204))
                     textSize = 12f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
                 }
@@ -723,7 +727,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val numberView = TextView(page.context).apply {
                     // 首页展示完整卡号；读不到卡号时展示尾号
                     text = if (!card.cardNumber.isNullOrEmpty()) card.cardNumber else "•••• ${card.lastFour}"
-                    setTextColor(0xFFFFFFFF.toInt())
+                    setTextColor(onCard)
                     textSize = 14f
                     typeface = android.graphics.Typeface.MONOSPACE
                     setPadding(0, 3.dpToPx(), 0, 0)
@@ -735,7 +739,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 if (!card.secondCardNumber.isNullOrEmpty()) {
                     val secondNumberView = TextView(page.context).apply {
                         text = card.secondCardNumber
-                        setTextColor(0xD9FFFFFF.toInt())
+                        setTextColor(onCardAlpha(0xD9))
                         textSize = 11f
                         typeface = android.graphics.Typeface.MONOSPACE
                         setPadding(0, 2.dpToPx(), 0, 0)
@@ -764,7 +768,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val deleteBtn = TextView(page.context).apply {
                     text = ""
                     typeface = Typeface.createFromAsset(page.context.assets, "fonts/fa-solid-900.otf")
-                    setTextColor(0xE6FFFFFF.toInt())
+                    setTextColor(onCardAlpha(0xE6))
                     textSize = 17f
                     gravity = android.view.Gravity.CENTER
                     layoutParams = FrameLayout.LayoutParams(

@@ -1,5 +1,6 @@
 package com.example.nfctransit.data.repo
 
+import com.example.nfctransit.model.CardPalette
 import android.content.Context
 import android.net.Uri
 import androidx.room.Room
@@ -681,18 +682,7 @@ class TransitRepository(private val context: Context) {
     private fun yyyyMMdd(epochMs: Long): String =
         SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(epochMs))
 
-    private val importCardPalette: List<Pair<Long, Long>> = listOf(
-        0xFF1A73E8 to 0xFF0D47A1,
-        0xFF2E7D32 to 0xFF1B5E20,
-        0xFFE65100 to 0xFFBF360C,
-        0xFF6A1B9A to 0xFF4A148C,
-        0xFFC62828 to 0xFFB71C1C,
-        0xFF00838F to 0xFF006064,
-        0xFFF9A825 to 0xFFF57F17,
-        0xFF5D4037 to 0xFF3E2723,
-        0xFF455A64 to 0xFF263238,
-        0xFFAD1457 to 0xFF880E4F
-    )
+    private val importCardPalette: List<Pair<Long, Long>> = CardPalette.colors
 
     // ── 日志文件 ──
 

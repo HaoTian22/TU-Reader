@@ -39,6 +39,7 @@ import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.data.route.RouteCacheStore
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.CardPalette
 import com.example.nfctransit.model.CategorySpending
 import com.example.nfctransit.model.CityDiscountUi
 import com.example.nfctransit.model.DailySpending
@@ -170,7 +171,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val statsSummary: LiveData<StatsSummary> = _statsSummary
 
     /** 当前选中卡片的主题色（渐变色起点），用于全站图标/按钮/进度条等主题色统一 */
-    private val _mainAccent = MutableLiveData<Long>(0xFF0066FF)
+    private val _mainAccent = MutableLiveData<Long>(Palette.ACCENT_ARGB)
     val mainAccent: LiveData<Long> = _mainAccent
 
     /** 是否保留调试日志（关闭时不写会话日志文件，避免隐私与存储膨胀） */
@@ -276,6 +277,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         card
                     }
+                }
+                .map { card ->
+                    // 旧版深色卡面一次性迁移到同序号马卡龙色；用户自选的新调色板颜色不受影响
+                    val migrated = CardPalette.migrateLegacy(card.gradientStartColor) ?: return@map card
+                    repo.updateCardColors(card.cardId, migrated.first, migrated.second)
+                    card.copy(gradientStartColor = migrated.first, gradientEndColor = migrated.second)
                 }
             if (cards.isEmpty()) return
             val order = repo.getCardOrder()
@@ -1313,7 +1320,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCardMetadata.value = buildCardMetadata(cardId, cardEntities.firstOrNull { it.cardId == cardId }?.cardType.orEmpty(), card)
         _selectedRawRecords.value = rawRecordsByCard[cardId].orEmpty()
         _selectedCardApps.value = cardAppsByCard[cardId].orEmpty()
-        _mainAccent.value = card.gradientStartColor
+        _mainAccent.value = Palette.accentFor(card.gradientStartColor).toLong() and 0xFFFFFFFFL
         _allTransactions.value = txns
         _selectedCityDiscounts.value = buildCityDiscountUis(cardId, txns)
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
@@ -1481,29 +1488,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 20 色卡面调色板（起色 → 止色），新卡按顺序分配一个未被占用的颜色 */
-    private val cardPalette: List<Pair<Long, Long>> = listOf(
-        0xFF1A73E8 to 0xFF0D47A1,  // 蓝
-        0xFF2E7D32 to 0xFF1B5E20,  // 绿
-        0xFFE65100 to 0xFFBF360C,  // 深橙
-        0xFF6A1B9A to 0xFF4A148C,  // 紫
-        0xFFC62828 to 0xFFB71C1C,  // 红
-        0xFF00838F to 0xFF006064,  // 青
-        0xFFF9A825 to 0xFFF57F17,  // 金黄
-        0xFF5D4037 to 0xFF3E2723,  // 棕
-        0xFF455A64 to 0xFF263238,  // 蓝灰
-        0xFFAD1457 to 0xFF880E4F,  // 玫红
-        0xFF00796B to 0xFF004D40,  // 翡翠
-        0xFF283593 to 0xFF1A237E,  // 靛蓝
-        0xFFD81B60 to 0xFFC2185B,  // 粉红
-        0xFFF4511E to 0xFFE64A19,  // 朱橙
-        0xFF3949AB to 0xFF303F9F,  // 蓝紫
-        0xFF43A047 to 0xFF2E7D32,  // 翠绿
-        0xFF00ACC1 to 0xFF00838F,  // 天青
-        0xFFE53935 to 0xFFD32F2F,  // 猩红
-        0xFF8E24AA to 0xFF7B1FA2,  // 紫红
-        0xFF00897B to 0xFF00695C   // 青绿
-    )
+    /** 卡面马卡龙调色板，新卡按顺序分配一个未被占用的颜色 */
+    private val cardPalette: List<Pair<Long, Long>> = CardPalette.colors
 
     /** 为新卡挑一个尚未被现有卡片使用的颜色 */
     private fun nextCardColor(): Pair<Long, Long> {

@@ -32,7 +32,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
     /** 当前卡片主题色（跟随卡片渐变起点），默认蓝 */
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -48,9 +48,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
-        // 回到当前周期按钮的 ↻ 图标用 FontAwesome 渲染（汉字部分自动回退系统字体）
-        binding.cardTrend.btnBackCurrent.typeface =
-            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
+        // 回到当前周期按钮的 ↻ 图标与前后周期箭头用 FontAwesome 渲染（汉字部分自动回退系统字体）
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
+        binding.cardTrend.btnBackCurrent.typeface = fa
+        binding.cardTrend.btnPrevPeriod.typeface = fa
+        binding.cardTrend.btnNextPeriod.typeface = fa
 
         // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
         // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认
@@ -105,7 +107,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
+                binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
 
@@ -162,10 +164,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     }
 
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（保留 10dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = dpToPx(10).toFloat()
+            cornerRadius = dpToPx(4).toFloat()
             setColor(bg)
         }
     }
@@ -187,7 +189,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 v.setTextColor(0xFFFFFFFF.toInt())
             } else {
                 v.setBackgroundResource(R.drawable.bg_chip_default)
-                v.setTextColor(0xFF555555.toInt())
+                v.setTextColor(Palette.INK_2)
             }
         }
         binding.customRangeRow.visibility =
@@ -239,7 +241,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
             val value = TextView(requireContext()).apply {
                 text = if (showValues) d.amountLabel() else ""
-                setTextColor(0xFF555555.toInt())
+                setTextColor(Palette.INK_2)
                 // 窄列放不下金额（年视图每列 ~25dp），调小并强制单行，避免被裁
                 textSize = 6f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -277,7 +279,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             val displayLabel = if (data.size > 15) d.dayLabel.removeSuffix("号") else d.dayLabel
             val label = TextView(requireContext()).apply {
                 text = displayLabel
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = if (data.size > 15) 7f else 8f
                 gravity = Gravity.CENTER
                 // 横排不换行，窄列下也不会折行显示
@@ -387,7 +389,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         if (items.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
                 text = "暂无支出数据，请先读取交通卡"
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = Gravity.CENTER
                 setPadding(0, dpToPx(16), 0, dpToPx(16))
@@ -418,21 +420,21 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             val name = TextView(requireContext()).apply {
                 text = item.name
                 textSize = 13f
-                setTextColor(0xFF1A1A1A.toInt())
+                setTextColor(Palette.INK)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
             val amount = TextView(requireContext()).apply {
                 text = "¥${String.format("%.2f", item.amountYuan)}"
                 textSize = 12f
-                setTextColor(0xFF555555.toInt())
+                setTextColor(Palette.INK_2)
                 typeface = Typeface.MONOSPACE
             }
 
             val percent = TextView(requireContext()).apply {
                 text = "${(item.percent * 100).roundToInt()}%"
                 textSize = 12f
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -457,7 +459,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         if (items.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
                 text = "暂无数据，请先读取交通卡"
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = android.view.Gravity.CENTER
                 setPadding(0, dpToPx(16), 0, dpToPx(16))
@@ -497,7 +499,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             val countView = TextView(requireContext()).apply {
                 text = "${count} 次"
                 textSize = 12f
-                setTextColor(0xFF555555.toInt())
+                setTextColor(Palette.INK_2)
                 typeface = android.graphics.Typeface.MONOSPACE
             }
 
@@ -525,7 +527,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     private fun rankNameView(name: String): TextView = TextView(requireContext()).apply {
         text = name
         textSize = 13f
-        setTextColor(0xFF1A1A1A.toInt())
+        setTextColor(Palette.INK)
     }
 
     /** 线路行药丸：先城市后线路；线路药丸按数据库线路颜色着色（无颜色保持灰色），与交易列表一致 */

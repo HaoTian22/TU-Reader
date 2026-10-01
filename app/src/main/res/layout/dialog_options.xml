@@ -1,23 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="280dp"
+    android:layout_width="312dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_content_card"
-    android:elevation="8dp">
+    android:background="@drawable/bg_dialog">
 
     <TextView
         android:id="@+id/dialogOptionsTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#1A1A1A"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="8dp" />
+        android:textColor="@color/ink"
+        android:textSize="20sp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp"
+        android:fontFamily="sans-serif-medium" />
 
     <ScrollView
         android:id="@+id/dialogOptionsScroll"
@@ -35,18 +33,21 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:background="#E5E5EA" />
-
     <TextView
         android:id="@+id/dialogOptionsCancel"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:textColor="#555555"
-        android:textSize="15sp"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:textColor="@color/ink_2"
+        android:textSize="14sp"
         android:gravity="center"
         android:clickable="true"
-        android:focusable="true" />
+        android:focusable="true"
+        android:minWidth="64dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:fontFamily="sans-serif-medium"
+        android:background="@drawable/bg_text_button"
+        android:layout_gravity="end"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp" />
 </LinearLayout>

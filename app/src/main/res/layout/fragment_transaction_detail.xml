@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F8F9FA">
+    android:background="@color/paper">
 
         <!-- Status Bar Spacer -->
         <View
@@ -26,7 +26,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="←"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:clickable="true"
@@ -38,7 +38,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="交易详情"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -57,7 +57,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text=""
-                    android:textColor="#0066FF"
+                    android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:maxWidth="140dp"
@@ -70,7 +70,7 @@
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#F8F9FA">
+            android:background="@color/paper">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -91,7 +91,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text=""
-                android:textColor="#FF3B30"
+                android:textColor="@color/danger"
                 android:textSize="40sp"
                 android:textStyle="bold"
                 android:fontFamily="monospace" />
@@ -153,7 +153,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="原始数据"
-                    android:textColor="#1A1A1A"
+                    android:textColor="@color/ink"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -162,7 +162,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="&#xf0c5; 复制"
-                    android:textColor="#0066FF"
+                    android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:tag="fa"
                     android:clickable="true"
@@ -174,7 +174,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
                     android:text="&#xf075; 反馈"
-                    android:textColor="#0066FF"
+                    android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:clickable="true"
                     android:focusable="true" />

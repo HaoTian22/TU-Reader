@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F8F9FA">
+    android:background="@color/paper">
 
     <View
         android:layout_width="match_parent"
@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="←"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="22sp"
             android:textStyle="bold"
             android:clickable="true"
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="查看数据库"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -66,7 +66,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="请复制以下 prompt 给 AI，并在最后写出你的需求"
-                android:textColor="#8E8E93"
+                android:textColor="@color/ink_3"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -76,7 +76,7 @@
                 android:layout_height="48dp"
                 android:gravity="center"
                 android:text="复制"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:background="@drawable/bg_chip_default"
@@ -97,7 +97,7 @@
                 android:id="@+id/tvPrompt"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#3A3A3C"
+                android:textColor="@color/ink_2"
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:textIsSelectable="true" />
@@ -124,7 +124,7 @@
             android:maxLines="2"
             android:ellipsize="end"
             android:text="尚未粘贴 SQL"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:background="@drawable/bg_chip_default" />
@@ -136,7 +136,7 @@
             android:layout_marginStart="8dp"
             android:gravity="center"
             android:text="粘贴"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="13sp"
             android:textStyle="bold"
             android:background="@drawable/bg_chip_default"
@@ -169,7 +169,7 @@
         android:paddingBottom="2dp"
         android:gravity="top"
         android:maxLines="4"
-        android:textColor="#8E8E93"
+        android:textColor="@color/ink_3"
         android:textSize="11sp" />
 
     <FrameLayout
@@ -208,7 +208,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="运行 SQL 后在此显示结果"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="13sp" />
     </FrameLayout>
 </LinearLayout>

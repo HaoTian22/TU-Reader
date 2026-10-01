@@ -90,7 +90,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var currentEventIndex = 0
     private var playing = false
     private var speed = 1f
-    private var mainAccent = 0xFF0066FF.toInt()
+    private var mainAccent = Palette.ACCENT
     private var currentTripRouteDisplayMode = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
     private val routeRepository by lazy { TransitRouteRepository(requireContext().applicationContext) }
 
@@ -151,7 +151,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
+                binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
 
@@ -240,7 +240,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         val normalBg = R.drawable.bg_speed_chip
         fun style(chip: TextView, isSel: Boolean) {
             chip.setBackgroundResource(if (isSel) selectedBg else normalBg)
-            chip.setTextColor(if (isSel) Color.BLACK else 0xFF8899AA.toInt())
+            chip.setTextColor(if (isSel) Color.BLACK else Palette.NIGHT_INK_3)
         }
         style(binding.chip05x, v == 0.5f)
         style(binding.chip1x, v == 1f)
@@ -284,7 +284,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         // 站点圆点（按站去重）
         for (ev in model.events) {
             if (ev.stationId in stationMarkers) continue
-            val color = parseColor(ev.lineColor) ?: 0xFF8899AA.toInt()
+            val color = parseColor(ev.lineColor) ?: Palette.NIGHT_INK_3
             stationMeta[ev.stationId] = ev.name to color
             val m = tencentMap?.addMarker(
                 MarkerOptions()
@@ -696,7 +696,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         for ((i, row) in segmentRows.withIndex()) {
             if (i == activeIdx) {
                 row.background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(8f)
+                    cornerRadius = dpToPx(12f)
                     setColor(0x224488CC)
                 }
             } else {
@@ -852,7 +852,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun arrowView(): TextView = TextView(requireContext()).apply {
         text = "→"
         tag = RouteFlowLayout.KEEP_WITH_NEXT_TAG
-        setTextColor(0xFF8899AA.toInt())
+        setTextColor(Palette.NIGHT_INK_3)
         textSize = 14f
         setPadding(dpToPx(4f).toInt(), 0, dpToPx(4f).toInt(), 0)
     }
@@ -1162,7 +1162,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             container.addView(
                 TextView(requireContext()).apply {
                     text = "暂无行程数据"
-                    setTextColor(0xFF8899AA.toInt())
+                    setTextColor(Palette.NIGHT_INK_3)
                     textSize = 12f
                     setPadding(0, dpToPx(16).toInt(), 0, dpToPx(16).toInt())
                 }
@@ -1209,7 +1209,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             val timeView = TextView(requireContext()).apply {
                 text = timeFmt.format(Date(seg.startTime))
                 textSize = 11f
-                setTextColor(0xFF668899.toInt())
+                setTextColor(Palette.NIGHT_INK_3)
             }
 
             leftCol.addView(routeRow)

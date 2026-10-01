@@ -19,7 +19,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="总消费"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="11sp" />
 
         <TextView
@@ -27,7 +27,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="¥308.00"
-            android:textColor="#FF3B30"
+            android:textColor="@color/danger"
             android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
@@ -49,7 +49,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="乘车次数"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="11sp" />
 
         <TextView
@@ -57,7 +57,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="42 次"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
@@ -78,7 +78,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="日均消费"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="11sp" />
 
         <TextView
@@ -86,7 +86,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="¥10.27"
-            android:textColor="#FF9500"
+            android:textColor="@color/warning"
             android:textSize="12sp"
             android:textStyle="bold"
             android:fontFamily="monospace"

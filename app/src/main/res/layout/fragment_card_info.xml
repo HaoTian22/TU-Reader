@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F8F9FA">
+    android:background="@color/paper">
 
     <View
         android:layout_width="match_parent"
@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="←"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="22sp"
             android:textStyle="bold"
             android:clickable="true"
@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="卡片信息"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -55,7 +55,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="卡片"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:maxWidth="140dp"
@@ -96,7 +96,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="卡片名称"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="24sp"
                         android:textStyle="bold"
                         android:maxLines="2"
@@ -108,7 +108,7 @@
                         android:layout_height="40dp"
                         android:gravity="center"
                         android:text="&#xf044;"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="17sp"
                         android:tag="fa"
                         android:clickable="true"
@@ -122,7 +122,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="点击右侧按钮自定义名称"
-                    android:textColor="#8E8E93"
+                    android:textColor="@color/ink_3"
                     android:textSize="12sp"
                     android:layout_marginTop="6dp" />
 
@@ -143,7 +143,7 @@
                         android:layout_weight="1"
                         android:layout_marginStart="10dp"
                         android:text="卡面颜色"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="12sp" />
                     <TextView
                         android:id="@+id/btnChangeColor"
@@ -151,7 +151,7 @@
                         android:layout_height="36dp"
                         android:gravity="center"
                         android:text="&#xf53f;"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="17sp"
                         android:tag="fa"
                         android:contentDescription="更换卡面颜色"
@@ -183,14 +183,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="卡片类型"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvCardType"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -207,14 +207,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="发卡城市"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvIssuerCity"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -230,14 +230,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="发卡机构"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvIssuer"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:gravity="end" />
                 </LinearLayout>
@@ -254,14 +254,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="发行日期"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvIssueDate"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -277,14 +277,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="有效期至"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvValidUntil"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -303,14 +303,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="第二标准发行日期"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvSecondIssueDate"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -329,14 +329,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="第二标准有效期至"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvSecondValidUntil"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -352,14 +352,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="卡号"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvCardNumber"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:fontFamily="monospace"
                         android:gravity="end" />
@@ -378,14 +378,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="第二卡号"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvSecondCardNumber"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:fontFamily="monospace"
                         android:gravity="end" />
@@ -403,14 +403,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="当前余额"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvBalance"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="¥0.00"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:textStyle="bold"
                         android:fontFamily="monospace" />
@@ -427,14 +427,14 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="上次读取"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvLastRead"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -457,7 +457,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="原始数据"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp"
                         android:textStyle="bold" />
                     <TextView
@@ -466,7 +466,7 @@
                         android:layout_height="36dp"
                         android:gravity="center"
                         android:text="&#xf0c5; 复制"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="12sp"
                         android:tag="fa"
                         android:contentDescription="复制卡片原始数据"

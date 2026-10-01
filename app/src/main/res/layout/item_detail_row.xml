@@ -16,7 +16,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:text=""
-        android:textColor="#8E8E93"
+        android:textColor="@color/ink_3"
         android:textSize="13sp" />
 
     <!-- 进出站图标（FontAwesome，仅交易类型行使用） -->
@@ -33,7 +33,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text=""
-        android:textColor="#1A1A1A"
+        android:textColor="@color/ink"
         android:textSize="14sp"
         android:fontFamily="sans-serif-medium"
         android:gravity="end" />

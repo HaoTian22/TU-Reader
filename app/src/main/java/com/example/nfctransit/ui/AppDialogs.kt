@@ -17,6 +17,10 @@ import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.nfctransit.R
 import com.example.nfctransit.data.CityOption
 import com.example.nfctransit.data.TransitData
@@ -26,12 +30,21 @@ import com.example.nfctransit.model.UiCard
 /** 与应用整体风格一致的确认弹窗（白色圆角卡片 + 双按钮），替代系统 AlertDialog */
 object AppDialogs {
 
+    /**
+     * 弹窗宽度：M3 基本对话框 312dp，窄屏两侧各留 24dp。
+     * 根布局以 null 父级 inflate，XML 里的宽度不生效，必须在窗口上指定，否则弹窗会收缩到内容宽度。
+     */
+    private fun dialogWidth(context: Context): Int {
+        val dm = context.resources.displayMetrics
+        return minOf((312 * dm.density).toInt(), dm.widthPixels - (48 * dm.density).toInt())
+    }
+
     fun confirm(
         context: Context,
         title: String,
         message: String,
         confirmLabel: String,
-        confirmColor: Int = 0xFFFF3B30.toInt(),
+        confirmColor: Int = Palette.DANGER,
         cancelLabel: String = "取消",
         onConfirm: () -> Unit
     ) {
@@ -41,7 +54,7 @@ object AppDialogs {
         dialog.setContentView(view)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
 
@@ -68,7 +81,7 @@ object AppDialogs {
         initialValue: String = "",
         hint: String = "",
         maxLength: Int? = null,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         onConfirm: (String) -> Unit
     ): Dialog {
         val dialog = Dialog(context)
@@ -77,7 +90,7 @@ object AppDialogs {
         dialog.setContentView(view)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
 
@@ -120,7 +133,7 @@ object AppDialogs {
         actualCityName: String,
         title: String = "反馈站名纠错",
         showPublish: Boolean = true,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         maxScrollHeightDp: Int? = null,
         onConfirm: (
             prefix: String,
@@ -148,7 +161,7 @@ object AppDialogs {
         }
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
         val prefixInput = view.findViewById<EditText>(R.id.feedbackPrefix)
@@ -246,7 +259,7 @@ object AppDialogs {
     fun overrideEditor(
         context: Context,
         row: TransitOverrideRow,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         onSave: (
             prefix: String,
             code: String,
@@ -284,7 +297,7 @@ object AppDialogs {
         title: String,
         options: List<String>,
         selectedIndex: Int = -1,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         maxHeightDp: Int? = null,
         cancelLabel: String = "取消",
         onSelect: (Int) -> Unit
@@ -295,7 +308,7 @@ object AppDialogs {
         dialog.setContentView(view)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
 
@@ -330,7 +343,7 @@ object AppDialogs {
             row.addView(
                 TextView(context).apply {
                     text = label
-                    setTextColor(if (selected) accentColor else 0xFF1A1A1A.toInt())
+                    setTextColor(if (selected) accentColor else Palette.INK)
                     textSize = 15f
                     typeface =
                         if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -358,7 +371,7 @@ object AppDialogs {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             (0.5 * density).toInt()
                         )
-                        setBackgroundColor(0xFFE5E5EA.toInt())
+                        setBackgroundColor(Palette.LINE)
                     }
                 )
             }
@@ -377,7 +390,7 @@ object AppDialogs {
         title: String,
         options: List<String>,
         selected: Set<String>,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         onClear: () -> Unit,
         onDone: (Set<String>) -> Unit
     ) {
@@ -387,7 +400,7 @@ object AppDialogs {
         dialog.setContentView(view)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
 
@@ -398,7 +411,7 @@ object AppDialogs {
 
         fun renderRow(row: LinearLayout, check: TextView, checked: Boolean) {
             check.text = if (checked) "✓" else "○"
-            check.setTextColor(if (checked) accentColor else 0xFFC7C7CC.toInt())
+            check.setTextColor(if (checked) accentColor else Palette.INK_DISABLED)
             check.typeface = if (checked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
 
@@ -425,7 +438,7 @@ object AppDialogs {
             row.addView(
                 TextView(context).apply {
                     text = label
-                    setTextColor(0xFF1A1A1A.toInt())
+                    setTextColor(Palette.INK)
                     textSize = 15f
                     gravity = Gravity.CENTER_VERTICAL
                     layoutParams = LinearLayout.LayoutParams(
@@ -442,7 +455,7 @@ object AppDialogs {
                         layoutParams = LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT, (0.5 * density).toInt()
                         )
-                        setBackgroundColor(0xFFE5E5EA.toInt())
+                        setBackgroundColor(Palette.LINE)
                     }
                 )
             }
@@ -459,11 +472,11 @@ object AppDialogs {
         dialog.show()
     }
 
-    /** 卡片排序弹窗：每张卡一行（行名前置主题色圆点，行名与操作按钮黑色），置顶/↑↓ 调整顺序，完成后回调新顺序的 cardId 列表 */
+    /** 卡片排序弹窗：每张卡一行（主题色圆点 + 行名 + 拖动手柄），拖动手柄或长按整行调整顺序，完成后回调新顺序的 cardId 列表 */
     fun reorder(
         context: Context,
         cards: List<UiCard>,
-        accentColor: Int = 0xFF0066FF.toInt(),
+        accentColor: Int = Palette.ACCENT,
         onDone: (List<String>) -> Unit
     ) {
         val dialog = Dialog(context)
@@ -472,173 +485,145 @@ object AppDialogs {
         dialog.setContentView(view)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         dialog.setCancelable(true)
 
-        view.findViewById<TextView>(R.id.dialogReorderTitle)?.text = "卡片排序"
-        val container = view.findViewById<LinearLayout>(R.id.dialogReorderContainer)
-            ?: return
-        val reorderScroll = view.findViewById<android.widget.ScrollView>(R.id.dialogReorderScroll)
-            ?: return
+        val list = view.findViewById<RecyclerView>(R.id.dialogReorderList) ?: return
         val density = context.resources.displayMetrics.density
-        val maxScrollHeightPx = (300 * density).toInt()
         val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
         val order = cards.toMutableList()
-        val rowViews = mutableMapOf<String, LinearLayout>()  // card.id -> 行 View
-        var animating = false
-        val rowHeightPx = 52f * density
-        val divHeightPx = 0.5f * density
+        lateinit var touchHelper: ItemTouchHelper
 
-        fun divider(): View = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, divHeightPx.toInt()
-            )
-            setBackgroundColor(0xFFE5E5EA.toInt())
-        }
+        class RowHolder(val row: LinearLayout, val dot: View, val label: TextView, val handle: TextView) :
+            RecyclerView.ViewHolder(row)
 
-        /** 构建一行：主题色圆点 + 黑色行名 + ↑↓ 箭头；箭头启用态颜色在 render 里按索引更新 */
-        fun buildRow(card: UiCard): LinearLayout {
-            val theme = card.gradientStartColor.toInt()
-            val label = if (card.lastFour.isBlank() || card.lastFour == "----") {
-                card.name
-            } else {
-                "${card.name} (${card.lastFour})"
-            }
-            fun actionButton(label: String, contentDescription: String) =
-                TextView(context).apply {
-                    text = label
-                    typeface = fa
-                    this.contentDescription = contentDescription
-                    textSize = 14f
-                    layoutParams = LinearLayout.LayoutParams(
-                        (36 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    gravity = Gravity.CENTER
-                }
-            return LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, rowHeightPx.toInt()
-                )
-                setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
-                // 主题色圆点
-                addView(View(context).apply {
+        val adapter = object : RecyclerView.Adapter<RowHolder>() {
+            override fun getItemCount() = order.size
+
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RowHolder {
+                val dot = View(context).apply {
                     val d = (10 * density).toInt()
                     layoutParams = LinearLayout.LayoutParams(d, d).apply {
-                        marginEnd = (8 * density).toInt()
+                        marginEnd = (12 * density).toInt()
                     }
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.OVAL
-                        setColor(theme)
-                    }
-                })
-                addView(
-                    TextView(context).apply {
-                        text = label
-                        setTextColor(0xFF1A1A1A.toInt())
-                        textSize = 15f
-                        layoutParams = LinearLayout.LayoutParams(
-                            0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
-                        )
-                        gravity = Gravity.CENTER_VERTICAL
-                    }
-                )
-                addView(actionButton("", "置顶"))
-                addView(actionButton("", "上移"))
-                addView(actionButton("", "下移"))
-            }
-        }
-
-        lateinit var swap: (Int, Int) -> Unit
-
-        fun render() {
-            container.removeAllViews()
-            rowViews.clear()
-            order.forEachIndexed { i, card ->
-                val row = buildRow(card)
-                rowViews[card.id] = row
-                container.addView(row)
-                if (i < order.lastIndex) container.addView(divider())
-            }
-            // 按当前索引挂操作事件与启用态颜色；动画期间禁用点击
-            order.forEachIndexed { i, card ->
-                val row = rowViews[card.id]!!
-                val top = row.getChildAt(row.childCount - 3) as TextView
-                val up = row.getChildAt(row.childCount - 2) as TextView
-                val down = row.getChildAt(row.childCount - 1) as TextView
-                top.setTextColor(if (i > 0) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
-                up.setTextColor(if (i > 0) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
-                down.setTextColor(if (i < order.lastIndex) 0xFF1A1A1A.toInt() else 0xFFD1D1D6.toInt())
-                top.isClickable = i > 0 && !animating
-                up.isClickable = i > 0 && !animating
-                down.isClickable = i < order.lastIndex && !animating
-                top.isFocusable = top.isClickable
-                up.isFocusable = up.isClickable
-                down.isFocusable = down.isClickable
-                top.setOnClickListener {
-                    if (i > 0 && !animating) {
-                        animating = true
-                        val movedRow = rowViews[order[i].id]!!
-                        val step = rowHeightPx + divHeightPx
-                        movedRow.animate().translationYBy(-step * i)
-                            .setDuration(180)
-                            .withEndAction {
-                                order.add(0, order.removeAt(i))
-                                animating = false
-                                render()
-                                reorderScroll.post { reorderScroll.fullScroll(View.FOCUS_UP) }
-                            }
-                            .start()
-                        for (j in 0 until i) {
-                            rowViews[order[j].id]?.animate()
-                                ?.translationYBy(step)
-                                ?.setDuration(180)
-                                ?.start()
+                }
+                val label = TextView(context).apply {
+                    setTextColor(Palette.INK)
+                    textSize = 15f
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+                }
+                val handle = TextView(context).apply {
+                    text = ""  // fa-grip-vertical
+                    typeface = fa
+                    textSize = 14f
+                    setTextColor(Palette.INK_3)
+                    gravity = Gravity.CENTER
+                    contentDescription = "拖动排序"
+                    layoutParams = LinearLayout.LayoutParams(
+                        (40 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = RecyclerView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, (52 * density).toInt()
+                    )
+                    setPadding((24 * density).toInt(), 0, (12 * density).toInt(), 0)
+                    setBackgroundColor(Palette.SURFACE)
+                    addView(dot)
+                    addView(label)
+                    addView(handle)
+                }
+                return RowHolder(row, dot, label, handle).also { holder ->
+                    @Suppress("ClickableViewAccessibility")
+                    handle.setOnTouchListener { _, event ->
+                        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                            touchHelper.startDrag(holder)
                         }
-                    }
-                }
-                up.setOnClickListener {
-                    if (i > 0 && !animating) swap(i, i - 1)
-                }
-                down.setOnClickListener {
-                    if (i < order.lastIndex && !animating) swap(i, i + 1)
-                }
-            }
-            reorderScroll.post {
-                val contentHeight = container.measuredHeight
-                if (contentHeight > 0) {
-                    reorderScroll.layoutParams = reorderScroll.layoutParams.apply {
-                        height = contentHeight.coerceAtMost(maxScrollHeightPx)
+                        false
                     }
                 }
             }
-        }
 
-        /** 相邻两行滑动交换：先平移动画，结束后按新顺序重建列表 */
-        swap = { from, to ->
-            val movedRow = rowViews[order[from].id]!!
-            val targetRow = rowViews[order[to].id]!!
-            animating = true
-            val step = rowHeightPx + divHeightPx
-            // from 在下方（上移）时上移一步，目标行下移一步；下移时反之
-            val movedOffset = if (to < from) -step else step
-            movedRow.animate().translationYBy(movedOffset)
-                .setDuration(180)
-                .withEndAction {
-                    val item = order.removeAt(from)
-                    order.add(to, item)
-                    animating = false
-                    render()
+            override fun onBindViewHolder(holder: RowHolder, position: Int) {
+                val card = order[position]
+                holder.label.text = if (card.lastFour.isBlank() || card.lastFour == "----") {
+                    card.name
+                } else {
+                    "${card.name} (${card.lastFour})"
                 }
-                .start()
-            targetRow.animate().translationYBy(-movedOffset)
-                .setDuration(180)
-                .start()
-        }
+                holder.dot.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(card.gradientStartColor.toInt())
+                }
+                // 读屏用户无法拖动：提供上移 / 下移无障碍操作
+                (holder.row.getTag(R.id.dialogReorderList) as? IntArray)?.forEach {
+                    ViewCompat.removeAccessibilityAction(holder.row, it)
+                }
+                val actionIds = mutableListOf<Int>()
+                if (position > 0) {
+                    actionIds += ViewCompat.addAccessibilityAction(holder.row, "上移") { _, _ ->
+                        move(holder.bindingAdapterPosition, holder.bindingAdapterPosition - 1); true
+                    }
+                }
+                if (position < order.lastIndex) {
+                    actionIds += ViewCompat.addAccessibilityAction(holder.row, "下移") { _, _ ->
+                        move(holder.bindingAdapterPosition, holder.bindingAdapterPosition + 1); true
+                    }
+                }
+                holder.row.setTag(R.id.dialogReorderList, actionIds.toIntArray())
+            }
 
-        render()
+            fun move(from: Int, to: Int) {
+                if (from !in order.indices || to !in order.indices) return
+                order.add(to, order.removeAt(from))
+                notifyItemMoved(from, to)
+                notifyItemChanged(from)
+                notifyItemChanged(to)
+            }
+        }
+        touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val from = viewHolder.bindingAdapterPosition
+                val to = target.bindingAdapterPosition
+                order.add(to, order.removeAt(from))
+                adapter.notifyItemMoved(from, to)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.setBackgroundColor(Palette.FILL)
+                }
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.setBackgroundColor(Palette.SURFACE)
+                // 拖动结束后刷新无障碍上移 / 下移操作的可用性
+                adapter.notifyItemRangeChanged(0, order.size)
+            }
+        })
+        list.layoutManager = LinearLayoutManager(context)
+        list.adapter = adapter
+        touchHelper.attachToRecyclerView(list)
+        // 卡片多时限高 300dp 滚动
+        val maxHeightPx = (300 * density).toInt()
+        if (order.size * 52 * density > maxHeightPx) {
+            list.layoutParams = list.layoutParams.apply { height = maxHeightPx }
+        }
 
         view.findViewById<TextView>(R.id.dialogReorderCancel)?.setOnClickListener { dialog.dismiss() }
         view.findViewById<TextView>(R.id.dialogReorderDone)?.apply {

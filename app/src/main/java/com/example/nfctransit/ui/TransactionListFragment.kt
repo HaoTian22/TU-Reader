@@ -35,7 +35,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     /** 多选筛选中已勾选的类别（空 = 全部显示） */
     private val selectedFilters = mutableSetOf<String>()
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
 
     private val adapter = TransactionAdapter()
 
@@ -77,7 +77,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
+                binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
 
@@ -173,7 +173,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         val action = TextView(requireContext()).apply {
             text = "查看上下文"
             textSize = 15f
-            setTextColor(0xFF1A1A1A.toInt())
+            setTextColor(Palette.INK)
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
             layoutParams = LinearLayout.LayoutParams(
@@ -194,10 +194,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             setBackgroundDrawable(GradientDrawable().apply {
                 cornerRadius = (12 * density)
                 setColor(0xFFFFFFFF.toInt())
-                setStroke((1 * density).toInt(), 0xFFE5E5EA.toInt())
+                setStroke((1 * density).toInt(), Palette.LINE)
             })
             isOutsideTouchable = true
-            elevation = 8 * density
         }
         action.setOnClickListener {
             popup.dismiss()
@@ -233,10 +232,10 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     }
 
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（保留 10dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = 10.dpToPx().toFloat()
+            cornerRadius = 4.dpToPx().toFloat()
             setColor(bg)
         }
     }
@@ -311,7 +310,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 val stationText = txn.stationName
                 val lineText = txn.lineName
 
+                icon.typeface = fa
                 icon.text = txn.icon
+                (icon.parent as? View)?.let { Palette.applyTransitIcon(icon, it, txn.transitType) }
                 // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
                 val cityText = txn.cityName ?: "未知"
                 city.text = cityText
@@ -340,26 +341,15 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 if (isEntry || isExit) {
                     dirIcon.visibility = View.VISIBLE
                     dirIcon.typeface = fa
-                    // 入站 = U+F090 箭头进框（绿），出站 = U+F08B 箭头出框（红）
+                    // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框；形状已区分，统一中性色
                     dirIcon.text = if (isEntry) "" else ""
-                    dirIcon.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                    dirIcon.setTextColor(Palette.INK_3)
                 } else {
                     dirIcon.visibility = View.GONE
                 }
 
-                if (txn.amountText.startsWith("+")) {
-                    amount.setTextColor(0xFF34C759.toInt())
-                } else {
-                    amount.setTextColor(0xFFFF3B30.toInt())
-                }
+                amount.setTextColor(Palette.amountColor(txn.amountText))
 
-                // Set icon circle background color
-                val iconParent = icon.parent as? ViewGroup
-                iconParent?.background?.let { bg ->
-                    if (bg is GradientDrawable) {
-                        bg.setColor(txn.iconBgColor.toInt())
-                    }
-                }
 
                 itemView.setOnClickListener {
                     val action = TransactionListFragmentDirections

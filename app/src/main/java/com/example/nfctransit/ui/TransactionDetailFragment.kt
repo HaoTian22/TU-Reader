@@ -36,7 +36,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private val args: TransactionDetailFragmentArgs by navArgs()
 
     /** 当前卡片主题色（跟随卡片渐变起点），默认蓝 */
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
 
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
@@ -82,7 +82,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
                 binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
+                binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
 
@@ -239,7 +239,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
 
         binding.tvAmountHeader.text = "正在加载数据..."
-        binding.tvAmountHeader.setTextColor(0xFF8E8E93.toInt())
+        binding.tvAmountHeader.setTextColor(Palette.INK_3)
         binding.detailRowsContainer.visibility = View.GONE
         binding.btnCopyHex.isEnabled = false
         binding.btnFeedbackHex.isEnabled = false
@@ -257,9 +257,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun bindTransactionData(txn: UiTransaction) {
         binding.tvAmountHeader.text = txn.amountText
         if (txn.amountText.startsWith("+")) {
-            binding.tvAmountHeader.setTextColor(0xFF34C759.toInt())
+            binding.tvAmountHeader.setTextColor(Palette.AMOUNT_IN)
         } else {
-            binding.tvAmountHeader.setTextColor(0xFFFF3B30.toInt())
+            binding.tvAmountHeader.setTextColor(Palette.AMOUNT_OUT)
         }
 
         val detailContainer = binding.detailRowsContainer
@@ -307,7 +307,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 val icon = row.findViewById<TextView>(R.id.detailIcon)
                 label?.text = fields[i].first
                 value?.text = fields[i].second
-                value?.setTextColor(0xFF1A1A1A.toInt())
+                value?.setTextColor(Palette.INK)
                 icon?.visibility = View.GONE
                 icon?.typeface = fa
                 row.visibility = View.VISIBLE
@@ -315,15 +315,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 if (fields[i].first == "协议") {
                     row.visibility = if (fields[i].second.isEmpty()) View.GONE else View.VISIBLE
                 }
-                // 交易类型行：入站绿色进框、出站红色出框
+                // 交易类型行：入站进框、出站出框图标
                 if (fields[i].first == "交易类型" && (isEntry || isExit)) {
                     icon?.visibility = View.VISIBLE
                     // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
                     icon?.text = if (isEntry) "" else ""
-                    icon?.setTextColor(if (isEntry) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                    icon?.setTextColor(Palette.INK_3)
                 }
                 if (fields[i].first == "交易金额" && txn.amountText.startsWith("+")) {
-                    value?.setTextColor(0xFF34C759.toInt())
+                    value?.setTextColor(Palette.AMOUNT_IN)
                 }
                 if (fields[i].first == "终端编号") {
                     value?.typeface = Typeface.MONOSPACE
@@ -426,7 +426,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     }
 
     private fun addDivider(container: LinearLayout) {
-        val divider = View(requireContext()).apply { setBackgroundColor(0xFF333366.toInt()) }
+        val divider = View(requireContext()).apply { setBackgroundColor(Palette.NIGHT_2) }
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
         lp.setMargins(0, dpToPx(8), 0, dpToPx(8))
         container.addView(divider, lp)
@@ -489,10 +489,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     }
 
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（保留 10dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = dpToPx(10).toFloat()
+            cornerRadius = dpToPx(4).toFloat()
             setColor(bg)
         }
     }

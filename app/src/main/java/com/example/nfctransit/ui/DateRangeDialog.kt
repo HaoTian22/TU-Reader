@@ -42,12 +42,12 @@ object DateRangeDialog {
         // 浅色 sheet 配色（primary/确认等由卡片主题色注入）
         val primary = accentColor
         val surface = 0xFFFFFFFF.toInt()
-        val fieldBg = 0xFFF1F2F6.toInt()
-        val onSurface = 0xFF1A1A1A.toInt()
-        val muted = 0xFF8E8E93.toInt()
+        val fieldBg = Palette.FILL
+        val onSurface = Palette.INK
+        val muted = Palette.INK_3
         val primaryContainer = ColorUtils.blendARGB(surface, primary, 0.14f)
-        val onPrimaryContainer = if (isDark(primary)) 0xFF1A1A1A.toInt()
-            else ColorUtils.blendARGB(0xFF1A1A1A.toInt(), primary, 0.5f)
+        val onPrimaryContainer = if (isDark(primary)) Palette.INK
+            else ColorUtils.blendARGB(Palette.INK, primary, 0.5f)
 
         // 起止选择状态（yyyy-MM-dd，区间内排序保证 start <= end）
         var start: String? = initialStart
@@ -84,10 +84,9 @@ object DateRangeDialog {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(20), dp(24), dp(12))
             background = GradientDrawable().apply {
-                cornerRadius = dp(24).toFloat()
+                cornerRadius = dp(28).toFloat()
                 setColor(surface)
             }
-            elevation = dp(12).toFloat()
         }
 
         // ── 头部：日历图标 + 标题 + 关闭 ──
@@ -139,7 +138,7 @@ object DateRangeDialog {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(10))
             background = GradientDrawable().apply {
-                cornerRadius = dp(14).toFloat()
+                cornerRadius = dp(12).toFloat()
                 setColor(fieldBg)
             }
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)

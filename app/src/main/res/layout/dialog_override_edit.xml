@@ -2,8 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="320dp"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_content_card"
-    android:elevation="8dp"
+    android:background="@drawable/bg_dialog"
     android:orientation="vertical">
 
     <ScrollView
@@ -20,18 +19,17 @@
                 android:id="@+id/overrideEditorTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
                 android:text="编辑本地映射表"
-                android:textColor="#1A1A1A"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:textColor="@color/ink"
+                android:textSize="20sp"
+                android:fontFamily="sans-serif-medium" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="修改后会立即应用到本机站名映射表"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <TextView
@@ -39,7 +37,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="Prefix"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
                 android:id="@+id/overridePrefix"
@@ -51,7 +49,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -59,7 +57,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="Code"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
                 android:id="@+id/overrideCode"
@@ -71,7 +69,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -79,7 +77,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="Type"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
                 android:id="@+id/overrideType"
@@ -91,7 +89,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -99,7 +97,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="线路"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
                 android:id="@+id/overrideLine"
@@ -111,7 +109,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -119,7 +117,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="站名"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
                 android:id="@+id/overrideStation"
@@ -131,37 +129,35 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
         </LinearLayout>
     </ScrollView>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:background="#E5E5EA" />
-
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end|center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
 
         <TextView
             android:id="@+id/overrideCancel"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
             android:text="取消"
-            android:textColor="#555555"
-            android:textSize="15sp" />
-
-        <View
-            android:layout_width="0.5dp"
-            android:layout_height="match_parent"
-            android:background="#E5E5EA" />
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
 
         <TextView
             android:id="@+id/overrideSave"
@@ -172,7 +168,7 @@
             android:focusable="true"
             android:gravity="center"
             android:text="保存"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="15sp"
             android:textStyle="bold" />
     </LinearLayout>

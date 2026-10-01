@@ -12,7 +12,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="数据与隐私"
-        android:textColor="#8E8E93"
+        android:textColor="@color/ink_3"
         android:textSize="12sp"
         android:textStyle="bold"
         android:paddingStart="16dp"
@@ -36,7 +36,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf1c0;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -45,14 +45,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="本地数据存储"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:id="@+id/tvLocalStorageValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="—"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -76,7 +76,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf1c0;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -85,13 +85,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="查看数据库"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -116,7 +116,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf044;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -125,13 +125,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="管理本地映射数据"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -156,7 +156,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf019;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -165,13 +165,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="数据导出 (CSV/JSON/DB)"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -201,7 +201,7 @@
                 android:layout_gravity="center_vertical"
                 android:gravity="center"
                 android:text="&#xf56f;"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="14sp"
                 android:tag="fa" />
 
@@ -210,14 +210,14 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="导入备份数据库"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
                 android:id="@+id/chevronImportData"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="&#xf054;"
-                android:textColor="#8E8E93"
+                android:textColor="@color/ink_3"
                 android:textSize="14sp"
                 android:tag="fa" />
         </LinearLayout>
@@ -227,7 +227,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="#34C759"
+            android:textColor="@color/success"
             android:textSize="11sp"
             android:paddingStart="30dp"
             android:paddingTop="4dp"
@@ -259,7 +259,7 @@
                 android:layout_gravity="center_vertical"
                 android:gravity="center"
                 android:text="&#xf51a;"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="14sp"
                 android:tag="fa" />
 
@@ -268,14 +268,14 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="清理缓存"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
                 android:id="@+id/chevronClearCache"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="&#xf054;"
-                android:textColor="#8E8E93"
+                android:textColor="@color/ink_3"
                 android:textSize="14sp"
                 android:tag="fa" />
         </LinearLayout>
@@ -285,7 +285,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="#34C759"
+            android:textColor="@color/success"
             android:textSize="11sp"
             android:paddingStart="30dp"
             android:paddingTop="4dp"
@@ -312,7 +312,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf2ed;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -321,13 +321,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="清除全部本地数据"
-            android:textColor="#FF3B30"
+            android:textColor="@color/danger"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>
@@ -349,7 +349,7 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:text="&#xf3ed;"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
             android:tag="fa" />
 
@@ -358,13 +358,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="隐私说明"
-            android:textColor="#1A1A1A"
+            android:textColor="@color/ink"
             android:textSize="14sp" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="&#xf054;"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:tag="fa" />
     </LinearLayout>

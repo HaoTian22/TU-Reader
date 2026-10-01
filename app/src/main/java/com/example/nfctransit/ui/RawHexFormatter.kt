@@ -8,8 +8,8 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.toSfiHex
 
 object RawHexFormatter {
-    const val DIM = 0xFF666688.toInt()
-    const val RAW = 0xFFAAAAFF.toInt()
+    const val DIM = Palette.NIGHT_INK_3
+    const val RAW = Palette.NIGHT_ACCENT
     const val TYPE = 0xFFFFC96B.toInt()
     const val RECORD = 0xFF7EE787.toInt()
     const val TERMINAL = 0xFF79C0FF.toInt()
@@ -41,7 +41,7 @@ object RawHexFormatter {
     const val SELECT_LOG = 0xFF64B5F6.toInt()
     const val SELECT_THIRD = 0xFFDCE775.toInt()
     const val SELECT_UNKNOWN = 0xFFBDBDBD.toInt()
-    const val LEGEND_TEXT = 0xFFB8B8D0.toInt()
+    const val LEGEND_TEXT = Palette.NIGHT_INK_3
 
     private val selectTagNames = mapOf(
         "4F" to "Application Identifier",

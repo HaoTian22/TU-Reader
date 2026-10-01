@@ -93,24 +93,24 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     when (state) {
                         "loading" -> {
                             chevron.text = ""                  // fa-spinner
-                            chevron.setTextColor(0xFF8E8E93.toInt())
+                            chevron.setTextColor(Palette.INK_3)
                             spinner.start()
                         }
                         "success" -> {
                             chevron.text = ""                  // fa-circle-check
-                            chevron.setTextColor(0xFF34C759.toInt())
+                            chevron.setTextColor(Palette.SUCCESS)
                         }
                         "error" -> {
                             chevron.text = ""                  // fa-xmark
-                            chevron.setTextColor(0xFFFF3B30.toInt())
+                            chevron.setTextColor(Palette.DANGER)
                         }
                     }
                     statusText.text = msg
                     statusText.setTextColor(
                         when (state) {
-                            "success" -> 0xFF34C759.toInt()
-                            "error" -> 0xFFFF3B30.toInt()
-                            else -> 0xFF8E8E93.toInt()
+                            "success" -> Palette.SUCCESS
+                            "error" -> Palette.DANGER
+                            else -> Palette.INK_3
                         }
                     )
                     statusText.visibility = View.VISIBLE
@@ -119,7 +119,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                         spinner.cancel()
                         chevron.rotation = 0f
                         chevron.text = ""                      // fa-chevron-right
-                        chevron.setTextColor(0xFF8E8E93.toInt())
+                        chevron.setTextColor(Palette.INK_3)
                         statusText.visibility = View.GONE
                     }
                     chevron.postDelayed(pendingRevert!!, 5000)
@@ -160,24 +160,25 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
         applyFaFont(binding.root)
 
-        // 主题色跟随卡片：返回按钮、各选项行首图标一起变
+        // 主题色跟随卡片的只有返回按钮；选项行首图标统一中性色，仅危险操作（清除全部数据）用红色，
+        // 颜色只在有含义时出现
         val optionIcons = intArrayOf(
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
             R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconTransitOverrides,
             R.id.iconDataExport, R.id.iconImportData,
-            R.id.iconClearCache, R.id.iconClearData, R.id.iconPrivacy,
+            R.id.iconClearCache, R.id.iconPrivacy,
             R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconCurrentTripRoute,
             R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconChangelog, R.id.iconSupportedCards,
             R.id.iconOpenSource, R.id.iconFeedback
         )
+        optionIcons.forEach { id ->
+            binding.root.findViewById<TextView>(id)?.setTextColor(Palette.INK_3)
+        }
+        binding.root.findViewById<TextView>(R.id.iconClearData)?.setTextColor(Palette.DANGER)
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
-            val color = accent.toInt()
-            binding.btnBack.setTextColor(color)
-            optionIcons.forEach { id ->
-                binding.root.findViewById<TextView>(id)?.setTextColor(color)
-            }
+            binding.btnBack.setTextColor(accent.toInt())
         }
 
         // 导出读取数据
@@ -212,7 +213,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             AppDialogs.reorder(
                 context = requireContext(),
                 cards = cards,
-                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
                 onDone = { orderedIds -> viewModel.applyCardOrder(orderedIds) }
             )
         }
@@ -223,7 +224,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 context = requireContext(),
                 title = "选择数据库",
                 options = options,
-                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
                 onSelect = { index ->
                     val spec = DatabaseQuerySpec.values()[index]
                     capturePredictiveBackSnapshot()
@@ -268,7 +269,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 title = "当前行程路线",
                 options = listOf("仅起终点", "完整换乘过程"),
                 selectedIndex = if (current == CurrentTripRouteDisplayMode.ENDPOINTS_ONLY) 0 else 1,
-                accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+                accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
                 onSelect = { which ->
                     viewModel.setCurrentTripRouteDisplayMode(
                         if (which == 0) CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
@@ -313,20 +314,20 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             when (state) {
                 "loading" -> {
                     chevronMap.text = ""                  // fa-spinner
-                    chevronMap.setTextColor(0xFF8E8E93.toInt())
+                    chevronMap.setTextColor(Palette.INK_3)
                     spinner.start()
                 }
                 "success" -> {
                     chevronMap.text = ""                  // fa-circle-check
-                    chevronMap.setTextColor(0xFF34C759.toInt())
+                    chevronMap.setTextColor(Palette.SUCCESS)
                 }
                 "error" -> {
                     chevronMap.text = ""                  // fa-triangle-exclamation
-                    chevronMap.setTextColor(0xFFFF3B30.toInt())
+                    chevronMap.setTextColor(Palette.DANGER)
                 }
                 else -> {                                           // idle
                     chevronMap.text = ""                  // fa-chevron-right
-                    chevronMap.setTextColor(0xFF8E8E93.toInt())
+                    chevronMap.setTextColor(Palette.INK_3)
                 }
             }
         }
@@ -339,7 +340,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             if (updating) {
                 setUpdateState("loading")
                 mapStatusText.text = "正在下载并更新站名映射表…"
-                mapStatusText.setTextColor(0xFF8E8E93.toInt())
+                mapStatusText.setTextColor(Palette.INK_3)
                 mapStatusText.visibility = View.VISIBLE
             }
         }
@@ -348,7 +349,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 val success = msg.startsWith("✓")
                 setUpdateState(if (success) "success" else "error")
                 mapStatusText.text = msg
-                mapStatusText.setTextColor(if (success) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                mapStatusText.setTextColor(if (success) Palette.SUCCESS else Palette.DANGER)
                 mapStatusText.visibility = View.VISIBLE
                 pendingRevert = Runnable {
                     setUpdateState("idle")
@@ -361,12 +362,12 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 清理缓存：确认弹窗 → viewModel.clearCache()（删 UI 构建缓存 + transit.db 重置为内置版）
         binding.root.findViewById<View>(R.id.rowClearCache)?.setOnClickListener { showClearCacheDialog() }
         viewModel.cacheClearing.observe(viewLifecycleOwner) { clearing ->
-            if (clearing) showCacheClearStatus("正在清理缓存…", 0xFF8E8E93.toInt())
+            if (clearing) showCacheClearStatus("正在清理缓存…", Palette.INK_3)
         }
         viewModel.cacheClearStatus.observe(viewLifecycleOwner) { msg ->
             if (msg != null) {
                 val ok = msg.startsWith("✓")
-                showCacheClearStatus(msg, if (ok) 0xFF34C759.toInt() else 0xFFFF3B30.toInt())
+                showCacheClearStatus(msg, if (ok) Palette.SUCCESS else Palette.DANGER)
                 updateLocalStorageSize()  // 清理后占用变小，刷新本地存储大小显示
             }
         }
@@ -382,11 +383,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
             toggle.background = track
             var checked = viewModel.keepDebugLogs.value ?: true
-            var accent = 0xFF0066FF.toInt()
-            var currentColor = 0xFFE5E5EA.toInt()
+            var accent = Palette.ACCENT
+            var currentColor = Palette.LINE
 
             fun render(checked: Boolean, accent: Int, animate: Boolean) {
-                val targetColor = if (checked) accent else 0xFFE5E5EA.toInt()
+                val targetColor = if (checked) accent else Palette.LINE
                 val targetX = if (checked) travel else 0f
                 if (animate) {
                     ValueAnimator.ofArgb(currentColor, targetColor).apply {
@@ -448,7 +449,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             title = "语言切换",
             options = options.toList(),
             selectedIndex = checked,
-            accentColor = viewModel.mainAccent.value?.toInt() ?: 0xFF0066FF.toInt(),
+            accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
             onSelect = { which ->
                 when (which) {
                     0 -> TransitData.setDisplayLanguage("system")
@@ -522,7 +523,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             title = "清理缓存",
             message = "将清除界面构建缓存和地图路线缓存；站名映射表仅在内置版本更新时才重置为内置版本，否则保留当前版本（如需最新站名请联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
             confirmLabel = "清理",
-            confirmColor = 0xFF0066FF.toInt(),  // 不删用户数据，用主题蓝而非警示红
+            confirmColor = Palette.ACCENT,  // 不删用户数据，用主题蓝而非警示红
             onConfirm = { viewModel.clearCache() }
         )
     }

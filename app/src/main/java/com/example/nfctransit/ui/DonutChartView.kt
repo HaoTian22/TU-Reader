@@ -23,14 +23,14 @@ class DonutChartView @JvmOverloads constructor(
     }
     private val labelBaseSize = 45f
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF8E8E93.toInt()
+        color = Palette.INK_3
         textSize = labelBaseSize
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
     }
     private val amountBaseSize = 84f
     private val amountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF1A1A1A.toInt()
+        color = Palette.INK
         textSize = amountBaseSize
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)

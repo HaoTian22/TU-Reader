@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
+import com.example.nfctransit.model.CardPalette
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.toSfiHex
@@ -31,15 +32,12 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
     private var renameDialog: Dialog? = null
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
     private var rawHexToCopy = ""
     private var rawRecords = emptyList<RawRecord>()
     private var cardApps = emptyList<CardAppEntity>()
 
-    private val colorNames = listOf(
-        "蓝色", "绿色", "橙色", "紫色", "红色", "青色", "金色", "棕色", "蓝灰色", "玫红色",
-        "翡翠色", "靛蓝色", "粉红色", "朱橙色", "蓝紫色", "翠绿色", "天青色", "猩红色", "紫红色", "青绿色"
-    )
+    private val colorNames = CardPalette.swatches.map { it.name }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -124,7 +122,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
             intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
         ).apply {
-            cornerRadius = dpToPx(8).toFloat()
+            cornerRadius = dpToPx(4).toFloat()
         }
     }
 
@@ -259,7 +257,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     }
 
     private fun addDivider(panel: LinearLayout) {
-        val divider = View(requireContext()).apply { setBackgroundColor(0xFF333366.toInt()) }
+        val divider = View(requireContext()).apply { setBackgroundColor(Palette.NIGHT_2) }
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
         lp.setMargins(0, dpToPx(8), 0, dpToPx(8))
         panel.addView(divider, lp)
@@ -346,7 +344,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private fun updateBadgeBackground() {
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dpToPx(10).toFloat()
+            cornerRadius = dpToPx(4).toFloat()
             setColor(bg)
         }
     }

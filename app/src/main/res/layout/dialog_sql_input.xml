@@ -5,17 +5,17 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="20dp"
-    android:background="@drawable/bg_content_card">
+    android:background="@drawable/bg_dialog">
 
     <TextView
         android:id="@+id/dialogSqlTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="粘贴 SQL 查询"
-        android:textColor="#1A1A1A"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="12dp" />
+        android:textColor="@color/ink"
+        android:textSize="20sp"
+        android:layout_marginBottom="12dp"
+        android:fontFamily="sans-serif-medium" />
 
     <EditText
         android:id="@+id/dialogSqlInput"
@@ -26,8 +26,8 @@
         android:hint="在这里粘贴 AI 生成的 SELECT SQL"
         android:inputType="textMultiLine|textNoSuggestions"
         android:scrollbars="vertical"
-        android:textColor="#1A1A1A"
-        android:textColorHint="#8E8E93"
+        android:textColor="@color/ink"
+        android:textColorHint="@color/ink_3"
         android:textSize="13sp"
         android:fontFamily="monospace"
         android:padding="10dp"
@@ -37,32 +37,39 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:gravity="end|center_vertical"
         android:layout_marginTop="14dp">
 
         <TextView
             android:id="@+id/dialogSqlCancel"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
             android:gravity="center"
             android:text="取消"
-            android:textColor="#8E8E93"
+            android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:clickable="true"
-            android:focusable="true" />
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
 
         <TextView
             android:id="@+id/dialogSqlConfirm"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
             android:gravity="center"
             android:text="确定"
-            android:textColor="#0066FF"
+            android:textColor="@color/accent"
             android:textSize="14sp"
-            android:textStyle="bold"
             android:clickable="true"
-            android:focusable="true" />
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
     </LinearLayout>
 </LinearLayout>

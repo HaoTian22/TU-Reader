@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F8F9FA">
+    android:background="@color/paper">
 
         <!-- Status Bar Spacer -->
         <View
@@ -26,7 +26,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="←"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:clickable="true"
@@ -38,7 +38,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="数据统计"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -57,7 +57,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="深圳通 · 3821"
-                    android:textColor="#0066FF"
+                    android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:maxWidth="140dp"
@@ -71,7 +71,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="#F8F9FA"
+            android:background="@color/paper"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
             android:paddingTop="4dp"
@@ -100,7 +100,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:text="本月"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="13sp"
                 android:fontFamily="sans-serif-medium"
                 android:background="@drawable/bg_chip_default"
@@ -117,7 +117,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:text="本年"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="13sp"
                 android:fontFamily="sans-serif-medium"
                 android:background="@drawable/bg_chip_default"
@@ -133,7 +133,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="自定义"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="13sp"
                 android:fontFamily="sans-serif-medium"
                 android:background="@drawable/bg_chip_default"
@@ -169,14 +169,14 @@
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
                 android:text="开始日期"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="至"
-                android:textColor="#8E8E93"
+                android:textColor="@color/ink_3"
                 android:textSize="13sp"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
@@ -193,7 +193,7 @@
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
                 android:text="结束日期"
-                android:textColor="#555555"
+                android:textColor="@color/ink_2"
                 android:textSize="13sp" />
 
             <Space
@@ -206,7 +206,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="点击选择日期"
-                android:textColor="#8E8E93"
+                android:textColor="@color/ink_3"
                 android:textSize="11sp" />
         </LinearLayout>
 
@@ -215,7 +215,7 @@
             android:id="@+id/rootScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#F8F9FA">
+            android:background="@color/paper">
 
             <LinearLayout
                 android:id="@+id/contentContainer"

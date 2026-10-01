@@ -23,7 +23,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
     private var _binding: FragmentTransitOverridesBinding? = null
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
-    private var accentColor = 0xFF0066FF.toInt()
+    private var accentColor = Palette.ACCENT
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -59,7 +59,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             container.addView(TextView(requireContext()).apply {
                 text = "暂无本地映射数据"
                 gravity = Gravity.CENTER
-                setTextColor(0xFF8E8E93.toInt())
+                setTextColor(Palette.INK_3)
                 textSize = 14f
                 setPadding(0, dp(48), 0, 0)
             })
@@ -81,12 +81,12 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         val codeView = TextView(requireContext()).apply {
             text = "${row.prefix}${row.code}"
             typeface = Typeface.MONOSPACE
-            setTextColor(0xFF1A1A1A.toInt())
+            setTextColor(Palette.INK)
             textSize = 15f
         }
         val detailView = TextView(requireContext()).apply {
             text = "${row.type} · ${row.line} · ${row.station}"
-            setTextColor(0xFF666666.toInt())
+            setTextColor(Palette.INK_2)
             textSize = 13f
             setPadding(0, dp(6), 0, 0)
         }
@@ -104,7 +104,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         })
         actions.addView(TextView(requireContext()).apply {
             text = "删除"
-            setTextColor(0xFFFF3B30.toInt())
+            setTextColor(Palette.DANGER)
             textSize = 14f
             setPadding(dp(12), dp(6), dp(0), dp(6))
             setOnClickListener { showDeleteDialog(row) }
@@ -142,7 +142,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             title = "删除本地映射数据",
             message = "删除后将恢复该设备原来的站名映射。确定删除吗？",
             confirmLabel = "删除",
-            confirmColor = 0xFFFF3B30.toInt()
+            confirmColor = Palette.DANGER
         ) {
             viewModel.deleteOverride(row.mappingKey)
         }

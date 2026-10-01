@@ -167,7 +167,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val preview = savedSql.trim().replace(Regex("\\s+"), " ")
         binding.tvSqlPreview.text = if (preview.isEmpty()) "尚未粘贴 SQL" else preview
         binding.tvSqlPreview.setTextColor(
-            if (preview.isEmpty()) 0xFF8E8E93.toInt() else 0xFF3A3A3C.toInt()
+            if (preview.isEmpty()) Palette.INK_3 else Palette.INK_2
         )
     }
 
@@ -266,7 +266,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             text = value
             textSize = if (header) 12f else 11f
             typeface = if (header) Typeface.DEFAULT_BOLD else Typeface.MONOSPACE
-            setTextColor(if (header) Color.WHITE else 0xFF3A3A3C.toInt())
+            setTextColor(if (header) Color.WHITE else Palette.INK_2)
             gravity = Gravity.TOP or Gravity.START
             setPadding((10 * density).toInt(), (8 * density).toInt(), (10 * density).toInt(), (8 * density).toInt())
             minWidth = (96 * density).toInt()
@@ -274,12 +274,12 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             background = GradientDrawable().apply {
                 setColor(
                     when {
-                        header -> 0xFF0066FF.toInt()
+                        header -> Palette.ACCENT
                         rowIndex % 2 == 0 -> Color.WHITE
-                        else -> 0xFFF4F7FB.toInt()
+                        else -> Palette.PAPER
                     }
                 )
-                setStroke((0.5f * density).toInt().coerceAtLeast(1), 0xFFD9DDE5.toInt())
+                setStroke((0.5f * density).toInt().coerceAtLeast(1), Palette.LINE)
             }
             layoutParams = TableRow.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -297,7 +297,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
     private fun showStatus(message: String, error: Boolean = false) {
         _binding?.tvQueryStatus?.apply {
             text = message
-            setTextColor(if (error) 0xFFFF3B30.toInt() else 0xFF8E8E93.toInt())
+            setTextColor(if (error) Palette.DANGER else Palette.INK_3)
         }
     }
 }

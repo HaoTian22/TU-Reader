@@ -37,14 +37,14 @@ fun TextView.applyLinePill(color: String?) {
     val parsed = parseLineColor(color)
     if (parsed == null) {
         background = ContextCompat.getDrawable(context, R.drawable.bg_chip_default)
-        setTextColor(0xFF555555.toInt())
+        setTextColor(Palette.INK_2)
         return
     }
     background = GradientDrawable().apply {
         cornerRadius = 20f * context.resources.displayMetrics.density
         setColor(parsed)
     }
-    setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else 0xFF555555.toInt())
+    setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else Palette.INK_2)
 }
 
 /** 创建一颗线路药丸 TextView（统计页/地图轨迹用） */

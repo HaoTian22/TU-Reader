@@ -3,8 +3,7 @@
     android:layout_width="320dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_content_card"
-    android:elevation="8dp">
+    android:background="@drawable/bg_dialog">
 
     <ScrollView
         android:id="@+id/feedbackScroll"
@@ -22,18 +21,17 @@
                 android:id="@+id/feedbackTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
                 android:text="反馈站名纠错"
-                android:textColor="#1A1A1A"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:textColor="@color/ink"
+                android:textSize="20sp"
+                android:fontFamily="sans-serif-medium" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="保存后会立即应用到本机站名映射表"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <TextView
@@ -41,7 +39,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="Prefix"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <EditText
@@ -54,7 +52,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -62,7 +60,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="Code"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <EditText
@@ -75,7 +73,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -83,7 +81,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="类型"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <RadioGroup
@@ -98,7 +96,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:text="公交"
-                    android:textColor="#333333"
+                    android:textColor="@color/ink"
                     android:textSize="14sp" />
 
                 <RadioButton
@@ -107,7 +105,7 @@
                     android:layout_height="40dp"
                     android:layout_marginStart="8dp"
                     android:text="地铁"
-                    android:textColor="#333333"
+                    android:textColor="@color/ink"
                     android:textSize="14sp" />
 
                 <RadioButton
@@ -116,7 +114,7 @@
                     android:layout_height="40dp"
                     android:layout_marginStart="8dp"
                     android:text="城际"
-                    android:textColor="#333333"
+                    android:textColor="@color/ink"
                     android:textSize="14sp" />
             </RadioGroup>
 
@@ -125,7 +123,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="实际城市（请选择数据库城市）"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <AutoCompleteTextView
@@ -139,7 +137,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -147,7 +145,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="线路（可留空）"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <EditText
@@ -160,7 +158,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <TextView
@@ -168,7 +166,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="站名（可留空）"
-                android:textColor="#666666"
+                android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
             <EditText
@@ -181,7 +179,7 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:singleLine="true"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="15sp" />
 
             <CheckBox
@@ -191,49 +189,50 @@
                 android:layout_marginTop="8dp"
                 android:paddingStart="8dp"
                 android:text="上传并公开纠错结果以提升数据准确度"
-                android:textColor="#333333"
+                android:textColor="@color/ink"
                 android:textSize="13sp" />
         </LinearLayout>
     </ScrollView>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:background="#E5E5EA" />
-
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end|center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
 
         <TextView
             android:id="@+id/feedbackCancel"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
             android:text="取消"
-            android:textColor="#555555"
-            android:textSize="15sp" />
-
-        <View
-            android:layout_width="0.5dp"
-            android:layout_height="match_parent"
-            android:background="#E5E5EA" />
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
 
         <TextView
             android:id="@+id/feedbackConfirm"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
             android:text="保存"
-            android:textColor="#0066FF"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
     </LinearLayout>
 </LinearLayout>

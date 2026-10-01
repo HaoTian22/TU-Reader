@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F8F9FA">
+    android:background="@color/paper">
 
         <!-- Status Bar Spacer -->
         <View
@@ -26,7 +26,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="←"
-                android:textColor="#0066FF"
+                android:textColor="@color/accent"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:clickable="true"
@@ -38,7 +38,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="设置"
-                android:textColor="#1A1A1A"
+                android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -47,7 +47,7 @@
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#F8F9FA">
+            android:background="@color/paper">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -86,7 +86,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="调试工具"
-                    android:textColor="#8E8E93"
+                    android:textColor="@color/ink_3"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:paddingStart="16dp"
@@ -113,7 +113,7 @@
                         android:layout_gravity="center_vertical"
                         android:gravity="center"
                         android:text="&#xf56e;"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="14sp"
                         android:tag="fa" />
 
@@ -122,13 +122,13 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="导出读取数据 (TXT)"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="&#xf054;"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="14sp"
                         android:tag="fa" />
                 </LinearLayout>
@@ -153,7 +153,7 @@
                         android:layout_gravity="center_vertical"
                         android:gravity="center"
                         android:text="&#xf120;"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="14sp"
                         android:tag="fa" />
 
@@ -162,13 +162,13 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="导出 APDU 日志 (TXT)"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="&#xf054;"
-                        android:textColor="#8E8E93"
+                        android:textColor="@color/ink_3"
                         android:textSize="14sp"
                         android:tag="fa" />
                 </LinearLayout>
@@ -190,7 +190,7 @@
                         android:layout_gravity="center_vertical"
                         android:gravity="center"
                         android:text="&#xf188;"
-                        android:textColor="#0066FF"
+                        android:textColor="@color/accent"
                         android:textSize="14sp"
                         android:tag="fa" />
 
@@ -199,7 +199,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="保留调试日志"
-                        android:textColor="#1A1A1A"
+                        android:textColor="@color/ink"
                         android:textSize="14sp" />
 
                     <FrameLayout
@@ -225,7 +225,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text=""
-                    android:textColor="#34C759"
+                    android:textColor="@color/success"
                     android:textSize="11sp"
                     android:gravity="center"
                     android:paddingTop="6dp"
