@@ -78,7 +78,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           FEEDBACK_UPLOAD_URL: ${{ vars.FEEDBACK_UPLOAD_URL }}
         shell: bash
-        run: gradle -PversionName="$RELEASE_TAG" :app:assembleRelease --no-daemon --console=plain
+        # --refresh-dependencies：发布偶发命中 setup-gradle 恢复的旧缓存（其中记着某依赖"未找到"），
+        # Gradle 会沿用该结果而不再联网查找；发布频率低，强制重新校验依赖换取稳定。
+        run: gradle -PversionName="$RELEASE_TAG" :app:assembleRelease --refresh-dependencies --no-daemon --console=plain
 
       - name: Verify APK version
         shell: bash

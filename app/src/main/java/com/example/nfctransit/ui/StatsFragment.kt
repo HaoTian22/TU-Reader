@@ -50,9 +50,9 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         // 回到当前周期按钮的 ↻ 图标与前后周期箭头用 FontAwesome 渲染（汉字部分自动回退系统字体）
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-        binding.cardTrend.btnBackCurrent.typeface = fa
-        binding.cardTrend.btnPrevPeriod.typeface = fa
-        binding.cardTrend.btnNextPeriod.typeface = fa
+        binding.btnBackCurrent.typeface = fa
+        binding.btnPrevPeriod.typeface = fa
+        binding.btnNextPeriod.typeface = fa
 
         // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
         // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认
@@ -73,10 +73,6 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         // 自定义日期范围：起止两个字段都点开同一个 MD3 日期范围弹窗，改完实时重算
         binding.tvCustomStart.setOnClickListener { showCustomRangeDialog() }
         binding.tvCustomEnd.setOnClickListener { showCustomRangeDialog() }
-        // 图表右上角日期范围文字：自定义周期下点击同样弹出日期范围选择
-        binding.cardTrend.tvPeriodRange.setOnClickListener {
-            if (selectedSegment == "自定义") showCustomRangeDialog()
-        }
         viewModel.customRange.observe(viewLifecycleOwner) { (start, end) ->
             binding.tvCustomStart.text = start.ifEmpty { "开始日期" }
             binding.tvCustomEnd.text = end.ifEmpty { "结束日期" }
@@ -86,21 +82,20 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
             binding.btnBack.setTextColor(accentColor)
-            binding.cardTrend.btnPrevPeriod.setTextColor(accentColor)
-            binding.cardTrend.btnNextPeriod.setTextColor(accentColor)
-            binding.cardTrend.btnBackCurrent.setTextColor(accentColor)
-            binding.cardSummary.sumRideCount.setTextColor(accentColor)
+            binding.btnPrevPeriod.setTextColor(accentColor)
+            binding.btnNextPeriod.setTextColor(accentColor)
+            binding.btnBackCurrent.setTextColor(accentColor)
             binding.tvCardBadge.setTextColor(accentColor)
             updateCardBadgeBg()
             updateSegmentSelection()
         }
 
         // 上一期/下一期 / 回到当前
-        binding.cardTrend.btnPrevPeriod.setOnClickListener { viewModel.shiftPeriod(-1) }
-        binding.cardTrend.btnNextPeriod.setOnClickListener { viewModel.shiftPeriod(1) }
-        binding.cardTrend.btnBackCurrent.setOnClickListener { viewModel.backToCurrentPeriod() }
+        binding.btnPrevPeriod.setOnClickListener { viewModel.shiftPeriod(-1) }
+        binding.btnNextPeriod.setOnClickListener { viewModel.shiftPeriod(1) }
+        binding.btnBackCurrent.setOnClickListener { viewModel.backToCurrentPeriod() }
         viewModel.periodOffset.observe(viewLifecycleOwner) { offset ->
-            binding.cardTrend.btnBackCurrent.visibility =
+            binding.btnBackCurrent.visibility =
                 if (offset != 0) View.VISIBLE else View.GONE
         }
 
@@ -112,7 +107,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
 
         viewModel.periodRange.observe(viewLifecycleOwner) { range ->
-            binding.cardTrend.tvPeriodRange.text = range
+            binding.tvPeriodRange.text = range
         }
 
         viewModel.statsSummary.observe(viewLifecycleOwner) { summary ->
@@ -183,21 +178,22 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             if (n == selectedSegment) {
                 // 用圆角 GradientDrawable 填充主题色，避免 setBackgroundColor 丢失圆角
                 v.background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(20).toFloat()
+                    cornerRadius = dpToPx(999).toFloat()
                     setColor(accentColor)
                 }
                 v.setTextColor(0xFFFFFFFF.toInt())
+                v.typeface = Typeface.DEFAULT_BOLD
             } else {
                 v.setBackgroundResource(R.drawable.bg_chip_default)
                 v.setTextColor(Palette.INK_2)
+                v.typeface = Typeface.DEFAULT
             }
         }
         binding.customRangeRow.visibility =
             if (selectedSegment == "自定义") View.VISIBLE else View.GONE
-        // 自定义周期下起止由日期范围决定，没有上/下一期，隐藏图表标题旁的两个箭头
-        val customMode = selectedSegment == "自定义"
-        binding.cardTrend.btnPrevPeriod.visibility = if (customMode) View.INVISIBLE else View.VISIBLE
-        binding.cardTrend.btnNextPeriod.visibility = if (customMode) View.INVISIBLE else View.VISIBLE
+        // 自定义周期下起止由日期范围行决定，没有上/下一期，整行周期导航隐藏
+        binding.periodNavRow.visibility =
+            if (selectedSegment == "自定义") View.GONE else View.VISIBLE
     }
 
     /** 弹出 MD3 风格日期范围弹窗（主题色跟随卡片），确定后实时重算统计 */
@@ -296,33 +292,48 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             container.addView(col)
         }
 
-        // 手指划过图表即显示对应柱的金额弹窗（无需精确点中窄柱）：
-        // DOWN/MOVE 跟随手指更新弹窗；DOWN 时禁止父级 ScrollView 拦截，纵向拖动不会滚动页面，
-        // 松开（UP）后恢复拦截，页面可继续滚动；CANCEL（仍被系统接管时）收起弹窗。
+        // 手势按方向分流：纵向拖动交给页面滚动；横向拖动锁定图表、弹窗跟随手指；轻点显示所点柱的弹窗。
+        // DOWN 时不禁止父级拦截，纵向位移超过 touchSlop 时 ScrollView 自行接管（本视图收到 CANCEL）；
+        // 横向位移先超过 touchSlop 时再禁止拦截，之后的纵向抖动不会滚动页面。
+        val touchSlop = android.view.ViewConfiguration.get(requireContext()).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var scrubbing = false
+        fun revealAt(x: Float) {
+            val idx = columnIndexAt(x, container)
+            if (idx in data.indices) showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
+        }
         container.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    container.requestDisallowInterceptTouchEvent(true)
-                    val idx = columnIndexAt(event.x, container)
-                    if (idx in data.indices) {
-                        showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
-                    }
+                    downX = event.x
+                    downY = event.y
+                    scrubbing = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val idx = columnIndexAt(event.x, container)
-                    if (idx in data.indices) {
-                        showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
+                    if (!scrubbing) {
+                        val dx = kotlin.math.abs(event.x - downX)
+                        val dy = kotlin.math.abs(event.y - downY)
+                        if (dx > touchSlop && dx > dy) {
+                            scrubbing = true
+                            container.parent.requestDisallowInterceptTouchEvent(true)
+                        }
                     }
+                    if (scrubbing) revealAt(event.x)
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    container.requestDisallowInterceptTouchEvent(false)
+                    // 未进入横向拖动 = 轻点（纵向拖动早已被 ScrollView 接管，走不到这里）
+                    if (!scrubbing) revealAt(event.x)
+                    container.parent.requestDisallowInterceptTouchEvent(false)
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
-                    container.requestDisallowInterceptTouchEvent(false)
-                    popup.visibility = View.GONE
+                    // 被 ScrollView 接管（纵向滚动）：不显示弹窗
+                    container.parent.requestDisallowInterceptTouchEvent(false)
+                    if (scrubbing) popup.visibility = View.GONE
+                    scrubbing = false
                     true
                 }
                 else -> true
@@ -426,9 +437,9 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
             val amount = TextView(requireContext()).apply {
                 text = "¥${String.format("%.2f", item.amountYuan)}"
-                textSize = 12f
-                setTextColor(Palette.INK_2)
-                typeface = Typeface.MONOSPACE
+                textSize = 13f
+                setTextColor(Palette.INK)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             }
 
             val percent = TextView(requireContext()).apply {
@@ -468,50 +479,73 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             return
         }
 
-        for (item in items) {
+        items.forEachIndexed { index, item ->
             val (nameViews, count, barPercent) = when (item) {
                 is StationStat -> Triple(buildStationViews(item), item.count, item.barWidthPercent)
                 is LineStat -> Triple(buildLinePills(item), item.count, item.barWidthPercent)
-                else -> continue
+                else -> return@forEachIndexed
             }
 
+            // 两行：上行 名次 + 名称（药丸）+ 次数；下行 按占比缩放的圆角条（最高项满宽）
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(TextView(requireContext()).apply {
+                text = "${index + 1}"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(if (index == 0) barColor else Palette.INK_3)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(20), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { marginEnd = dpToPx(8) }
+            })
+            val names = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            nameViews.forEach { names.addView(it) }
+            row.addView(names)
+            row.addView(TextView(requireContext()).apply {
+                text = "$count 次"
+                textSize = 13f
+                setTextColor(Palette.INK)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            })
+
+            val barWeight = barPercent.coerceIn(0.03f, 1f)
+            val track = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = GradientDrawable().apply {
+                    cornerRadius = dpToPx(999).toFloat()
+                    setColor(Palette.FILL)
+                }
+                weightSum = 1f
+            }
+            track.addView(View(requireContext()).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = dpToPx(999).toFloat()
+                    setColor(barColor)
+                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, barWeight)
+            })
+
+            val block = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = 8 }
-                gravity = android.view.Gravity.CENTER_VERTICAL
+                ).apply { if (index > 0) topMargin = dpToPx(14) }
             }
-
-            nameViews.forEach { row.addView(it) }
-
-            // 宽度用 weight 按占比填满行内剩余空间：最高项≈满宽，其余按 count 占比缩放（归一化）
-            val barWeight = barPercent.coerceIn(0.05f, 1f)
-            val bar = View(requireContext()).apply {
-                setBackgroundColor(barColor)
-                layoutParams = LinearLayout.LayoutParams(0, 8, barWeight).apply {
-                    marginStart = 10
-                    marginEnd = 10
-                }
-            }
-
-            val countView = TextView(requireContext()).apply {
-                text = "${count} 次"
-                textSize = 12f
-                setTextColor(Palette.INK_2)
-                typeface = android.graphics.Typeface.MONOSPACE
-            }
-
-            // 剩余空间（1 - 占比）由尾部占位吸收，条与占比精确对应
-            val filler = View(requireContext()).apply {
-                layoutParams = LinearLayout.LayoutParams(0, 1, (1f - barWeight).coerceAtLeast(0f))
-            }
-
-            row.addView(bar)
-            row.addView(countView)
-            row.addView(filler)
-            container.addView(row)
+            block.addView(row)
+            block.addView(track, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(6)
+            ).apply {
+                topMargin = dpToPx(6)
+                marginStart = dpToPx(28)
+            })
+            container.addView(block)
         }
     }
 

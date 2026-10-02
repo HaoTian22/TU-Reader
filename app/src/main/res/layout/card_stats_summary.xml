@@ -1,96 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 统计摘要：一张白卡三栏（总消费 / 乘车次数 / 日均消费），栏间竖分隔线 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginStart="20dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginEnd="20dp"
+    android:background="@drawable/bg_card_plain"
+    android:baselineAligned="false"
     android:orientation="horizontal"
-    android:layout_marginBottom="16dp">
+    android:paddingTop="18dp"
+    android:paddingBottom="18dp">
 
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/bg_content_card"
-        android:padding="14dp"
-        android:layout_marginEnd="12dp">
+    <LinearLayout style="@style/StatsSummaryCell">
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="总消费"
-            android:textColor="@color/ink_3"
-            android:textSize="11sp" />
+            style="@style/StatsSummaryLabel"
+            android:text="总消费" />
 
         <TextView
             android:id="@+id/sumTotalSpending"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="¥308.00"
-            android:textColor="@color/danger"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:fontFamily="monospace"
-            android:maxLines="1"
-            android:layout_marginTop="4dp" />
+            style="@style/StatsSummaryValue"
+            android:text="¥0.00" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/bg_content_card"
-        android:padding="14dp"
-        android:layout_marginEnd="12dp">
+    <View style="@style/StatsSummaryDivider" />
+
+    <LinearLayout style="@style/StatsSummaryCell">
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="乘车次数"
-            android:textColor="@color/ink_3"
-            android:textSize="11sp" />
+            style="@style/StatsSummaryLabel"
+            android:text="乘车次数" />
 
         <TextView
             android:id="@+id/sumRideCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="42 次"
-            android:textColor="@color/accent"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:fontFamily="monospace"
-            android:maxLines="1"
-            android:layout_marginTop="4dp" />
+            style="@style/StatsSummaryValue"
+            android:text="0 次" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/bg_content_card"
-        android:padding="14dp">
+    <View style="@style/StatsSummaryDivider" />
+
+    <LinearLayout style="@style/StatsSummaryCell">
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="日均消费"
-            android:textColor="@color/ink_3"
-            android:textSize="11sp" />
+            style="@style/StatsSummaryLabel"
+            android:text="日均消费" />
 
         <TextView
             android:id="@+id/sumAvgDaily"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="¥10.27"
-            android:textColor="@color/warning"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:fontFamily="monospace"
-            android:maxLines="1"
-            android:layout_marginTop="4dp" />
+            style="@style/StatsSummaryValue"
+            android:text="¥0.00" />
     </LinearLayout>
 </LinearLayout>

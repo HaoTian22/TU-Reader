@@ -3,17 +3,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_content_card"
+    android:layout_marginStart="20dp"
+    android:layout_marginEnd="20dp"
+    android:background="@drawable/bg_card_plain"
     android:padding="16dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="最常坐的线路 Top 5"
-        android:textColor="@color/ink"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:paddingBottom="12dp" />
 
     <LinearLayout
         android:id="@+id/lineListContainer"
