@@ -2,218 +2,214 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/bg_content_card"
-    android:divider="@drawable/bg_row_divider"
-    android:showDividers="middle"
-    android:layout_marginBottom="24dp">
+    android:orientation="vertical">
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="显示与体验"
-        android:textColor="@color/ink_3"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:paddingStart="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="8dp" />
+        style="@style/SettingsSectionTitle"
+        android:text="显示与体验" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+    <LinearLayout style="@style/SettingsSectionCard">
 
-        <TextView
-            android:id="@+id/iconDarkMode"
-            android:layout_width="30dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf186;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="深色模式"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-
-        <!-- Toggle Switch Placeholder -->
         <LinearLayout
-            android:layout_width="48dp"
-            android:layout_height="28dp"
-            android:background="@drawable/bg_toggle_off"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="2dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
 
-            <View
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_toggle_knob" />
+            <TextView
+                android:id="@+id/iconDarkMode"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf186;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="深色模式"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+
+            <!-- 深色模式尚未实现：开关保持关闭且不可操作 -->
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchDarkMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="0dp"
+                android:enabled="false" />
         </LinearLayout>
-    </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
-
-        <TextView
-            android:id="@+id/iconAmountUnit"
-            android:layout_width="30dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf51e;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="金额显示单位"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="元"
-            android:textColor="@color/ink_3"
-            android:textSize="13sp" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/iconAmountUnit"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf51e;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
 
-    <LinearLayout
-        android:id="@+id/rowCurrentTripRoute"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:clickable="true"
-        android:focusable="true">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="金额显示单位"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="元"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/iconCurrentTripRoute"
-            android:layout_width="30dp"
+        <LinearLayout
+            android:id="@+id/rowCurrentTripRoute"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf4d7;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="当前行程路线"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/iconCurrentTripRoute"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf4d7;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
 
-        <TextView
-            android:id="@+id/tvCurrentTripRouteValue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="仅起终点"
-            android:textColor="@color/ink_3"
-            android:textSize="13sp" />
-    </LinearLayout>
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="当前行程路线"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+            <TextView
+                android:id="@+id/tvCurrentTripRouteValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="仅起终点"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/iconMapSpeed"
-            android:layout_width="30dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf5a0;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="地图动画播放速度"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="&#xf054;"
-            android:textColor="@color/ink_3"
-            android:textSize="14sp"
-            android:tag="fa" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/iconMapSpeed"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf5a0;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
 
-    <LinearLayout
-        android:id="@+id/rowLanguage"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:clickable="true"
-        android:focusable="true">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="地图动画播放速度"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="&#xf054;"
+                android:textColor="@color/ink_3"
+                android:textSize="14sp"
+                android:tag="fa" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/iconLanguage"
-            android:layout_width="30dp"
+        <LinearLayout
+            android:id="@+id/rowLanguage"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf1ab;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="语言切换"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-        <TextView
-            android:id="@+id/tvLanguageValue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="中文"
-            android:textColor="@color/ink_3"
-            android:textSize="13sp" />
+            <TextView
+                android:id="@+id/iconLanguage"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf1ab;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="语言切换"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+            <TextView
+                android:id="@+id/tvLanguageValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="中文"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

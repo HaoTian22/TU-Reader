@@ -19,8 +19,13 @@ object StationDbUpdater {
     /**
      * 下载最新 transit.db 到应用缓存目录（调用方负责删除临时文件）。
      * 仅保证非空与 HTTP 200；是否与当前 Room schema 兼容由 AppDatabase.replaceWithDownloaded 校验。
+     * [onProgress] 在下载线程回调已下载比例 0..1；服务端未给 Content-Length 时回调 null（进度未知）。
      */
-    fun download(context: Context, url: String = DOWNLOAD_URL): DownloadedDb {
+    fun download(
+        context: Context,
+        url: String = DOWNLOAD_URL,
+        onProgress: (Float?) -> Unit = {}
+    ): DownloadedDb {
         val tmp = File(context.cacheDir, "transit_download_${System.currentTimeMillis()}.db")
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000
@@ -31,8 +36,28 @@ object StationDbUpdater {
             if (code != HttpURLConnection.HTTP_OK) {
                 throw IOException("HTTP $code")
             }
+            val total = connection.contentLengthLong
             connection.inputStream.use { input ->
-                FileOutputStream(tmp).use { output -> input.copyTo(output) }
+                FileOutputStream(tmp).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var done = 0L
+                    var lastPercent = -1
+                    onProgress(if (total > 0) 0f else null)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        done += n
+                        if (total > 0) {
+                            // 按整数百分比节流，避免每个缓冲区都回调
+                            val percent = (done * 100 / total).toInt()
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+                            }
+                        }
+                    }
+                }
             }
             if (tmp.length() == 0L) throw IOException("下载内容为空")
             val lastModified = connection.getHeaderFieldDate("Last-Modified", 0L)

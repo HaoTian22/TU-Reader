@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置行首图标底：32dp 浅灰圆角方块（危险操作由代码改为浅红） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/fill" />
+    <corners android:radius="10dp" />
+</shape>

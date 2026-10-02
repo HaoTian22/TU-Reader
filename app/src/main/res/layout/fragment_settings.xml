@@ -55,8 +55,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
             android:paddingBottom="24dp">
 
             <!-- Section: 卡片管理 -->
@@ -72,161 +72,148 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_content_card"
-                android:divider="@drawable/bg_row_divider"
-                android:showDividers="middle"
-                android:layout_marginBottom="24dp">
+                android:orientation="vertical">
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="调试工具"
-                    android:textColor="@color/ink_3"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:paddingStart="16dp"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="8dp" />
+                    style="@style/SettingsSectionTitle"
+                    android:text="调试工具" />
 
-                <LinearLayout
-                    android:id="@+id/rowExportData"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="14dp"
-                    android:clickable="true"
-                    android:focusable="true">
+                <LinearLayout style="@style/SettingsSectionCard">
 
-                    <TextView
-                        android:id="@+id/iconExportData"
-                        android:layout_width="30dp"
+                    <LinearLayout
+                        android:id="@+id/rowExportData"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="center_vertical"
-                        android:gravity="center"
-                        android:text="&#xf56e;"
-                        android:textColor="@color/accent"
-                        android:textSize="14sp"
-                        android:tag="fa" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="导出读取数据 (TXT)"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="&#xf054;"
-                        android:textColor="@color/ink_3"
-                        android:textSize="14sp"
-                        android:tag="fa" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/rowExportLog"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="14dp"
-                    android:clickable="true"
-                    android:focusable="true">
-
-                    <TextView
-                        android:id="@+id/iconExportLog"
-                        android:layout_width="30dp"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center_vertical"
-                        android:gravity="center"
-                        android:text="&#xf120;"
-                        android:textColor="@color/accent"
-                        android:textSize="14sp"
-                        android:tag="fa" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="导出 APDU 日志 (TXT)"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="&#xf054;"
-                        android:textColor="@color/ink_3"
-                        android:textSize="14sp"
-                        android:tag="fa" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="14dp">
-
-                    <TextView
-                        android:id="@+id/iconDebugLog"
-                        android:layout_width="30dp"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center_vertical"
-                        android:gravity="center"
-                        android:text="&#xf188;"
-                        android:textColor="@color/accent"
-                        android:textSize="14sp"
-                        android:tag="fa" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="保留调试日志"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-
-                    <FrameLayout
-                        android:id="@+id/switchKeepDebugLogs"
-                        android:layout_width="48dp"
-                        android:layout_height="28dp"
-                        android:background="@drawable/bg_toggle_off"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="14dp"
+                        android:paddingBottom="14dp"
                         android:clickable="true"
                         android:focusable="true">
 
-                        <View
-                            android:id="@+id/knobKeepDebugLogs"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_margin="2dp"
-                            android:layout_gravity="start|center_vertical"
-                            android:background="@drawable/bg_toggle_knob" />
-                    </FrameLayout>
-                </LinearLayout>
+                        <TextView
+                            android:id="@+id/iconExportData"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginEnd="12dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:gravity="center"
+                            android:text="&#xf56e;"
+                            android:textColor="@color/accent"
+                            android:textSize="14sp"
+                            android:tag="fa" />
 
-                <TextView
-                    android:id="@+id/tvCopyStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textColor="@color/success"
-                    android:textSize="11sp"
-                    android:gravity="center"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="8dp"
-                    android:visibility="gone" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="导出读取数据 (TXT)"
+                            android:textColor="@color/ink"
+                            android:textSize="14sp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xf054;"
+                            android:textColor="@color/ink_3"
+                            android:textSize="14sp"
+                            android:tag="fa" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/rowExportLog"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="14dp"
+                        android:paddingBottom="14dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:id="@+id/iconExportLog"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginEnd="12dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:gravity="center"
+                            android:text="&#xf120;"
+                            android:textColor="@color/accent"
+                            android:textSize="14sp"
+                            android:tag="fa" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="导出 APDU 日志 (TXT)"
+                            android:textColor="@color/ink"
+                            android:textSize="14sp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&#xf054;"
+                            android:textColor="@color/ink_3"
+                            android:textSize="14sp"
+                            android:tag="fa" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="14dp"
+                        android:paddingBottom="14dp">
+
+                        <TextView
+                            android:id="@+id/iconDebugLog"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginEnd="12dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:gravity="center"
+                            android:text="&#xf188;"
+                            android:textColor="@color/accent"
+                            android:textSize="14sp"
+                            android:tag="fa" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="保留调试日志"
+                            android:textColor="@color/ink"
+                            android:textSize="14sp" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switchKeepDebugLogs"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minHeight="0dp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvCopyStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="@color/success"
+                        android:textSize="11sp"
+                        android:gravity="center"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="8dp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Section: 关于 -->

@@ -108,4 +108,24 @@
         <item name="android:layout_marginBottom">4dp</item>
         <item name="android:background">@color/line</item>
     </style>
+    <!-- 设置页：分区标题在卡片外，卡片为白色圆角、行间分隔线从文字起点开始 -->
+    <style name="SettingsSectionTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">4dp</item>
+        <item name="android:layout_marginTop">24dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="SettingsSectionCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_card_plain</item>
+        <item name="android:divider">@drawable/bg_settings_divider</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:showDividers">middle</item>
+    </style>
 </resources>

@@ -188,6 +188,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationDbUpdating = MutableLiveData(false)
     val stationDbUpdating: LiveData<Boolean> = _stationDbUpdating
 
+    /** 站名映射表下载进度 0..1；null = 进度未知（服务端无长度，或下载完成后的校验/替换阶段） */
+    private val _stationDbProgress = MutableLiveData<Float?>(null)
+    val stationDbProgress: LiveData<Float?> = _stationDbProgress
+
     private val _stationDbUpdateStatus = MutableLiveData<String?>(null)
     val stationDbUpdateStatus: LiveData<String?> = _stationDbUpdateStatus
 
@@ -1122,14 +1126,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 下载最新 transit.db 并替换本地站名映射表，成功后重载内存索引并刷新界面。
      * 下载或格式校验失败时原库保持不变。
      */
+    fun consumeStationDbUpdateStatus() {
+        _stationDbUpdateStatus.value = null
+    }
+
     fun updateStationDatabase() {
         if (_stationDbUpdating.value == true) return
         _stationDbUpdating.value = true
+        _stationDbProgress.value = null
         viewModelScope.launch {
             try {
                 val downloaded = withContext(Dispatchers.IO) {
-                    StationDbUpdater.download(getApplication())
+                    StationDbUpdater.download(getApplication()) { _stationDbProgress.postValue(it) }
                 }
+                // 下载完成，进入校验/替换/重建阶段：进度未知
+                _stationDbProgress.value = null
                 try {
                     withContext(Dispatchers.IO) {
                         AppDatabase.replaceWithDownloaded(getApplication(), downloaded.file)

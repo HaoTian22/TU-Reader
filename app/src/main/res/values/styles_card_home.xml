@@ -12,32 +12,40 @@
         <item name="android:textSize">15sp</item>
     </style>
 
-    <!-- 快捷操作胶囊的一个分段：圆形图标 + 文字横排 -->
+    <!-- 快捷操作栏的一个分段：图标在上、文字在下；背景为圆角透明块，作为按压高亮的形状 -->
     <style name="CardHomeAction">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_height">72dp</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:orientation">horizontal</item>
+        <item name="android:orientation">vertical</item>
         <item name="android:gravity">center</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:background">@drawable/bg_action_segment</item>
     </style>
 
-    <style name="CardHomeActionIcon">
-        <item name="android:layout_width">32dp</item>
+    <!-- 分段之间的竖分隔线 -->
+    <style name="CardHomeActionDivider">
+        <item name="android:layout_width">1px</item>
         <item name="android:layout_height">32dp</item>
+        <item name="android:background">@color/line</item>
+    </style>
+
+    <style name="CardHomeActionIcon">
+        <item name="android:layout_width">36dp</item>
+        <item name="android:layout_height">36dp</item>
         <item name="android:gravity">center</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">14sp</item>
         <item name="android:importantForAccessibility">no</item>
     </style>
 
     <style name="CardHomeActionLabel">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginTop">6dp</item>
         <item name="android:textColor">@color/ink</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:maxLines">1</item>
     </style>
 

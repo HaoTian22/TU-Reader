@@ -197,13 +197,7 @@ object AppDialogs {
             // 整行可点：点说明文字也能切换开关
             if (showPublish) setOnClickListener { publishInput.toggle() }
         }
-        (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.apply {
-            val checked = intArrayOf(android.R.attr.state_checked)
-            val states = arrayOf(checked, intArrayOf())
-            trackTintList = ColorStateList(states, intArrayOf(accentColor, Palette.LINE))
-            thumbTintList = ColorStateList(states, intArrayOf(Color.WHITE, Palette.INK_3))
-            trackDecorationTintList = ColorStateList(states, intArrayOf(accentColor, Palette.INK_3))
-        }
+        (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.tintAccent(accentColor)
         // 交通类型：胶囊单选，选中为主题色实心 + 白字（同统计页周期切换）
         val density = context.resources.displayMetrics.density
         val typeChips = listOf(

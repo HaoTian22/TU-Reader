@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置分区卡片内行分隔线：从文字起点开始（16 内边距 + 32 图标 + 12 间距 = 60dp） -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="60dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/line" />
+        <size android:height="1px" />
+    </shape>
+</inset>

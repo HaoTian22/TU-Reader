@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
+import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
@@ -177,6 +178,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             binding.root.findViewById<TextView>(id)?.setTextColor(Palette.INK_3)
         }
         binding.root.findViewById<TextView>(R.id.iconClearData)?.setTextColor(Palette.DANGER)
+        binding.root.findViewById<TextView>(R.id.iconClearData)?.background =
+            android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 10f * resources.displayMetrics.density
+                setColor(androidx.core.graphics.ColorUtils.blendARGB(Palette.SURFACE, Palette.DANGER, 0.1f))
+            }
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             binding.btnBack.setTextColor(accent.toInt())
         }
@@ -298,38 +304,39 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
         }
 
-        // 站名映射表在线更新：行内右侧图标显示 加载/成功/失败，5 秒后恢复为箭头
+        // 站名映射表在线更新：行右侧同一位置切换 箭头 → 下载进度环（已知大小时按比例填充，
+        // 未知或校验替换阶段为不定进度）→ 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头。失败原因用 Toast 提示。
         val chevronMap = binding.root.findViewById<TextView>(R.id.chevronUpdateStationMap)!!
-        val mapStatusText = binding.root.findViewById<TextView>(R.id.tvStationMapStatus)!!
-        val spinner = ObjectAnimator.ofFloat(chevronMap, "rotation", 0f, 360f).apply {
-            duration = 800
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = LinearInterpolator()
-        }
+        val progressMap = binding.root
+            .findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
+                R.id.progressUpdateStationMap
+            )!!
         var pendingRevert: Runnable? = null
 
-        fun setUpdateState(state: String) {
-            spinner.cancel()
-            chevronMap.rotation = 0f
-            when (state) {
-                "loading" -> {
-                    chevronMap.text = ""                  // fa-spinner
-                    chevronMap.setTextColor(Palette.INK_3)
-                    spinner.start()
+        fun showChevron(glyph: String, color: Int) {
+            progressMap.visibility = View.GONE
+            chevronMap.text = glyph
+            chevronMap.setTextColor(color)
+            chevronMap.visibility = View.VISIBLE
+        }
+
+        fun showProgress(fraction: Float?) {
+            chevronMap.visibility = View.GONE
+            progressMap.setIndicatorColor(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
+            if (fraction == null) {
+                if (!progressMap.isIndeterminate) {
+                    // 切换不定状态前需先隐藏，否则 Material 会抛异常/闪烁
+                    progressMap.visibility = View.INVISIBLE
+                    progressMap.isIndeterminate = true
                 }
-                "success" -> {
-                    chevronMap.text = ""                  // fa-circle-check
-                    chevronMap.setTextColor(Palette.SUCCESS)
+            } else {
+                if (progressMap.isIndeterminate) {
+                    progressMap.visibility = View.INVISIBLE
+                    progressMap.isIndeterminate = false
                 }
-                "error" -> {
-                    chevronMap.text = ""                  // fa-triangle-exclamation
-                    chevronMap.setTextColor(Palette.DANGER)
-                }
-                else -> {                                           // idle
-                    chevronMap.text = ""                  // fa-chevron-right
-                    chevronMap.setTextColor(Palette.INK_3)
-                }
+                progressMap.setProgressCompat((fraction * 100).toInt(), true)
             }
+            progressMap.visibility = View.VISIBLE
         }
 
         binding.root.findViewById<View>(R.id.rowUpdateStationMap)?.setOnClickListener {
@@ -337,25 +344,24 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             viewModel.updateStationDatabase()
         }
         viewModel.stationDbUpdating.observe(viewLifecycleOwner) { updating ->
-            if (updating) {
-                setUpdateState("loading")
-                mapStatusText.text = "正在下载并更新站名映射表…"
-                mapStatusText.setTextColor(Palette.INK_3)
-                mapStatusText.visibility = View.VISIBLE
-            }
+            if (updating) showProgress(viewModel.stationDbProgress.value)
+        }
+        viewModel.stationDbProgress.observe(viewLifecycleOwner) { fraction ->
+            if (viewModel.stationDbUpdating.value == true) showProgress(fraction)
         }
         viewModel.stationDbUpdateStatus.observe(viewLifecycleOwner) { msg ->
             if (msg != null) {
                 val success = msg.startsWith("✓")
-                setUpdateState(if (success) "success" else "error")
-                mapStatusText.text = msg
-                mapStatusText.setTextColor(if (success) Palette.SUCCESS else Palette.DANGER)
-                mapStatusText.visibility = View.VISIBLE
-                pendingRevert = Runnable {
-                    setUpdateState("idle")
-                    mapStatusText.visibility = View.GONE
+                if (success) {
+                    showChevron("", Palette.SUCCESS)               // fa-circle-check
+                } else {
+                    showChevron("", Palette.DANGER)                // fa-triangle-exclamation
+                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                 }
-                chevronMap.postDelayed(pendingRevert!!, 5000)
+                pendingRevert = Runnable { showChevron("", Palette.INK_3) }  // fa-chevron-right
+                chevronMap.postDelayed(pendingRevert!!, 3000)
+                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠ 与 Toast
+                viewModel.consumeStationDbUpdateStatus()
             }
         }
 
@@ -372,57 +378,20 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
         }
 
-        // 保留调试日志开关：自绘开关 + 滑动/变色动画，开启时轨道跟随卡片主题色
+        // 保留调试日志开关：MaterialSwitch，开启时轨道跟随卡片主题色
         binding.switchKeepDebugLogs.let { toggle ->
-            val knob = binding.knobKeepDebugLogs
-            val dp = resources.displayMetrics.density
-            // 轨道 48dp、旋钮 24dp、两侧各 2dp 边距 → 可滑动 20dp
-            val travel = 20f * dp
-            val track = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 14f * dp
-            }
-            toggle.background = track
-            var checked = viewModel.keepDebugLogs.value ?: true
-            var accent = Palette.ACCENT
-            var currentColor = Palette.LINE
-
-            fun render(checked: Boolean, accent: Int, animate: Boolean) {
-                val targetColor = if (checked) accent else Palette.LINE
-                val targetX = if (checked) travel else 0f
-                if (animate) {
-                    ValueAnimator.ofArgb(currentColor, targetColor).apply {
-                        addUpdateListener { v ->
-                            currentColor = v.animatedValue as Int
-                            track.setColor(currentColor)
-                        }
-                        duration = 220
-                        start()
-                    }
-                    ValueAnimator.ofFloat(knob.translationX, targetX).apply {
-                        addUpdateListener { knob.translationX = it.animatedValue as Float }
-                        duration = 220
-                        start()
-                    }
-                } else {
-                    currentColor = targetColor
-                    track.setColor(currentColor)
-                    knob.translationX = targetX
-                }
-            }
-
-            render(checked, accent, animate = false)
+            toggle.isChecked = viewModel.keepDebugLogs.value ?: true
+            toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
             viewModel.keepDebugLogs.observe(viewLifecycleOwner) { v ->
-                if (v != checked) { checked = v; render(checked, accent, animate = false) }
+                if (v != toggle.isChecked) toggle.isChecked = v
             }
-            viewModel.mainAccent.observe(viewLifecycleOwner) { c ->
-                if (c.toInt() != accent) { accent = c.toInt(); render(checked, accent, animate = false) }
-            }
-            toggle.setOnClickListener {
-                checked = !checked
-                render(checked, accent, animate = true)
-                viewModel.setKeepDebugLogs(checked)
+            viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
+            toggle.setOnCheckedChangeListener { _, checked ->
+                if (checked != viewModel.keepDebugLogs.value) viewModel.setKeepDebugLogs(checked)
             }
         }
+        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchDarkMode)
+            ?.tintAccent(Palette.ACCENT)
     }
 
     // ── 显示语言 ──

@@ -2,7 +2,7 @@
 <!--
   单卡概览。版式：8dp 网格；左右边距 20dp；区块间距 24dp；
   字号阶梯 40（余额）/ 15（区块标题、行标题）/ 13（标签、链接）/ 12（辅助信息）。
-  结构：卡面色头部 → 浮起的快捷操作胶囊 → 本月优惠 → 最近交易 → 本周消费
+  结构：卡面色头部 → 浮起的快捷操作栏 → 本月优惠 → 最近交易 → 本周消费
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -91,22 +91,22 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- 快捷操作：浮在头部底边上的胶囊，三个分段各含圆形图标 + 文字 -->
+            <!-- 快捷操作：一条浮起的白色圆角操作栏（阴影由 elevation 提供），压在头部底边上；
+                 栏内三个分段（图标在上、文字在下）以竖分隔线隔开，按压时分段内显示圆角高亮 -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_marginStart="24dp"
-                android:layout_marginTop="-32dp"
-                android:layout_marginEnd="24dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="-40dp"
+                android:layout_marginEnd="20dp"
                 android:layout_marginBottom="8dp"
                 android:background="@drawable/bg_action_pill"
-                android:elevation="8dp"
-                android:outlineAmbientShadowColor="#33000000"
-                android:outlineSpotShadowColor="#40000000"
+                android:elevation="6dp"
+                android:outlineAmbientShadowColor="#26000000"
+                android:outlineSpotShadowColor="#33000000"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp">
+                android:padding="6dp">
 
                 <LinearLayout
                     android:id="@+id/actionTransactions"
@@ -122,6 +122,8 @@
                         android:text="交易记录" />
                 </LinearLayout>
 
+                <View style="@style/CardHomeActionDivider" />
+
                 <LinearLayout
                     android:id="@+id/actionStats"
                     style="@style/CardHomeAction">
@@ -135,6 +137,8 @@
                         style="@style/CardHomeActionLabel"
                         android:text="统计" />
                 </LinearLayout>
+
+                <View style="@style/CardHomeActionDivider" />
 
                 <LinearLayout
                     android:id="@+id/actionMapTrace"

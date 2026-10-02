@@ -1,86 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/bg_content_card"
-    android:divider="@drawable/bg_row_divider"
-    android:showDividers="middle"
-    android:layout_marginBottom="24dp">
+    android:orientation="vertical">
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="卡片管理"
-        android:textColor="@color/ink_3"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:paddingStart="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="8dp" />
+        style="@style/SettingsSectionTitle"
+        android:layout_marginTop="8dp"
+        android:text="卡片管理" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
-
-        <TextView
-            android:id="@+id/iconCardCount"
-            android:layout_width="30dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf09d;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="已绑定卡片"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-        <TextView
-            android:id="@+id/tvCardCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0 张"
-            android:textColor="@color/ink_3"
-            android:textSize="13sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/rowUpdateStationMap"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:clickable="true"
-        android:focusable="true">
+    <LinearLayout style="@style/SettingsSectionCard">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
 
             <TextView
-                android:id="@+id/iconUpdateStationMap"
-                android:layout_width="30dp"
-                android:layout_height="wrap_content"
+                android:id="@+id/iconCardCount"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
                 android:gravity="center"
-                android:text="&#xf0ed;"
+                android:text="&#xf09d;"
                 android:textColor="@color/accent"
                 android:textSize="14sp"
                 android:tag="fa" />
@@ -89,12 +39,122 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="站名映射表更新"
+                android:text="已绑定卡片"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
+            <TextView
+                android:id="@+id/tvCardCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 张"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowUpdateStationMap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/iconUpdateStationMap"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="12dp"
+                    android:background="@drawable/bg_settings_icon"
+                    android:gravity="center"
+                    android:text="&#xf0ed;"
+                    android:textColor="@color/accent"
+                    android:textSize="14sp"
+                    android:tag="fa" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="站名映射表更新"
+                    android:textColor="@color/ink"
+                    android:textSize="14sp" />
+
+                <!-- 右侧状态：箭头 / 下载进度环 / 成功 ✓ / 失败 ⚠（同一位置切换） -->
+                <!-- 槽位内右对齐：箭头与其它行的箭头对齐，进度环右沿同位置 -->
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp">
+
+                    <TextView
+                        android:id="@+id/chevronUpdateStationMap"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end|center_vertical"
+                        android:text="&#xf054;"
+                        android:textColor="@color/ink_3"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/progressUpdateStationMap"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end|center_vertical"
+                        android:visibility="gone"
+                        app:indicatorSize="22dp"
+                        app:trackThickness="2.5dp"
+                        app:trackCornerRadius="2dp"
+                        app:trackColor="@color/fill" />
+                </FrameLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowCardSort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
 
             <TextView
-                android:id="@+id/chevronUpdateStationMap"
+                android:id="@+id/iconCardSort"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf0c9;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="卡片排序"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="&#xf054;"
@@ -102,56 +162,5 @@
                 android:textSize="14sp"
                 android:tag="fa" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvStationMapStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textColor="@color/success"
-            android:textSize="11sp"
-            android:paddingStart="30dp"
-            android:paddingTop="4dp"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/rowCardSort"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:clickable="true"
-        android:focusable="true">
-
-        <TextView
-            android:id="@+id/iconCardSort"
-            android:layout_width="30dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:gravity="center"
-            android:text="&#xf0c9;"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
-            android:tag="fa" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="卡片排序"
-            android:textColor="@color/ink"
-            android:textSize="14sp" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="&#xf054;"
-            android:textColor="@color/ink_3"
-            android:textSize="14sp"
-            android:tag="fa" />
     </LinearLayout>
 </LinearLayout>
