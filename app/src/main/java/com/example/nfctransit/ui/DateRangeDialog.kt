@@ -344,6 +344,8 @@ object DateRangeDialog {
         // 与其他弹窗一致：宽 320dp
         dialog.window?.setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.show()
+        // 日历格会随翻月重建，用持续模式补齐新格子的触摸反馈
+        dialog.window?.decorView?.keepTouchFeedback()
     }
 
     private fun isDark(color: Int): Boolean {

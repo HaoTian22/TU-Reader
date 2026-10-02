@@ -57,8 +57,8 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             "fonts/fa-solid-900.otf"
         )
         binding.btnChangeColor.typeface = binding.btnEditName.typeface
-        binding.btnEditName.setOnClickListener { showRenameDialog() }
-        binding.btnChangeColor.setOnClickListener { showColorDialog() }
+        binding.rowEditName.setOnClickListener { showRenameDialog() }
+        binding.rowChangeColor.setOnClickListener { showColorDialog() }
         binding.btnCopyRawData.typeface = binding.btnEditName.typeface
         binding.btnCopyRawData.setOnClickListener {
             if (rawHexToCopy.isNotBlank()) {
@@ -73,7 +73,6 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             accentColor = accent.toInt()
             binding.btnBack.setTextColor(accentColor)
             binding.btnEditName.setTextColor(accentColor)
-            binding.btnChangeColor.setTextColor(accentColor)
             binding.tvCardBadge.setTextColor(accentColor)
             updateBadgeBackground()
         }
@@ -93,7 +92,10 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         }
     }
 
+    private var issuerCity: String? = null
+
     private fun bindMetadata(metadata: UiCardMetadata) {
+        issuerCity = metadata.issuerCity
         binding.tvIssuerCity.text = metadata.issuerCity ?: "—"
         binding.tvIssuer.text = metadata.issuer ?: "—"
         binding.tvIssueDate.text = metadata.issueDate ?: "—"
@@ -106,10 +108,33 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         binding.tvSecondValidLabel.text = "${secondStandard ?: "第二标准"}有效期至"
         binding.tvSecondIssueDate.text = metadata.secondIssueDate ?: "—"
         binding.tvSecondValidUntil.text = metadata.secondValidUntil ?: "—"
+        viewModel.selectedCard.value?.let { updateHeroSubtitle(it) }
+        refreshRowDividers(binding.sectionValidity)
+    }
+
+    /** 摘要副标题：卡片类型 · 发卡城市 */
+    private fun updateHeroSubtitle(card: UiCard) {
+        binding.tvHeroSubtitle.text = listOfNotNull(
+            card.protocolType.ifBlank { card.cardType }.takeIf { it.isNotBlank() },
+            issuerCity?.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+    }
+
+    /** 分区卡片内只在可见行之间画分隔线（第二卡号/第二标准行可能隐藏） */
+    private fun refreshRowDividers(section: LinearLayout) {
+        var first = true
+        for (i in 0 until section.childCount) {
+            val row = section.getChildAt(i)
+            if (row.visibility != View.VISIBLE) continue
+            row.setBackgroundResource(if (first) 0 else R.drawable.bg_row_divider_top)
+            first = false
+        }
     }
 
     private fun bindCard(card: UiCard) {
         binding.tvCardName.text = card.name
+        binding.tvNameValue.text = card.name
+        updateHeroSubtitle(card)
         binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
         binding.tvCardType.text = card.protocolType.ifBlank { card.cardType }
         binding.tvCardNumber.text = card.cardNumber.ifBlank { "•••• ${card.lastFour}" }
@@ -117,14 +142,20 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             if (card.secondCardNumber.isNullOrBlank()) View.GONE else View.VISIBLE
         binding.tvSecondCardNumber.text = card.secondCardNumber.orEmpty()
         binding.tvBalance.text = "¥${String.format(Locale.getDefault(), "%.2f", card.balanceYuan)}"
-        binding.tvLastRead.text = formatLastRead(card.lastReadAt)
-        binding.cardColorPreview.background = android.graphics.drawable.GradientDrawable(
-            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-            intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
-        ).apply {
-            cornerRadius = dpToPx(4).toFloat()
+        binding.tvLastRead.text = "上次读取 ${formatLastRead(card.lastReadAt)}"
+        binding.heroCardFace.background = cardGradient(card, dpToPx(6))
+        binding.cardColorPreview.background = cardGradient(card, dpToPx(4))
+        val colorIndex = viewModel.cardColorOptions().indexOfFirst {
+            it.first == card.gradientStartColor && it.second == card.gradientEndColor
         }
+        binding.tvColorName.text = colorNames.getOrNull(colorIndex) ?: "自定义"
+        refreshRowDividers(binding.sectionCardInfo)
     }
+
+    private fun cardGradient(card: UiCard, radius: Int) = android.graphics.drawable.GradientDrawable(
+        android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+        intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+    ).apply { cornerRadius = radius.toFloat() }
 
     private fun bindRawData() {
         val visibleRecords = rawRecords.filter { it.hex.isNotBlank() }
@@ -344,7 +375,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private fun updateBadgeBackground() {
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = dpToPx(4).toFloat()
+            cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
         }
     }

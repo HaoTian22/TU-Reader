@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 交易列表按日分组标题（代码构建的视图） -->
+    <item name="groupTitle" type="id" />
+    <item name="groupSummary" type="id" />
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 快捷操作胶囊内的分段：透明胶囊形，仅作为按压水波纹的形状蒙版 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@android:color/transparent" />
+    <corners android:radius="999dp" />
+</shape>

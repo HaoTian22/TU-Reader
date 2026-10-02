@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 单卡概览页（fragment_card_home）共用样式：8dp 网格，左右边距 20dp，区块间距 24dp -->
+
+    <!-- 头部圆形按钮（返回 / 更多），底色由代码按卡面色设置 -->
+    <style name="CardHomeHeaderButton">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <!-- 快捷操作胶囊的一个分段：圆形图标 + 文字横排 -->
+    <style name="CardHomeAction">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:background">@drawable/bg_action_segment</item>
+    </style>
+
+    <style name="CardHomeActionIcon">
+        <item name="android:layout_width">32dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <style name="CardHomeActionLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- 区块标题行：标题在卡片外，右侧可放链接 -->
+    <style name="CardHomeSectionHeader">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">24dp</item>
+        <item name="android:layout_marginTop">24dp</item>
+        <item name="android:layout_marginEnd">20dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="CardHomeSectionTitle">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="CardHomeSectionLink">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="CardHomeSectionCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginEnd">20dp</item>
+        <item name="android:background">@drawable/bg_content_card</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">16dp</item>
+    </style>
+</resources>

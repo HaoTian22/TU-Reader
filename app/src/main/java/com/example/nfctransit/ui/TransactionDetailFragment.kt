@@ -240,6 +240,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         binding.tvAmountHeader.text = "正在加载数据..."
         binding.tvAmountHeader.setTextColor(Palette.INK_3)
+        binding.tvHeroTitle.text = ""
+        binding.tvHeroSubtitle.text = ""
+        binding.tvHeroTime.text = ""
+        binding.tvHeroDirection.visibility = View.GONE
         binding.detailRowsContainer.visibility = View.GONE
         binding.btnCopyHex.isEnabled = false
         binding.btnFeedbackHex.isEnabled = false
@@ -254,22 +258,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         )
     }
 
-    private fun bindTransactionData(txn: UiTransaction) {
-        binding.tvAmountHeader.text = txn.amountText
-        if (txn.amountText.startsWith("+")) {
-            binding.tvAmountHeader.setTextColor(Palette.AMOUNT_IN)
-        } else {
-            binding.tvAmountHeader.setTextColor(Palette.AMOUNT_OUT)
-        }
+    /** 详情行：值为空 / 占位（"-"）的行不显示 */
+    private data class DetailRow(
+        val label: String,
+        val value: String,
+        val style: (label: TextView, value: TextView, icon: TextView) -> Unit = { _, _, _ -> }
+    )
 
-        val detailContainer = binding.detailRowsContainer
-        // 站名保持原样，进出站方向由独立字段提供。
-        val cleanStation = txn.stationName.trim()
-        // 地点仅显示城市；站名不再回退到线路或交通类型。
-        val placeText = txn.cityName.takeIf { it.isNotEmpty() } ?: "-"
-        val stationText = cleanStation.takeIf {
-            txn.stationId != null && it.isNotEmpty() && it != "未知" && it != "—"
-        } ?: "-"
+    private fun bindTransactionData(txn: UiTransaction) {
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         val isEntry = txn.direction == TransitDirection.ENTRY
         val isExit = txn.direction == TransitDirection.EXIT
         val transactionType = if (txn.amountText == "票务处理") {
@@ -284,52 +281,97 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 else -> txn.transitType
             }
         }
-        val detailAmountText = if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText
-        // 进出站图标用 FontAwesome：入站 = 箭头进框，出站 = 箭头出框
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-        val fields = listOf(
-            "交易时间" to txn.displayDateTime,
-            "地点" to placeText,
-            "站名" to stationText,
-            "线路" to (txn.lineName.takeIf { it.isNotBlank() && it != "—" && it != "未知" } ?: "-"),
-            "交易类型" to transactionType,
-            "交易金额" to detailAmountText,
-            "交易后余额" to (txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-"),
-            "协议" to txn.protocols.joinToString(" / "),
-            "终端编号" to txn.terminal
-        )
+        fun known(v: String?) = v?.trim()?.takeIf { it.isNotEmpty() && it != "-" && it != "—" && it != "未知" }
+        // 站名保持原样，进出站方向由独立字段提供；未命中站点库（stationId 为空）时不显示站名
+        val station = known(txn.stationName)?.takeIf { txn.stationId != null }
+        val city = known(txn.cityName)
+        val line = known(txn.lineName)
 
-        for (i in fields.indices) {
-            if (i < detailContainer.childCount) {
-                val row = detailContainer.getChildAt(i)
-                val label = row.findViewById<TextView>(R.id.detailLabel)
-                val value = row.findViewById<TextView>(R.id.detailValue)
-                val icon = row.findViewById<TextView>(R.id.detailIcon)
-                label?.text = fields[i].first
-                value?.text = fields[i].second
-                value?.setTextColor(Palette.INK)
-                icon?.visibility = View.GONE
-                icon?.typeface = fa
-                row.visibility = View.VISIBLE
-                // 协议行为空（单协议卡）时整行隐藏
-                if (fields[i].first == "协议") {
-                    row.visibility = if (fields[i].second.isEmpty()) View.GONE else View.VISIBLE
+        // ── 第一层：摘要 ──
+        binding.tvHeroIcon.typeface = fa
+        binding.tvHeroIcon.text = txn.icon
+        Palette.applyTransitIcon(binding.tvHeroIcon, binding.tvHeroIcon, txn.transitType)
+        binding.tvAmountHeader.text = txn.amountText
+        binding.tvAmountHeader.setTextColor(Palette.amountColor(txn.amountText))
+        binding.tvHeroTitle.text = station ?: transactionType
+        binding.tvHeroSubtitle.text = listOfNotNull(
+            city,
+            known(txn.transitType)?.takeIf { station != null || it != transactionType },
+            line?.takeIf { it != station }
+        ).joinToString(" · ")
+        binding.tvHeroSubtitle.visibility = if (binding.tvHeroSubtitle.text.isEmpty()) View.GONE else View.VISIBLE
+        binding.tvHeroTime.text = txn.displayDateTime
+        binding.tvHeroDirection.apply {
+            if (isEntry || isExit) {
+                visibility = View.VISIBLE
+                text = if (isEntry) "进站" else "出站"
+                val tone = if (isEntry) Palette.AMOUNT_IN else Palette.INK_2
+                setTextColor(tone)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dpToPx(12).toFloat()
+                    setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(tone, 0x1F))
                 }
-                // 交易类型行：入站进框、出站出框图标
-                if (fields[i].first == "交易类型" && (isEntry || isExit)) {
-                    icon?.visibility = View.VISIBLE
-                    // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
-                    icon?.text = if (isEntry) "" else ""
-                    icon?.setTextColor(Palette.INK_3)
-                }
-                if (fields[i].first == "交易金额" && txn.amountText.startsWith("+")) {
-                    value?.setTextColor(Palette.AMOUNT_IN)
-                }
-                if (fields[i].first == "终端编号") {
-                    value?.typeface = Typeface.MONOSPACE
-                }
+            } else {
+                visibility = View.GONE
             }
         }
+
+        // ── 第二层：交易信息 ──
+        fillSection(binding.sectionTxn, fa, listOf(
+            DetailRow("交易类型", transactionType) { _, _, icon ->
+                if (isEntry || isExit) {
+                    // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
+                    icon.visibility = View.VISIBLE
+                    icon.text = if (isEntry) "" else ""
+                    icon.setTextColor(Palette.INK_3)
+                }
+            },
+            DetailRow("交易金额", if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText) { _, value, _ ->
+                if (txn.amountText.startsWith("+")) value.setTextColor(Palette.AMOUNT_IN)
+            },
+            DetailRow("交易后余额", txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-")
+        ))
+
+        // ── 第三层：行程（全部未知时整块隐藏） ──
+        val tripShown = fillSection(binding.sectionTrip, fa, listOf(
+            DetailRow("城市", city ?: "-"),
+            DetailRow("站名", station ?: "-"),
+            DetailRow("线路", line ?: "-")
+        ))
+        binding.sectionTripWrap.visibility = if (tripShown) View.VISIBLE else View.GONE
+
+        // ── 第四层：设备与协议 ──
+        fillSection(binding.sectionDevice, fa, listOf(
+            DetailRow("协议", txn.protocols.joinToString(" / ").ifEmpty { "-" }),
+            DetailRow("终端编号", txn.terminal) { _, value, _ -> value.typeface = Typeface.MONOSPACE }
+        ))
+    }
+
+    /** 把有值的行填进分区卡片；行间插入分隔线。返回是否至少有一行 */
+    private fun fillSection(container: LinearLayout, fa: Typeface, rows: List<DetailRow>): Boolean {
+        container.removeAllViews()
+        val shown = rows.filter { it.value.isNotBlank() && it.value != "-" }
+        shown.forEachIndexed { i, r ->
+            val row = LayoutInflater.from(requireContext()).inflate(R.layout.item_detail_row, container, false)
+            val label = row.findViewById<TextView>(R.id.detailLabel)
+            val value = row.findViewById<TextView>(R.id.detailValue)
+            val icon = row.findViewById<TextView>(R.id.detailIcon)
+            label.text = r.label
+            value.text = r.value
+            icon.typeface = fa
+            r.style(label, value, icon)
+            // 行本身透明，白底与圆角由分区卡片背景提供；分隔线单独成视图。
+            // 不用 clipToOutline 裁圆角：返回手势的页面快照是软件绘制，不支持轮廓裁剪，会露出直角
+            row.background = null
+            if (i > 0) {
+                container.addView(View(requireContext()).apply { setBackgroundColor(Palette.LINE) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply {
+                        marginStart = dpToPx(16)
+                    })
+            }
+            container.addView(row)
+        }
+        return shown.isNotEmpty()
     }
 
     /** 原始数据：展示该交易在 transactions_archive 中的所有 hex，按解析字段位置着色。 */
@@ -489,10 +531,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     }
 
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（胶囊形）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = dpToPx(4).toFloat()
+            cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
         }
     }

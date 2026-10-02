@@ -62,6 +62,8 @@ object AppDialogs {
         view.findViewById<TextView>(R.id.dialogMessage)?.text = message
         view.findViewById<TextView>(R.id.dialogCancel)?.apply {
             text = cancelLabel
+            // cancelLabel 为空 = 单按钮提示框
+            visibility = if (cancelLabel.isEmpty()) View.GONE else View.VISIBLE
             setOnClickListener { dialog.dismiss() }
         }
         view.findViewById<TextView>(R.id.dialogConfirm)?.apply {
@@ -72,6 +74,7 @@ object AppDialogs {
                 onConfirm()
             }
         }
+        view.applyTouchFeedback()
         dialog.show()
     }
 
@@ -118,6 +121,7 @@ object AppDialogs {
                 )
             }
         }
+        view.applyTouchFeedback()
         dialog.show()
         return dialog
     }
@@ -152,12 +156,26 @@ object AppDialogs {
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_feedback, null)
         dialog.setContentView(view)
         val formScroll = view.findViewById<android.widget.ScrollView>(R.id.feedbackScroll)
-        maxScrollHeightDp?.let { heightDp ->
-            formScroll?.let { scroll ->
-                scroll.layoutParams = scroll.layoutParams.apply {
-                    height = (heightDp * context.resources.displayMetrics.density).toInt()
-                }
+        val dm = context.resources.displayMetrics
+        // 表单区限高（默认屏高 45%），标题与按钮固定，中间滚动；内容不足上限时按内容高度
+        formScroll?.let { scroll ->
+            val cap = maxScrollHeightDp?.let { (it * dm.density).toInt() }
+                ?: (dm.heightPixels * 0.45f).toInt()
+            val innerWidth = dialogWidth(context) - scroll.paddingLeft - scroll.paddingRight
+            scroll.getChildAt(0).measure(
+                View.MeasureSpec.makeMeasureSpec(innerWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            val natural = scroll.getChildAt(0).measuredHeight + scroll.paddingTop + scroll.paddingBottom
+            scroll.layoutParams = scroll.layoutParams.apply { height = minOf(natural, cap) }
+            val dividerTop = view.findViewById<View>(R.id.feedbackDividerTop)
+            val dividerBottom = view.findViewById<View>(R.id.feedbackDividerBottom)
+            val updateDividers = {
+                dividerTop.visibility = if (scroll.canScrollVertically(-1)) View.VISIBLE else View.INVISIBLE
+                dividerBottom.visibility = if (scroll.canScrollVertically(1)) View.VISIBLE else View.INVISIBLE
             }
+            scroll.setOnScrollChangeListener { _, _, _, _, _ -> updateDividers() }
+            scroll.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateDividers() }
         }
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -170,17 +188,38 @@ object AppDialogs {
         val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
         val cityInput = view.findViewById<AutoCompleteTextView>(R.id.feedbackCity)
         val typeInput = view.findViewById<android.widget.RadioGroup>(R.id.feedbackType)
-        val publishInput = view.findViewById<android.widget.CheckBox>(R.id.feedbackPublish)
+        val publishInput = view.findViewById<android.widget.CompoundButton>(R.id.feedbackPublish)
         view.findViewById<TextView>(R.id.feedbackTitle).text = title
-        publishInput.visibility = View.VISIBLE
         publishInput.isEnabled = showPublish
         if (!showPublish) publishInput.isChecked = false
-        publishInput.buttonTintList = ColorStateList.valueOf(accentColor)
-        listOf(
+        view.findViewById<View>(R.id.feedbackPublishRow).apply {
+            alpha = if (showPublish) 1f else 0.5f
+            // 整行可点：点说明文字也能切换开关
+            if (showPublish) setOnClickListener { publishInput.toggle() }
+        }
+        (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.apply {
+            val checked = intArrayOf(android.R.attr.state_checked)
+            val states = arrayOf(checked, intArrayOf())
+            trackTintList = ColorStateList(states, intArrayOf(accentColor, Palette.LINE))
+            thumbTintList = ColorStateList(states, intArrayOf(Color.WHITE, Palette.INK_3))
+            trackDecorationTintList = ColorStateList(states, intArrayOf(accentColor, Palette.INK_3))
+        }
+        // 交通类型：胶囊单选，选中为主题色实心 + 白字（同统计页周期切换）
+        val density = context.resources.displayMetrics.density
+        val typeChips = listOf(
             view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeBus),
             view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeMetro),
             view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeIntercity)
-        ).forEach { it.buttonTintList = ColorStateList.valueOf(accentColor) }
+        )
+        fun styleTypeChips() = typeChips.forEach { chip ->
+            chip.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 999 * density
+                setColor(if (chip.isChecked) accentColor else Palette.LINE)
+            }
+            chip.setTextColor(if (chip.isChecked) Color.WHITE else Palette.INK_2)
+            chip.typeface = if (chip.isChecked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
+        typeInput.setOnCheckedChangeListener { _, _ -> styleTypeChips() }
         typeInput.check(
             when (type) {
                 "地铁" -> R.id.feedbackTypeMetro
@@ -188,16 +227,31 @@ object AppDialogs {
                 else -> R.id.feedbackTypeBus
             }
         )
+        styleTypeChips()
         val cityOptions = TransitData.cityOptions()
-        val cityLabels = cityOptions.map(CityOption::displayName)
+        val cityLabels = cityOptions.map(CityOption::pickerLabel)
         cityInput.setAdapter(
-            ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, cityLabels)
+            ArrayAdapter(context, R.layout.item_dropdown_option, cityLabels)
         )
+        cityInput.dropDownHeight = (dm.heightPixels * 0.35f).toInt()
+        // 下拉框外观像选择器：点按（含箭头）即展开候选，输入时按文字筛选
+        // 已选城市时文字会把候选筛到只剩一项，点按展开时先清除筛选显示全部城市
+        val showAllCities = {
+            (cityInput.adapter as ArrayAdapter<*>).filter.filter(null) { cityInput.showDropDown() }
+        }
+        cityInput.setOnClickListener { showAllCities() }
+        view.findViewById<TextView>(R.id.feedbackCityChevron).apply {
+            typeface = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
+            setOnClickListener {
+                cityInput.requestFocus()
+                showAllCities()
+            }
+        }
         var selectedCity: CityOption? = cityOptions.firstOrNull { it.code == actualCityCode }
         var applyingCity = false
         selectedCity?.let {
             applyingCity = true
-            cityInput.setText(it.displayName, false)
+            cityInput.setText(it.pickerLabel, false)
             applyingCity = false
         }
         cityInput.addTextChangedListener(object : android.text.TextWatcher {
@@ -209,7 +263,7 @@ object AppDialogs {
         })
         cityInput.setOnItemClickListener { parent, _, position, _ ->
             val label = parent.getItemAtPosition(position) as? String
-            selectedCity = cityOptions.firstOrNull { it.displayName == label }
+            selectedCity = cityOptions.firstOrNull { it.pickerLabel == label }
         }
         if (selectedCity == null && actualCityName.isNotBlank()) cityInput.setText(actualCityName, false)
 
@@ -252,6 +306,7 @@ object AppDialogs {
                 clearImeInsets = DialogImeInsets.install(window, view, formScroll ?: view)
             }
         }
+        view.applyTouchFeedback()
         dialog.show()
         return dialog
     }
@@ -381,6 +436,7 @@ object AppDialogs {
             text = cancelLabel
             setOnClickListener { dialog.dismiss() }
         }
+        view.applyTouchFeedback()
         dialog.show()
     }
 
@@ -469,6 +525,7 @@ object AppDialogs {
             dialog.dismiss()
             onDone(current.toSet())
         }
+        view.applyTouchFeedback()
         dialog.show()
     }
 
@@ -633,6 +690,7 @@ object AppDialogs {
                 onDone(order.map { it.id })
             }
         }
+        view.applyTouchFeedback()
         dialog.show()
     }
 }

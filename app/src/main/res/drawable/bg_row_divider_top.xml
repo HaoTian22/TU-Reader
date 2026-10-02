@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分区卡片内的行分隔线：透明底 + 顶部 1px 线（左缩进 16dp，与交易详情页一致） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:gravity="top"
+        android:left="16dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/line" />
+            <size android:height="1px" />
+        </shape>
+    </item>
+</layer-list>

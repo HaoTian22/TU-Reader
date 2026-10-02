@@ -1,5 +1,9 @@
 package com.example.nfctransit
 
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import android.view.View
+import com.example.nfctransit.ui.keepTouchFeedback
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
@@ -32,6 +36,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        // 所有页面的可点击视图统一加水波纹触摸反馈（含之后动态生成的行）
+        navHost.childFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager, f: Fragment, v: View, savedInstanceState: Bundle?
+                ) {
+                    v.keepTouchFeedback()
+                }
+            },
+            false
+        )
         val predictiveBackLayout = findViewById<PredictiveBackLayout>(R.id.predictive_back_layout)
         navHost.viewLifecycleOwnerLiveData.observe(this) { owner ->
             if (owner != null && predictiveBackAnimator == null) {

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 弹窗内的设置行底：浅灰圆角块 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/fill" />
+    <corners android:radius="16dp" />
+</shape>

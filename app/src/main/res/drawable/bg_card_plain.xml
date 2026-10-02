@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 无描边的白色圆角卡片（交易详情页各分区）：仅靠白底与页面灰底区分 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/surface" />
+    <corners android:radius="12dp" />
+</shape>

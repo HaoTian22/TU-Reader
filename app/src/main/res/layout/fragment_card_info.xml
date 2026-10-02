@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  卡片信息页。版式与交易详情页一致：左右 20dp、分区标题在卡片外、卡片内为标签/值行。
+  结构：摘要（卡面 + 名称 + 类型·城市 + 余额 + 上次读取）→ 个性化 → 卡片信息 → 有效期 → 原始数据
+  分区内行间分隔线由代码按可见行设置（第二标准/第二卡号行可能隐藏）。
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/paper">
+    android:background="@color/paper"
+    android:orientation="vertical">
 
     <View
         android:layout_width="match_parent"
@@ -12,24 +17,20 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
+        android:paddingStart="11dp"
         android:paddingTop="20dp"
-        android:paddingBottom="16dp"
-        android:gravity="center_vertical">
+        android:paddingEnd="20dp"
+        android:paddingBottom="16dp">
 
         <TextView
             android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/BackButton"
             android:text="←"
             android:textColor="@color/accent"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingEnd="12dp" />
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="0dp"
@@ -46,21 +47,21 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_card_badge"
             android:paddingStart="10dp"
-            android:paddingEnd="10dp"
             android:paddingTop="4dp"
+            android:paddingEnd="10dp"
             android:paddingBottom="4dp">
 
             <TextView
                 android:id="@+id/tvCardBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxWidth="140dp"
+                android:maxLines="1"
                 android:text="卡片"
                 android:textColor="@color/accent"
                 android:textSize="12sp"
-                android:textStyle="bold"
-                android:maxWidth="140dp"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
@@ -73,416 +74,357 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
             android:paddingBottom="24dp">
 
+            <!-- 摘要 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="20dp"
+                android:background="@drawable/bg_card_plain"
                 android:orientation="vertical"
-                android:background="@drawable/bg_content_card"
-                android:padding="18dp">
+                android:padding="20dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/tvCardName"
+                    <!-- 迷你卡面：卡片主题渐变，代码设置 -->
+                    <View
+                        android:id="@+id/heroCardFace"
+                        android:layout_width="56dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_card_badge" />
+
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
                         android:layout_weight="1"
-                        android:text="卡片名称"
-                        android:textColor="@color/ink"
-                        android:textSize="24sp"
-                        android:textStyle="bold"
-                        android:maxLines="2"
-                        android:ellipsize="end" />
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvCardName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="sans-serif-medium"
+                            android:maxLines="2"
+                            android:text="卡片名称"
+                            android:textColor="@color/ink"
+                            android:textSize="18sp" />
+
+                        <TextView
+                            android:id="@+id/tvHeroSubtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/ink_3"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1px"
+                    android:layout_marginTop="18dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@color/line" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="当前余额"
+                    android:textColor="@color/ink_3"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvBalance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:text="¥0.00"
+                    android:textColor="@color/ink"
+                    android:textSize="32sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvLastRead"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="—"
+                    android:textColor="@color/ink_3"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- 个性化：整行可点 -->
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="个性化" />
+
+            <LinearLayout style="@style/DetailSectionCard">
+
+                <LinearLayout
+                    android:id="@+id/rowEditName"
+                    style="@style/DetailRow"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        style="@style/DetailRowLabel"
+                        android:text="卡片名称" />
+
+                    <TextView
+                        android:id="@+id/tvNameValue"
+                        style="@style/DetailRowValue"
+                        android:ellipsize="end"
+                        android:maxLines="1" />
 
                     <TextView
                         android:id="@+id/btnEditName"
                         android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:gravity="center"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:tag="fa"
                         android:text="&#xf044;"
                         android:textColor="@color/accent"
-                        android:textSize="17sp"
-                        android:tag="fa"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="4dp" />
+                        android:textSize="14sp" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/tvCardNameHint"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="点击右侧按钮自定义名称"
-                    android:textColor="@color/ink_3"
-                    android:textSize="12sp"
-                    android:layout_marginTop="6dp" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1px"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/line" />
 
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:id="@+id/rowChangeColor"
+                    style="@style/DetailRow"
+                    android:clickable="true"
+                    android:contentDescription="更换卡面颜色"
+                    android:focusable="true">
+
+                    <TextView
+                        style="@style/DetailRowLabel"
+                        android:text="卡面颜色" />
+
+                    <TextView
+                        android:id="@+id/tvColorName"
+                        style="@style/DetailRowValue" />
+
                     <View
                         android:id="@+id/cardColorPreview"
-                        android:layout_width="34dp"
-                        android:layout_height="14dp"
-                        android:background="@drawable/bg_card_badge" />
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
+                        android:layout_width="28dp"
+                        android:layout_height="18dp"
                         android:layout_marginStart="10dp"
-                        android:text="卡面颜色"
-                        android:textColor="@color/ink_3"
-                        android:textSize="12sp" />
+                        android:background="@drawable/bg_card_badge" />
+
                     <TextView
                         android:id="@+id/btnChangeColor"
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:gravity="center"
-                        android:text="&#xf53f;"
-                        android:textColor="@color/accent"
-                        android:textSize="17sp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
                         android:tag="fa"
-                        android:contentDescription="更换卡面颜色"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="4dp" />
+                        android:text="&#xf054;"
+                        android:textColor="@color/ink_3"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- 卡片信息 -->
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="卡片信息" />
+
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="vertical"
-                android:background="@drawable/bg_content_card"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+                android:id="@+id/sectionCardInfo"
+                style="@style/DetailSectionCard">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="卡片类型"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvCardType"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                <LinearLayout style="@style/DetailRow">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
                     <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="发卡城市"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvIssuerCity"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                </LinearLayout>
+                        style="@style/DetailRowLabel"
+                        android:text="卡号" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="发卡机构"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvIssuer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp"
-                        android:gravity="end" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="发行日期"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvIssueDate"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="有效期至"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvValidUntil"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/secondStandardIssueRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:visibility="gone"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:id="@+id/tvSecondIssueLabel"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="第二标准发行日期"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvSecondIssueDate"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/secondStandardValidRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:visibility="gone"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:id="@+id/tvSecondValidLabel"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="第二标准有效期至"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/tvSecondValidUntil"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="卡号"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
                     <TextView
                         android:id="@+id/tvCardNumber"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp"
+                        style="@style/DetailRowValue"
                         android:fontFamily="monospace"
-                        android:gravity="end" />
+                        android:textIsSelectable="true" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/secondCardNumberRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
+                    style="@style/DetailRow">
+
                     <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="第二卡号"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
+                        style="@style/DetailRowLabel"
+                        android:text="第二卡号" />
+
                     <TextView
                         android:id="@+id/tvSecondCardNumber"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp"
+                        style="@style/DetailRowValue"
                         android:fontFamily="monospace"
-                        android:gravity="end" />
+                        android:textIsSelectable="true" />
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_detail_row_divider">
+                <LinearLayout style="@style/DetailRow">
+
                     <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="当前余额"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
+                        style="@style/DetailRowLabel"
+                        android:text="卡片类型" />
+
                     <TextView
-                        android:id="@+id/tvBalance"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="¥0.00"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:fontFamily="monospace" />
+                        android:id="@+id/tvCardType"
+                        style="@style/DetailRowValue" />
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                <LinearLayout style="@style/DetailRow">
+
                     <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="上次读取"
-                        android:textColor="@color/ink_3"
-                        android:textSize="13sp" />
+                        style="@style/DetailRowLabel"
+                        android:text="发卡城市" />
+
                     <TextView
-                        android:id="@+id/tvLastRead"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="—"
-                        android:textColor="@color/ink"
-                        android:textSize="14sp" />
+                        android:id="@+id/tvIssuerCity"
+                        style="@style/DetailRowValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/DetailRow">
+
+                    <TextView
+                        style="@style/DetailRowLabel"
+                        android:text="发卡机构" />
+
+                    <TextView
+                        android:id="@+id/tvIssuer"
+                        style="@style/DetailRowValue" />
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- 有效期 -->
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="有效期" />
+
+            <LinearLayout
+                android:id="@+id/sectionValidity"
+                style="@style/DetailSectionCard">
+
+                <LinearLayout style="@style/DetailRow">
+
+                    <TextView
+                        style="@style/DetailRowLabel"
+                        android:text="发行日期" />
+
+                    <TextView
+                        android:id="@+id/tvIssueDate"
+                        style="@style/DetailRowValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/DetailRow">
+
+                    <TextView
+                        style="@style/DetailRowLabel"
+                        android:text="有效期至" />
+
+                    <TextView
+                        android:id="@+id/tvValidUntil"
+                        style="@style/DetailRowValue" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/secondStandardIssueRow"
+                    style="@style/DetailRow"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvSecondIssueLabel"
+                        style="@style/DetailRowLabel"
+                        android:text="第二标准发行日期" />
+
+                    <TextView
+                        android:id="@+id/tvSecondIssueDate"
+                        style="@style/DetailRowValue" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/secondStandardValidRow"
+                    style="@style/DetailRow"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvSecondValidLabel"
+                        style="@style/DetailRowLabel"
+                        android:text="第二标准有效期至" />
+
+                    <TextView
+                        android:id="@+id/tvSecondValidUntil"
+                        style="@style/DetailRowValue" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 原始数据 -->
             <LinearLayout
                 android:id="@+id/rawDataSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:orientation="vertical"
                 android:visibility="gone">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginEnd="20dp"
+                    android:layout_marginBottom="8dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
+
                     <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:fontFamily="sans-serif-medium"
                         android:text="原始数据"
                         android:textColor="@color/ink"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:textSize="15sp" />
+
                     <TextView
                         android:id="@+id/btnCopyRawData"
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_text_button"
+                        android:clickable="true"
+                        android:contentDescription="复制卡片原始数据"
+                        android:focusable="true"
                         android:gravity="center"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:tag="fa"
                         android:text="&#xf0c5; 复制"
                         android:textColor="@color/accent"
-                        android:textSize="12sp"
-                        android:tag="fa"
-                        android:contentDescription="复制卡片原始数据"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="4dp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/rawDataPanel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="vertical"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginEnd="20dp"
                     android:background="@drawable/bg_hex_panel"
+                    android:orientation="vertical"
                     android:padding="16dp" />
             </LinearLayout>
         </LinearLayout>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 下拉候选项：与选项弹窗的行一致（48dp、15sp、左右 20dp） -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/text1"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:ellipsize="end"
+    android:gravity="center_vertical"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:singleLine="true"
+    android:textColor="@color/ink"
+    android:textSize="15sp" />

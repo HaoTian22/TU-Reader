@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingStart="20dp"
+            android:paddingStart="11dp"
             android:paddingEnd="20dp"
             android:paddingTop="20dp"
             android:paddingBottom="16dp"
@@ -23,15 +23,11 @@
 
             <TextView
                 android:id="@+id/btnBack"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/BackButton"
                 android:text="←"
                 android:textColor="@color/accent"
                 android:textSize="22sp"
-                android:textStyle="bold"
-                android:clickable="true"
-                android:focusable="true"
-                android:paddingEnd="12dp" />
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="0dp"
@@ -77,59 +73,126 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-        <!-- Amount Header -->
+        <!-- 第一层：交易摘要（类型图标 / 金额 / 标题 / 城市·类型·线路 / 时间与进出站） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="20dp"
+            android:background="@drawable/bg_card_plain"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
             android:paddingStart="20dp"
+            android:paddingTop="24dp"
             android:paddingEnd="20dp"
-            android:paddingBottom="24dp">
+            android:paddingBottom="20dp">
+
+            <TextView
+                android:id="@+id/tvHeroIcon"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_icon_circle"
+                android:gravity="center"
+                android:importantForAccessibility="no"
+                android:textSize="20sp" />
 
             <TextView
                 android:id="@+id/tvAmountHeader"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="@color/danger"
+                android:layout_marginTop="12dp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:textColor="@color/ink"
                 android:textSize="40sp"
-                android:textStyle="bold"
-                android:fontFamily="monospace" />
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvHeroTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:textColor="@color/ink"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/tvHeroSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- 进站 / 出站胶囊：非出入站交易隐藏 -->
+                <TextView
+                    android:id="@+id/tvHeroDirection"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="8dp"
+                    android:gravity="center"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvHeroTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/ink_3"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Detail Fields Card -->
+        <!-- 第二~四层：交易信息 / 行程 / 设备与协议，各自一张卡片，由代码填充行 -->
         <LinearLayout
             android:id="@+id/detailRowsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="24dp"
             android:orientation="vertical"
-            android:background="@drawable/bg_content_card"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp">
+            android:paddingBottom="8dp">
 
-            <!-- 交易时间 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 地点 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 站名 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 线路 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 交易类型 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 扣款金额 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 交易后余额 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 协议 -->
-            <include layout="@layout/item_detail_row" />
-            <!-- 终端编号 -->
-            <include layout="@layout/item_detail_row" />
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="交易信息" />
+
+            <LinearLayout
+                android:id="@+id/sectionTxn"
+                style="@style/DetailSectionCard" />
+
+            <LinearLayout
+                android:id="@+id/sectionTripWrap"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/DetailSectionTitle"
+                    android:text="行程" />
+
+                <LinearLayout
+                    android:id="@+id/sectionTrip"
+                    style="@style/DetailSectionCard" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="设备与协议" />
+
+            <LinearLayout
+                android:id="@+id/sectionDevice"
+                style="@style/DetailSectionCard" />
         </LinearLayout>
 
         <!-- Raw Data Section -->
@@ -137,8 +200,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:paddingStart="20dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="20dp"
             android:paddingBottom="24dp">
 
             <LinearLayout

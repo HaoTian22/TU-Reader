@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  单卡概览。版式：8dp 网格；左右边距 20dp；区块间距 24dp；
+  字号阶梯 40（余额）/ 15（区块标题、行标题）/ 13（标签、链接）/ 12（辅助信息）。
+  结构：卡面色头部 → 浮起的快捷操作胶囊 → 本月优惠 → 最近交易 → 本周消费
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/paper">
+
+    <ScrollView
+        android:id="@+id/cardHomeScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="32dp">
+
+            <!-- 头部：卡面色背景、底部圆角；文字色随卡面深浅由代码设置 -->
+            <LinearLayout
+                android:id="@+id/header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="52dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/status_bar_spacer_height" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp">
+
+                    <TextView
+                        android:id="@+id/btnBack"
+                        style="@style/CardHomeHeaderButton"
+                        android:layout_gravity="start|center_vertical"
+                        android:contentDescription="返回"
+                        android:text="&#xF053;" />
+
+                    <TextView
+                        android:id="@+id/tvHeaderPill"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:layout_gravity="center"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/btnMore"
+                        style="@style/CardHomeHeaderButton"
+                        android:layout_gravity="end|center_vertical"
+                        android:contentDescription="更多"
+                        android:text="&#xF141;" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/tvBalanceLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvBalance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:textSize="40sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvLastRead"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- 快捷操作：浮在头部底边上的胶囊，三个分段各含圆形图标 + 文字 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginStart="24dp"
+                android:layout_marginTop="-32dp"
+                android:layout_marginEnd="24dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/bg_action_pill"
+                android:elevation="8dp"
+                android:outlineAmbientShadowColor="#33000000"
+                android:outlineSpotShadowColor="#40000000"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp">
+
+                <LinearLayout
+                    android:id="@+id/actionTransactions"
+                    style="@style/CardHomeAction">
+
+                    <TextView
+                        android:id="@+id/iconTransactions"
+                        style="@style/CardHomeActionIcon"
+                        android:text="&#xF0CA;" />
+
+                    <TextView
+                        style="@style/CardHomeActionLabel"
+                        android:text="交易记录" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/actionStats"
+                    style="@style/CardHomeAction">
+
+                    <TextView
+                        android:id="@+id/iconStats"
+                        style="@style/CardHomeActionIcon"
+                        android:text="&#xF080;" />
+
+                    <TextView
+                        style="@style/CardHomeActionLabel"
+                        android:text="统计" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/actionMapTrace"
+                    style="@style/CardHomeAction">
+
+                    <TextView
+                        android:id="@+id/iconMapTrace"
+                        style="@style/CardHomeActionIcon"
+                        android:text="&#xF4D7;" />
+
+                    <TextView
+                        style="@style/CardHomeActionLabel"
+                        android:text="轨迹" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 本月优惠 -->
+            <LinearLayout
+                android:id="@+id/discountCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout style="@style/CardHomeSectionHeader">
+
+                    <TextView
+                        style="@style/CardHomeSectionTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_weight="0"
+                        android:text="本月优惠" />
+
+                    <TextView
+                        android:id="@+id/tvDiscountMonth"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:textColor="@color/ink_3"
+                        android:textSize="12sp" />
+
+                    <!-- 城市胶囊：内容由 DiscountRegistry 方案动态生成 -->
+                    <LinearLayout
+                        android:id="@+id/discountPillsRow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/CardHomeSectionCard">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="本月累计乘车消费"
+                        android:textColor="@color/ink_3"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvProgress"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/ink"
+                        android:textSize="24sp"
+                        android:textStyle="bold" />
+
+                    <!-- 各城市优惠进度提示：内容由 DiscountRegistry 方案动态生成 -->
+                    <LinearLayout
+                        android:id="@+id/discountHintsColumn"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 最近交易 -->
+            <LinearLayout style="@style/CardHomeSectionHeader">
+
+                <TextView
+                    style="@style/CardHomeSectionTitle"
+                    android:text="最近交易" />
+
+                <TextView
+                    android:id="@+id/btnViewAll"
+                    style="@style/CardHomeSectionLink"
+                    android:text="全部 ›" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/recentTxnContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:background="@drawable/bg_content_card"
+                android:orientation="vertical"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <!-- 本周消费 -->
+            <LinearLayout style="@style/CardHomeSectionHeader">
+
+                <TextView
+                    style="@style/CardHomeSectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_weight="0"
+                    android:text="本周消费" />
+
+                <TextView
+                    android:id="@+id/tvWeekTotal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:textColor="@color/ink_3"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btnMiniStatsAll"
+                    style="@style/CardHomeSectionLink"
+                    android:text="统计 ›" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/CardHomeSectionCard">
+
+                <!-- 柱状图：每天一列（金额 / 柱 / 星期），由代码生成 -->
+                <LinearLayout
+                    android:id="@+id/chartMiniArea"
+                    android:layout_width="match_parent"
+                    android:layout_height="132dp"
+                    android:gravity="bottom"
+                    android:orientation="horizontal" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 状态栏衬底：卡面色，内容向上滚动时从其下方经过，不与状态栏图标重叠 -->
+    <View
+        android:id="@+id/statusScrim"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/status_bar_spacer_height" />
+</FrameLayout>

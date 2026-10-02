@@ -1,204 +1,252 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  站名纠错 / 编辑本地映射表。与其它弹窗同一套版式：24dp 内边距、20sp 标题、胶囊输入框、底部文字按钮。
+  结构：标题 + 说明 → 读卡器（前缀/编号同行、类型胶囊单选）→ 实际位置（城市/线路/站名）→ 公开上传开关
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="320dp"
+    android:layout_width="312dp"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/bg_dialog">
+    android:background="@drawable/bg_dialog"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/feedbackTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:paddingStart="24dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="24dp"
+        android:text="反馈站名纠错"
+        android:textColor="@color/ink"
+        android:textSize="20sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:text="保存后会立即应用到本机站名映射表"
+        android:textColor="@color/ink_3"
+        android:textSize="13sp" />
+
+    <!-- 表单区可滚动、标题与按钮固定；上下分隔线仅在该方向还有内容时显示 -->
+    <View
+        android:id="@+id/feedbackDividerTop"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:background="@color/line"
+        android:visibility="invisible" />
 
     <ScrollView
         android:id="@+id/feedbackScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fillViewport="false"
-        android:padding="20dp">
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="16dp"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- 读卡器 -->
             <TextView
-                android:id="@+id/feedbackTitle"
+                style="@style/FeedbackSection"
+                android:text="读卡器" />
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="反馈站名纠错"
-                android:textColor="@color/ink"
-                android:textSize="20sp"
-                android:fontFamily="sans-serif-medium" />
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="2"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/FeedbackLabel"
+                        android:text="城市前缀" />
+
+                    <EditText
+                        android:id="@+id/feedbackPrefix"
+                        style="@style/FeedbackField"
+                        android:fontFamily="monospace"
+                        android:inputType="textCapCharacters|textNoSuggestions" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="3"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/FeedbackLabel"
+                        android:text="设备编号" />
+
+                    <EditText
+                        android:id="@+id/feedbackCode"
+                        style="@style/FeedbackField"
+                        android:fontFamily="monospace"
+                        android:inputType="textCapCharacters|textNoSuggestions" />
+                </LinearLayout>
+            </LinearLayout>
 
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="保存后会立即应用到本机站名映射表"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                style="@style/FeedbackLabel"
                 android:layout_marginTop="12dp"
-                android:text="Prefix"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
+                android:text="交通类型" />
 
-            <EditText
-                android:id="@+id/feedbackPrefix"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_chip_default"
-                android:inputType="text"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textColor="@color/ink"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Code"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
-
-            <EditText
-                android:id="@+id/feedbackCode"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_chip_default"
-                android:inputType="text"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textColor="@color/ink"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="类型"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
-
+            <!-- 胶囊单选：选中态底色/字色由代码按卡片主题色设置 -->
             <RadioGroup
                 android:id="@+id/feedbackType"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:orientation="horizontal">
 
                 <RadioButton
                     android:id="@+id/feedbackTypeBus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:text="公交"
-                    android:textColor="@color/ink"
-                    android:textSize="14sp" />
+                    style="@style/FeedbackTypeChip"
+                    android:text="公交" />
 
                 <RadioButton
                     android:id="@+id/feedbackTypeMetro"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    style="@style/FeedbackTypeChip"
                     android:layout_marginStart="8dp"
-                    android:text="地铁"
-                    android:textColor="@color/ink"
-                    android:textSize="14sp" />
+                    android:text="地铁" />
 
                 <RadioButton
                     android:id="@+id/feedbackTypeIntercity"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    style="@style/FeedbackTypeChip"
                     android:layout_marginStart="8dp"
-                    android:text="城际"
-                    android:textColor="@color/ink"
-                    android:textSize="14sp" />
+                    android:text="城际" />
             </RadioGroup>
 
+            <!-- 实际位置 -->
             <TextView
+                style="@style/FeedbackSection"
+                android:layout_marginTop="20dp"
+                android:text="实际位置" />
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:text="城市" />
+
+            <!-- 城市选择：胶囊框 + 下拉箭头，点按展开与弹窗同风格的候选列表，也可输入筛选 -->
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="wrap_content">
+
+                <AutoCompleteTextView
+                    android:id="@+id/feedbackCity"
+                    style="@style/FeedbackField"
+                    android:completionThreshold="1"
+                    android:dropDownVerticalOffset="6dp"
+                    android:hint="选择或输入城市"
+                    android:paddingEnd="44dp"
+                    android:popupBackground="@drawable/bg_dropdown_popup" />
+
+                <TextView
+                    android:id="@+id/feedbackCityChevron"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:background="@drawable/bg_back_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="&#xf078;"
+                    android:textColor="@color/ink_3"
+                    android:textSize="12sp" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/FeedbackLabel"
                 android:layout_marginTop="12dp"
-                android:text="实际城市（请选择数据库城市）"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
-
-            <AutoCompleteTextView
-                android:id="@+id/feedbackCity"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_chip_default"
-                android:completionThreshold="1"
-                android:inputType="text"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textColor="@color/ink"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="线路（可留空）"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
+                android:text="线路" />
 
             <EditText
                 android:id="@+id/feedbackLine"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_chip_default"
-                android:inputType="text"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textColor="@color/ink"
-                android:textSize="15sp" />
+                style="@style/FeedbackField"
+                android:hint="可留空" />
 
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                style="@style/FeedbackLabel"
                 android:layout_marginTop="12dp"
-                android:text="站名（可留空）"
-                android:textColor="@color/ink_2"
-                android:textSize="12sp" />
+                android:text="站名" />
 
             <EditText
                 android:id="@+id/feedbackStation"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_chip_default"
-                android:inputType="text"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textColor="@color/ink"
-                android:textSize="15sp" />
+                style="@style/FeedbackField"
+                android:hint="可留空" />
 
-            <CheckBox
-                android:id="@+id/feedbackPublish"
+            <!-- 公开上传：与设置页一致的「说明 + 开关」行 -->
+            <LinearLayout
+                android:id="@+id/feedbackPublishRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:paddingStart="8dp"
-                android:text="上传并公开纠错结果以提升数据准确度"
-                android:textColor="@color/ink"
-                android:textSize="13sp" />
+                android:layout_marginTop="20dp"
+                android:background="@drawable/bg_feedback_publish"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="公开上传纠错"
+                        android:textColor="@color/ink"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="帮助提升站名数据的准确度"
+                        android:textColor="@color/ink_3"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/feedbackPublish"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
+
+    <View
+        android:id="@+id/feedbackDividerBottom"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/line"
+        android:visibility="invisible" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
         android:gravity="end|center_vertical"
+        android:orientation="horizontal"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
         android:paddingBottom="12dp">
@@ -207,32 +255,32 @@
             android:id="@+id/feedbackCancel"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
+            android:background="@drawable/bg_text_button"
             android:clickable="true"
             android:focusable="true"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center"
-            android:text="取消"
-            android:textColor="@color/ink_2"
-            android:textSize="14sp"
             android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:fontFamily="sans-serif-medium"
-            android:background="@drawable/bg_text_button" />
+            android:text="取消"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/feedbackConfirm"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
+            android:background="@drawable/bg_text_button"
             android:clickable="true"
             android:focusable="true"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center"
-            android:text="保存"
-            android:textColor="@color/accent"
-            android:textSize="14sp"
             android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:fontFamily="sans-serif-medium"
-            android:background="@drawable/bg_text_button" />
+            android:text="保存"
+            android:textColor="@color/accent"
+            android:textSize="14sp" />
     </LinearLayout>
 </LinearLayout>

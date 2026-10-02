@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 首页「贴卡读取新卡片」虚线框 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@android:color/transparent" />
+    <corners android:radius="16dp" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/ink_disabled"
+        android:dashWidth="6dp"
+        android:dashGap="4dp" />
+</shape>

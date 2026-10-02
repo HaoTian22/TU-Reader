@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 返回按钮：透明圆形底，仅作为 TouchFeedback 水波纹蒙版，使点按反馈为圆形 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@android:color/transparent" />
+</shape>

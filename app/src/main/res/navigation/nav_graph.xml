@@ -11,19 +11,33 @@
         android:label="Home"
         tools:layout="@layout/fragment_home">
         <action
-            android:id="@+id/action_home_to_cardInfo"
-            app:destination="@id/cardInfoFragment" />
-        <action
-            android:id="@+id/action_home_to_transactionList"
-            app:destination="@id/transactionListFragment" />
-        <action
-            android:id="@+id/action_home_to_stats"
-            app:destination="@id/statsFragment" />
+            android:id="@+id/action_home_to_cardHome"
+            app:destination="@id/cardHomeFragment" />
         <action
             android:id="@+id/action_home_to_settings"
             app:destination="@id/settingsFragment" />
+    </fragment>
+
+    <!-- 单卡概览：从首页卡包点卡进入；交易/统计/轨迹/卡片信息都从这里进入 -->
+    <fragment
+        android:id="@+id/cardHomeFragment"
+        android:name="com.example.nfctransit.ui.CardHomeFragment"
+        android:label="CardHome"
+        tools:layout="@layout/fragment_card_home">
         <action
-            android:id="@+id/action_home_to_mapTrace"
+            android:id="@+id/action_cardHome_to_cardInfo"
+            app:destination="@id/cardInfoFragment" />
+        <action
+            android:id="@+id/action_cardHome_to_transactionList"
+            app:destination="@id/transactionListFragment" />
+        <action
+            android:id="@+id/action_cardHome_to_transactionDetail"
+            app:destination="@id/transactionDetailFragment" />
+        <action
+            android:id="@+id/action_cardHome_to_stats"
+            app:destination="@id/statsFragment" />
+        <action
+            android:id="@+id/action_cardHome_to_mapTrace"
             app:destination="@id/mapTraceFragment" />
     </fragment>
 

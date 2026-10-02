@@ -15,7 +15,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingStart="20dp"
+        android:paddingStart="11dp"
         android:paddingEnd="20dp"
         android:paddingTop="16dp"
         android:paddingBottom="12dp"
@@ -23,15 +23,11 @@
 
         <TextView
             android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/BackButton"
             android:text="←"
             android:textColor="#FFFFFF"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingEnd="12dp" />
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="0dp"

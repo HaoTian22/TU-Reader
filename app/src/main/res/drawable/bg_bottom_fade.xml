@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 首页卡片区底部渐隐：从透明过渡到半透明页面底色，下方卡片看起来逐渐显现 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:startColor="#00F3F4F6"
+        android:centerColor="#99F3F4F6"
+        android:endColor="#F2F3F4F6" />
+</shape>

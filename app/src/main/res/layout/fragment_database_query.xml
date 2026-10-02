@@ -14,22 +14,18 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="20dp"
+        android:paddingStart="11dp"
         android:paddingEnd="20dp"
         android:paddingTop="20dp"
         android:paddingBottom="16dp">
 
         <TextView
             android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/BackButton"
             android:text="←"
             android:textColor="@color/accent"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingEnd="12dp" />
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvDatabaseTitle"

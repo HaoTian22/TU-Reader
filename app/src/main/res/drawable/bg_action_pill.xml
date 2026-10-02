@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 单卡概览快捷操作：浮起的大胶囊包住全部按钮（阴影由 elevation 提供，不加描边） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/surface" />
+    <corners android:radius="999dp" />
+</shape>

@@ -39,6 +39,11 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     private val adapter = TransactionAdapter()
 
+    private companion object {
+        const val TYPE_HEADER = 0
+        const val TYPE_ROW = 1
+    }
+
     /** 离开页面（进详情/切后台）时保存的滚动位置，返回后恢复一次；null = 无需恢复 */
     private var pendingScrollState: Parcelable? = null
     private var scrollRestored = false
@@ -62,6 +67,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
         binding.transactionList.layoutManager = LinearLayoutManager(requireContext())
         binding.transactionList.adapter = adapter
+        binding.transactionList.addItemDecoration(GroupDividerDecoration())
 
         // 主题色跟随卡片：返回按钮、badge、漏斗图标一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
@@ -231,11 +237,54 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         }
     }
 
+    /** 组内行背景：白底，组首行圆上角、组末行圆下角，单行四角都圆 */
+    private fun groupRowBackground(first: Boolean, last: Boolean) = GradientDrawable().apply {
+        val r = 12.dpToPx().toFloat()
+        val top = if (first) r else 0f
+        val bottom = if (last) r else 0f
+        cornerRadii = floatArrayOf(top, top, top, top, bottom, bottom, bottom, bottom)
+        setColor(Palette.SURFACE)
+    }
+
+    /** 「今天」「昨天」「10月1日 周四」，非今年加年份 */
+    private fun dayTitle(date: String): String {
+        val parsed = runCatching {
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(date)
+        }.getOrNull() ?: return date
+        val cal = java.util.Calendar.getInstance().apply { time = parsed }
+        val now = java.util.Calendar.getInstance()
+        fun sameDay(a: java.util.Calendar, b: java.util.Calendar) =
+            a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) &&
+                a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)
+        if (sameDay(cal, now)) return "今天"
+        val yesterday = (now.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+        if (sameDay(cal, yesterday)) return "昨天"
+        val week = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+        val pattern = if (cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR)) "M月d日" else "yyyy年M月d日"
+        return "${java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(parsed)} $week"
+    }
+
+    /** 组内行之间的细分隔线：从图标右侧（文字起点）画到行尾 */
+    private inner class GroupDividerDecoration : RecyclerView.ItemDecoration() {
+        private val paint = android.graphics.Paint().apply { color = Palette.LINE }
+
+        override fun onDrawOver(c: android.graphics.Canvas, parent: RecyclerView, state: RecyclerView.State) {
+            val inset = 62.dpToPx()  // 行左内边距 16 + 图标 36 + 间距 10
+            for (i in 0 until parent.childCount) {
+                val child = parent.getChildAt(i)
+                val pos = parent.getChildAdapterPosition(child)
+                if (pos == RecyclerView.NO_POSITION || !adapter.needsDivider(pos)) continue
+                val top = child.top + child.translationY
+                c.drawRect(child.left + inset.toFloat(), top, child.right.toFloat(), top + 1f, paint)
+            }
+        }
+    }
+
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（胶囊形）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = 4.dpToPx().toFloat()
+            cornerRadius = 999.dpToPx().toFloat()
             setColor(bg)
         }
     }
@@ -260,34 +309,105 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     }
 
     /**
-     * 交易行适配器：RecyclerView 虚拟化渲染，只绑定可见行。
+     * 交易行适配器：RecyclerView 虚拟化渲染，只绑定可见行；按日分组，每组一张圆角卡片。
      * 行绑定逻辑原样迁移自旧 bindTransactionList（逐行 addView 全量重建 → 大数据量卡顿）。
      */
-    private inner class TransactionAdapter : RecyclerView.Adapter<TransactionAdapter.Holder>() {
+    /** 列表条目：按日分组的日期标题，或组内的一行交易（first/last 决定圆角与分隔线） */
+    private sealed class Entry {
+        data class Header(val title: String, val summary: String) : Entry()
+        data class Row(val txn: UiTransaction, val first: Boolean, val last: Boolean) : Entry()
+    }
 
-        private val items = mutableListOf<UiTransaction>()
+    private inner class TransactionAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+        private val entries = mutableListOf<Entry>()
         // lazy：适配器在 Fragment 构造时即创建（字段初始化，见 onViewCreated 前 adapter 字段），此时尚未 attach，
         // requireContext() 会抛 IllegalStateException；首次 bind（已 attach）时才真正加载字体
         private val fa by lazy { Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf") }
 
         fun submit(list: List<UiTransaction>) {
-            items.clear()
-            items.addAll(list)
+            entries.clear()
+            entries.addAll(groupByDay(list))
             notifyDataSetChanged()
         }
 
-        fun positionOf(id: Int): Int = items.indexOfFirst { it.id == id }
+        fun positionOf(id: Int): Int = entries.indexOfFirst { it is Entry.Row && it.txn.id == id }
 
-        override fun getItemCount(): Int = items.size
+        /** 该位置是组内非首行（需要在顶部画分隔线） */
+        fun needsDivider(position: Int): Boolean =
+            (entries.getOrNull(position) as? Entry.Row)?.first == false
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+        override fun getItemCount(): Int = entries.size
+
+        override fun getItemViewType(position: Int): Int =
+            if (entries[position] is Entry.Header) TYPE_HEADER else TYPE_ROW
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            if (viewType == TYPE_HEADER) return HeaderHolder(buildHeaderView(parent))
             val v = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_transaction_row, parent, false)
             return Holder(v)
         }
 
-        override fun onBindViewHolder(holder: Holder, position: Int) {
-            holder.bind(items[position])
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+            when (val e = entries[position]) {
+                is Entry.Header -> (holder as HeaderHolder).bind(e)
+                is Entry.Row -> (holder as Holder).apply {
+                    bind(e.txn)
+                    itemView.background = groupRowBackground(e.first, e.last)
+                }
+            }
+        }
+
+        /** 交易已按时间倒序：相邻同日期的归为一组，标题为「今天 / 昨天 / 10月1日 周四」+「N 笔 · 支出 ¥X」 */
+        private fun groupByDay(list: List<UiTransaction>): List<Entry> {
+            val out = mutableListOf<Entry>()
+            var i = 0
+            while (i < list.size) {
+                val date = list[i].date
+                var j = i
+                while (j < list.size && list[j].date == date) j++
+                val day = list.subList(i, j)
+                val spend = day.filter { it.amountText.startsWith("-") }.sumOf { it.amountYuan }
+                val summary = buildString {
+                    append("${day.size} 笔")
+                    if (spend > 0) append(" · 支出 ¥${String.format("%.2f", spend)}")
+                }
+                out += Entry.Header(dayTitle(date), summary)
+                day.forEachIndexed { k, txn -> out += Entry.Row(txn, first = k == 0, last = k == day.lastIndex) }
+                i = j
+            }
+            return out
+        }
+
+        private fun buildHeaderView(parent: ViewGroup): View {
+            val ctx = parent.context
+            return LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.BOTTOM
+                layoutParams = RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(4.dpToPx(), 20.dpToPx(), 4.dpToPx(), 8.dpToPx())
+                addView(TextView(ctx).apply {
+                    id = R.id.groupTitle
+                    setTextColor(Palette.INK)
+                    textSize = 14f
+                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(TextView(ctx).apply {
+                    id = R.id.groupSummary
+                    setTextColor(Palette.INK_3)
+                    textSize = 12f
+                })
+            }
+        }
+
+        inner class HeaderHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            fun bind(header: Entry.Header) {
+                itemView.findViewById<TextView>(R.id.groupTitle).text = header.title
+                itemView.findViewById<TextView>(R.id.groupSummary).text = header.summary
+            }
         }
 
         inner class Holder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -319,8 +439,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 city.visibility = if (isPlaceholderPill(cityText)) View.GONE else View.VISIBLE
                 type.text = txn.transitType
                 type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
-                // 第三行：时间（带年）
-                time.text = txn.date + " " + txn.time.take(5)
+                // 第三行：时间（日期已在分组标题里，这里只显示时分）
+                time.text = txn.time.take(5)
                 amount.text = txn.amountText
                 balance.text = txn.balanceAfterText
                 // 无余额数据（null）时整行隐藏余额，避免误显示 ¥0.00

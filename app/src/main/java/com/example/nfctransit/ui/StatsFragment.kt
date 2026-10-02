@@ -164,10 +164,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     }
 
     private fun updateCardBadgeBg() {
-        // 卡信息标签背景用主题色淡色填充（4dp 圆角）
+        // 卡信息标签背景用主题色淡色填充（胶囊形）
         val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
-            cornerRadius = dpToPx(4).toFloat()
+            cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
         }
     }

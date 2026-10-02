@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 表单弹窗（站名纠错）：区块标题 / 字段标签 / 胶囊输入框 / 胶囊单选 -->
+    <style name="FeedbackSection">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="FeedbackLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:textColor">@color/ink_3</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="FeedbackField">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/bg_chip_default</item>
+        <item name="android:inputType">text</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textColorHint">@color/ink_3</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="FeedbackTypeChip">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:button">@null</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/ink_2</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+</resources>

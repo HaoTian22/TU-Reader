@@ -151,6 +151,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             }
         }
         dialog.show()
+        dialog.window?.decorView?.keepTouchFeedback()
     }
 
     private fun persistSql(sql: String) {

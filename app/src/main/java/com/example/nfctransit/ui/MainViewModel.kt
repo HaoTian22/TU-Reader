@@ -1219,6 +1219,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** 某张卡的发卡城市（首页卡包副标题、单卡页头部胶囊用）；解析不到返回 null */
+    fun issuerCityFor(cardId: String): String? {
+        val entity = cardEntities.firstOrNull { it.cardId == cardId } ?: return null
+        return buildCardMetadata(cardId, entity.cardType, entity.toUiCard()).issuerCity
+    }
+
     private fun buildCardMetadata(cardId: String, cardType: String, card: UiCard): UiCardMetadata {
         val records = rawRecordsByCard[cardId].orEmpty()
         val primaryProtocol = when (cardType) {
