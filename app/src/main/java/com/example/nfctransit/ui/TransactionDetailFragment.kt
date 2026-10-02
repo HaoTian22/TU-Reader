@@ -22,7 +22,6 @@ import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
-import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
 import com.example.nfctransit.model.UiTransaction
@@ -187,15 +186,13 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             actualCityCode = txn.actualCityCode,
             actualCityName = txn.cityName,
             accentColor = accentColor
-        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, publish ->
+        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish ->
             val normalizedPrefix = enteredPrefix.trim()
             val normalizedCode = enteredCode.trim()
             val normalizedLine = enteredLine.trim()
             val normalizedStation = enteredStation.trim()
             val codeRegex = Regex("[0-9A-Za-z]+")
-            val cityValid = TransitData.cityOptions().any { it.code == enteredCityCode }
             val error = when {
-                !cityValid -> "请选择数据库中的实际城市"
                 !normalizedPrefix.matches(codeRegex) -> "请填写有效的 Prefix"
                 !normalizedCode.matches(codeRegex) -> "请填写有效的 Code"
                 normalizedLine.length > 128 || normalizedLine.contains('\n') || normalizedLine.contains('\r') ->
@@ -219,6 +216,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 normalizedStation,
                 enteredCityCode,
                 enteredCityName,
+                locationSource,
                 publish
             )
             true

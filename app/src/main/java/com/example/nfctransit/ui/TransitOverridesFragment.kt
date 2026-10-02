@@ -120,7 +120,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             context = requireContext(),
             row = row,
             accentColor = accentColor
-        ) { prefix, code, type, line, station, cityCode, _, publish ->
+        ) { prefix, code, type, line, station, cityCode, _, locationSource, publish ->
             val updated = TransitOverrideRow(
                 prefix.trim(), code.trim(), type.trim(), line.trim(), station.trim(),
                 cityCode.trim().takeIf { it.isNotEmpty() }
@@ -130,7 +130,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
                 false
             } else {
-                viewModel.updateOverride(row.mappingKey, updated, publish)
+                viewModel.updateOverride(row.mappingKey, updated, locationSource, publish)
                 true
             }
         }

@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.nfctransit.R
 import com.example.nfctransit.data.CityOption
+import com.example.nfctransit.data.FeedbackLocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.model.UiCard
@@ -34,6 +35,19 @@ object AppDialogs {
      * 弹窗宽度：M3 基本对话框 312dp，窄屏两侧各留 24dp。
      * 根布局以 null 父级 inflate，XML 里的宽度不生效，必须在窗口上指定，否则弹窗会收缩到内容宽度。
      */
+    /** 反馈表单的常用交通类型（取自 transit.db 中数量最多的类型）；其余经「其他」手动输入。 */
+    private val FEEDBACK_TYPES = listOf("公交", "地铁", "有轨电车", "城际", "BRT", "自行车")
+    private const val FEEDBACK_TYPE_OTHER = "其他"
+    private const val FEEDBACK_HELP =
+        "城市前缀：原始数据CITY的字段，与编号一起组成读卡器的完整编号写入数据库，通常保持预填值即可\n\n" +
+            "设备编号：刷卡记录中的读卡器 Terminal 编号，或 Line & Station 的内容，是纠错映射的依据，请先判断填写的内容是否和线路/站名有关联\n\n" +
+            "交通类型：该读卡器所属的交通方式。同一编号在不同类型下是不同的读卡器；" +
+            "列表中没有时选「其他」并手动输入，如 轮渡、单轨、轻轨\n\n" +
+            "线路：读卡器所在的线路，例如「1号线」或公交线路号，可留空\n\n" +
+            "站名：车站或站点名称，不确定/公交可留空\n\n" +
+            "所在城市：不参与站名映射，仅随公开上传提供给开发者排查问题（有时一个城市会用多个城市前缀，开发者需要知道实际所在城市）\n\n" +
+            "公开上传纠错：开启后把这条纠错匿名上传，用于改进内置站名数据；关闭则只保存在本机"
+
     private fun dialogWidth(context: Context): Int {
         val dm = context.resources.displayMetrics
         return minOf((312 * dm.density).toInt(), dm.widthPixels - (48 * dm.density).toInt())
@@ -147,6 +161,7 @@ object AppDialogs {
             station: String,
             cityCode: String,
             cityName: String,
+            locationSource: FeedbackLocationSource,
             publish: Boolean
         ) -> Boolean
     ): Dialog {
@@ -187,7 +202,8 @@ object AppDialogs {
         val lineInput = view.findViewById<EditText>(R.id.feedbackLine)
         val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
         val cityInput = view.findViewById<AutoCompleteTextView>(R.id.feedbackCity)
-        val typeInput = view.findViewById<android.widget.RadioGroup>(R.id.feedbackType)
+        val typeInput = view.findViewById<LinearLayout>(R.id.feedbackType)
+        val typeCustomInput = view.findViewById<EditText>(R.id.feedbackTypeCustom)
         val publishInput = view.findViewById<android.widget.CompoundButton>(R.id.feedbackPublish)
         view.findViewById<TextView>(R.id.feedbackTitle).text = title
         publishInput.isEnabled = showPublish
@@ -198,29 +214,77 @@ object AppDialogs {
             if (showPublish) setOnClickListener { publishInput.toggle() }
         }
         (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.tintAccent(accentColor)
-        // 交通类型：胶囊单选，选中为主题色实心 + 白字（同统计页周期切换）
-        val density = context.resources.displayMetrics.density
-        val typeChips = listOf(
-            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeBus),
-            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeMetro),
-            view.findViewById<android.widget.RadioButton>(R.id.feedbackTypeIntercity)
-        )
-        fun styleTypeChips() = typeChips.forEach { chip ->
-            chip.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 999 * density
-                setColor(if (chip.isChecked) accentColor else Palette.LINE)
+        view.findViewById<TextView>(R.id.feedbackHelp).apply {
+            typeface = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
+            setOnClickListener {
+                confirm(
+                    context,
+                    title = "填写说明",
+                    message = FEEDBACK_HELP,
+                    confirmLabel = "知道了",
+                    confirmColor = accentColor,
+                    cancelLabel = ""
+                ) {}
             }
-            chip.setTextColor(if (chip.isChecked) Color.WHITE else Palette.INK_2)
-            chip.typeface = if (chip.isChecked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
-        typeInput.setOnCheckedChangeListener { _, _ -> styleTypeChips() }
-        typeInput.check(
-            when (type) {
-                "地铁" -> R.id.feedbackTypeMetro
-                "城际" -> R.id.feedbackTypeIntercity
-                else -> R.id.feedbackTypeBus
+        // 交通类型：可换行胶囊单选，选中为主题色实心 + 白字（同统计页周期切换）；
+        // 「其他」展开输入框，类型不在常用列表中时默认选中「其他」并带入原值
+        val density = context.resources.displayMetrics.density
+        val initialType = type.trim()
+        var selectedTypeChip = when {
+            initialType.isEmpty() -> "公交"
+            initialType in FEEDBACK_TYPES -> initialType
+            else -> FEEDBACK_TYPE_OTHER
+        }
+        if (selectedTypeChip == FEEDBACK_TYPE_OTHER) typeCustomInput.setText(initialType)
+        // 每行最多 4 个芯片，铺满整行（末行芯片数少时同样铺满）
+        val gap = (8 * density).toInt()
+        val typeChips = (FEEDBACK_TYPES + FEEDBACK_TYPE_OTHER).chunked(4).flatMapIndexed { rowIndex, labels ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { if (rowIndex > 0) topMargin = gap }
             }
-        )
+            typeInput.addView(row)
+            labels.mapIndexed { i, label ->
+                TextView(context).apply {
+                    text = label
+                    textSize = 13f
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    setPadding((12 * density).toInt(), 0, (12 * density).toInt(), 0)
+                    isClickable = true
+                    isFocusable = true
+                    // 宽度 = 文字宽 + 剩余空间均分：长标签（有轨电车）不被挤压，整行仍铺满
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, (36 * density).toInt(), 1f
+                    )
+                        .apply { if (i > 0) marginStart = gap }
+                    row.addView(this)
+                }
+            }
+        }
+        fun styleTypeChips() {
+            typeChips.forEach { chip ->
+                val checked = chip.text == selectedTypeChip
+                chip.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 999 * density
+                    setColor(if (checked) accentColor else Palette.LINE)
+                }
+                chip.setTextColor(if (checked) Color.WHITE else Palette.INK_2)
+                chip.typeface = if (checked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            }
+            typeCustomInput.visibility =
+                if (selectedTypeChip == FEEDBACK_TYPE_OTHER) View.VISIBLE else View.GONE
+        }
+        typeChips.forEach { chip ->
+            chip.setOnClickListener {
+                selectedTypeChip = chip.text.toString()
+                styleTypeChips()
+                if (selectedTypeChip == FEEDBACK_TYPE_OTHER) typeCustomInput.requestFocus()
+            }
+        }
         styleTypeChips()
         val cityOptions = TransitData.cityOptions()
         val cityLabels = cityOptions.map(CityOption::pickerLabel)
@@ -242,6 +306,7 @@ object AppDialogs {
             }
         }
         var selectedCity: CityOption? = cityOptions.firstOrNull { it.code == actualCityCode }
+        var citySource = FeedbackLocationSource.AUTO
         var applyingCity = false
         selectedCity?.let {
             applyingCity = true
@@ -251,15 +316,23 @@ object AppDialogs {
         cityInput.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                if (!applyingCity) selectedCity = null
+                if (!applyingCity) {
+                    selectedCity = null
+                    citySource = FeedbackLocationSource.MANUAL
+                }
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
         cityInput.setOnItemClickListener { parent, _, position, _ ->
             val label = parent.getItemAtPosition(position) as? String
             selectedCity = cityOptions.firstOrNull { it.pickerLabel == label }
+            citySource = FeedbackLocationSource.MANUAL
         }
-        if (selectedCity == null && actualCityName.isNotBlank()) cityInput.setText(actualCityName, false)
+        if (selectedCity == null && actualCityName.isNotBlank()) {
+            applyingCity = true
+            cityInput.setText(actualCityName, false)
+            applyingCity = false
+        }
 
         prefixInput.setText(prefix)
         codeInput.setText(code)
@@ -271,11 +344,21 @@ object AppDialogs {
         view.findViewById<TextView>(R.id.feedbackConfirm).apply {
             setTextColor(accentColor)
             setOnClickListener {
-                val selectedType = when (typeInput.checkedRadioButtonId) {
-                    R.id.feedbackTypeMetro -> "地铁"
-                    R.id.feedbackTypeIntercity -> "城际"
-                    else -> "公交"
+                val selectedType = if (selectedTypeChip == FEEDBACK_TYPE_OTHER) {
+                    typeCustomInput.text.toString().trim()
+                } else selectedTypeChip
+                if (selectedType.isEmpty() || selectedType.length > 32 ||
+                    selectedType.contains('\n') || selectedType.contains('\r')
+                ) {
+                    android.widget.Toast.makeText(
+                        context, "请填写交通类型（最多 32 个字符）", android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    typeCustomInput.requestFocus()
+                    return@setOnClickListener
                 }
+                // 城市仅作补充信息：未从列表选中时把输入的文字原样作为城市名带给开发者
+                val typedCity = cityInput.text.toString().trim()
+                    .takeIf { it.length <= 128 }.orEmpty()
                 val accepted = onConfirm(
                     prefixInput.text.toString(),
                     codeInput.text.toString(),
@@ -283,7 +366,8 @@ object AppDialogs {
                     lineInput.text.toString(),
                     stationInput.text.toString(),
                     selectedCity?.code.orEmpty(),
-                    selectedCity?.name.orEmpty(),
+                    selectedCity?.name ?: typedCity,
+                    citySource,
                     publishInput.isChecked
                 )
                 if (accepted) dialog.dismiss()
@@ -317,6 +401,7 @@ object AppDialogs {
             station: String,
             cityCode: String,
             cityName: String,
+            locationSource: FeedbackLocationSource,
             publish: Boolean
         ) -> Boolean
     ): Dialog {
@@ -336,8 +421,8 @@ object AppDialogs {
             showPublish = true,
             accentColor = accentColor,
             maxScrollHeightDp = 480
-        ) { prefix, code, type, line, station, cityCode, cityName, publish ->
-            onSave(prefix, code, type, line, station, cityCode, cityName, publish)
+        ) { prefix, code, type, line, station, cityCode, cityName, locationSource, publish ->
+            onSave(prefix, code, type, line, station, cityCode, cityName, locationSource, publish)
         }
     }
 

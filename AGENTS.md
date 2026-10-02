@@ -37,6 +37,8 @@ export JAVA_HOME="C:/Users/Hao_T/.gradle/jdks/eclipse_adoptium-17-amd64-windows.
 
 ## 反馈服务（server/）
 
-站名纠错公开上传端点（`FeedbackUploader` → `POST /v1/overrides`，URL 为 `BuildConfig.FEEDBACK_UPLOAD_URL`）。**纯标准库 http.server，零第三方依赖**（此前 FastAPI 栈占 ~40MB+ 私有内存，现 ~17MB，docker-compose 另有 64MB 硬上限）。数据落 `server/data/overrides.csv` + `overrides.locations.json`（Docker volume，无 schema 迁移概念）。校验语义集中在 `app.py#parse_override`；测试 `python -m pytest server/tests`（仅 pytest 一个开发依赖）。
+站名纠错公开上传端点（`FeedbackUploader` → `POST /v1/overrides`，URL 为 `BuildConfig.FEEDBACK_UPLOAD_URL`）。**纯标准库 http.server，零第三方依赖**（此前 FastAPI 栈占 ~40MB+ 私有内存，现 ~17MB，docker-compose 另有 64MB 硬上限）。数据仅落 `server/data/overrides.json`（Docker volume）：按 `device_code|transit_type` 定位，每条记录包含 `csv` 字符串（`Prefix,Code,Type,Line,Station`，无表头）及协议、地区元数据。按全新服务器部署，无旧格式迁移。格式见 `server/README.md`。校验语义集中在 `app.py#parse_override`；测试 `python -m pytest server/tests`（仅 pytest 一个开发依赖）。
+
+反馈上传的 `locationSource` 必填，仅允许 `AUTO`（本次纠错保留自动填充的地区）或 `MANUAL`（本次纠错输入/重新选择过地区）。两处纠错入口都跟踪城市编辑动作；只改线路或站名保持 `AUTO`，手动选回原城市仍为 `MANUAL`。客户端内部 `LocationSource` 的定位精度枚举继续用于地图/行程，上传使用独立的 `FeedbackLocationSource`。
 
 > 记忆：build 环境见 `memory/build-env-java-gradle.md`；transit.db 来源/更新见 `memory/transit-db-source.md`、`memory/transit-db-ota-update.md`。

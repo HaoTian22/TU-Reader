@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   站名纠错 / 编辑本地映射表。与其它弹窗同一套版式：24dp 内边距、20sp 标题、胶囊输入框、底部文字按钮。
-  结构：标题 + 说明 → 读卡器（前缀/编号同行、类型胶囊单选）→ 实际位置（城市/线路/站名）→ 公开上传开关
+  结构：标题(+帮助) + 说明 → 读卡器（前缀/编号同行、类型胶囊单选+其他）→ 实际位置（线路/站名）→ 补充信息（城市，选填）→ 公开上传开关
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="312dp"
@@ -9,17 +9,40 @@
     android:background="@drawable/bg_dialog"
     android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/feedbackTitle"
+    <!-- 标题 + 帮助按钮（点按弹出各字段含义说明） -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-medium"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:paddingStart="24dp"
-        android:paddingTop="24dp"
-        android:paddingEnd="24dp"
-        android:text="反馈站名纠错"
-        android:textColor="@color/ink"
-        android:textSize="20sp" />
+        android:paddingTop="16dp"
+        android:paddingEnd="12dp">
+
+        <TextView
+            android:id="@+id/feedbackTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:paddingTop="8dp"
+            android:text="反馈站名纠错"
+            android:textColor="@color/ink"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/feedbackHelp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_back_button"
+            android:clickable="true"
+            android:contentDescription="填写说明"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="&#xf059;"
+            android:textColor="@color/ink_3"
+            android:textSize="18sp" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"
@@ -106,30 +129,20 @@
                 android:layout_marginTop="12dp"
                 android:text="交通类型" />
 
-            <!-- 胶囊单选：选中态底色/字色由代码按卡片主题色设置 -->
-            <RadioGroup
+            <!-- 胶囊单选：芯片由代码按常用类型生成，每行最多 4 个、等分铺满整行，
+                 选中态底色/字色按卡片主题色设置；「其他」展开下方输入框，填写列表外的类型 -->
+            <LinearLayout
                 android:id="@+id/feedbackType"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="vertical" />
 
-                <RadioButton
-                    android:id="@+id/feedbackTypeBus"
-                    style="@style/FeedbackTypeChip"
-                    android:text="公交" />
-
-                <RadioButton
-                    android:id="@+id/feedbackTypeMetro"
-                    style="@style/FeedbackTypeChip"
-                    android:layout_marginStart="8dp"
-                    android:text="地铁" />
-
-                <RadioButton
-                    android:id="@+id/feedbackTypeIntercity"
-                    style="@style/FeedbackTypeChip"
-                    android:layout_marginStart="8dp"
-                    android:text="城际" />
-            </RadioGroup>
+            <EditText
+                android:id="@+id/feedbackTypeCustom"
+                style="@style/FeedbackField"
+                android:layout_marginTop="8dp"
+                android:hint="输入交通类型，如 轮渡、单轨"
+                android:visibility="gone" />
 
             <!-- 实际位置 -->
             <TextView
@@ -139,7 +152,32 @@
 
             <TextView
                 style="@style/FeedbackLabel"
-                android:text="城市" />
+                android:text="线路" />
+
+            <EditText
+                android:id="@+id/feedbackLine"
+                style="@style/FeedbackField"
+                android:hint="可留空" />
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:layout_marginTop="12dp"
+                android:text="站名" />
+
+            <EditText
+                android:id="@+id/feedbackStation"
+                style="@style/FeedbackField"
+                android:hint="可留空" />
+
+            <!-- 补充信息：城市不参与映射，仅随公开上传提供给开发者排查 -->
+            <TextView
+                style="@style/FeedbackSection"
+                android:layout_marginTop="20dp"
+                android:text="补充信息" />
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:text="所在城市（供开发者排查）" />
 
             <!-- 城市选择：胶囊框 + 下拉箭头，点按展开与弹窗同风格的候选列表，也可输入筛选 -->
             <FrameLayout
@@ -168,26 +206,6 @@
                     android:textColor="@color/ink_3"
                     android:textSize="12sp" />
             </FrameLayout>
-
-            <TextView
-                style="@style/FeedbackLabel"
-                android:layout_marginTop="12dp"
-                android:text="线路" />
-
-            <EditText
-                android:id="@+id/feedbackLine"
-                style="@style/FeedbackField"
-                android:hint="可留空" />
-
-            <TextView
-                style="@style/FeedbackLabel"
-                android:layout_marginTop="12dp"
-                android:text="站名" />
-
-            <EditText
-                android:id="@+id/feedbackStation"
-                style="@style/FeedbackField"
-                android:hint="可留空" />
 
             <!-- 公开上传：与设置页一致的「说明 + 开关」行 -->
             <LinearLayout

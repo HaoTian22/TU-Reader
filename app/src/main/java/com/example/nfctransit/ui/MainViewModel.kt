@@ -22,6 +22,7 @@ import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideImporter
 import com.example.nfctransit.data.TransitOverrideStore
 import com.example.nfctransit.data.FeedbackUploader
+import com.example.nfctransit.data.FeedbackLocationSource
 import com.example.nfctransit.data.FeedbackOverride
 import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.data.TransitDbVersion
@@ -801,6 +802,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         station: String,
         locationCityCode: String,
         locationCityName: String,
+        locationSource: FeedbackLocationSource,
         publish: Boolean
     ) {
         if (_feedbackSaving.value == true) return
@@ -843,7 +845,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.IO) {
                         FeedbackUploader.upload(
                             getApplication(), normalized, type.trim(), standard,
-                            locationCityCode, locationCityName, transaction.locationSource.name
+                            locationCityCode, locationCityName, locationSource
                         )
                     }
                 } else null
@@ -865,7 +867,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateOverride(oldKey: String, row: TransitOverrideRow, publish: Boolean = false) {
+    fun updateOverride(
+        oldKey: String,
+        row: TransitOverrideRow,
+        locationSource: FeedbackLocationSource,
+        publish: Boolean = false
+    ) {
         viewModelScope.launch {
             try {
                 val update = withContext(Dispatchers.IO) {
@@ -917,7 +924,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.IO) {
                         FeedbackUploader.upload(
                             getApplication(), row, row.type, update.second,
-                            update.third?.code, update.third?.name
+                            update.third?.code, update.third?.name, locationSource
                         )
                     }
                 } else null

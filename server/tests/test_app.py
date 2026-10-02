@@ -1,8 +1,10 @@
 import csv
 import http.client
+import io
 import json
 import threading
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 
@@ -12,7 +14,7 @@ import server.app as app
 @pytest.fixture()
 def api(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(app, "CSV_FILE", tmp_path / "overrides.csv")
+    monkeypatch.setattr(app, "JSON_FILE", tmp_path / "overrides.json")
     server = ThreadingHTTPServer(("127.0.0.1", 0), app.FeedbackHandler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -41,6 +43,17 @@ def api(tmp_path, monkeypatch):
     worker.join(timeout=5)
 
 
+def stored_entries():
+    return json.loads(app.JSON_FILE.read_text(encoding="utf-8"))
+
+
+def stored_rows():
+    return [
+        dict(zip(app.HEADER, next(csv.reader(io.StringIO(entry["csv"]))), strict=True))
+        for entry in stored_entries().values()
+    ]
+
+
 def test_health(api):
     status, payload = api("GET", "/health")
     assert status == 200
@@ -58,6 +71,7 @@ def test_create_and_update_without_delete(api):
         "code": "00163423",
         "type": "地铁",
         "standard": "YCT",
+        "locationSource": "AUTO",
         "line": "3号线",
         "station": "天河客运站",
     }
@@ -66,8 +80,7 @@ def test_create_and_update_without_delete(api):
     status, payload = api("POST", "/v1/overrides", changed)
     assert status == 201
     assert payload == {"status": "updated", "device_code": "010000163423"}
-    with app.CSV_FILE.open(encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
+    rows = stored_rows()
     assert len(rows) == 1
     assert rows[0]["Station"] == "珠江新城"
 
@@ -95,19 +108,24 @@ def test_accepts_location_metadata_and_keeps_standard(api, tmp_path):
         "station": "",
         "locationCityCode": "6020",
         "locationCityName": "东莞",
-        "locationSource": "PARENT_DIRECTORY",
+        "locationSource": "MANUAL",
     }
     assert api("POST", "/v1/overrides", payload)[0] == 201
-    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
-    assert metadata["60200010101|公交"] == {
+    assert stored_entries()["60200010101|公交"] == {
+        "csv": "6020,0010101,公交,1,",
         "standard": "TU",
         "locationCityCode": "6020",
         "locationCityName": "东莞",
-        "locationSource": "PARENT_DIRECTORY",
+        "locationSource": "MANUAL",
     }
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["overrides.json"]
 
 
-def test_rejects_invalid_location_source(api):
+@pytest.mark.parametrize("source", [
+    "free text", "STATION_GEO", "PARENT_DIRECTORY", "DECLARED_CITY_FALLBACK",
+    "", None, 1,
+])
+def test_rejects_invalid_location_source(api, source):
     payload = {
         "prefix": "6020",
         "code": "0010101",
@@ -115,7 +133,7 @@ def test_rejects_invalid_location_source(api):
         "standard": "TU",
         "line": "1",
         "station": "",
-        "locationSource": "free text",
+        "locationSource": source,
     }
     assert api("POST", "/v1/overrides", payload)[0] == 422
 
@@ -124,38 +142,20 @@ def test_shared_code_keeps_each_type_and_metadata(api, tmp_path):
     bus = {
         "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
         "line": "12", "station": "", "locationCityCode": "3320",
+        "locationSource": "AUTO",
     }
     metro = {**bus, "type": "地铁", "line": "1号线", "station": "东环南路",
              "locationCityCode": None}
     assert api("POST", "/v1/overrides", bus)[1]["status"] == "created"
     assert api("POST", "/v1/overrides", metro)[1]["status"] == "created"
     assert api("POST", "/v1/overrides", {**metro, "station": "更正站名"})[1]["status"] == "updated"
-    with app.CSV_FILE.open(encoding="utf-8", newline="") as handle:
-        rows = {row["Type"]: row for row in csv.DictReader(handle)}
+    rows = {row["Type"]: row for row in stored_rows()}
     assert len(rows) == 2
     assert rows["公交"]["Line"] == "12"
     assert rows["地铁"]["Station"] == "更正站名"
-    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
+    metadata = stored_entries()
     assert metadata["33200120|公交"]["locationCityCode"] == "3320"
     assert metadata["33200120|地铁"]["locationCityCode"] is None
-
-
-def test_legacy_metadata_stays_with_its_existing_type(api, tmp_path):
-    with app.CSV_FILE.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=app.HEADER)
-        writer.writeheader()
-        writer.writerow({"Prefix": "3320", "Code": "0120", "Type": "公交", "Line": "12", "Station": ""})
-    legacy = {"standard": "TU", "locationCityCode": "3320"}
-    (tmp_path / "overrides.locations.json").write_text(
-        json.dumps({"33200120": legacy}), encoding="utf-8"
-    )
-    metro = {"prefix": "3320", "code": "0120", "type": "地铁", "standard": "TU",
-             "line": "1号线", "station": "东环南路"}
-    assert api("POST", "/v1/overrides", metro)[1]["status"] == "created"
-    metadata = json.loads((tmp_path / "overrides.locations.json").read_text(encoding="utf-8"))
-    assert "33200120" not in metadata
-    assert metadata["33200120|公交"] == legacy
-    assert metadata["33200120|地铁"]["standard"] == "TU"
 
 
 def test_accepts_independently_blank_line_or_station(api):
@@ -166,12 +166,12 @@ def test_accepts_independently_blank_line_or_station(api):
         "standard": "TU",
         "line": "",
         "station": "体育中心",
+        "locationSource": "MANUAL",
     }
     assert api("POST", "/v1/overrides", base)[0] == 201
     line_only = {**base, "code": "00112234", "line": "B1路", "station": ""}
     assert api("POST", "/v1/overrides", line_only)[0] == 201
-    with app.CSV_FILE.open(encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
+    rows = stored_rows()
     assert rows[0]["Line"] == ""
     assert rows[0]["Station"] == "体育中心"
     assert rows[1]["Line"] == "B1路"
@@ -186,3 +186,84 @@ def test_rejects_invalid_json(api):
 def test_rejects_oversized_body(api):
     status, _ = api("POST", "/v1/overrides", body=b"x" * (17 * 1024))
     assert status == 413
+
+
+def test_csv_escapes_commas_and_quotes(api):
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "地铁", "standard": "TU",
+        "line": '1号线,"支线"', "station": '站点,"A"',
+        "locationSource": "MANUAL",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    row = stored_rows()[0]
+    assert row["Line"] == payload["line"]
+    assert row["Station"] == payload["station"]
+
+
+def test_same_csv_can_update_location(api):
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "", "locationCityCode": "3320",
+        "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    original_csv = stored_entries()["33200120|公交"]["csv"]
+    changed = {**payload, "locationCityCode": "5810", "locationCityName": "广州",
+               "locationSource": "MANUAL"}
+    assert api("POST", "/v1/overrides", changed)[1]["status"] == "updated"
+    entry = stored_entries()["33200120|公交"]
+    assert entry["csv"] == original_csv
+    assert entry["locationCityCode"] == "5810"
+    assert entry["locationCityName"] == "广州"
+    assert entry["locationSource"] == "MANUAL"
+
+
+@pytest.mark.parametrize("content", ["{broken", "[]", '{"key": {"csv": 42}}'])
+def test_corrupt_json_is_not_overwritten(api, content):
+    app.JSON_FILE.write_text(content, encoding="utf-8")
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "",
+        "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 500
+    assert app.JSON_FILE.read_text(encoding="utf-8") == content
+
+
+def test_failed_commit_preserves_json_and_cleans_temporary(api, tmp_path, monkeypatch):
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "",
+        "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    original = app.JSON_FILE.read_bytes()
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("simulated commit failure")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    assert api("POST", "/v1/overrides", {**payload, "line": "13"})[0] == 500
+    assert app.JSON_FILE.read_bytes() == original
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["overrides.json"]
+
+
+def test_requires_location_source(api):
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 422
+
+
+@pytest.mark.parametrize("source", ["AUTO", "MANUAL"])
+def test_source_is_stored_even_when_city_is_unchanged(api, source):
+    payload = {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "", "locationCityCode": "3320",
+        "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    changed = {**payload, "locationSource": source}
+    assert api("POST", "/v1/overrides", changed)[1]["status"] == "updated"
+    assert stored_entries()["33200120|公交"]["locationSource"] == source
