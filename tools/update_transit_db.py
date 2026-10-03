@@ -11,6 +11,10 @@
 
 规则（由现有 transit.db 反推 build_db.py 的映射）：
   - device_code = City/Prefix + Code（广州 yct.csv 用 Prefix 列）。
+    非空前缀原样保留，即使城市表尚未收录；未知前缀创建同码城市占位，
+    来源目录只决定线路/站点及实际地点归属，不改写设备编号。
+  - YCT 网络前缀可跨城市共用（如广佛 0100）：线路/站点按 CSV 所在城市目录归属，
+    reader_device.city_id 仍对应编号前缀，保持读卡匹配分桶；复用已有线路/站点的增强数据。
   - standard = 文件名中协议标识段的大写（cu→CU, metro-tu→TU, metro-yct→YCT）；其它后缀（如 1E）不覆盖协议标识。
   - line_code：优先复用现有 (city_id, line_name) 对应的 line_code；否则取该线路组里
     「空站名的表头行 Code」中最长的、能作为全部站点码前缀的那个（北京 1号线表头 Code=0100，
@@ -227,8 +231,15 @@ def build_update(loader, only_files=None):
             groups[(city, line)].append(r)
         for (city, line_name), grp in groups.items():
             parent_city = parent_city_code(loader, rel)
-            if not city or loader.city_id(city) is None:
+            if (not city or loader.city_id(city) is None
+                    or loader.city_name_by_id.get(loader.city_id(city)) == city):
                 city = parent_city or city
+            # YCT 的 0100 是广佛共用网络前缀；线路/站点归属按来源城市，
+            # 设备编号及 reader_device.city_id 仍保留网络前缀以供匹配分桶。
+            if std == "YCT" and parent_city and (
+                    loader.city_name_by_id.get(loader.city_id(city))
+                    != loader.city_name_by_id.get(loader.city_id(parent_city))):
+                city = parent_city
             header_codes = [r[1] for r in grp if not r[4]]
             station_rows = [r for r in grp if r[4]]
             # 空站名行（如 51804=地铁 / 518020=公交 东部公交）作为大类 fallback 也加入，不跳过
@@ -303,7 +314,8 @@ def build_update(loader, only_files=None):
                 st = loader.station(city, station)
                 if st is not None and (st["station_name_en"] or "") != station_en:
                     upd_station_en.append((st["station_id"], station_en))
-            dev = city + code
+            device_city = r[0] or city
+            dev = device_city + code
             key = mapping_key(dev, type_)
             csv_devices.add(key)
             if key in seen_added:
@@ -312,14 +324,19 @@ def build_update(loader, only_files=None):
                 seen_added.add(key)
                 old = loader.device_by_key[key]
                 old_line = loader.db.execute(
-                    "SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
+                    "SELECT line_name, city_id FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
                 old_stn = loader.db.execute(
-                    "SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
+                    "SELECT station_name, city_id FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
                 old_lname = old_line[0] if old_line else None
                 old_sname = old_stn[0] if old_stn else None
-                device_location = parent_city if not station else None
+                device_location = parent_city if not station or city != device_city else None
+                city_name = loader.city_name_by_id.get(loader.city_id(city))
                 if ((old_lname or "") != (lname or "")
                         or (old_sname or "") != (station or "")
+                        or ((std == "YCT" or city != device_city) and old_line is not None
+                            and loader.city_name_by_id.get(old_line[1]) != city_name)
+                        or ((std == "YCT" or city != device_city) and old_stn is not None
+                            and loader.city_name_by_id.get(old_stn[1]) != city_name)
                         or old["transit_type"] != type_
                         or old["standard"] != std
                         or (old["device_location"] or "") != (device_location or "")):
@@ -327,12 +344,12 @@ def build_update(loader, only_files=None):
                 continue
             if station:
                 station_code = code[len(lc):] if lc and code.startswith(lc) else None
-                mk = f"{city}|{strip0(lc)}|{strip0(station_code)}" if lc and station_code else None
+                mk = f"{device_city}|{strip0(lc)}|{strip0(station_code)}" if lc and station_code else None
             else:
                 mk = None  # 大类 fallback（空站名）：不参与 match_key，按 device_code 前缀匹配
             seen_added.add(key)
             add_device.append((dev, city, lc, lname, station, station_en, type_, std, mk,
-                               parent_city if not station else None))
+                               parent_city if not station or city != device_city else None))
     # 过期检测：DB 中存在但当前 CSV 已不再出现的设备（--only 时无法判断，跳过）
     if only_files is None:
         stale_device = sorted(key for key in loader.device_by_key if key not in csv_devices)
@@ -475,8 +492,25 @@ def main():
     db.execute("BEGIN")
     schema_changed = prepare_schema(db)
     cur = db.cursor()
-    added_stations, added_lines, changed_line_codes = 0, 0, 0
+    added_cities, added_stations, added_lines, changed_line_codes = 0, 0, 0, 0
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 与原始构建的 updated_at 时间戳格式一致
+
+    def ensure_city(code):
+        nonlocal added_cities
+        cid = loader.city_id(code)
+        if cid is not None:
+            return cid
+        if not code:
+            return None
+        # 未收录的网络前缀仅用原码占位，不能借目录城市码替换它。
+        # 名称也用原码，避免覆盖 city_code_by_name 中真实目录城市的解析。
+        cur.execute("INSERT INTO city (city_code, city_name) VALUES (?,?)", (code, code))
+        cid = cur.lastrowid
+        row = cur.execute("SELECT * FROM city WHERE city_id=?", (cid,)).fetchone()
+        loader.city_by_code[code] = row
+        loader.city_name_by_id[cid] = code
+        added_cities += 1
+        return cid
 
     def ensure_line(city, line_code, lname, cid):
         nonlocal added_lines
@@ -532,7 +566,7 @@ def main():
         return sid
 
     for dev, city, line_code, lname, station, station_en, type_, std, mk, device_location in add_device:
-        cid = loader.city_id(city)
+        cid = ensure_city(city)
         if cid is None:
             print(f"  !! 城市 {city} 不在 DB，跳过 {dev}（{station}）")
             continue
@@ -541,10 +575,10 @@ def main():
         cur.execute(
             "INSERT INTO reader_device (standard, device_code, city_id, line_id, station_id, transit_type, device_location, match_key, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
-            (std, dev, cid, lid, sid, type_, device_location, mk, ts))
+            (std, dev, ensure_city(dev[:4]), lid, sid, type_, device_location, mk, ts))
     for dev, city, line_code, lname, station, type_, std, device_location in upd_device:
         old = loader.device_by_key[mapping_key(dev, type_)]
-        cid = old["city_id"]
+        cid = ensure_city(city)
         lid = ensure_line(city, line_code, lname, cid) or old["line_id"]
         sid = ensure_station(city, station, cid, None) if station else None
         if (lid != old["line_id"] or sid != old["station_id"] or type_ != old["transit_type"]
@@ -612,6 +646,8 @@ def main():
     print(f"\n已写入：新增 {len(add_device)} 设备 / {added_stations} 站 / {added_lines} 线，更新 {len(upd_device)} 映射，"
           f"同步 {len(dict(upd_station_en))} 个英文名"
           + (f"，删除 {len(stale_device)} 条过期设备" if args.delete_stale and stale_device else ""))
+    if added_cities:
+        print(f"新增 {added_cities} 个网络前缀城市占位（名称为原始前缀）")
     print("identity_hash", identity_hash)
 
     if args.upload:

@@ -126,3 +126,140 @@ def test_dry_run_leaves_schema_and_database_unchanged(dataset, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["update_transit_db.py", "--dry-run"])
     assert update.main() == 0
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("header", ["City", "Prefix"])
+def test_yct_shared_prefix_reuses_foshan_line_and_station(dataset, monkeypatch, header):
+    path, _, _, _ = dataset
+    with sqlite3.connect(path) as db:
+        update.prepare_schema(db)
+        db.executemany("INSERT INTO city VALUES (?,?,?,?)", [
+            (2, "0100", "广州", "Guangzhou"),
+            (3, "5810", "广州", "Guangzhou"),
+            (4, "5880", "佛山", "Foshan"),
+        ])
+        db.executemany("INSERT INTO line VALUES (?,?,?,?,?,?)", [
+            (3, 3, "0002", "2号线", "Line 2", "#00679E"),
+            (4, 4, "0042", "2号线", "Line 2", "#EB0000"),
+            (5, 4, "0043", "3号线", "Line 3", "#004DB3"),
+        ])
+        db.executemany("INSERT INTO station VALUES (?,?,?,?,?,?)", [
+            (21, 2, "智慧新城", None, None, None),
+            (22, 4, "智慧新城", "Zhihui Xincheng", 113.0501119, 23.0136753),
+            (23, 4, "南庄", "Nanzhuang", 113.0, 23.0),
+            (24, 4, "镇安", "Zhen'an", 113.1, 23.0),
+            (25, 2, "市二宫", "The 2nd Workers' Cultural Palace", 113.2, 23.1),
+        ])
+        db.executemany(
+            "INSERT INTO reader_device (device_id,standard,device_code,city_id,line_id,station_id,transit_type) "
+            "VALUES (?,'YCT',?,2,?,?,?)", [
+                (110, "010030085684", 3, 21, "地铁"),
+                (111, "010030085684", 3, None, "公交"),
+                (112, "010000200001", 3, 25, "地铁"),
+            ])
+    source = Path(update.ROOT)
+    foshan = source / "Guangdong" / "Foshan"
+    foshan.mkdir(parents=True)
+    with (foshan / "metro-yct.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        # City/Prefix 都可能表示共用网络前缀，而非线路实际归属。
+        writer.writerow([header, "Code", "Type", "Line", "Station"])
+        writer.writerows([
+            ["0100", "30085610", "地铁", "2号线", "南庄"],
+            ["0100", "30085684", "地铁", "2号线", "智慧新城"],
+            ["0100", "30092533", "地铁", "3号线", "镇安"],
+            ["0100", "30077710", "地铁", "4号线", "新站点"],
+        ])
+    guangzhou = source / "Guangdong" / "Guangzhou"
+    guangzhou.mkdir(parents=True)
+    (guangzhou / "metro-yct.csv").write_text(
+        "Prefix,Code,Type,Line,Station\n0100,00200001,地铁,2号线,市二宫\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["update_transit_db.py", "--only",
+                                        "Guangdong/Foshan/metro-yct.csv", "Guangdong/Guangzhou/metro-yct.csv"])
+    assert update.main() == 0
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT device_id,city_id,line_id,station_id FROM reader_device "
+            "WHERE device_code='010030085684' AND transit_type='地铁'"
+        ).fetchone() == (110, 2, 4, 22)
+        assert db.execute("SELECT device_location FROM reader_device WHERE device_id=110").fetchone()[0] == "5880"
+        assert db.execute("SELECT line_id,station_id FROM reader_device WHERE device_id=111").fetchone() == (3, None)
+        assert db.execute("SELECT line_id,station_id FROM reader_device WHERE device_id=112").fetchone() == (3, 25)
+        assert db.execute("SELECT city_id,line_id,station_id FROM reader_device WHERE device_code='010030085610'").fetchone() == (2, 4, 23)
+        assert db.execute("SELECT city_id,line_id,station_id FROM reader_device WHERE device_code='010030092533'").fetchone() == (2, 5, 24)
+        assert db.execute("SELECT COUNT(*) FROM line").fetchone()[0] == 6
+        assert db.execute(
+            "SELECT r.city_id,r.device_location,l.city_id,l.line_name,s.city_id,s.station_name,s.longitude,s.latitude "
+            "FROM reader_device r JOIN line l ON l.line_id=r.line_id JOIN station s ON s.station_id=r.station_id "
+            "WHERE device_code='010030077710'"
+        ).fetchone() == (2, "5880", 4, "4号线", 4, "新站点", None, None)
+        assert db.execute("SELECT station_name_en,longitude,latitude FROM station WHERE station_id=22").fetchone() == (
+            "Zhihui Xincheng", 113.0501119, 23.0136753)
+        assert db.execute("SELECT line_color FROM line WHERE line_id=4").fetchone()[0] == "#EB0000"
+        assert db.execute("SELECT identity_hash FROM room_master_table").fetchone()[0] == update.schema_info()["identityHash"]
+    loader = update.Loader(str(path))
+    try:
+        plan = update.build_update(loader, ["Guangdong/Foshan/metro-yct.csv", "Guangdong/Guangzhou/metro-yct.csv"])
+        assert plan[0] == []
+        assert plan[1] == []
+    finally:
+        loader.db.close()
+
+
+def test_yct_bus_shared_prefix_keeps_each_source_city(dataset, monkeypatch):
+    path, _, _, _ = dataset
+    cities = [(3, "5880", "佛山", "Foshan"), (4, "6020", "东莞", "Dongguan"), (5, "5180", "深圳", "Shenzhen")]
+    with sqlite3.connect(path) as db:
+        update.prepare_schema(db)
+        db.execute("INSERT INTO city VALUES (2,'0100','广州','Guangzhou')")
+        db.executemany("INSERT INTO city VALUES (?,?,?,?)", cities)
+        db.execute("INSERT INTO line VALUES (3,2,'1','1',NULL,NULL)")
+        for city_id, city_code, _, _ in cities:
+            db.execute(
+                "INSERT INTO reader_device (standard,device_code,city_id,line_id,transit_type,device_location) "
+                "VALUES ('YCT',?,2,3,'公交',?)", (f"01003000000{city_id}", city_code))
+    files = []
+    for city_id, _, _, name_en in cities:
+        city_dir = Path(update.ROOT) / "Guangdong" / name_en
+        city_dir.mkdir(parents=True)
+        (city_dir / "bus-yct.csv").write_text(
+            f"Prefix,Code,Type,Line,Station\n0100,3000000{city_id},公交,1,\n", encoding="utf-8")
+        files.append(f"Guangdong/{name_en}/bus-yct.csv")
+    monkeypatch.setattr(sys, "argv", ["update_transit_db.py", "--only", *files])
+    assert update.main() == 0
+    with sqlite3.connect(path) as db:
+        for city_id, city_code, _, _ in cities:
+            assert db.execute(
+                "SELECT r.city_id,r.device_location,l.city_id,l.line_name FROM reader_device r "
+                "JOIN line l ON l.line_id=r.line_id WHERE device_code=?", (f"01003000000{city_id}",)
+            ).fetchone() == (2, city_code, city_id, "1")
+    loader = update.Loader(str(path))
+    try:
+        assert update.build_update(loader, files)[1] == []
+    finally:
+        loader.db.close()
+
+
+def test_unknown_prefix_is_preserved_with_source_city_for_location(dataset, monkeypatch):
+    path, write, _, _ = dataset
+    write("unknown-tu.csv", [["3000", "081A0000000000", "公交", "测试卡机", "东环南路"]])
+    monkeypatch.setattr(sys, "argv", ["update_transit_db.py", "--only", "Zhejiang/Ningbo/unknown-tu.csv"])
+    assert update.main() == 0
+    with sqlite3.connect(path) as db:
+        row = db.execute(
+            "SELECT r.device_code,c.city_code,c.city_name,r.device_location,l.city_id,s.station_id "
+            "FROM reader_device r JOIN city c ON c.city_id=r.city_id "
+            "JOIN line l ON l.line_id=r.line_id JOIN station s ON s.station_id=r.station_id "
+            "WHERE r.device_code='3000081A0000000000'"
+        ).fetchone()
+        assert row == ("3000081A0000000000", "3000", "3000", "3320", 1, 20)
+        assert db.execute("SELECT COUNT(*) FROM reader_device WHERE device_code='3320081A0000000000'").fetchone()[0] == 0
+        assert not db.execute("PRAGMA foreign_key_check").fetchall()
+    loader = update.Loader(str(path))
+    try:
+        assert update.parent_city_code(loader, "Zhejiang/Ningbo/unknown-tu.csv") == "3320"
+        plan = update.build_update(loader, ["Zhejiang/Ningbo/unknown-tu.csv"])
+        assert plan[0] == []
+        assert plan[1] == []
+    finally:
+        loader.db.close()

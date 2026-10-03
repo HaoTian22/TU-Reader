@@ -41,7 +41,7 @@ object TransitData {
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
-        val deviceLocation: String? = null, // 无具体站点时由 CSV 上层目录确定的实际城市码
+        val deviceLocation: String? = null, // 无站点 GEO 时由 CSV 上层目录确定的实际城市码
         val spRule: String? = null       // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行展示
     )
 
@@ -139,7 +139,7 @@ object TransitData {
         return boundaryVersion
     }
 
-    /** 根据站点 GEO、线路级设备地点和 declared city 生成实际地点。 */
+    /** 根据站点 GEO、来源目录的设备地点和 declared city 生成实际地点。 */
     fun actualLocation(
         stationId: Long?,
         deviceCode: String?,
@@ -160,7 +160,7 @@ object TransitData {
         val candidates = deviceCode?.let { byDeviceCode[it] }.orEmpty()
         val deviceLocation = (if (lineId != null) candidates.filter { it.lineId == lineId }
             else candidates).map { it.deviceLocation }.distinct().singleOrNull()
-        if (stationId == null && !deviceLocation.isNullOrBlank()) {
+        if (!deviceLocation.isNullOrBlank()) {
             return ActualLocation(deviceLocation, cityZh(deviceLocation), LocationSource.PARENT_DIRECTORY)
         }
         val fallback = declaredCityCode?.takeIf { it.isNotBlank() }

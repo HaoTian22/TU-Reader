@@ -44,8 +44,8 @@ object RecordDecoder {
         val spRule: String? = null
     )
 
-    /** 能由 LNT type/subtype 可靠判定进出站的闸机轨道交通类别。 */
-    private enum class TransitCategory { GATED_RAIL, CONVENIENCE }
+    /** 设备映射与 LNT type/subtype 的类型兼容类别；仅闸机轨道交通有进出站方向。 */
+    private enum class TransitCategory { GATED_RAIL, BUS, CONVENIENCE }
 
     /** LNT 0x18 原始交易类型覆盖；type/subtype 均按记录中的十六进制字节比较。 */
     private data class LntType(
@@ -54,10 +54,16 @@ object RecordDecoder {
         val direction: TransitDirection? = null
     )
 
-    private fun resolveLntType(typeByte: Int, subtype: Int?): LntType? {
+    private fun resolveLntType(typeByte: Int, subtype: Int?, mappingTransitType: String?): LntType? {
         return when {
+            // YCT 09/17、09/31 可用于公交：命中公交映射就按公交解释，不标出站。
+            // 未命中时保留原有的地铁出站兜底；其它已命中类型仍由设备映射优先决定。
             typeByte == 0x09 && (subtype == 0x31 || subtype == 0x17) ->
-                LntType("地铁", TransitCategory.GATED_RAIL, TransitDirection.EXIT)
+                if (mappingCategory(mappingTransitType) == TransitCategory.BUS) {
+                    LntType("公交", TransitCategory.BUS)
+                } else {
+                    LntType("地铁", TransitCategory.GATED_RAIL, TransitDirection.EXIT)
+                }
             typeByte == 0x09 && subtype == 0x11 ->
                 LntType("地铁", TransitCategory.GATED_RAIL, TransitDirection.ENTRY)
             typeByte == 0x06 && subtype == 0x17 ->
@@ -68,6 +74,7 @@ object RecordDecoder {
 
     private fun mappingCategory(type: String?): TransitCategory? = when (type) {
         "地铁", "城际" -> TransitCategory.GATED_RAIL
+        "公交", "BRT", "bus" -> TransitCategory.BUS
         "便利店" -> TransitCategory.CONVENIENCE
         else -> null
     }
@@ -485,7 +492,6 @@ object RecordDecoder {
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
             val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
             val subtype = if (isSubtype18) data[22].toInt() and 0xFF else null
-            val lntType = if (isLnt && isSubtype18) resolveLntType(typeByte, subtype) else null
             val time = if (isSubtype18) {
                 ApduUtil.bcdToString(data.copyOfRange(20, 22)) + "00"
             } else {
@@ -534,6 +540,9 @@ object RecordDecoder {
             val ref = if (!isRecharge && resolvedRef != null) resolvedRef
                 else StationRef("", "", "充值")
             val mappingMatched = !isRecharge && ref.deviceCode != null
+            val lntType = if (isLnt && isSubtype18) {
+                resolveLntType(typeByte, subtype, ref.mappingTransitType.takeIf { mappingMatched })
+            } else null
             val lntDirection = lntType?.direction
             val direction = when {
                 isRecharge -> null

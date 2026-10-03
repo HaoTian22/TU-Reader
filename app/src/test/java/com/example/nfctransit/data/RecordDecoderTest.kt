@@ -1,6 +1,7 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.data.db.StationResolution
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.TransitDirection
 import java.util.Calendar
@@ -11,6 +12,61 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecordDecoderTest {
+
+    @Test
+    fun lntExitSubtypesUseBusMappingWithoutRailDirection() = withLntMappings(listOf(lntMapping("公交"))) {
+        for (subtype in listOf(0x17, 0x31)) {
+            val tx = decodeLnt(subtype = subtype)
+            assertEquals(TransitData.transitTypeLabel("公交"), tx.transitType)
+            assertEquals("测试公交", tx.lineName)
+            assertEquals("99000018", tx.deviceCode)
+            assertEquals("09", tx.typeHex)
+            assertNull(tx.direction)
+        }
+    }
+
+    @Test
+    fun lntExitSubtypesKeepRailExitWhenLongerRailMappingWins() = withLntMappings(listOf(
+        lntMapping("公交"),
+        lntMapping("地铁").copy(deviceCode = "990000180001")
+    )) {
+        for (subtype in listOf(0x17, 0x31)) {
+            val tx = decodeLnt(subtype = subtype)
+            assertEquals(TransitData.transitTypeLabel("地铁"), tx.transitType)
+            assertEquals("测试站", tx.stationName)
+            assertEquals("990000180001", tx.deviceCode)
+            assertEquals(TransitDirection.EXIT, tx.direction)
+        }
+    }
+
+    @Test
+    fun lntExitSubtypesWithoutMappingKeepMetroExitFallback() = withLntMappings(emptyList()) {
+        for (subtype in listOf(0x17, 0x31)) {
+            val tx = decodeLnt(subtype = subtype)
+            assertEquals("地铁", tx.transitType)
+            assertNull(tx.deviceCode)
+            assertEquals(TransitDirection.EXIT, tx.direction)
+        }
+    }
+
+    @Test
+    fun lntExitSubtypesKeepNonRailMapping() = withLntMappings(listOf(lntMapping("便利店"))) {
+        for (subtype in listOf(0x17, 0x31)) {
+            val tx = decodeLnt(subtype = subtype)
+            assertEquals(TransitData.transitTypeLabel("便利店"), tx.transitType)
+            assertNull(tx.direction)
+        }
+    }
+
+    @Test
+    fun lntEntryAndRetailFallbacksRemainWithoutMapping() = withLntMappings(emptyList()) {
+        val entry = decodeLnt(subtype = 0x11)
+        assertEquals("地铁", entry.transitType)
+        assertEquals(TransitDirection.ENTRY, entry.direction)
+        val retail = decodeLnt(type = 0x06, subtype = 0x17)
+        assertEquals("便利店", retail.transitType)
+        assertNull(retail.direction)
+    }
 
     @Test
     fun journeyAreaCity_replacesFareDeviceCityAfterMerge() {
@@ -217,7 +273,9 @@ class RecordDecoderTest {
         recNo: Int,
         sequence: Int,
         mmdd: String,
-        type: Int = 0x06
+        type: Int = 0x06,
+        subtype: Int = 0x17,
+        terminal: String = "000000000000"
     ): RecordDecoder.ZoneRecord {
         val data = ByteArray(0x17)
         data[0] = (sequence shr 8).toByte()
@@ -226,16 +284,47 @@ class RecordDecoderTest {
         data[7] = 0x00
         data[8] = 0x64
         data[9] = type.toByte()
+        ApduUtil.hexToBytes(terminal).copyInto(data, destinationOffset = 10)
         data[18] = bcd(mmdd.substring(0, 2))
         data[19] = bcd(mmdd.substring(2, 4))
         data[20] = bcd("12")
         data[21] = bcd("00")
-        data[22] = 0x17
+        data[22] = subtype.toByte()
         return RecordDecoder.ZoneRecord(0x18, recNo, "LNT", ApduUtil.bytesToHex(data))
     }
 
     private fun bcd(value: String): Byte =
         ((value[0] - '0') shl 4 or (value[1] - '0')).toByte()
+
+    private fun decodeLnt(type: Int = 0x09, subtype: Int) = RecordDecoder.decodeCard(
+        "YCT", listOf(lntRecord(1, 1, "0101", type, subtype, "990000180001")), 202601, 2026
+    ).display.single()
+
+    private fun lntMapping(type: String) = StationResolution(
+        cityId = 1, cityCode = "9900", cityName = "测试城市", cityNameEn = null,
+        lineId = 1, lineName = if (type == "地铁") "测试地铁" else "测试公交", lineNameEn = null,
+        lineColor = null, stationId = if (type == "地铁") 20 else null,
+        stationName = if (type == "地铁") "测试站" else null, stationNameEn = null,
+        standard = "YCT", transitType = type, deviceCode = "99000018", deviceLocation = null, matchKey = null
+    )
+
+    private fun withLntMappings(mappings: List<StationResolution>, block: () -> Unit) {
+        val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
+        val candidates = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val index = candidates.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
+        val key = "9900" to null
+        val previous = index[key]
+        val wasLoaded = loaded.getBoolean(TransitData)
+        try {
+            loaded.setBoolean(TransitData, true)
+            index[key] = mappings
+            block()
+        } finally {
+            if (previous == null) index.remove(key) else index[key] = previous
+            loaded.setBoolean(TransitData, wasLoaded)
+        }
+    }
 
     private fun transaction(
         identity: String,
