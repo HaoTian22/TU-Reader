@@ -14,7 +14,7 @@ import org.junit.Test
 class RecordDecoderTest {
 
     @Test
-    fun lntExitSubtypesUseBusMappingWithoutRailDirection() = withLntMappings(listOf(lntMapping("公交"))) {
+    fun lntExitSubtypesUseBusMappingWithoutRailDirection() = withDeviceMappings(listOf(lntMapping("公交"))) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
             assertEquals(TransitData.transitTypeLabel("公交"), tx.transitType)
@@ -26,7 +26,7 @@ class RecordDecoderTest {
     }
 
     @Test
-    fun lntExitSubtypesKeepRailExitWhenLongerRailMappingWins() = withLntMappings(listOf(
+    fun lntExitSubtypesKeepRailExitWhenLongerRailMappingWins() = withDeviceMappings(listOf(
         lntMapping("公交"),
         lntMapping("地铁").copy(deviceCode = "990000180001")
     )) {
@@ -40,7 +40,7 @@ class RecordDecoderTest {
     }
 
     @Test
-    fun lntExitSubtypesWithoutMappingKeepMetroExitFallback() = withLntMappings(emptyList()) {
+    fun lntExitSubtypesWithoutMappingKeepMetroExitFallback() = withDeviceMappings(emptyList()) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
             assertEquals("地铁", tx.transitType)
@@ -50,7 +50,7 @@ class RecordDecoderTest {
     }
 
     @Test
-    fun lntExitSubtypesKeepNonRailMapping() = withLntMappings(listOf(lntMapping("便利店"))) {
+    fun lntExitSubtypesKeepNonRailMapping() = withDeviceMappings(listOf(lntMapping("便利店"))) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
             assertEquals(TransitData.transitTypeLabel("便利店"), tx.transitType)
@@ -59,7 +59,7 @@ class RecordDecoderTest {
     }
 
     @Test
-    fun lntEntryAndRetailFallbacksRemainWithoutMapping() = withLntMappings(emptyList()) {
+    fun lntEntryAndRetailFallbacksRemainWithoutMapping() = withDeviceMappings(emptyList()) {
         val entry = decodeLnt(subtype = 0x11)
         assertEquals("地铁", entry.transitType)
         assertEquals(TransitDirection.ENTRY, entry.direction)
@@ -169,9 +169,51 @@ class RecordDecoderTest {
 
     @Test
     fun tuType03And04AreEntryAndExitForAnyTransitFamily() {
-        assertEquals(TransitDirection.ENTRY, RecordDecoder.tuDirectionForType(0x03))
-        assertEquals(TransitDirection.EXIT, RecordDecoder.tuDirectionForType(0x04))
-        assertNull(RecordDecoder.tuDirectionForType(0x06))
+        for (type in listOf(null, "地铁", "公交", "城际", "有轨电车")) {
+            assertEquals(TransitDirection.ENTRY, RecordDecoder.tuDirectionForType(0x03, type))
+            assertEquals(TransitDirection.EXIT, RecordDecoder.tuDirectionForType(0x04, type))
+        }
+    }
+
+    @Test
+    fun tuType06UsesMappedMetroTypeWithUnknownSubtype() {
+        for (type in listOf("地铁", "公交", "城际", "有轨电车")) {
+            withDeviceMappings(listOf(lntMapping(type).copy(standard = "TU"))) {
+                val tx = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(0x06, 0x00)), null, 2026)
+                    .display.single()
+                assertEquals("06", tx.typeHex)
+                assertEquals("99000018", tx.deviceCode)
+                assertEquals(TransitData.transitTypeLabel(type), tx.transitType)
+                assertEquals(if (type == "地铁") TransitDirection.ENTRY else null, tx.direction)
+            }
+        }
+    }
+
+    @Test
+    fun tuType06UsesSubtypeFallbackWhenMappingIsMissing() = withDeviceMappings(emptyList()) {
+        for (subtype in listOf(0x01, 0x02, 0x00)) {
+            val tx = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(0x06, subtype)), null, 2026)
+                .display.single()
+            assertNull(tx.deviceCode)
+            assertEquals(if (subtype == 0x01) TransitDirection.ENTRY else null, tx.direction)
+        }
+    }
+
+    @Test
+    fun fareType06KeepsJourneyDirectionWhenMerged() = withDeviceMappings(emptyList()) {
+        for (type in listOf(0x06, 0x04)) {
+            val data = ByteArray(0x17)
+            data[1] = 1
+            data[8] = 0x64
+            data[9] = 0x06
+            ApduUtil.hexToBytes("990000180001").copyInto(data, destinationOffset = 10)
+            ApduUtil.hexToBytes("20260101120000").copyInto(data, destinationOffset = 16)
+            val fare = RecordDecoder.ZoneRecord(0x18, 1, "TU", ApduUtil.bytesToHex(data))
+            val decoded = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(type, 0x01), fare), null, 2026)
+            val tx = decoded.display.single()
+            assertEquals("06", tx.typeHex)
+            assertEquals(if (type == 0x06) TransitDirection.ENTRY else TransitDirection.EXIT, tx.direction)
+        }
     }
 
     @Test
@@ -308,7 +350,19 @@ class RecordDecoderTest {
         standard = "YCT", transitType = type, deviceCode = "99000018", deviceLocation = null, matchKey = null
     )
 
-    private fun withLntMappings(mappings: List<StationResolution>, block: () -> Unit) {
+    private fun tuJourneyRecord(type: Int, subtype: Int): RecordDecoder.ZoneRecord {
+        val data = ByteArray(48)
+        data[0] = type.toByte()
+        ApduUtil.hexToBytes("990000180001").copyInto(data, destinationOffset = 3)
+        data[9] = subtype.toByte()
+        ApduUtil.hexToBytes("00180000000000").copyInto(data, destinationOffset = 10)
+        data[20] = 0x64
+        ApduUtil.hexToBytes("20260101120000").copyInto(data, destinationOffset = 25)
+        ApduUtil.hexToBytes("9900").copyInto(data, destinationOffset = 32)
+        return RecordDecoder.ZoneRecord(0x1E, 1, "TU", ApduUtil.bytesToHex(data))
+    }
+
+    private fun withDeviceMappings(mappings: List<StationResolution>, block: () -> Unit) {
         val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
         val candidates = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")

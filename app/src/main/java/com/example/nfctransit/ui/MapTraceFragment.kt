@@ -30,7 +30,6 @@ import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.route.RouteGeometryKind
-import com.example.nfctransit.data.route.RouteGeometry
 import com.example.nfctransit.data.route.RouteLeg
 import com.example.nfctransit.data.route.RouteLoadState
 import com.example.nfctransit.data.route.RouteMode
@@ -89,6 +88,8 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         val gradientEnds: Pair<Int, Int>? = null
     ) {
         var animator: ValueAnimator? = null
+        /** 折线已移除：之后任何颜色/线宽更新都必须跳过（对已释放的折线调用会在地图引擎内原生崩溃） */
+        var removed = false
         /** 当前显示的颜色：单色为 1 个元素，渐变为逐点颜色 */
         var shownColors: IntArray = intArrayOf(0)
         /** 当前段的基础颜色（流光叠加在其上）；非当前段为 null */
@@ -136,9 +137,11 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private var programmaticScroll = false   // 播放自动滚动列表时不当作"用户滑动"
     private var scrollAnimator: ValueAnimator? = null
+    private var lastListTouchAt = 0L   // 最近一次触摸行程列表的时间（uptime），用于区分用户滚动
     private var lastActiveSegment: MapSegment? = null   // 用于判断当前段是否切换（切换时做过渡动画）
     private var highlightedRow = -1
     private var shimmerAnimator: ValueAnimator? = null   // 当前段流光（指示行进方向）
+    private var shimmerBand: Polyline? = null             // 流光光带（叠在当前段线路之上）
     private var playbackJob: Job? = null
     private var cameraJob: Job? = null
     private var routeLoadJob: Job? = null
@@ -151,7 +154,6 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var routeHasEstimate = false
     private var routeHasStaleCache = false
     private var routeHasApproximateRail = false
-    private var playbackMarker: Marker? = null
     private val transferMarkers = mutableListOf<Marker>()
 
     override fun onCreateView(
@@ -182,7 +184,6 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 setColor(mainAccent)
             }
             binding.btnPlay.backgroundTintList = ColorStateList.valueOf(mainAccent)
-            playbackMarker?.setIcon(playbackDot(mainAccent))
             setSpeed(speed)
             if (!model.isEmpty) updateHighlight(scrollList = false)
         }
@@ -264,14 +265,19 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         // 列表：触摸即暂停，滑动调整当前时间（像歌词那样跟随视口中线）
         binding.tripScroll.setOnTouchListener { _, event ->
+            lastListTouchAt = SystemClock.uptimeMillis()
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 scrollAnimator?.cancel()
                 pause()
             }
             false
         }
+        // 只把"刚被手指拖动/甩动"引起的滚动当作用户选择；列表重建（路线结果到达后）引起的布局滚动
+        // 不应改选当前段，否则镜头会莫名飞到别的行程
         binding.tripScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            if (!programmaticScroll) handleUserScroll(scrollY)
+            if (!programmaticScroll && SystemClock.uptimeMillis() - lastListTouchAt < USER_SCROLL_WINDOW_MS) {
+                handleUserScroll(scrollY)
+            }
         }
     }
 
@@ -306,14 +312,13 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         stationMarkerKey.clear()
         stationIconKeys.clear()
         stopShimmer()
-        segmentOverlays.forEach { holder -> holder.legs.forEach { it.animator?.cancel() } }
+        segmentOverlays.forEach { holder -> holder.legs.forEach { it.dispose(removeFromMap = false) } }
         segmentOverlays.clear()
         routePlans.clear()
         segmentRows.clear()
         lastActiveSegment = null
         highlightedRow = -1
         transferMarkers.clear()
-        playbackMarker = null
         plainDotCache.clear()
         highlightDotCache.clear()
         labelCache.clear()
@@ -499,10 +504,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun replaceWithRealRoute(segment: MapSegment, plan: RoutePlan) {
         val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
-        holder.legs.forEach { overlay ->
-            overlay.white?.remove()
-            overlay.color.remove()
-        }
+        // 当前段的腿被替换：停掉基于旧腿的流光，随后的 updateHighlight 会按新腿重建
+        if (holder.segment === lastActiveSegment) stopShimmer()
+        holder.legs.forEach { it.dispose() }
         holder.legs.clear()
         for (leg in plan.legs) {
             if (leg.points.size < 2) continue
@@ -600,7 +604,6 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun stopPlayback() {
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
-        playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
         refreshMarkerIcons()
@@ -609,7 +612,6 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun pause() {
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
-        playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
         refreshMarkerIcons()
@@ -627,9 +629,8 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         animateCameraTo(model.events[currentEventIndex])
     }
 
-    /** 播放前进一步：飞前停 1s → 镜头动画（await 完成）→ 飞后停 0.5s → 切换。
-     *  当前在进站端且后一个事件是它的出站端（一段行程）且有真实路线 → 沿路线跟随；
-     *  否则镜头只显示整段总览（见 [cameraFrameFor]），行程之间在总览间飞行。 */
+    /** 播放前进一步：飞前停 1s → 镜头飞到下一事件所在整段的总览（await 完成）→ 飞后停 0.5s → 切换。
+     *  当前在进站端且后一个事件是它的出站端时，下一步是同一段的出站端（镜头已在总览则不动）。 */
     private suspend fun advanceOneStep() {
         val cur = model.events.getOrNull(currentEventIndex) ?: return
         val seg = activeSegmentAt()
@@ -642,94 +643,12 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         }
         // 飞前停 1s
         delay((1000f / speed).toLong())
-        val routePlan = journeySegment?.let(routePlans::get)
-        if (journeySegment != null && routePlan != null) {
-            animateAlongRoute(journeySegment, routePlan, currentEventIndex, next)
-        } else {
-            // 示意曲线降级：镜头框住下一事件所在的整段行程（同段内已在总览则不动）
-            val (center, zoom) = cameraFrameFor(model.events[next])
-            flyCameraNow(center, zoom)
-        }
+        val (center, zoom) = cameraFrameFor(model.events[next])
+        flyCameraNow(center, zoom)
         // 飞后停 0.5s，然后切换
         delay((500f / speed).toLong())
-        playbackMarker?.setVisible(false)
         currentEventIndex = next
         updateHighlight()
-    }
-
-    /** 沿腾讯返回的真实点串匀速播放；各腿按几何距离分配时长，换乘边界短暂停留。 */
-    private suspend fun animateAlongRoute(
-        segment: MapSegment,
-        plan: RoutePlan,
-        fromEventIndex: Int,
-        toEventIndex: Int
-    ) {
-        val map = tencentMap ?: return
-        val geometries = plan.legs.map { RouteGeometry(it.points) }
-        val totalMeters = geometries.sumOf { it.totalMeters }
-        if (totalMeters <= 0.0) {
-            animateCameraToNow(segment.to ?: return)
-            return
-        }
-        cameraJob?.cancel()
-        cameraJob = null
-        val baseDuration = ((totalMeters / 1000.0) * 800.0).toLong().coerceIn(3_000L, 12_000L)
-        val totalDuration = (baseDuration / speed).toLong().coerceAtLeast(1_000L)
-        val progressStart = if (model.events.size <= 1) 0f
-        else fromEventIndex.toFloat() / model.events.lastIndex
-        val progressEnd = if (model.events.size <= 1) 1f
-        else toEventIndex.toFloat() / model.events.lastIndex
-        val followZoom = (map.cameraPosition?.zoom ?: 15.5f).coerceIn(14.5f, 17f)
-        var completedMeters = 0.0
-
-        for ((legIndex, geometry) in geometries.withIndex()) {
-            if (geometry.points.size < 2 || geometry.totalMeters <= 0.0) continue
-            updateActiveRouteLeg(segment, legIndex)
-            val legDuration = (totalDuration * geometry.totalMeters / totalMeters)
-                .toLong().coerceAtLeast(300L)
-            val startedAt = SystemClock.elapsedRealtime()
-            while (currentCoroutineContext().isActive) {
-                val elapsed = SystemClock.elapsedRealtime() - startedAt
-                val fraction = (elapsed.toDouble() / legDuration).coerceIn(0.0, 1.0)
-                val point = geometry.pointAtFraction(fraction) ?: break
-                val latLng = LatLng(point.lat, point.lng)
-                showPlaybackMarker(latLng)
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, followZoom))
-                val routeFraction = ((completedMeters + geometry.totalMeters * fraction) / totalMeters).toFloat()
-                updateProgressBar(progressStart + (progressEnd - progressStart) * routeFraction)
-                if (fraction >= 1.0) break
-                awaitFrame()
-            }
-            completedMeters += geometry.totalMeters
-            if (legIndex < geometries.lastIndex) delay((350f / speed).toLong())
-        }
-    }
-
-    private fun showPlaybackMarker(position: LatLng) {
-        val marker = playbackMarker
-        if (marker == null) {
-            playbackMarker = tencentMap?.addMarker(
-                MarkerOptions()
-                    .position(position)
-                    .anchor(0.5f, 0.5f)
-                    .level(OverlayLevel.OverlayLevelAboveLabels)
-                    .zIndex(PLAYBACK_Z.toFloat())
-                    .icon(playbackDot(mainAccent))
-            )
-        } else {
-            marker.setPosition(position)
-            marker.setVisible(true)
-        }
-    }
-
-    private fun updateActiveRouteLeg(segment: MapSegment, activeLegIndex: Int) {
-        val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
-        for ((index, overlay) in holder.legs.withIndex()) {
-            overlay.showCasing(true)
-            overlay.color.setColor(overlay.displayColor(active = true))
-            val extra = if (index == activeLegIndex) 1.5f else 0f
-            overlay.color.setWidth(dpToPx(overlay.activeWidthDp + extra))
-        }
     }
 
     private fun activeSegmentAt(): MapSegment? {
@@ -1305,21 +1224,6 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         return BitmapDescriptorFactory.fromBitmap(bmp)
     }
 
-    /** 播放位置：主题色圆点 + 白描边 + 主题色淡光晕 */
-    private fun playbackDot(accent: Int): BitmapDescriptor {
-        val d = resources.displayMetrics.density
-        val halo = 12f
-        val size = ((halo + MARKER_PAD_DP) * 2f * d).toInt()
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val c = size / 2f
-        canvas.drawCircle(c, c, halo * d, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = (accent and 0x00FFFFFF) or 0x33000000
-        })
-        drawDot(canvas, c, c, accent, 5.5f, highlighted = true)
-        return BitmapDescriptorFactory.fromBitmap(bmp)
-    }
-
     /** 换乘点：白底 + 深灰描边（地铁图换乘站样式），不与线路色抢视觉 */
     private fun transferDot(): BitmapDescriptor {
         val d = resources.displayMetrics.density
@@ -1358,6 +1262,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             duration = TRANSITION_MS
             interpolator = DecelerateInterpolator()
             addUpdateListener {
+                if (removed) return@addUpdateListener
                 val f = it.animatedValue as Float
                 val w = fromWidth + (toWidth - fromWidth) * f
                 applyColors(IntArray(n) { i -> ColorUtils.blendARGB(at(fromColors, i), at(targetColors, i), f) })
@@ -1375,42 +1280,135 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     /**
-     * 流光：一段柔和的白色高光沿当前段从起点流向终点，循环播放以指示方向。
-     * 在基础颜色（单色或渐变）上逐点叠加，多条腿按累计点序视为一条路径；腿在做切换过渡时跳过。
+     * 流光：一段柔和的高光沿当前段从起点流向终点，循环播放以指示方向。
+     * 不改线路本身的颜色（逐点 setColors 在真实路线点串上会让地图引擎原生崩溃），而是另画一条短折线
+     * 叠在当前段线路之上：每帧按固定 [SHIMMER_POINTS] 个等距点重采样路径上的一小段，逐点颜色从线路色
+     * 渐亮到中心再渐回线路色——两端与下面的线路同色、看不出边界，效果与原先整线逐点流光一致。
+     * 点数固定不变，setPoints / setColors 的长度始终一致。多条腿按距离视为一条路径。
      */
     private fun startShimmer(holder: SegmentOverlay) {
-        if (holder.legs.isEmpty()) return
+        val path = ShimmerPath.of(holder.legs) ?: return
         shimmerAnimator = ValueAnimator.ofFloat(-SHIMMER_HALF, 1f + SHIMMER_HALF).apply {
             duration = SHIMMER_MS
             startDelay = TRANSITION_MS
             repeatCount = ValueAnimator.INFINITE
             interpolator = LinearInterpolator()
             addUpdateListener { va ->
+                if (holder.legs.any { it.removed }) return@addUpdateListener
                 val center = va.animatedValue as Float
-                val total = holder.legs.sumOf { it.points.size }.coerceAtLeast(2)
-                var offset = 0
-                for (leg in holder.legs) {
-                    val n = leg.points.size
-                    val base = leg.activeColors
-                    if (base != null && n >= 2 && leg.animator?.isRunning != true) {
-                        leg.applyColors(IntArray(n) { i ->
-                            val x = (offset + i).toFloat() / (total - 1)
-                            val d = kotlin.math.abs(x - center) / SHIMMER_HALF
-                            val k = if (d >= 1f) 0f else (1f - d) * (1f - d)   // 中心最亮、两侧柔和衰减
-                            val c = if (base.size == 1) base[0] else base[i]
-                            ColorUtils.blendARGB(c, Color.WHITE, SHIMMER_STRENGTH * k)
-                        })
-                    }
-                    offset += n
-                }
+                shimmerBand = drawShimmerBand(shimmerBand, path, center)
             }
             start()
         }
     }
 
+    /** 在 [center ± SHIMMER_HALF]（占全长比例，夹在路径内）重采样出光带；区间退化时移除（腾讯折线不认 visible） */
+    private fun drawShimmerBand(band: Polyline?, path: ShimmerPath, center: Float): Polyline? {
+        val from = (center - SHIMMER_HALF).coerceIn(0f, 1f)
+        val to = (center + SHIMMER_HALF).coerceIn(0f, 1f)
+        if (to - from < 0.01f) {
+            band?.remove()
+            return null
+        }
+        val n = SHIMMER_POINTS
+        val xs = FloatArray(n) { i -> from + (to - from) * i / (n - 1) }
+        val pts = xs.map { path.pointAt(it.toDouble()) }
+        val colors = IntArray(n) { i ->
+            val d = kotlin.math.abs(xs[i] - center) / SHIMMER_HALF
+            val k = if (d >= 1f) 0f else (1f - d) * (1f - d)   // 中心最亮、两侧柔和衰减到线路本色
+            ColorUtils.blendARGB(path.colorAt(xs[i].toDouble()), Color.WHITE, SHIMMER_STRENGTH * k)
+        }
+        val indexes = IntArray(n) { it }
+        val widthPx = dpToPx(path.widthAt(center.toDouble()))
+        if (band == null) {
+            return tencentMap?.addPolyline(
+                PolylineOptions()
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex(SHIMMER_Z)
+                    .addAll(pts)
+                    .width(widthPx)
+                    .gradient(true)
+                    .colors(colors, indexes)
+            )
+        }
+        band.setPoints(pts)
+        band.setColors(colors, indexes)
+        band.setWidth(widthPx)
+        return band
+    }
+
     private fun stopShimmer() {
         shimmerAnimator?.cancel()
         shimmerAnimator = null
+        shimmerBand?.remove(); shimmerBand = null
+    }
+
+    /** 当前段整条路径（各腿首尾相接）：按累计距离截取子路径、查询某处的线路色与线宽 */
+    private class ShimmerPath(
+        private val points: List<LatLng>,
+        private val dist: DoubleArray,
+        private val colors: IntArray,
+        private val widths: FloatArray
+    ) {
+        private val total = dist.last()
+
+        private fun indexAt(d: Double): Int {
+            var lo = 0
+            var hi = dist.size - 1
+            while (hi - lo > 1) {
+                val mid = (lo + hi) / 2
+                if (dist[mid] <= d) lo = mid else hi = mid
+            }
+            return lo
+        }
+
+        private fun indexAtFraction(fraction: Double) = indexAt(fraction.coerceIn(0.0, 1.0) * total)
+
+        fun pointAt(fraction: Double): LatLng = pointAtDistance(fraction.coerceIn(0.0, 1.0) * total)
+
+        private fun pointAtDistance(d: Double): LatLng {
+            val i = indexAt(d)
+            val j = (i + 1).coerceAtMost(points.size - 1)
+            val span = dist[j] - dist[i]
+            val t = if (span <= 0.0) 0.0 else ((d - dist[i]) / span).coerceIn(0.0, 1.0)
+            val a = points[i]; val b = points[j]
+            return LatLng(a.latitude + (b.latitude - a.latitude) * t, a.longitude + (b.longitude - a.longitude) * t)
+        }
+
+        fun colorAt(fraction: Double): Int = colors[indexAtFraction(fraction)]
+
+        fun widthAt(fraction: Double): Float = widths[indexAtFraction(fraction)]
+
+        companion object {
+            /** 用当前段各腿的点与基础颜色建路径；相邻重复点（腿首尾相接处）去掉 */
+            fun of(legs: List<LegOverlay>): ShimmerPath? {
+                val pts = ArrayList<LatLng>()
+                val cols = ArrayList<Int>()
+                val ws = ArrayList<Float>()
+                for (leg in legs) {
+                    val base = leg.activeColors ?: continue
+                    for ((i, p) in leg.points.withIndex()) {
+                        val last = pts.lastOrNull()
+                        if (last != null && last.latitude == p.latitude && last.longitude == p.longitude) continue
+                        pts.add(p)
+                        cols.add(if (base.size == 1) base[0] else base[i.coerceAtMost(base.size - 1)])
+                        ws.add(leg.activeWidthDp)
+                    }
+                }
+                if (pts.size < 2) return null
+                val dist = DoubleArray(pts.size)
+                for (k in 1 until pts.size) dist[k] = dist[k - 1] + approxMeters(pts[k - 1], pts[k])
+                if (dist.last() <= 0.0) return null
+                return ShimmerPath(pts, dist, cols.toIntArray(), ws.toFloatArray())
+            }
+
+            private fun approxMeters(a: LatLng, b: LatLng): Double {
+                val lat = Math.toRadians((a.latitude + b.latitude) / 2.0)
+                val dx = Math.toRadians(b.longitude - a.longitude) * Math.cos(lat)
+                val dy = Math.toRadians(b.latitude - a.latitude)
+                return Math.hypot(dx, dy) * 6_371_000.0
+            }
+        }
     }
 
     /** 逐点渐变色：起点线路色 → 终点线路色 */
@@ -1419,8 +1417,28 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         return IntArray(points.size) { i -> ColorUtils.blendARGB(ends.first, ends.second, i.toFloat() / last) }
     }
 
-    /** 应用颜色：1 个颜色为单色线；多个颜色为逐点渐变（与 points 一一对应） */
+    /** 移除一条腿的覆盖物：先标记已移除再取消动画（cancel 会回调 onAnimationEnd 再次着色） */
+    private fun LegOverlay.dispose(removeFromMap: Boolean = true) {
+        removed = true
+        animator?.cancel()
+        animator = null
+        if (removeFromMap) {
+            white?.remove()
+            color.remove()
+        }
+        white = null
+    }
+
+    /** 应用颜色：1 个颜色为单色线；多个颜色为逐点渐变（与 points 一一对应，仅限示意曲线） */
     private fun LegOverlay.applyColors(colors: IntArray) {
+        if (removed) return
+        if (colors.size > 1 && (leg != null || colors.size != points.size)) {
+            // 真实路线腿不做逐点颜色（见流光处说明），退化为首色单色
+            color.setGradientEnable(false)
+            color.setColor(colors[0])
+            shownColors = intArrayOf(colors[0])
+            return
+        }
         if (colors.size == 1) {
             color.setGradientEnable(false)
             color.setColor(colors[0])
@@ -1433,6 +1451,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     /** 白色描边：只给当前段按需创建（置于线路之下），离开即移除；见 [LegOverlay] 说明 */
     private fun LegOverlay.showCasing(shown: Boolean) {
+        if (removed) return
         color.setZIndex(if (shown) ACTIVE_LINE_Z else LINE_Z)
         if (!shown) {
             white?.remove()
@@ -1556,7 +1575,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     override fun onDestroyView() {
         stopShimmer()
         scrollAnimator?.cancel()
-        segmentOverlays.forEach { holder -> holder.legs.forEach { it.animator?.cancel() } }
+        segmentOverlays.forEach { holder -> holder.legs.forEach { it.dispose(removeFromMap = false) } }
         stopPlayback()
         routeGeneration++
         routeLoadJob?.cancel()
@@ -1586,17 +1605,19 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         const val SHIMMER_MS = 1800L        // 流光走完一趟的时长
         const val SHIMMER_HALF = 0.14f      // 流光半宽（占路径比例）
         const val SHIMMER_STRENGTH = 0.55f  // 流光中心向白色混合的强度
+        const val SHIMMER_POINTS = 32       // 光带重采样点数（固定，保证点/色数组等长）
         const val SCROLL_MS = 380L          // 列表滚动到当前段
+        const val USER_SCROLL_WINDOW_MS = 1500L // 松手后惯性滚动仍算用户滚动的时间窗
         const val CASING_EXTRA_DP = 4f      // 白描边比线路宽出的量（两侧各 2dp）
         // 全部覆盖物同在 AboveLabels 层，按 zIndex 自下而上：
-        // 非当前段线路 < 其余站点 < 当前段白描边 < 当前段线路 < 当前段两端站点 < 换乘点 < 播放位置
+        // 非当前段线路 < 其余站点 < 当前段白描边 < 当前段线路 < 流光 < 换乘点 < 当前段两端站点（站名不被遮挡）
         const val LINE_Z = 1
         const val STATION_Z = 2
         const val CASING_Z = 3
         const val ACTIVE_LINE_Z = 4
-        const val ACTIVE_STATION_Z = 5
+        const val SHIMMER_Z = 5
         const val TRANSFER_Z = 6
-        const val PLAYBACK_Z = 7
+        const val ACTIVE_STATION_Z = 7
         const val MARKER_PAD_DP = 3f        // 图标四周留白：给阴影/描边空间，对称以保证居中锚点
         const val LABEL_TEXT_DP = 11f       // 站名标签字号（按 dp 绘制）
         const val LABEL_PAD_X_DP = 7f

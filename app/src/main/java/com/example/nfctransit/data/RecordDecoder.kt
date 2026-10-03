@@ -351,9 +351,10 @@ object RecordDecoder {
         val typeHex: String
     )
 
-    internal fun tuDirectionForType(typeByte: Int): TransitDirection? = when (typeByte) {
+    internal fun tuDirectionForType(typeByte: Int, transitType: String? = null): TransitDirection? = when (typeByte) {
         0x03 -> TransitDirection.ENTRY
         0x04 -> TransitDirection.EXIT
+        0x06 -> TransitDirection.ENTRY.takeIf { transitType == "地铁" }
         else -> null
     }
 
@@ -390,7 +391,6 @@ object RecordDecoder {
                 cityCode, lineCode, stationCode, terminal, rawCode,
                 expectedFamily = expectedFamily
             )
-            val direction = tuDirectionForType(data[0].toInt() and 0xFF)
             val fallbackStation = when (expectedFamily) {
                 TransitData.TuTransitFamily.RAIL -> "轨道交通"
                 else -> "公共交通"
@@ -401,6 +401,11 @@ object RecordDecoder {
                 null -> "公交"
             }
             val mappedRef = entry
+            // 方向判断使用数据库原始类型或 subtype 兜底类型，不受显示语言影响。
+            val direction = tuDirectionForType(
+                data[0].toInt() and 0xFF,
+                mappedRef?.type ?: fallbackTransitType
+            )
             val ref = StationRef(
                 station = mappedRef?.station ?: fallbackStation,
                 line = mappedRef?.line ?: "",
