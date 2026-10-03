@@ -17,12 +17,17 @@ import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.StyleSpan
 import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.nfctransit.R
 import com.example.nfctransit.data.CityOption
+import com.example.nfctransit.data.AppRelease
+import com.example.nfctransit.data.AppReleaseNotes
 import com.example.nfctransit.data.FeedbackLocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideRow
@@ -90,6 +95,68 @@ object AppDialogs {
         }
         view.applyTouchFeedback()
         dialog.show()
+    }
+
+    fun appUpdate(
+        context: Context,
+        currentVersion: String,
+        release: AppRelease,
+        testingBuild: Boolean,
+        releaseNotes: List<AppReleaseNotes>,
+        historyUnavailable: Boolean,
+        onDownload: () -> Unit
+    ): Dialog {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_app_update, null)
+        dialog.setContentView(view)
+        view.findViewById<TextView>(R.id.updateTitle).setText(
+            if (testingBuild) R.string.official_release_available else R.string.app_update_available
+        )
+        view.findViewById<TextView>(R.id.updateVersions).text =
+            context.getString(R.string.app_update_versions, currentVersion, release.version)
+        view.findViewById<View>(R.id.updateTestingNotice).visibility =
+            if (testingBuild) View.VISIBLE else View.GONE
+        val notesText = SpannableStringBuilder()
+        if (historyUnavailable) {
+            notesText.append(context.getString(R.string.app_update_history_unavailable)).append("\n\n")
+        }
+        for (entry in releaseNotes) {
+            val start = notesText.length
+            notesText.append(entry.version)
+            notesText.setSpan(StyleSpan(Typeface.BOLD), start, notesText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            notesText.append("\n")
+                .append(entry.notes.ifBlank { context.getString(R.string.app_update_no_notes) })
+                .append("\n\n")
+        }
+        view.findViewById<TextView>(R.id.updateNotes).text = notesText.trimEnd()
+        val scroll = view.findViewById<android.widget.ScrollView>(R.id.updateNotesScroll)
+        val dm = context.resources.displayMetrics
+        scroll.getChildAt(0).measure(
+            View.MeasureSpec.makeMeasureSpec(
+                dialogWidth(context) - scroll.paddingLeft - scroll.paddingRight,
+                View.MeasureSpec.EXACTLY
+            ),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        scroll.layoutParams = scroll.layoutParams.apply {
+            height = minOf(scroll.getChildAt(0).measuredHeight + scroll.paddingBottom,
+                (dm.heightPixels * 0.4f).toInt())
+        }
+        view.findViewById<View>(R.id.updateCancel).setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.updateDownload).apply {
+            setText(if (release.apkUrl != null) R.string.download_apk else R.string.view_release)
+            setOnClickListener {
+                dialog.dismiss()
+                onDownload()
+            }
+        }
+        view.applyTouchFeedback()
+        dialog.setCancelable(true)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+        dialog.window?.setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
+        return dialog
     }
 
     fun textInput(

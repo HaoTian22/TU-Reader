@@ -60,7 +60,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           FEEDBACK_UPLOAD_URL: ${{ vars.FEEDBACK_UPLOAD_URL }}
-        run: gradle :app:assembleRelease --no-daemon --console=plain
+        run: gradle -Pprerelease=true :app:assembleRelease --no-daemon --console=plain
 
       - name: Collect version info
         id: version

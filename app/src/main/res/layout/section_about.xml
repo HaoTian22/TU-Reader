@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -79,6 +80,9 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/rowCheckUpdate"
+            android:clickable="true"
+            android:focusable="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -89,32 +93,43 @@
             android:paddingBottom="14dp">
 
             <TextView
-                android:id="@+id/iconChangelog"
+                android:id="@+id/iconCheckUpdate"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_gravity="center_vertical"
                 android:layout_marginEnd="12dp"
                 android:background="@drawable/bg_settings_icon"
                 android:gravity="center"
-                android:text="&#xf1da;"
+                android:text="&#xf2f1;"
                 android:textColor="@color/accent"
                 android:textSize="14sp"
                 android:tag="fa" />
 
             <TextView
+                android:id="@+id/tvCheckUpdate"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="更新日志"
+                android:text="@string/check_for_updates"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
+                android:id="@+id/chevronCheckUpdate"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="&#xf054;"
                 android:textColor="@color/ink_3"
                 android:textSize="14sp"
                 android:tag="fa" />
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/progressCheckUpdate"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:indicatorSize="18dp"
+                app:trackThickness="2dp"
+                app:indicatorColor="@color/accent" />
         </LinearLayout>
 
         <LinearLayout

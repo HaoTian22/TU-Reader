@@ -1,6 +1,7 @@
 package com.example.nfctransit.ui
 
 import android.content.Context
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
@@ -19,18 +20,27 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
+import com.example.nfctransit.BuildConfig
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.AppUpdateChecker
+import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.databinding.FragmentSettingsBinding
 import java.io.File
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
+    private var updateCheckJob: Job? = null
+    private var updateDialog: Dialog? = null
 
     private fun capturePredictiveBackSnapshot() {
         (activity as? MainActivity)?.capturePredictiveBackSnapshot()
@@ -171,7 +181,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconCurrentTripRoute,
             R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
-            R.id.iconVersion, R.id.iconChangelog, R.id.iconSupportedCards,
+            R.id.iconVersion, R.id.iconCheckUpdate, R.id.iconSupportedCards,
             R.id.iconOpenSource, R.id.iconFeedback
         )
         optionIcons.forEach { id ->
@@ -290,6 +300,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             showLanguageDialog()
         }
         updateLanguageRow()
+
+        binding.root.findViewById<View>(R.id.rowCheckUpdate).setOnClickListener {
+            checkAppUpdate()
+        }
 
         // 反馈入口 → GitHub Issues
         binding.root.findViewById<View>(R.id.rowFeedback)?.setOnClickListener {
@@ -556,6 +570,54 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         else -> "$bytes B"
     }
 
+    private fun checkAppUpdate() {
+        if (updateCheckJob?.isActive == true) return
+        val context = requireContext()
+        val root = binding.root
+        val row = root.findViewById<View>(R.id.rowCheckUpdate)
+        val label = root.findViewById<TextView>(R.id.tvCheckUpdate)
+        val chevron = root.findViewById<View>(R.id.chevronCheckUpdate)
+        val progress = root.findViewById<View>(R.id.progressCheckUpdate)
+        row.isEnabled = false
+        label.setText(R.string.checking_for_updates)
+        chevron.visibility = View.GONE
+        progress.visibility = View.VISIBLE
+        updateCheckJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    AppUpdateChecker().check(BuildConfig.VERSION_NAME,
+                        BuildConfig.DEBUG || BuildConfig.IS_PRERELEASE_BUILD)
+                }
+                when (result) {
+                    AppUpdateResult.UpToDate -> Toast.makeText(context, R.string.app_up_to_date, Toast.LENGTH_SHORT).show()
+                    AppUpdateResult.NoRelease -> Toast.makeText(context, R.string.app_no_release, Toast.LENGTH_SHORT).show()
+                    is AppUpdateResult.Available -> {
+                        updateDialog?.dismiss()
+                        updateDialog = AppDialogs.appUpdate(context, BuildConfig.VERSION_NAME,
+                            result.release, result.testingBuild, result.releaseNotes, result.historyUnavailable) {
+                            try {
+                                startActivity(Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(context, context.getString(R.string.app_update_failed,
+                    e.localizedMessage ?: "网络错误"), Toast.LENGTH_LONG).show()
+            } finally {
+                row.isEnabled = true
+                label.setText(R.string.check_for_updates)
+                chevron.visibility = View.VISIBLE
+                progress.visibility = View.GONE
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // 每次回到设置页时刷新本地数据大小，反映新增读卡/导入等变化
@@ -563,6 +625,9 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     }
 
     override fun onDestroyView() {
+        updateCheckJob?.cancel()
+        updateDialog?.dismiss()
+        updateDialog = null
         super.onDestroyView()
         _binding = null
     }
