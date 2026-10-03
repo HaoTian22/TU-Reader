@@ -12,6 +12,7 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -36,6 +37,7 @@ fun View.applyTouchFeedback() {
 }
 
 private fun View.wantsRipple(): Boolean {
+    if (this is TextureView) return false                   // 不支持前景（setForeground 直接抛异常），如地图 TextureMapView
     if (!isClickable || foreground != null) return false
     if (background is RippleDrawable) return false          // 已自带水波纹（如弹窗文字按钮）
     if (this is EditText || this is CompoundButton) return false

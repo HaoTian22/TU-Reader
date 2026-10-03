@@ -3,6 +3,7 @@ package com.example.nfctransit.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -18,6 +19,7 @@ import android.view.WindowManager
 import android.widget.TableRow
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
@@ -47,6 +49,8 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
     private var sqlWriteJob: Job? = null
     private var sqlDialog: android.app.Dialog? = null
     private lateinit var databaseSpec: DatabaseQuerySpec
+    private val viewModel: MainViewModel by viewModels({ requireActivity() })
+    private var accentColor = Palette.ACCENT
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -66,6 +70,14 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         }
         databaseSpec = spec
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
+        // 主题色跟随卡片：返回、复制/粘贴、运行按钮、SQL 弹窗确认与结果表头
+        viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
+            accentColor = accent.toInt()
+            binding.btnBack.setTextColor(accentColor)
+            binding.btnCopyPrompt.setTextColor(accentColor)
+            binding.btnPasteSql.setTextColor(accentColor)
+            binding.btnRunSql.backgroundTintList = ColorStateList.valueOf(accentColor)
+        }
         binding.tvDatabaseTitle.text = spec.displayName
         binding.tvPrompt.text = spec.prompt
         binding.btnCopyPrompt.setOnClickListener { copyPrompt(spec.prompt) }
@@ -118,6 +130,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         }
         dialogBinding.dialogSqlInput.setText(savedSql)
         dialogBinding.dialogSqlInput.setSelection(dialogBinding.dialogSqlInput.text.length)
+        dialogBinding.dialogSqlConfirm.setTextColor(accentColor)
         dialogBinding.dialogSqlCancel.setOnClickListener { dialog.dismiss() }
         dialogBinding.dialogSqlConfirm.setOnClickListener {
             if (_binding == null) {
@@ -275,7 +288,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             background = GradientDrawable().apply {
                 setColor(
                     when {
-                        header -> Palette.ACCENT
+                        header -> accentColor
                         rowIndex % 2 == 0 -> Color.WHITE
                         else -> Palette.PAPER
                     }

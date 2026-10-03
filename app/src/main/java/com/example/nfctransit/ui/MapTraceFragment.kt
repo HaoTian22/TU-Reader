@@ -1,5 +1,9 @@
 package com.example.nfctransit.ui
 
+import android.animation.ArgbEvaluator
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -13,8 +17,11 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -41,9 +48,11 @@ import com.tencent.tencentmap.mapsdk.maps.model.LatLng
 import com.tencent.tencentmap.mapsdk.maps.model.LatLngBounds
 import com.tencent.tencentmap.mapsdk.maps.model.Marker
 import com.tencent.tencentmap.mapsdk.maps.model.MarkerOptions
+import com.tencent.tencentmap.mapsdk.maps.model.OverlayLevel
 import com.tencent.tencentmap.mapsdk.maps.model.Polyline
 import com.tencent.tencentmap.mapsdk.maps.model.PolylineOptions
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -64,14 +73,27 @@ internal fun shouldShowFullCurrentTripRoute(
  */
 class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
+    /**
+     * 一条线路腿的覆盖物。白色描边 [white] 只在当前段按需创建、离开即移除：
+     * 腾讯 SDK 的 Polyline 不认 visible，且颜色 0（透明）会回退成默认样式（灰边白芯粗线）。
+     */
     private data class LegOverlay(
-        val white: Polyline,
+        var white: Polyline?,
+        val points: List<LatLng>,
         val color: Polyline,
         val leg: RouteLeg?,
         val activeColor: Int,
         val activeWidthDp: Float,
-        val geometryKind: RouteGeometryKind = RouteGeometryKind.FULL_POLYLINE
-    )
+        val geometryKind: RouteGeometryKind = RouteGeometryKind.FULL_POLYLINE,
+        /** 示意曲线当前态：起点线路色 → 终点线路色渐变（两端同色/缺色时为 null，用单色） */
+        val gradientEnds: Pair<Int, Int>? = null
+    ) {
+        var animator: ValueAnimator? = null
+        /** 当前显示的颜色：单色为 1 个元素，渐变为逐点颜色 */
+        var shownColors: IntArray = intArrayOf(0)
+        /** 当前段的基础颜色（流光叠加在其上）；非当前段为 null */
+        var activeColors: IntArray? = null
+    }
 
     private data class SegmentOverlay(
         val segment: MapSegment,
@@ -96,6 +118,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private val stationMarkers = mutableMapOf<Long, Marker>()
     private val stationMeta = mutableMapOf<Long, Pair<String, Int>>()   // stationId -> (站名, 圆点色)
+    // 同名且几乎同址的站点（换乘站在不同线路/城市下各有一条记录）合并为一个圆点：stationId -> 圆点所属 stationId
+    private val stationMarkerKey = mutableMapOf<Long, Long>()
+    private val stationIconKeys = mutableMapOf<Long, String>()   // 圆点当前图标状态；变化时才重建标记
     private val segmentOverlays = mutableListOf<SegmentOverlay>()
     private val routePlans = mutableMapOf<MapSegment, RoutePlan>()
     private val segmentRows = mutableListOf<View>()          // 行程列表行（与 model.segments 对齐）
@@ -106,9 +131,14 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var dotRadiusDp = 4.5f     // 当前普通圆点半径（随缩放变化）
     private var needIconRefresh = false   // 相机移动中标记，移动结束后一次性重建图标
 
-    private val ghostCurveColor = 0x305977B2.toInt()   // 非当前段曲线：暗蓝灰半透明
+    // 腾讯 SDK 按预乘 alpha 混合折线颜色，半透明色会被抬亮成白色；折线一律用"预先与底图混好"的不透明色
+    private val ghostCurveColor = mapTint(Palette.INK_3, 0.30f)   // 非当前段示意曲线：浅中性灰
 
     private var programmaticScroll = false   // 播放自动滚动列表时不当作"用户滑动"
+    private var scrollAnimator: ValueAnimator? = null
+    private var lastActiveSegment: MapSegment? = null   // 用于判断当前段是否切换（切换时做过渡动画）
+    private var highlightedRow = -1
+    private var shimmerAnimator: ValueAnimator? = null   // 当前段流光（指示行进方向）
     private var playbackJob: Job? = null
     private var cameraJob: Job? = null
     private var routeLoadJob: Job? = null
@@ -138,22 +168,27 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
 
-        // 主题色跟随卡片；进度条填充改圆角。
-        // 本页是深色底：直接用浅色卡面色（马卡龙），而不是为浅色页面压暗的 mainAccent
+        // 主题色跟随卡片（与统计/交易页一致）：返回、徽章、进度条、播放按钮、选中速度、当前行程行
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
-            mainAccent = viewModel.selectedCard.value?.gradientStartColor?.toInt() ?: accent.toInt()
+            mainAccent = accent.toInt()
+            binding.btnBack.setTextColor(mainAccent)
+            binding.tvCardBadge.setTextColor(mainAccent)
+            binding.cardBadge.background = GradientDrawable().apply {
+                cornerRadius = dpToPx(999f)
+                setColor(ColorUtils.blendARGB(Palette.SURFACE, mainAccent, 0.12f))
+            }
             binding.progressPlayback.background = GradientDrawable().apply {
-                cornerRadius = 2f * resources.displayMetrics.density
+                cornerRadius = dpToPx(999f)
                 setColor(mainAccent)
             }
-            binding.tvCardBadge.setTextColor(mainAccent)
+            binding.btnPlay.backgroundTintList = ColorStateList.valueOf(mainAccent)
+            playbackMarker?.setIcon(playbackDot(mainAccent))
+            setSpeed(speed)
+            if (!model.isEmpty) updateHighlight(scrollList = false)
         }
 
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
-            if (card != null) {
-                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-                binding.tvCardBadge.setTextColor(card.gradientStartColor.toInt())
-            }
+            if (card != null) binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
         }
 
         viewModel.currentTripRouteDisplayMode.observe(viewLifecycleOwner) { mode ->
@@ -178,6 +213,8 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         mapView = binding.mapView
         val map = mapView?.map
         tencentMap = map
+        // 地图卡片按圆角背景裁切（TextureMapView 才支持）；底图配色由腾讯位置服务控制台的个性化样式决定
+        binding.mapCard.clipToOutline = true
         map?.uiSettings?.apply {
             setZoomGesturesEnabled(true)   // 可缩放
             setScrollGesturesEnabled(true)
@@ -214,9 +251,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         binding.btnPrev.typeface = fa
         binding.btnPlay.typeface = fa
         binding.btnNext.typeface = fa
-        binding.btnPrev.text = ""   // fa-backward-fast（⏮ 上一行程）
+        binding.btnPrev.text = ""   // fa-backward-step（上一行程）
         binding.btnPlay.text = if (playing) "" else ""   // fa-pause / fa-play
-        binding.btnNext.text = ""   // fa-forward-fast（⏭ 下一行程）
+        binding.btnNext.text = ""   // fa-forward-step（下一行程）
 
         binding.btnPlay.setOnClickListener { togglePlay() }
         binding.btnPrev.setOnClickListener { if (model.events.isNotEmpty()) { pause(); jumpTo(currentEventIndex - 1) } }
@@ -227,7 +264,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         // 列表：触摸即暂停，滑动调整当前时间（像歌词那样跟随视口中线）
         binding.tripScroll.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) pause()
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                scrollAnimator?.cancel()
+                pause()
+            }
             false
         }
         binding.tripScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
@@ -237,11 +277,17 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun setSpeed(v: Float) {
         speed = v
-        val selectedBg = R.drawable.bg_speed_chip_selected
-        val normalBg = R.drawable.bg_speed_chip
         fun style(chip: TextView, isSel: Boolean) {
-            chip.setBackgroundResource(if (isSel) selectedBg else normalBg)
-            chip.setTextColor(if (isSel) Color.BLACK else Palette.NIGHT_INK_3)
+            if (isSel) {
+                chip.background = GradientDrawable().apply {
+                    cornerRadius = dpToPx(999f)
+                    setColor(mainAccent)
+                }
+                chip.setTextColor(Color.WHITE)
+            } else {
+                chip.setBackgroundResource(R.drawable.bg_speed_chip)
+                chip.setTextColor(Palette.INK_3)
+            }
         }
         style(binding.chip05x, v == 0.5f)
         style(binding.chip1x, v == 1f)
@@ -257,9 +303,15 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         routeGeneration++
         stationMarkers.clear()
         stationMeta.clear()
+        stationMarkerKey.clear()
+        stationIconKeys.clear()
+        stopShimmer()
+        segmentOverlays.forEach { holder -> holder.legs.forEach { it.animator?.cancel() } }
         segmentOverlays.clear()
         routePlans.clear()
         segmentRows.clear()
+        lastActiveSegment = null
+        highlightedRow = -1
         transferMarkers.clear()
         playbackMarker = null
         plainDotCache.clear()
@@ -272,7 +324,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             binding.currentStationRow.addView(
                 TextView(requireContext()).apply {
                     text = "暂无行程数据"
-                    setTextColor(0xFFFFFFFF.toInt())
+                    setTextColor(Palette.INK)
                     textSize = 14f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
                 }
@@ -282,37 +334,55 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             return
         }
 
-        // 站点圆点（按站去重）
+        // 站点圆点（按站去重；同名且 300m 内的不同站点记录共用一个圆点，避免重叠的两个点颜色不一）
         for (ev in model.events) {
-            if (ev.stationId in stationMarkers) continue
-            val color = parseColor(ev.lineColor) ?: Palette.NIGHT_INK_3
+            if (ev.stationId in stationMarkerKey) continue
+            val here = LatLng(ev.lat, ev.lng)
+            val shared = stationMarkers.entries.firstOrNull { (sid, marker) ->
+                stationMeta[sid]?.first == ev.name && distanceMeters(marker.position, here) < SAME_STATION_METERS
+            }?.key
+            if (shared != null) {
+                stationMarkerKey[ev.stationId] = shared
+                continue
+            }
+            stationMarkerKey[ev.stationId] = ev.stationId
+            val color = parseColor(ev.lineColor) ?: Palette.INK_3
             stationMeta[ev.stationId] = ev.name to color
             val m = tencentMap?.addMarker(
                 MarkerOptions()
                     .position(LatLng(ev.lat, ev.lng))
                     .anchor(0.5f, 0.5f)
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex(STATION_Z.toFloat())
                     .icon(markerDot(color, highlighted = false))
             )
-            if (m != null) stationMarkers[ev.stationId] = m
+            if (m != null) {
+                stationMarkers[ev.stationId] = m
+                stationIconKeys[ev.stationId] = "false|${color and 0xFFFFFF}|false|$dotRadiusDp"
+            }
         }
 
         // 网络真实路线返回前先保留示意曲线，失败/离线时可直接降级使用。
         for (seg in model.segments) {
             if (!seg.hasCurve) continue
             val pts = bezierPoints(seg.from, seg.to!!)
-            val color = parseColor(seg.lineColor) ?: 0xFF4A90D9.toInt()
-            val white = tencentMap?.addPolyline(
-                PolylineOptions().addAll(pts).width(dpToPx(6f)).color(0xFFFFFFFF.toInt()).visible(false)
-            )
+            val color = parseColor(seg.lineColor) ?: mainAccent
+            val fromColor = parseColor(seg.from.lineColor)
+            val toColor = parseColor(seg.to.lineColor)
+            val gradientEnds = if (fromColor != null && toColor != null && fromColor != toColor) {
+                fromColor to toColor
+            } else null
             val colored = tencentMap?.addPolyline(
-                PolylineOptions().addAll(pts).width(dpToPx(0.5f)).color(ghostCurveColor)
+                PolylineOptions().addAll(pts).level(OverlayLevel.OverlayLevelAboveLabels).zIndex(LINE_Z)
+                    .width(dpToPx(GHOST_WIDTH_DP)).color(ghostCurveColor)
             )
-            if (white != null && colored != null) {
+            if (colored != null) {
                 segmentOverlays.add(
                     SegmentOverlay(
                         segment = seg,
                         legs = mutableListOf(
-                            LegOverlay(white, colored, null, color, 5f)
+                            LegOverlay(null, pts, colored, null, color, 5f, gradientEnds = gradientEnds)
+                                .apply { shownColors = intArrayOf(ghostCurveColor) }
                         )
                     )
                 )
@@ -321,9 +391,12 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         currentEventIndex = 0
         updateHighlight()
-        // 起始直接定位到第一个站点 zoom18（不先全景缩到全省，避免几十 km 比例尺）
-        val first = model.events[0]
-        tencentMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(first.lat, first.lng), 18f))
+        // 起始直接框住第一段行程（不先全景缩到全省）；需地图已完成布局才能按视口尺寸计算缩放
+        binding.mapView.post {
+            if (_binding == null || model.isEmpty) return@post
+            val (center, zoom) = cameraFrameFor(model.events[currentEventIndex])
+            tencentMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(center, zoom))
+        }
         bindTripInfo(model.segments)
         startRouteLoading()
 
@@ -427,7 +500,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun replaceWithRealRoute(segment: MapSegment, plan: RoutePlan) {
         val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
         holder.legs.forEach { overlay ->
-            overlay.white.remove()
+            overlay.white?.remove()
             overlay.color.remove()
         }
         holder.legs.clear()
@@ -440,29 +513,25 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 else -> 5f
             }
             val activeColor = routeLegColor(segment, plan, leg)
-            val white = tencentMap?.addPolyline(
-                PolylineOptions()
-                    .addAll(points)
-                    .width(dpToPx(width + 2f))
-                    .color(Color.WHITE)
-                    .visible(false)
-            )
             val colored = tencentMap?.addPolyline(
                 PolylineOptions()
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex(LINE_Z)
                     .addAll(points)
-                    .width(dpToPx(0.5f))
+                    .width(dpToPx(GHOST_WIDTH_DP))
                     .color(ghostCurveColor)
             )
-            if (white != null && colored != null) {
+            if (colored != null) {
                 holder.legs.add(
                     LegOverlay(
-                        white = white,
+                        white = null,
+                        points = points,
                         color = colored,
                         leg = leg,
                         activeColor = activeColor,
                         activeWidthDp = width,
                         geometryKind = leg.geometryKind
-                    )
+                    ).apply { shownColors = intArrayOf(ghostCurveColor) }
                 )
             }
         }
@@ -471,7 +540,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun routeLegColor(segment: MapSegment, plan: RoutePlan, leg: RouteLeg): Int {
         if (leg.mode == RouteMode.WALKING) {
-            return if (leg.internalTransfer) 0xFF748493.toInt() else 0xFF9AA8B5.toInt()
+            return if (leg.internalTransfer) Palette.INK_3 else 0xFF9AA0A8.toInt()
         }
         parseColor(leg.lineColor)?.let { return it }
         val transit = plan.transitLegs
@@ -516,6 +585,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         playing = !playing
         binding.btnPlay.text = if (playing) "" else ""
         if (playing) startPlayback() else { playbackJob?.cancel(); playbackJob = null }
+        refreshMarkerIcons()
     }
 
     private fun startPlayback() {
@@ -533,6 +603,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
+        refreshMarkerIcons()
     }
 
     private fun pause() {
@@ -541,6 +612,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         playbackMarker?.setVisible(false)
         playing = false
         binding.btnPlay.text = ""
+        refreshMarkerIcons()
     }
 
     /** 跳到指定事件（手动 prev/next，不沿曲线） */
@@ -555,9 +627,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         animateCameraTo(model.events[currentEventIndex])
     }
 
-    /** 播放前进一步：飞前停 1s → flyTo（await 完成）→ 飞后停 2s → 切换。
-     *  当前在进站端且后一个事件是它的出站端 → 飞到出站端；否则直移下个事件。
-     *  时间线起点/终点时镜头 zoom 到 18（站点特写）。 */
+    /** 播放前进一步：飞前停 1s → 镜头动画（await 完成）→ 飞后停 0.5s → 切换。
+     *  当前在进站端且后一个事件是它的出站端（一段行程）且有真实路线 → 沿路线跟随；
+     *  否则镜头只显示整段总览（见 [cameraFrameFor]），行程之间在总览间飞行。 */
     private suspend fun advanceOneStep() {
         val cur = model.events.getOrNull(currentEventIndex) ?: return
         val seg = activeSegmentAt()
@@ -574,9 +646,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (journeySegment != null && routePlan != null) {
             animateAlongRoute(journeySegment, routePlan, currentEventIndex, next)
         } else {
-            // 无网络、无路线或仍在加载时沿用原 flyTo 降级。
-            val zoom = if (next == 0 || next == model.events.lastIndex) 18f else null
-            animateCameraToNow(model.events[next], zoom = zoom)
+            // 示意曲线降级：镜头框住下一事件所在的整段行程（同段内已在总览则不动）
+            val (center, zoom) = cameraFrameFor(model.events[next])
+            flyCameraNow(center, zoom)
         }
         // 飞后停 0.5s，然后切换
         delay((500f / speed).toLong())
@@ -626,7 +698,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 val routeFraction = ((completedMeters + geometry.totalMeters * fraction) / totalMeters).toFloat()
                 updateProgressBar(progressStart + (progressEnd - progressStart) * routeFraction)
                 if (fraction >= 1.0) break
-                delay(33L)
+                awaitFrame()
             }
             completedMeters += geometry.totalMeters
             if (legIndex < geometries.lastIndex) delay((350f / speed).toLong())
@@ -640,7 +712,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 MarkerOptions()
                     .position(position)
                     .anchor(0.5f, 0.5f)
-                    .icon(stationDot(mainAccent, 5.5f, ring = true))
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex(PLAYBACK_Z.toFloat())
+                    .icon(playbackDot(mainAccent))
             )
         } else {
             marker.setPosition(position)
@@ -651,7 +725,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun updateActiveRouteLeg(segment: MapSegment, activeLegIndex: Int) {
         val holder = segmentOverlays.firstOrNull { it.segment === segment } ?: return
         for ((index, overlay) in holder.legs.withIndex()) {
-            overlay.white.setVisible(true)
+            overlay.showCasing(true)
             overlay.color.setColor(overlay.displayColor(active = true))
             val extra = if (index == activeLegIndex) 1.5f else 0f
             overlay.color.setWidth(dpToPx(overlay.activeWidthDp + extra))
@@ -672,38 +746,57 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         refreshMarkerIcons()
 
         // 当前真实路线逐腿着色并加白描边；未加载/失败的段继续使用原贝塞尔降级线。
+        // 当前段切换时（新激活 / 刚离开）颜色与线宽做过渡动画，其余段直接定样式。
+        val previous = lastActiveSegment
+        lastActiveSegment = active
         for (holder in segmentOverlays) {
             val isActive = active != null && holder.segment === active
+            val changed = holder.segment === active && active !== previous ||
+                holder.segment === previous && previous !== active
             for (overlay in holder.legs) {
-                if (isActive) {
-                    overlay.white.setVisible(true)
-                    overlay.color.setColor(overlay.displayColor(active = true))
-                    overlay.color.setWidth(dpToPx(overlay.activeWidthDp))
-                } else if (holder.realRoute) {
-                    overlay.white.setVisible(false)
-                    overlay.color.setColor(overlay.displayColor(active = false))
-                    overlay.color.setWidth(dpToPx(overlay.activeWidthDp))
-                } else {
-                    overlay.white.setVisible(false)
-                    overlay.color.setColor(ghostCurveColor)
-                    overlay.color.setWidth(dpToPx(0.5f))
+                val ends = overlay.gradientEnds
+                val (targetColors, targetWidthDp) = when {
+                    isActive && ends != null -> overlay.gradientColors(ends) to overlay.activeWidthDp
+                    isActive -> intArrayOf(overlay.displayColor(active = true)) to overlay.activeWidthDp
+                    holder.realRoute -> intArrayOf(overlay.displayColor(active = false)) to overlay.activeWidthDp
+                    else -> intArrayOf(ghostCurveColor) to GHOST_WIDTH_DP
+                }
+                overlay.activeColors = if (isActive) targetColors else null
+                overlay.showCasing(isActive)
+                if (changed) {
+                    overlay.animateTo(targetColors, targetWidthDp)
+                } else if (overlay.animator?.isRunning != true) {
+                    overlay.applyColors(targetColors)
+                    overlay.color.setWidth(dpToPx(targetWidthDp))
                 }
             }
+        }
+        if (active !== previous || shimmerAnimator == null) {
+            stopShimmer()
+            segmentOverlays.firstOrNull { it.segment === active }?.let(::startShimmer)
         }
         renderTransferMarkers(active)
 
         // 列表：当前行程行高亮（圆角）；播放/跳转时把它滚到视口中间
         val activeIdx = active?.let { model.segments.indexOf(it) } ?: -1
+        val highlightColor = ColorUtils.blendARGB(Palette.SURFACE, mainAccent, 0.10f)
         for ((i, row) in segmentRows.withIndex()) {
-            if (i == activeIdx) {
-                row.background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(12f)
-                    setColor(0x224488CC)
-                }
+            val bg = (row.background as? GradientDrawable) ?: GradientDrawable().apply {
+                cornerRadius = dpToPx(10f)
+                alpha = 0
+                row.background = this
+            }
+            bg.setColor(highlightColor)
+            val target = if (i == activeIdx) 255 else 0
+            if (bg.alpha == target) continue
+            // 只有当前段真正切换时才渐变；列表重建（路线加载后）直接定状态，避免闪烁
+            if (activeIdx != highlightedRow && (i == activeIdx || i == highlightedRow)) {
+                ObjectAnimator.ofInt(bg, "alpha", bg.alpha, target).setDuration(TRANSITION_MS).start()
             } else {
-                row.background = null
+                bg.alpha = target
             }
         }
+        highlightedRow = activeIdx
         if (scrollList) scrollListToCurrent(activeIdx)
 
         // 文案：站名 + 药丸线路
@@ -735,7 +828,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                     .position(LatLng(point.lat, point.lng))
                     .anchor(0.5f, 0.5f)
                     .title("换乘 ${leg.title}")
-                    .icon(markerDot(0xFFF5A623.toInt(), highlighted = true))
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex(TRANSFER_Z.toFloat())
+                    .icon(transferDot())
             )
             if (marker != null) transferMarkers.add(marker)
         }
@@ -746,11 +841,20 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (segIndex !in segmentRows.indices) return
         val row = segmentRows[segIndex]
         val sv = binding.tripScroll
-        val target = (row.top - (sv.height - row.height) / 2).coerceAtLeast(0)
-        if (sv.scrollY != target) {
-            programmaticScroll = true
-            sv.scrollTo(0, target)
-            programmaticScroll = false
+        val maxScroll = ((sv.getChildAt(0)?.height ?: 0) - sv.height).coerceAtLeast(0)
+        val target = (row.top - (sv.height - row.height) / 2).coerceIn(0, maxScroll)
+        if (sv.scrollY == target) return
+        // 平滑滚动：动画期间的滚动回调不当作用户滑动（否则会在途中改选当前段）
+        scrollAnimator?.cancel()
+        scrollAnimator = ValueAnimator.ofInt(sv.scrollY, target).apply {
+            duration = SCROLL_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                programmaticScroll = true
+                sv.scrollTo(0, it.animatedValue as Int)
+                programmaticScroll = false
+            }
+            start()
         }
     }
 
@@ -780,7 +884,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (eventIdx >= 0) {
             currentEventIndex = eventIdx
             updateHighlight(scrollList = false)
-            animateCameraTo(model.events[currentEventIndex], durationMs = 650L)
+            animateCameraTo(model.events[currentEventIndex])
         }
     }
 
@@ -838,7 +942,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         val nameTv = TextView(requireContext()).apply {
             text = name
             textSize = 14f
-            setTextColor(0xFFFFFFFF.toInt())
+            setTextColor(Palette.INK)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setSingleLine(false)
             setPadding(0, 0, dpToPx(4f).toInt(), 0)
@@ -853,46 +957,98 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun arrowView(): TextView = TextView(requireContext()).apply {
         text = "→"
         tag = RouteFlowLayout.KEEP_WITH_NEXT_TAG
-        setTextColor(Palette.NIGHT_INK_3)
+        setTextColor(Palette.INK_3)
         textSize = 14f
         setPadding(dpToPx(4f).toInt(), 0, dpToPx(4f).toInt(), 0)
     }
 
-    /** 镜头到目标站点：maptileGL flyTo 式——先拉升视野（zoom 下降）再俯冲收拢（zoom 回升），平滑缓动。
-     *  @param zoom 指定目标缩放（开始/结束 zoom=18）；null 保持当前视野 */
-    /** 手动/滑动调用：异步 flyTo（launch cameraJob） */
-    private fun animateCameraTo(ev: MapEvent, durationMs: Long = 1100L, zoom: Float? = null) {
+    /** 手动/滑动调用：异步 flyTo（launch cameraJob），镜头框住该事件所在的整段行程 */
+    private fun animateCameraTo(ev: MapEvent) {
         val map = tencentMap ?: return
-        val targetZoom = zoom ?: (map.cameraPosition?.zoom?.let { maxOf(it, 14.5f) } ?: 14.5f)
-        val cp = map.cameraPosition
-        if (cp == null) {
-            // 相机尚未就绪：直接定位目标，保证起始/终点能落到指定 zoom（如 18）
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(ev.lat, ev.lng), targetZoom))
+        val (center, zoom) = cameraFrameFor(ev)
+        if (map.cameraPosition == null) {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(center, zoom))
             return
         }
         cameraJob?.cancel()
         cameraJob = viewLifecycleOwner.lifecycleScope.launch {
-            flyToNow(map, LatLng(ev.lat, ev.lng), targetZoom, durationMs)
+            flyToNow(map, center, zoom)
         }
     }
 
     /** 播放调用：同步 flyTo，await 完成（用于飞前/飞后停时的节奏控制） */
-    private suspend fun animateCameraToNow(ev: MapEvent, durationMs: Long = 1100L, zoom: Float? = null) {
+    private suspend fun animateCameraToNow(ev: MapEvent) {
         val map = tencentMap ?: return
-        val targetZoom = zoom ?: (map.cameraPosition?.zoom?.let { maxOf(it, 14.5f) } ?: 14.5f)
-        val cp = map.cameraPosition
-        if (cp == null) {
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(ev.lat, ev.lng), targetZoom))
+        val (center, zoom) = cameraFrameFor(ev)
+        if (map.cameraPosition == null) {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(center, zoom))
             return
         }
         cameraJob?.cancel()
-        flyToNow(map, LatLng(ev.lat, ev.lng), targetZoom, durationMs)
+        flyToNow(map, center, zoom, speedFactor = speed)
+    }
+
+    /** 播放用：飞到指定镜头并等待完成；已在目标附近则跳过（避免原地空转一整段时长） */
+    private suspend fun flyCameraNow(target: LatLng, zoom: Float) {
+        val map = tencentMap ?: return
+        val cp = map.cameraPosition
+        if (cp == null) {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, zoom))
+            return
+        }
+        cameraJob?.cancel()
+        if (kotlin.math.abs(cp.zoom - zoom) < 0.05f && distanceMeters(cp.target, target) < 5.0) return
+        flyToNow(map, target, zoom, speedFactor = speed)
+    }
+
+    /**
+     * 事件对应的镜头：所在行程段有线路时框住整段（真实路线或示意曲线的全部点），留出边距；
+     * 单站事件（无行程段）以站点为中心、街区级缩放。
+     */
+    private fun cameraFrameFor(ev: MapEvent): Pair<LatLng, Float> {
+        val segment = model.segments.firstOrNull { (it.from === ev || it.to === ev) && it.hasCurve }
+        val points = segment?.let { seg ->
+            segmentOverlays.firstOrNull { it.segment === seg }?.legs?.flatMap { it.points }
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOfNotNull(LatLng(seg.from.lat, seg.from.lng), seg.to?.let { LatLng(it.lat, it.lng) })
+        }
+        if (points == null || points.size < 2) return LatLng(ev.lat, ev.lng) to STATION_ZOOM
+        return fitFrame(points)
+    }
+
+    /** 按地图视口（逻辑像素）计算能完整容纳 [points] 的中心与缩放；上方让出提示条，四周留白 */
+    private fun fitFrame(points: List<LatLng>): Pair<LatLng, Float> {
+        val density = resources.displayMetrics.density
+        val viewW = binding.mapView.width / density
+        val viewH = binding.mapView.height / density
+        val xy = points.map { worldXY(it.longitude, it.latitude, 256.0) }
+        val minX = xy.minOf { it.first }; val maxX = xy.maxOf { it.first }
+        val minY = xy.minOf { it.second }; val maxY = xy.maxOf { it.second }
+        val midX = (minX + maxX) / 2.0
+        val midY = (minY + maxY) / 2.0
+        if (viewW <= 0f || viewH <= 0f) {
+            val (lng, lat) = worldToLatLng(midX, midY, 256.0)
+            return LatLng(lat, lng) to FALLBACK_FRAME_ZOOM
+        }
+        val availW = (viewW - FRAME_PAD_X_DP * 2f).coerceAtLeast(40f)
+        val availH = (viewH - FRAME_PAD_TOP_DP - FRAME_PAD_BOTTOM_DP).coerceAtLeast(40f)
+        val spanX = (maxX - minX).coerceAtLeast(1e-9)
+        val spanY = (maxY - minY).coerceAtLeast(1e-9)
+        val zoom = minOf(
+            Math.log(availW / spanX) / Math.log(2.0),
+            Math.log(availH / spanY) / Math.log(2.0)
+        ).toFloat().coerceIn(MIN_FRAME_ZOOM, MAX_FRAME_ZOOM)
+        // 上下留白不对称：把视觉中心下移半个差值，使路线落在可视区域正中
+        val scale = Math.pow(2.0, zoom.toDouble())
+        val centerY = midY - (FRAME_PAD_TOP_DP - FRAME_PAD_BOTTOM_DP) / 2.0 / scale
+        val (lng, lat) = worldToLatLng(midX, centerY, 256.0)
+        return LatLng(lat, lng) to zoom
     }
 
     /** 原版 MaptileGL/MapLibre flyTo：Van Wijk「smooth and efficient zooming and panning」最优路径。
      *  镜头按最优曲线先拉远（zoom 下降）再拉近（zoom 回升），路径与缩放幅度随距离自适应。
      *  suspend：播放流程里 await 完成（飞后停 2s 再切换）。 */
-    private suspend fun flyToNow(map: TencentMap, target: LatLng, targetZoom: Float, durationMs: Long) {
+    private suspend fun flyToNow(map: TencentMap, target: LatLng, targetZoom: Float, speedFactor: Float = 1f) {
         val cp = map.cameraPosition ?: return
         val start = cp.target
         val startZoom = cp.zoom
@@ -934,33 +1090,40 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (pureZoom) {
             S = Math.abs(Math.log(w1 / w0)) / rho
         }
-        Log.d("FlyTo", "start z=$startZoom -> t=$targetZoom " +
-            "dist=${"%.0f".format(distanceMeters(start, target))}m u1=${"%.0f".format(u1)}px " +
-            "w0=${"%.0f".format(w0)} rho=${"%.2f".format(rho)} S=${"%.2f".format(S)} r0=${"%.2f".format(r0)} pureZoom=$pureZoom")
-
-        val samples = 44
-        val stepMs = (durationMs / samples).coerceAtLeast(16L)
-        for (i in 0..samples) {
-                if (!currentCoroutineContext().isActive) break
-                val k = i.toDouble() / samples
-                val s = k * S
-                // 与 MapLibre 原版一致：不加任何防御 clamp
-                val w = if (pureZoom) Math.exp(k * rho * S) else cosh(r0) / cosh(r0 + rho * s)
-                val centerFactor = if (pureZoom) 0.0
-                else w0 * (cosh(r0) * tanh(r0 + rho * s) - sinh(r0)) / rho2 / u1
-                val zoom = if (i == samples) targetZoom
-                else (startZoom + scaleZoom(1.0 / w)).toFloat().coerceIn(3f, 21f)
-                val px = from.first + dx * centerFactor
-                val py = from.second + dy * centerFactor
-                val (lng, lat) = if (i == samples) target.longitude to target.latitude
-                else worldToLatLng(px, py, startWorldSize)
-                if (i % 6 == 0 || i == samples) {
-                    Log.d("FlyTo", "k=${"%.2f".format(k)} zoom=${"%.1f".format(zoom)} " +
-                        "cf=${"%.2f".format(centerFactor)} lat=${"%.5f".format(lat)} lng=${"%.5f".format(lng)}")
-                }
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom))
-                delay(stepMs)
+        // 时长与 MapLibre 一致按路径长度定：S / 速度（屏/秒），远距离飞得久、近距离快，避免中段过快
+        val durationMs = (S / FLY_SCREENS_PER_SEC * 1000.0 / speedFactor)
+            .coerceIn(FLY_MIN_MS / speedFactor.toDouble(), FLY_MAX_MS.toDouble())
+        // 按显示帧推进；进度用"加速-匀速-减速"曲线：只在首尾 25% 缓入缓出，中段匀速（峰速仅为均速 1.33 倍）
+        val startNanos = awaitFrame()
+        while (currentCoroutineContext().isActive) {
+            val frameNanos = awaitFrame()
+            val t = ((frameNanos - startNanos) / 1_000_000.0 / durationMs).coerceAtMost(1.0)
+            if (t >= 1.0) {
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, targetZoom))
+                break
             }
+            val k = cruiseEasing(t)
+            val s = k * S
+            // 与 MapLibre 原版一致：不加任何防御 clamp
+            val w = if (pureZoom) Math.exp(k * rho * S) else cosh(r0) / cosh(r0 + rho * s)
+            val centerFactor = if (pureZoom) 0.0
+            else w0 * (cosh(r0) * tanh(r0 + rho * s) - sinh(r0)) / rho2 / u1
+            val zoom = (startZoom + scaleZoom(1.0 / w)).toFloat().coerceIn(3f, 21f)
+            val (lng, lat) = worldToLatLng(from.first + dx * centerFactor, from.second + dy * centerFactor, startWorldSize)
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom))
+        }
+    }
+
+    /** 梯形速度曲线：[0, a] 匀加速、[a, 1-a] 匀速、[1-a, 1] 匀减速；连续且端点速度为 0 */
+    private fun cruiseEasing(t: Double, a: Double = 0.25): Double {
+        val vMax = 1.0 / (1.0 - a)
+        return when {
+            t <= 0.0 -> 0.0
+            t < a -> 0.5 * vMax * t * t / a
+            t < 1.0 - a -> vMax * (t - a / 2.0)
+            t < 1.0 -> 1.0 - 0.5 * vMax * (1.0 - t) * (1.0 - t) / a
+            else -> 1.0
+        }
     }
 
     /** WGS 墨卡托世界坐标投影（像素，给定世界尺寸） */
@@ -1029,102 +1192,145 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         return plainDotCache.getOrPut(color) { stationDot(color, r, false) }
     }
 
-    /** 按当前 zoom 与选中态刷新全部站点标记：zoom≥13 显示站名标签，否则纯圆点。
+    /** 按当前 zoom 与选中态刷新全部站点标记：当前段两端始终带站名；其余站点 zoom≥13 且非播放时带站名，否则纯圆点。
      *  白描边集合 = 当前站 + 当前行程段的两端（选中段时两边都高亮描边）。 */
     private fun refreshMarkerIcons() {
-        val currentStationId = model.events.getOrNull(currentEventIndex)?.stationId
+        val currentEvent = model.events.getOrNull(currentEventIndex)
         val active = activeSegmentAt()
-        val outlined = mutableSetOf<Long>()
-        currentStationId?.let { outlined.add(it) }
+        // 高亮站点 → 本条记录里的线路色（换乘站被多条线共用，默认圆点色只取了首次出现的线路）
+        val recordColors = mutableMapOf<Long, Int?>()
+        fun key(stationId: Long) = stationMarkerKey[stationId] ?: stationId
+        currentEvent?.let { recordColors[key(it.stationId)] = parseColor(it.lineColor) }
         if (active != null && active.hasCurve) {
-            outlined.add(active.from.stationId)
-            active.to?.let { outlined.add(it.stationId) }
+            recordColors[key(active.from.stationId)] = parseColor(active.from.lineColor)
+            active.to?.let { recordColors[key(it.stationId)] = parseColor(it.lineColor) }
         }
-        for ((sid, marker) in stationMarkers) {
+        val outlined = recordColors.keys
+        for (sid in stationMarkers.keys.toList()) {
+            val marker = stationMarkers[sid] ?: continue
             val meta = stationMeta[sid] ?: continue
-            val (name, color) = meta
+            val name = meta.first
+            val color = recordColors[sid] ?: meta.second
             val highlighted = sid in outlined
-            if (namesShown) {
-                val key = "$name|${color and 0xFFFFFF}|$highlighted"
-                marker.setIcon(labelCache.getOrPut(key) { labeledDot(color, name, highlighted) })
-                marker.setAnchor(0.5f, labelAnchorV(highlighted))
-            } else {
-                marker.setIcon(markerDot(color, highlighted))
-                marker.setAnchor(0.5f, 0.5f)
-            }
+            // 当前段两端（及当前站）始终显示站名；其余站点仅在 zoom≥13 且未在播放时显示
+            val labeled = (namesShown && !playing) || highlighted
+            val iconKey = "$labeled|${color and 0xFFFFFF}|$highlighted|$dotRadiusDp"
+            if (stationIconKeys[sid] == iconKey) continue
+            stationIconKeys[sid] = iconKey
+            val icon = if (labeled) {
+                labelCache.getOrPut("$name|${color and 0xFFFFFF}|$highlighted") { labeledDot(color, name, highlighted) }
+            } else markerDot(color, highlighted)
+            // 腾讯 SDK 的 Marker.setIcon 在新旧图标尺寸相同时不会重绘（换线路色后仍显示旧颜色），
+            // 所以图标变化时直接换一个新标记；当前段两端压在线路之上，其余站点在当前段线路之下
+            val position = marker.position
+            marker.remove()
+            tencentMap?.addMarker(
+                MarkerOptions()
+                    .position(position)
+                    .anchor(0.5f, if (labeled) labelAnchorV(highlighted) else 0.5f)
+                    .level(OverlayLevel.OverlayLevelAboveLabels)
+                    .zIndex((if (highlighted) ACTIVE_STATION_Z else STATION_Z).toFloat())
+                    .icon(icon)
+            )?.let { stationMarkers[sid] = it }
         }
     }
 
-    /** 圆点在上、站名标签在下的图标；anchor 垂直比例固定（高度与站名长度无关） */
+    // ── 覆盖物绘制（与界面一致：白描边圆点、白色胶囊标签 + 柔和阴影） ──
+
+    private fun ringWidthDp(highlighted: Boolean) = if (highlighted) 2.5f else 1.2f
+
+    private fun shadowPaint(color: Int): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        style = Paint.Style.FILL
+        val d = resources.displayMetrics.density
+        setShadowLayer(2f * d, 0f, 0.5f * d, 0x33000000)
+    }
+
+    /** 线路色圆点 + 白描边（任意底图上都清晰）；高亮时描边更粗并带阴影 */
+    private fun drawDot(canvas: Canvas, cx: Float, cy: Float, fill: Int, radiusDp: Float, highlighted: Boolean) {
+        val d = resources.displayMetrics.density
+        val ring = ringWidthDp(highlighted) * d
+        val r = radiusDp * d
+        val outer = if (highlighted) shadowPaint(Color.WHITE) else Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        canvas.drawCircle(cx, cy, r + ring, outer)
+        canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+    }
+
+    /** 圆点在上、站名白色胶囊标签在下的图标；anchor 垂直比例见 [labelAnchorV] */
     private fun labeledDot(color: Int, name: String, highlighted: Boolean): BitmapDescriptor {
-        val density = resources.displayMetrics.density
-        val textSize = 11f * density
+        val d = resources.displayMetrics.density
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.textSize = textSize
-            this.color = 0xFFEEEEEE.toInt()
+            textSize = LABEL_TEXT_DP * d
+            this.color = if (highlighted) Palette.INK else Palette.INK_2
+            typeface = if (highlighted) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
         val textW = textPaint.measureText(name)
-        val dotR = (if (highlighted) dotRadiusDp * 1.6f else dotRadiusDp) * density
-        val padX = 5f * density
-        val labelH = textSize + 4f * density
-        val topPad = 2f * density        // 顶部留白：白描边不被裁掉
-        val dotDia = dotR * 2f
-        val width = maxOf(dotDia + 2f * density, textW + padX * 2f)
-        val height = dotDia + labelH + topPad
+        val pad = MARKER_PAD_DP * d
+        val dotR = if (highlighted) dotRadiusDp * 1.6f else dotRadiusDp
+        val dotOuter = (dotR + ringWidthDp(highlighted)) * d
+        val labelW = textW + LABEL_PAD_X_DP * 2f * d
+        val labelH = (LABEL_TEXT_DP + LABEL_PAD_Y_DP * 2f) * d
+        val width = maxOf(dotOuter * 2f, labelW) + pad * 2f
+        val height = pad + dotOuter * 2f + LABEL_GAP_DP * d + labelH + pad
         val bmp = Bitmap.createBitmap(width.toInt().coerceAtLeast(1), height.toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // 站名深色圆角底条
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0x99000000.toInt() }
-        val labelLeft = (width - textW - padX * 2f) / 2f
-        val labelTop = dotDia + topPad
-        canvas.drawRoundRect(labelLeft, labelTop, labelLeft + textW + padX * 2f, labelTop + labelH, 4f * density, 4f * density, bgPaint)
-        canvas.drawText(name, labelLeft + padX, labelTop + 2f * density + textSize, textPaint)
-
-        // 圆点（水平居中，顶部留白内）
         val cx = width / 2f
-        val cy = dotR + topPad
-        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            this.style = Paint.Style.FILL
-        }
-        canvas.drawCircle(cx, cy, dotR, dotPaint)
-        if (highlighted) {
-            val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = Color.WHITE
-                this.style = Paint.Style.STROKE
-                this.strokeWidth = 2f * density
-            }
-            canvas.drawCircle(cx, cy, dotR, ringPaint)
-        }
+        drawDot(canvas, cx, pad + dotOuter, color, dotR, highlighted)
+
+        val labelLeft = (width - labelW) / 2f
+        val labelTop = pad + dotOuter * 2f + LABEL_GAP_DP * d
+        canvas.drawRoundRect(
+            labelLeft, labelTop, labelLeft + labelW, labelTop + labelH,
+            labelH / 2f, labelH / 2f, shadowPaint(Color.WHITE)
+        )
+        val fm = textPaint.fontMetrics
+        val baseline = labelTop + labelH / 2f - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(name, labelLeft + LABEL_PAD_X_DP * d, baseline, textPaint)
         return BitmapDescriptorFactory.fromBitmap(bmp)
     }
 
-    /** 带标签图标的锚点：让圆点中心对准坐标（标签在圆点下方，顶部留白内） */
+    /** 带标签图标的锚点：让圆点中心对准坐标（与 [labeledDot] 的尺寸计算一致，单位 dp） */
     private fun labelAnchorV(highlighted: Boolean): Float {
-        val dotR = if (highlighted) dotRadiusDp * 1.6f else dotRadiusDp
-        val topPad = 2f   // 与 labeledDot 顶部留白一致（dp）
-        val labelH = 11f + 4f   // 与 labeledDot 中 textSize(11sp) + 4dp 一致
-        return (dotR + topPad) / (dotR * 2f + labelH + topPad)
+        val dotOuter = (if (highlighted) dotRadiusDp * 1.6f else dotRadiusDp) + ringWidthDp(highlighted)
+        val height = MARKER_PAD_DP * 2f + dotOuter * 2f + LABEL_GAP_DP + LABEL_TEXT_DP + LABEL_PAD_Y_DP * 2f
+        return (MARKER_PAD_DP + dotOuter) / height
     }
 
     private fun stationDot(fill: Int, radiusDp: Float, ring: Boolean): BitmapDescriptor {
-        val density = resources.displayMetrics.density
-        val r = radiusDp * density
-        val stroke = if (ring) 2f * density else 0f
-        val size = ((r + stroke) * 2 + 2).toInt().coerceAtLeast(1)
+        val d = resources.displayMetrics.density
+        val size = ((radiusDp + ringWidthDp(ring) + MARKER_PAD_DP) * 2f * d).toInt().coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        drawDot(Canvas(bmp), size / 2f, size / 2f, fill, radiusDp, ring)
+        return BitmapDescriptorFactory.fromBitmap(bmp)
+    }
+
+    /** 播放位置：主题色圆点 + 白描边 + 主题色淡光晕 */
+    private fun playbackDot(accent: Int): BitmapDescriptor {
+        val d = resources.displayMetrics.density
+        val halo = 12f
+        val size = ((halo + MARKER_PAD_DP) * 2f * d).toInt()
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.style = Paint.Style.FILL
-        paint.color = fill
-        canvas.drawCircle(size / 2f, size / 2f, r, paint)
-        if (ring) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2f * density
-            paint.color = Color.WHITE
-            canvas.drawCircle(size / 2f, size / 2f, r, paint)
-        }
+        val c = size / 2f
+        canvas.drawCircle(c, c, halo * d, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = (accent and 0x00FFFFFF) or 0x33000000
+        })
+        drawDot(canvas, c, c, accent, 5.5f, highlighted = true)
+        return BitmapDescriptorFactory.fromBitmap(bmp)
+    }
+
+    /** 换乘点：白底 + 深灰描边（地铁图换乘站样式），不与线路色抢视觉 */
+    private fun transferDot(): BitmapDescriptor {
+        val d = resources.displayMetrics.density
+        val r = 4.5f * d
+        val stroke = 2f * d
+        val size = ((r + stroke) * 2f + MARKER_PAD_DP * 2f * d).toInt()
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val c = size / 2f
+        canvas.drawCircle(c, c, r + stroke, shadowPaint(Palette.INK_2))
+        canvas.drawCircle(c, c, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
         return BitmapDescriptorFactory.fromBitmap(bmp)
     }
 
@@ -1139,14 +1345,120 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         return try { Color.parseColor(normalized) } catch (e: Exception) { null }
     }
 
-    private fun LegOverlay.displayColor(active: Boolean): Int {
-        val alpha = when {
-            !active -> 0x66
-            geometryKind == RouteGeometryKind.STATION_SEQUENCE -> 0xB8
-            else -> 0xFF
+    /** 线路颜色/线宽过渡（当前段切换时）；白描边宽度随线宽同步变化 */
+    private fun LegOverlay.animateTo(targetColors: IntArray, targetWidthDp: Float) {
+        animator?.cancel()
+        val fromColors = shownColors
+        val fromWidth = color.width
+        val toWidth = dpToPx(targetWidthDp)
+        // 单色 ↔ 渐变之间过渡时按逐点颜色插值；两端都是单色时只插 1 个颜色
+        val n = maxOf(fromColors.size, targetColors.size)
+        fun at(colors: IntArray, i: Int) = if (colors.size == 1) colors[0] else colors[i]
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = TRANSITION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                val w = fromWidth + (toWidth - fromWidth) * f
+                applyColors(IntArray(n) { i -> ColorUtils.blendARGB(at(fromColors, i), at(targetColors, i), f) })
+                color.setWidth(w)
+                white?.setWidth(w + dpToPx(CASING_EXTRA_DP) * f)
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 结束时落到精确目标（单色目标回到单色，关闭渐变）
+                    applyColors(targetColors)
+                }
+            })
+            start()
         }
-        return (activeColor and 0x00FFFFFF) or (alpha shl 24)
     }
+
+    /**
+     * 流光：一段柔和的白色高光沿当前段从起点流向终点，循环播放以指示方向。
+     * 在基础颜色（单色或渐变）上逐点叠加，多条腿按累计点序视为一条路径；腿在做切换过渡时跳过。
+     */
+    private fun startShimmer(holder: SegmentOverlay) {
+        if (holder.legs.isEmpty()) return
+        shimmerAnimator = ValueAnimator.ofFloat(-SHIMMER_HALF, 1f + SHIMMER_HALF).apply {
+            duration = SHIMMER_MS
+            startDelay = TRANSITION_MS
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            addUpdateListener { va ->
+                val center = va.animatedValue as Float
+                val total = holder.legs.sumOf { it.points.size }.coerceAtLeast(2)
+                var offset = 0
+                for (leg in holder.legs) {
+                    val n = leg.points.size
+                    val base = leg.activeColors
+                    if (base != null && n >= 2 && leg.animator?.isRunning != true) {
+                        leg.applyColors(IntArray(n) { i ->
+                            val x = (offset + i).toFloat() / (total - 1)
+                            val d = kotlin.math.abs(x - center) / SHIMMER_HALF
+                            val k = if (d >= 1f) 0f else (1f - d) * (1f - d)   // 中心最亮、两侧柔和衰减
+                            val c = if (base.size == 1) base[0] else base[i]
+                            ColorUtils.blendARGB(c, Color.WHITE, SHIMMER_STRENGTH * k)
+                        })
+                    }
+                    offset += n
+                }
+            }
+            start()
+        }
+    }
+
+    private fun stopShimmer() {
+        shimmerAnimator?.cancel()
+        shimmerAnimator = null
+    }
+
+    /** 逐点渐变色：起点线路色 → 终点线路色 */
+    private fun LegOverlay.gradientColors(ends: Pair<Int, Int>): IntArray {
+        val last = (points.size - 1).coerceAtLeast(1)
+        return IntArray(points.size) { i -> ColorUtils.blendARGB(ends.first, ends.second, i.toFloat() / last) }
+    }
+
+    /** 应用颜色：1 个颜色为单色线；多个颜色为逐点渐变（与 points 一一对应） */
+    private fun LegOverlay.applyColors(colors: IntArray) {
+        if (colors.size == 1) {
+            color.setGradientEnable(false)
+            color.setColor(colors[0])
+        } else {
+            color.setGradientEnable(true)
+            color.setColors(colors, IntArray(colors.size) { it })
+        }
+        shownColors = colors
+    }
+
+    /** 白色描边：只给当前段按需创建（置于线路之下），离开即移除；见 [LegOverlay] 说明 */
+    private fun LegOverlay.showCasing(shown: Boolean) {
+        color.setZIndex(if (shown) ACTIVE_LINE_Z else LINE_Z)
+        if (!shown) {
+            white?.remove()
+            white = null
+            return
+        }
+        if (white != null) return
+        white = tencentMap?.addPolyline(
+            PolylineOptions()
+                .level(OverlayLevel.OverlayLevelAboveLabels)
+                .zIndex(CASING_Z)
+                .addAll(points)
+                .width(dpToPx(activeWidthDp + CASING_EXTRA_DP))
+                .color(Color.WHITE)
+        )
+    }
+
+    private fun LegOverlay.displayColor(active: Boolean): Int = when {
+        !active -> mapTint(activeColor, 0.40f)
+        geometryKind == RouteGeometryKind.STATION_SEQUENCE -> mapTint(activeColor, 0.72f)
+        else -> activeColor
+    }
+
+    /** 把颜色按比例混到浅色底图上，得到视觉上"半透明"的不透明色 */
+    private fun mapTint(color: Int, ratio: Float): Int =
+        ColorUtils.blendARGB(MAP_BG, color or 0xFF000000.toInt(), ratio)
 
     private fun dpToPx(dp: Int): Float = dp * resources.displayMetrics.density
 
@@ -1157,39 +1469,44 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun bindTripInfo(segments: List<MapSegment>) {
         val container = binding.tripListContainer
         segmentRows.clear()
-        if (container.childCount > 1) container.removeViews(1, container.childCount - 1)
+        container.removeAllViews()
 
         if (segments.isEmpty()) {
             container.addView(
                 TextView(requireContext()).apply {
                     text = "暂无行程数据"
-                    setTextColor(Palette.NIGHT_INK_3)
+                    setTextColor(Palette.INK_3)
                     textSize = 12f
-                    setPadding(0, dpToPx(16).toInt(), 0, dpToPx(16).toInt())
+                    setPadding(dpToPx(12).toInt(), dpToPx(16).toInt(), dpToPx(12).toInt(), dpToPx(16).toInt())
                 }
             )
             return
         }
 
         val timeFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        for (seg in segments) {
-            container.addView(
-                View(requireContext()).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-                    setBackgroundColor(0x331B3A5C.toInt())
-                }
-            )
+        for ((index, seg) in segments.withIndex()) {
+            if (index > 0) {
+                // 行间分隔线：左右缩进，与设置页卡片内分隔一致
+                container.addView(
+                    View(requireContext()).apply {
+                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply {
+                            marginStart = dpToPx(12).toInt(); marginEnd = dpToPx(12).toInt()
+                        }
+                        setBackgroundColor(Palette.LINE)
+                    }
+                )
+            }
 
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    topMargin = dpToPx(10).toInt(); bottomMargin = dpToPx(10).toInt()
+                    topMargin = dpToPx(4).toInt(); bottomMargin = dpToPx(4).toInt()
                 }
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 // 高亮圆角框与内容之间留间距，避免内容顶着框边缘
-                setPadding(dpToPx(12f).toInt(), dpToPx(6f).toInt(), dpToPx(12f).toInt(), dpToPx(6f).toInt())
+                setPadding(dpToPx(12f).toInt(), dpToPx(8f).toInt(), dpToPx(12f).toInt(), dpToPx(8f).toInt())
             }
 
             val leftCol = LinearLayout(requireContext()).apply {
@@ -1210,7 +1527,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             val timeView = TextView(requireContext()).apply {
                 text = timeFmt.format(Date(seg.startTime))
                 textSize = 11f
-                setTextColor(Palette.NIGHT_INK_3)
+                setTextColor(Palette.INK_3)
             }
 
             leftCol.addView(routeRow)
@@ -1220,7 +1537,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             segmentRows.add(row)
             row.setOnClickListener {
                 val i = segmentRows.indexOf(row)
-                if (i >= 0) setCurrentSegment(i)
+                if (i >= 0) {
+                    setCurrentSegment(i)
+                    scrollListToCurrent(i)   // 点击的行平滑滚到中间（滑动选择时不滚，跟随手指）
+                }
             }
             container.addView(row)
         }
@@ -1234,6 +1554,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     override fun onStop() { super.onStop(); mapView?.onStop() }
 
     override fun onDestroyView() {
+        stopShimmer()
+        scrollAnimator?.cancel()
+        segmentOverlays.forEach { holder -> holder.legs.forEach { it.animator?.cancel() } }
         stopPlayback()
         routeGeneration++
         routeLoadJob?.cancel()
@@ -1243,5 +1566,41 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         tencentMap = null
         _binding = null
         super.onDestroyView()
+    }
+
+    private companion object {
+        const val GHOST_WIDTH_DP = 1.5f     // 非当前段示意线宽
+        const val FLY_SCREENS_PER_SEC = 1.2  // MapLibre flyTo 默认速度（每秒飞过的"屏"数）
+        const val FLY_MIN_MS = 900L
+        const val FLY_MAX_MS = 3200L
+        const val STATION_ZOOM = 15f         // 单站事件的街区级视野
+        const val SAME_STATION_METERS = 300.0 // 同名站点记录视为同一车站的距离
+        const val FALLBACK_FRAME_ZOOM = 13f  // 视口尚未布局时的整段视野
+        const val MIN_FRAME_ZOOM = 9f        // 整段框选的缩放范围
+        const val MAX_FRAME_ZOOM = 16f
+        const val FRAME_PAD_X_DP = 40f       // 框选留白（逻辑像素）：上方让出提示条
+        const val FRAME_PAD_TOP_DP = 64f
+        const val FRAME_PAD_BOTTOM_DP = 40f
+        const val MAP_BG = 0xFFF4F4F2.toInt()  // 浅色底图的近似底色（用于混出不透明的淡色线）
+        const val TRANSITION_MS = 300L      // 当前段切换：线路/列表高亮过渡
+        const val SHIMMER_MS = 1800L        // 流光走完一趟的时长
+        const val SHIMMER_HALF = 0.14f      // 流光半宽（占路径比例）
+        const val SHIMMER_STRENGTH = 0.55f  // 流光中心向白色混合的强度
+        const val SCROLL_MS = 380L          // 列表滚动到当前段
+        const val CASING_EXTRA_DP = 4f      // 白描边比线路宽出的量（两侧各 2dp）
+        // 全部覆盖物同在 AboveLabels 层，按 zIndex 自下而上：
+        // 非当前段线路 < 其余站点 < 当前段白描边 < 当前段线路 < 当前段两端站点 < 换乘点 < 播放位置
+        const val LINE_Z = 1
+        const val STATION_Z = 2
+        const val CASING_Z = 3
+        const val ACTIVE_LINE_Z = 4
+        const val ACTIVE_STATION_Z = 5
+        const val TRANSFER_Z = 6
+        const val PLAYBACK_Z = 7
+        const val MARKER_PAD_DP = 3f        // 图标四周留白：给阴影/描边空间，对称以保证居中锚点
+        const val LABEL_TEXT_DP = 11f       // 站名标签字号（按 dp 绘制）
+        const val LABEL_PAD_X_DP = 7f
+        const val LABEL_PAD_Y_DP = 3f
+        const val LABEL_GAP_DP = 2f         // 圆点与标签间距
     }
 }

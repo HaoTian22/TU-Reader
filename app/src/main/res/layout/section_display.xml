@@ -10,7 +10,9 @@
 
     <LinearLayout style="@style/SettingsSectionCard">
 
+        <!-- 深色模式尚未实现：整行置灰（半透明）且开关不可操作 -->
         <LinearLayout
+            android:id="@+id/rowDarkMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -18,7 +20,8 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingBottom="14dp"
+            android:alpha="0.4">
 
             <TextView
                 android:id="@+id/iconDarkMode"
@@ -41,51 +44,12 @@
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
-            <!-- 深色模式尚未实现：开关保持关闭且不可操作 -->
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/switchDarkMode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minHeight="0dp"
                 android:enabled="false" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp">
-
-            <TextView
-                android:id="@+id/iconAmountUnit"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="center_vertical"
-                android:layout_marginEnd="12dp"
-                android:background="@drawable/bg_settings_icon"
-                android:gravity="center"
-                android:text="&#xf51e;"
-                android:textColor="@color/accent"
-                android:textSize="14sp"
-                android:tag="fa" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="金额显示单位"
-                android:textColor="@color/ink"
-                android:textSize="14sp" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="元"
-                android:textColor="@color/ink_3"
-                android:textSize="13sp" />
         </LinearLayout>
 
         <LinearLayout

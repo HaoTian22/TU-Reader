@@ -133,6 +133,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/rowOpenSource"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -140,46 +141,9 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingTop="14dp"
-            android:paddingBottom="14dp">
-
-            <TextView
-                android:id="@+id/iconSupportedCards"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="center_vertical"
-                android:layout_marginEnd="12dp"
-                android:background="@drawable/bg_settings_icon"
-                android:gravity="center"
-                android:text="&#xf0ae;"
-                android:textColor="@color/accent"
-                android:textSize="14sp"
-                android:tag="fa" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="支持的卡种列表"
-                android:textColor="@color/ink"
-                android:textSize="14sp" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="&#xf054;"
-                android:textColor="@color/ink_3"
-                android:textSize="14sp"
-                android:tag="fa" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
 
             <TextView
                 android:id="@+id/iconOpenSource"
@@ -204,7 +168,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="&#xf054;"
+                android:text="&#xf0c1;"
                 android:textColor="@color/ink_3"
                 android:textSize="14sp"
                 android:tag="fa" />

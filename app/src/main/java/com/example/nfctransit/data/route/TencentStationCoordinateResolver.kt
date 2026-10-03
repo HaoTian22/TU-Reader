@@ -139,6 +139,12 @@ internal class TencentStationCoordinateResolver(
         @Volatile private var quotaBlockedUntilMillis = 0L
         @Volatile private var networkBlockedUntilElapsed = 0L
 
+        internal fun resetServiceBlock() {
+            permissionDeniedForProcess = false
+            quotaBlockedUntilMillis = 0L
+            networkBlockedUntilElapsed = 0L
+        }
+
         internal fun cacheKey(query: StationSearchQuery): String {
             val raw = listOf(
                 TencentTransitParser.normalizeStation(query.stationName),

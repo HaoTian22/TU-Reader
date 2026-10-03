@@ -39,6 +39,7 @@ import com.example.nfctransit.data.prefs.AppPreferences
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.data.route.RouteCacheStore
+import com.example.nfctransit.data.route.TransitRouteRepository
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CardPalette
 import com.example.nfctransit.model.CategorySpending
@@ -1138,6 +1139,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _stationDbUpdateStatus.value = null
     }
 
+    fun consumeCacheClearStatus() {
+        _cacheClearStatus.value = null
+    }
+
     fun updateStationDatabase() {
         if (_stationDbUpdating.value == true) return
         _stationDbUpdating.value = true
@@ -1193,6 +1198,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.IO) {
                     UiCache.clearAll(ctx)
                     RouteCacheStore(ctx.cacheDir).clearAll()
+                    // 同时清除路线服务"未开通"熔断，便于在控制台开通后重新探测
+                    TransitRouteRepository.resetServiceBlock(ctx)
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
                     }

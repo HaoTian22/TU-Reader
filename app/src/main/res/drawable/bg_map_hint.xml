@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 地图上的提示条：半透明白色胶囊 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/night_2" />
+    <solid android:color="#E6FFFFFF" />
     <corners android:radius="999dp" />
 </shape>

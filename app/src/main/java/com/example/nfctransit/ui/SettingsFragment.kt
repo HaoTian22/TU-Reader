@@ -177,11 +177,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
             R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconTransitOverrides,
             R.id.iconDataExport, R.id.iconImportData,
-            R.id.iconClearCache, R.id.iconPrivacy,
-            R.id.iconDarkMode, R.id.iconAmountUnit, R.id.iconCurrentTripRoute,
+            R.id.iconClearCache,
+            R.id.iconDarkMode, R.id.iconCurrentTripRoute,
             R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
-            R.id.iconVersion, R.id.iconCheckUpdate, R.id.iconSupportedCards,
+            R.id.iconVersion, R.id.iconCheckUpdate,
             R.id.iconOpenSource, R.id.iconFeedback
         )
         optionIcons.forEach { id ->
@@ -305,17 +305,14 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             checkAppUpdate()
         }
 
+        // 开源致谢 → GitHub 仓库
+        binding.root.findViewById<View>(R.id.rowOpenSource)?.setOnClickListener {
+            openInBrowser("https://github.com/HaoTian22/TU-Reader")
+        }
+
         // 反馈入口 → GitHub Issues
         binding.root.findViewById<View>(R.id.rowFeedback)?.setOnClickListener {
-            val intent = Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://github.com/HaoTian22/TU-Reader/issues")
-            )
-            try {
-                startActivity(intent)
-            } catch (e: Exception) {
-                showStatus("无法打开浏览器")
-            }
+            openInBrowser("https://github.com/HaoTian22/TU-Reader/issues")
         }
 
         // 站名映射表在线更新：行右侧同一位置切换 箭头 → 下载进度环（已知大小时按比例填充，
@@ -379,16 +376,47 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
         }
 
-        // 清理缓存：确认弹窗 → viewModel.clearCache()（删 UI 构建缓存 + transit.db 重置为内置版）
-        binding.root.findViewById<View>(R.id.rowClearCache)?.setOnClickListener { showClearCacheDialog() }
+        // 清理缓存：确认弹窗 → viewModel.clearCache()。反馈与「站名映射表更新」一致：
+        // 行右侧 箭头 → 不定进度环 → 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头；失败原因用 Toast 提示。
+        val chevronCache = binding.root.findViewById<TextView>(R.id.chevronClearCache)!!
+        val progressCache = binding.root
+            .findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
+                R.id.progressClearCache
+            )!!
+        var pendingCacheRevert: Runnable? = null
+
+        fun showCacheChevron(glyph: String, color: Int) {
+            progressCache.visibility = View.GONE
+            chevronCache.text = glyph
+            chevronCache.setTextColor(color)
+            chevronCache.visibility = View.VISIBLE
+        }
+
+        binding.root.findViewById<View>(R.id.rowClearCache)?.setOnClickListener {
+            pendingCacheRevert?.let { chevronCache.removeCallbacks(it) }
+            showClearCacheDialog()
+        }
         viewModel.cacheClearing.observe(viewLifecycleOwner) { clearing ->
-            if (clearing) showCacheClearStatus("正在清理缓存…", Palette.INK_3)
+            if (clearing) {
+                chevronCache.visibility = View.GONE
+                progressCache.setIndicatorColor(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
+                progressCache.visibility = View.VISIBLE
+            }
         }
         viewModel.cacheClearStatus.observe(viewLifecycleOwner) { msg ->
             if (msg != null) {
-                val ok = msg.startsWith("✓")
-                showCacheClearStatus(msg, if (ok) Palette.SUCCESS else Palette.DANGER)
+                if (msg.startsWith("✓")) {
+                    showCacheChevron("", Palette.SUCCESS)          // fa-circle-check
+                    Toast.makeText(requireContext(), msg.removePrefix("✓").trim(), Toast.LENGTH_SHORT).show()
+                } else {
+                    showCacheChevron("", Palette.DANGER)           // fa-triangle-exclamation
+                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                }
+                pendingCacheRevert = Runnable { showCacheChevron("", Palette.INK_3) }  // fa-chevron-right
+                chevronCache.postDelayed(pendingCacheRevert!!, 3000)
                 updateLocalStorageSize()  // 清理后占用变小，刷新本地存储大小显示
+                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠ 与 Toast
+                viewModel.consumeCacheClearStatus()
             }
         }
 
@@ -511,12 +539,12 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         )
     }
 
-    private fun showCacheClearStatus(text: String, color: Int) {
-        val tv = _binding?.root?.findViewById<TextView>(R.id.tvClearCacheStatus) ?: return
-        tv.text = text
-        tv.setTextColor(color)
-        tv.visibility = View.VISIBLE
-        tv.postDelayed({ tv.visibility = View.GONE }, 2500)
+    private fun openInBrowser(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            showStatus("无法打开浏览器")
+        }
     }
 
     // ── 复制工具 ──

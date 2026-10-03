@@ -1,6 +1,7 @@
 package com.example.nfctransit.data.route
 
 import android.content.Context
+import com.example.nfctransit.BuildConfig
 import android.os.SystemClock
 import android.util.Log
 import java.security.MessageDigest
@@ -19,6 +20,10 @@ import kotlinx.coroutines.sync.withPermit
 class TransitRouteRepository(context: Context) {
 
     private val appContext = context.applicationContext
+
+    init {
+        loadPersistedServiceBlock(appContext)
+    }
     private val cacheStore = RouteCacheStore(appContext.cacheDir)
     private val client = TencentTransitRouteClient(appContext)
     private val coordinateResolver = TencentStationCoordinateResolver(appContext, cacheStore)
@@ -63,6 +68,7 @@ class TransitRouteRepository(context: Context) {
             is TransitParseResult.PermissionDenied -> {
                 logServiceIssue(parsed)
                 permissionDeniedForProcess = true
+                persistServiceDisabled(appContext)
                 stalePlan?.let { RouteLoadState.Ready(it) }
                     ?: parsed.toLoadError(serviceDisabled = true)
             }
@@ -211,6 +217,10 @@ class TransitRouteRepository(context: Context) {
         if (permissionDeniedForProcess) {
             return RouteLoadState.Error("腾讯路线服务未启用", serviceDisabled = true, status = 199)
         }
+        // 未配置 Key：客户端本地即失败，不必逐条排队（每条还要等节流间隔）
+        if (BuildConfig.TENCENT_MAP_WEB_SERVICE_KEY.isBlank() || BuildConfig.TENCENT_MAP_SECRET_KEY.isBlank()) {
+            return RouteLoadState.Error("未配置腾讯地图 WebService Key", serviceDisabled = true)
+        }
         val blockedUntil = quotaBlockedUntilMillis
         if (blockedUntil > now) {
             return RouteLoadState.Error(
@@ -263,6 +273,37 @@ class TransitRouteRepository(context: Context) {
         @Volatile private var permissionDeniedForProcess = false
         @Volatile private var quotaBlockedUntilMillis = 0L
         @Volatile private var quotaRequestId: String? = null
+        @Volatile private var persistedBlockLoaded = false
+
+        // 路线服务未开通（status 199）跨进程记住：按量计费，未开通时每次启动都再试一次也会产生调用。
+        // 记录绑定 versionCode——升级 App 后自动重试一次；「清理缓存」也会清除（见 resetServiceBlock）。
+        private const val PREFS_NAME = "transit_route_service"
+        private const val KEY_DISABLED_VERSION = "service_disabled_version_code"
+
+        private fun loadPersistedServiceBlock(context: Context) {
+            if (persistedBlockLoaded) return
+            persistedBlockLoaded = true
+            val disabledVersion = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getLong(KEY_DISABLED_VERSION, -1L)
+            if (disabledVersion == BuildConfig.VERSION_CODE.toLong()) permissionDeniedForProcess = true
+        }
+
+        private fun persistServiceDisabled(context: Context) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putLong(KEY_DISABLED_VERSION, BuildConfig.VERSION_CODE.toLong())
+                .apply()
+        }
+
+        /** 清除"服务未开通/额度用完"熔断，下次打开地图重新探测（控制台开通服务后用）。 */
+        fun resetServiceBlock(context: Context) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .remove(KEY_DISABLED_VERSION)
+                .apply()
+            permissionDeniedForProcess = false
+            quotaBlockedUntilMillis = 0L
+            quotaRequestId = null
+            TencentStationCoordinateResolver.resetServiceBlock()
+        }
 
         private val SERVICE_TIME_ZONE: TimeZone = TimeZone.getTimeZone("Asia/Shanghai")
 
