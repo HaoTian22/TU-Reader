@@ -194,10 +194,11 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             val groups = appRecords.groupBy { it.sfi }.toSortedMap()
             var previousSfi: Int? = null
             groups.forEach { (sfi, records) ->
-                val first = records.first()
-                val data = runCatching { com.example.nfctransit.ApduUtil.hexToBytes(first.hex) }.getOrNull()
-                val fields = RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, first.protocol)
+                val fieldVariants = linkedSetOf<List<RawHexFormatter.FieldSpec>>()
                 records.forEach { record ->
+                    val data = runCatching { com.example.nfctransit.ApduUtil.hexToBytes(record.hex) }.getOrNull()
+                    val fields = RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex)
+                    if (fields.isNotEmpty()) fieldVariants.add(fields)
                     appendRawBlock(
                         panel,
                         RawHexFormatter.header(record),
@@ -208,7 +209,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                     )
                     previousSfi = sfi
                 }
-                if (fields.isNotEmpty()) {
+                for (fields in fieldVariants) {
                     addMonospaceLine(panel, "SFI ${sfi.toSfiHex()} · $protocol fields", dim = true)
                     fields.forEach { addLegendRow(panel, it) }
                 }

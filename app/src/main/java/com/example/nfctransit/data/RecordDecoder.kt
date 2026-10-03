@@ -79,6 +79,10 @@ object RecordDecoder {
         else -> null
     }
 
+    internal fun lntFareUsesSeconds(terminal: String, mappingTransitType: String?, lastByte: Int): Boolean =
+        terminal.length > 4 && terminal[4] != '0' && mappingTransitType != "地铁" &&
+            lastByte != 0x17 && lastByte != 0x31
+
     /** TU 1E 建表结果；balanceMap 值为 null = 该记录无余额数据 */
     private class TuMap(
         val stationMap: Map<String, StationRef>,
@@ -496,12 +500,6 @@ object RecordDecoder {
             val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
             val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
-            val subtype = if (isSubtype18) data[22].toInt() and 0xFF else null
-            val time = if (isSubtype18) {
-                ApduUtil.bcdToString(data.copyOfRange(20, 22)) + "00"
-            } else {
-                ApduUtil.bcdToString(data.copyOfRange(20, 23))
-            }
 
             // 日期：归档优先用已解析日期；否则 LNT 用年份推断，其余直接用记录内日期
             val hash = contentHash(rec.hex)
@@ -522,7 +520,6 @@ object RecordDecoder {
                     ApduUtil.bcdToString(data.copyOfRange(16, 20))
                 }
             }
-            val timestamp = date + time
 
             // 0x18 记录城市码：其 [10..12) 实为终端号前缀（如 4131…），对 TU 卡无效；
             // 站点解析兜底仍用它（与旧实现一致），但展示用 1E 卡所在城市码
@@ -545,6 +542,17 @@ object RecordDecoder {
             val ref = if (!isRecharge && resolvedRef != null) resolvedRef
                 else StationRef("", "", "充值")
             val mappingMatched = !isRecharge && ref.deviceCode != null
+            // LNT 外地消费恢复秒数；命中地铁设备（包括佛山）或末字节为 17/31 仍保留 subtype。
+            // 使用映射原始类型判断，避免显示语言或 subtype 兜底影响字段含义。
+            val lastByte = data[22].toInt() and 0xFF
+            val lntSeconds = isLnt && isSubtype18 && lntFareUsesSeconds(terminal, ref.mappingTransitType, lastByte)
+            val subtype = if (isSubtype18 && !lntSeconds) lastByte else null
+            val time = if (isSubtype18 && !lntSeconds) {
+                ApduUtil.bcdToString(data.copyOfRange(20, 22)) + "00"
+            } else {
+                ApduUtil.bcdToString(data.copyOfRange(20, 23))
+            }
+            val timestamp = date + time
             val lntType = if (isLnt && isSubtype18) {
                 resolveLntType(typeByte, subtype, ref.mappingTransitType.takeIf { mappingMatched })
             } else null

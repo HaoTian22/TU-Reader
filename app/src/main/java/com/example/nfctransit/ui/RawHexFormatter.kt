@@ -5,6 +5,8 @@ import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.RawRecord
+import com.example.nfctransit.data.RecordDecoder
+import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
 
 object RawHexFormatter {
@@ -145,7 +147,7 @@ object RawHexFormatter {
         val color: Int
     )
 
-    fun fieldsFor(sfi: Int, size: Int, protocol: String): List<FieldSpec> {
+    fun fieldsFor(sfi: Int, size: Int, protocol: String, hex: String = ""): List<FieldSpec> {
         if (sfi == 0x15 && protocol == "LNT" && size >= 32) {
             return listOf(
                 FieldSpec("Card Number", 11, 16, "BCD", CARD_NUMBER),
@@ -221,6 +223,15 @@ object RawHexFormatter {
             )
         }
         if (sfi == 0x18 && size >= 23 && protocol == "LNT") {
+            val data = runCatching { ApduUtil.hexToBytes(hex) }.getOrNull()
+            val usesSeconds = if (data != null && data.size >= 23) {
+                val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
+                val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
+                val mappingType = if (terminal.length > 4 && terminal[4] != '0' && data[9] != 0x02.toByte()) {
+                    TransitData.resolveByStandard("YCT", terminal.take(4), posHex, terminal)?.type
+                } else null
+                RecordDecoder.lntFareUsesSeconds(terminal, mappingType, data[22].toInt() and 0xFF)
+            } else false
             return listOf(
                 FieldSpec("Record No.", 0, 2, "dec", RECORD),
                 FieldSpec("Amount", 6, 9, "hex", AMOUNT),
@@ -228,7 +239,8 @@ object RawHexFormatter {
                 FieldSpec("Terminal", 10, 16, "BCD", TERMINAL),
                 FieldSpec("Original Fare", 16, 18, "hex", ORIGINAL_FARE),
                 FieldSpec("Timestamp", 18, 22, "BCD", TIMESTAMP),
-                FieldSpec("Subtype", 22, 23, "hex", SUBTYPE)
+                if (usesSeconds) FieldSpec("Seconds", 22, 23, "BCD", TIMESTAMP)
+                else FieldSpec("Subtype", 22, 23, "hex", SUBTYPE)
             )
         }
         if (sfi == 0x18 && size >= 23) {
@@ -292,7 +304,7 @@ object RawHexFormatter {
         for (record in records) {
             if (out.isNotEmpty()) out.append("\n\n")
             out.append(header(record)).append('\n').append(record.hex)
-            val fields = fieldsFor(record.sfi, runCatching { ApduUtil.hexToBytes(record.hex).size }.getOrDefault(0), record.protocol)
+            val fields = fieldsFor(record.sfi, runCatching { ApduUtil.hexToBytes(record.hex).size }.getOrDefault(0), record.protocol, record.hex)
             for (field in fields) {
                 val method = field.method.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
                 out.append('\n').append("[${field.label} ${rangeText(field.start, field.end)}$method] ")

@@ -420,7 +420,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         addDivider(binding.hexPanel)
         for (block in blocks) {
             val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex
             )
             if (fields.isEmpty()) continue
             addMonospaceLine(binding.hexPanel, "SFI ${block.sfi.toSfiHex()} fields", dim = true)
@@ -448,7 +448,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         out.append("\n\n")
         for (block in blocks) {
             val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex
             )
             if (fields.isEmpty()) continue
             out.append("SFI ${block.sfi.toSfiHex()}\n")
@@ -478,7 +478,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         hex: String,
         protocol: String
     ) {
-        val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol)
+        val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol, hex)
         addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
         addColoredHexLine(container, RawHexFormatter.colorizeHex(hex, fields))
     }

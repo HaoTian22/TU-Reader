@@ -2,8 +2,10 @@ package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.db.StationResolution
+import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.TransitDirection
+import com.example.nfctransit.ui.RawHexFormatter
 import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,6 +14,91 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecordDecoderTest {
+
+    @Test
+    fun lntNonZeroFifthTerminalDigitWithoutMetroMappingUsesSeconds() {
+        for (digit in listOf('1', '3', '9')) {
+            for (type in listOf(null, "公交", "便利店")) {
+                val mappings = type?.let { listOf(lntMapping(it).copy(deviceCode = "9900${digit}018")) }
+                    ?: emptyList()
+                withDeviceMappings(mappings) {
+                    for (seconds in listOf(0x00, 0x11, 0x25, 0x59)) {
+                        val record = lntRecord(1, 1, "0101", 0x09, seconds, "9900${digit}0180001")
+                        val decoded = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026)
+                        val tx = decoded.display.single()
+                        assertEquals("1200${ApduUtil.bytesToHex(byteArrayOf(seconds.toByte()))}", tx.time)
+                        assertEquals("09", tx.typeHex)
+                        assertNull(tx.direction)
+                        assertEquals(type?.let { TransitData.transitTypeLabel(it) } ?: "公共交通", tx.transitType)
+                        val field = RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last()
+                        assertEquals("Seconds", field.label)
+                        assertEquals("BCD", field.method)
+                        assertEquals(RawHexFormatter.TIMESTAMP, field.color)
+                        assertFalse(RawHexFormatter.copyText(listOf(RawRecord(0x18, 1, "LNT", record.hex)))
+                            .contains("[Subtype"))
+
+                        val row = ArchivedTransactionEntity(
+                            cardId = "test", sfi = "0x18", protocol = "LNT", hex = record.hex,
+                            contentHash = RecordDecoder.contentHash(record.hex), resolvedDate = tx.date,
+                            firstSeenAt = 0, lastSeenAt = 0
+                        )
+                        val restored = RecordDecoder.decodeArchive("YCT", listOf(row)).single()
+                        assertEquals(tx.time, restored.time)
+                        assertEquals(tx.transitType, restored.transitType)
+                        assertNull(restored.direction)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun lntNonZeroFifthTerminalDigitWithMetroMappingKeepsSubtype() =
+        withDeviceMappings(listOf(lntMapping("地铁").copy(deviceCode = "99003018"))) {
+            for (subtype in listOf(0x11, 0x17, 0x31)) {
+                val record = lntRecord(1, 1, "0101", 0x09, subtype, "990030180001")
+                val tx = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026).display.single()
+                assertEquals("120000", tx.time)
+                assertEquals(TransitData.transitTypeLabel("地铁"), tx.transitType)
+                assertEquals(if (subtype == 0x11) TransitDirection.ENTRY else TransitDirection.EXIT, tx.direction)
+                assertEquals("Subtype", RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last().label)
+            }
+        }
+
+    @Test
+    fun lntZeroFifthTerminalDigitKeepsSubtypeWithoutMapping() = withDeviceMappings(emptyList()) {
+        val tx = decodeLnt(subtype = 0x31)
+        assertEquals("120000", tx.time)
+        assertEquals("地铁", tx.transitType)
+        assertEquals(TransitDirection.EXIT, tx.direction)
+    }
+
+    @Test
+    fun lntNonZeroFifthTerminalDigitKeeps17And31SubtypeWithoutMetroMapping() {
+        for (type in listOf(null, "公交", "便利店")) {
+            val mappings = type?.let { listOf(lntMapping(it).copy(deviceCode = "99003018")) }
+                ?: emptyList()
+            withDeviceMappings(mappings) {
+                for (subtype in listOf(0x17, 0x31)) {
+                    val record = lntRecord(1, 1, "0101", 0x09, subtype, "990030180001")
+                    val tx = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026).display.single()
+                    assertEquals("120000", tx.time)
+                    assertEquals(type?.let { TransitData.transitTypeLabel(it) } ?: "地铁", tx.transitType)
+                    assertEquals(if (type == null) TransitDirection.EXIT else null, tx.direction)
+                    assertEquals("Subtype", RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last().label)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun lntNonZeroFifthTerminalDigitKeepsConvenienceSubtype17() = withDeviceMappings(emptyList()) {
+        val record = lntRecord(1, 1, "0101", 0x06, 0x17, "990030180001")
+        val tx = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026).display.single()
+        assertEquals("120000", tx.time)
+        assertEquals("便利店", tx.transitType)
+        assertNull(tx.direction)
+    }
 
     @Test
     fun lntExitSubtypesUseBusMappingWithoutRailDirection() = withDeviceMappings(listOf(lntMapping("公交"))) {
