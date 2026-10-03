@@ -184,7 +184,7 @@ def test_rejects_invalid_json(api):
 
 
 def test_rejects_oversized_body(api):
-    status, _ = api("POST", "/v1/overrides", body=b"x" * (17 * 1024))
+    status, _ = api("POST", "/v1/overrides", body=b"x" * (app.MAX_BODY_BYTES + 1))
     assert status == 413
 
 
@@ -267,3 +267,58 @@ def test_source_is_stored_even_when_city_is_unchanged(api, source):
     changed = {**payload, "locationSource": source}
     assert api("POST", "/v1/overrides", changed)[1]["status"] == "updated"
     assert stored_entries()["33200120|公交"]["locationSource"] == source
+
+
+def raw_record_payload():
+    return {
+        "prefix": "3320", "code": "0120", "type": "公交", "standard": "TU",
+        "line": "12", "station": "", "locationSource": "AUTO",
+    }
+
+
+def test_optional_raw_record_preserves_all_blocks_and_newlines(api):
+    raw_record = (
+        "SFI 0x18 (LNT)\n01020304\n\n"
+        "SFI 0x18 (TU)\n05060708\n\n"
+        "SFI 0x1E (TU)\n090A0B0C\n\n[Match] 33200120\n"
+    )
+    payload = {**raw_record_payload(), "rawRecord": raw_record}
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    entry = stored_entries()["33200120|公交"]
+    assert entry["rawRecord"] == raw_record
+    assert entry["csv"] == "3320,0120,公交,12,"
+    # Sensitive raw data belongs in the JSON store.
+    row, metadata, _ = app.parse_override(payload)
+    assert "rawRecord" not in app.FeedbackHandler._log_content(row, metadata)
+
+
+@pytest.mark.parametrize("optional", [{}, {"rawRecord": None}])
+def test_feedback_without_raw_record_omits_it_and_replaces_previous_data(api, optional):
+    base = raw_record_payload()
+    assert api("POST", "/v1/overrides", {**base, "rawRecord": "01020304"})[0] == 201
+    assert api("POST", "/v1/overrides", {**base, "type": "地铁", "rawRecord": "05060708"})[0] == 201
+    assert api("POST", "/v1/overrides", {**base, **optional})[1]["status"] == "updated"
+    entries = stored_entries()
+    assert "rawRecord" not in entries["33200120|公交"]
+    assert entries["33200120|地铁"]["rawRecord"] == "05060708"
+
+
+@pytest.mark.parametrize("raw_record", ["", " \n\t", 123, False, [], {},
+    "A" * (app.MAX_RAW_RECORD_BYTES + 1),
+    "余" * (app.MAX_RAW_RECORD_BYTES // 3 + 1),
+], ids=["empty", "whitespace", "number", "boolean", "list", "object", "oversize-ascii", "oversize-utf8"])
+def test_rejects_invalid_raw_record_without_overwriting(api, raw_record):
+    base = raw_record_payload()
+    assert api("POST", "/v1/overrides", base)[0] == 201
+    original = app.JSON_FILE.read_bytes()
+    status, response = api("POST", "/v1/overrides", {**base, "rawRecord": raw_record})
+    assert status == 422
+    assert "rawRecord" in response["detail"]
+    assert app.JSON_FILE.read_bytes() == original
+
+
+def test_accepts_raw_record_at_utf8_limit_even_with_json_escapes(api):
+    raw_record = "余" * (app.MAX_RAW_RECORD_BYTES // 3) + "A" * (app.MAX_RAW_RECORD_BYTES % 3)
+    assert len(raw_record.encode("utf-8")) == app.MAX_RAW_RECORD_BYTES
+    assert api("POST", "/v1/overrides", {**raw_record_payload(), "rawRecord": raw_record})[0] == 201
+    assert stored_entries()["33200120|公交"]["rawRecord"] == raw_record

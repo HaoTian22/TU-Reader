@@ -18,7 +18,8 @@ object FeedbackUploader {
         val station: String,
         val locationCityCode: String? = null,
         val locationCityName: String? = null,
-        val locationSource: FeedbackLocationSource
+        val locationSource: FeedbackLocationSource,
+        val rawRecord: String? = null
     )
 
     fun upload(
@@ -28,7 +29,8 @@ object FeedbackUploader {
         standard: String,
         locationCityCode: String? = null,
         locationCityName: String? = null,
-        locationSource: FeedbackLocationSource
+        locationSource: FeedbackLocationSource,
+        rawRecord: String? = null
     ): String {
         val endpoint = BuildConfig.FEEDBACK_UPLOAD_URL.trim()
         if (endpoint.isEmpty()) return "未配置公开上传地址"
@@ -51,7 +53,8 @@ object FeedbackUploader {
                     row.station,
                     locationCityCode,
                     locationCityName,
-                    locationSource
+                    locationSource,
+                    rawRecord
                 )
             )
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }

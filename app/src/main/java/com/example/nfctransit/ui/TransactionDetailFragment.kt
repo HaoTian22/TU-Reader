@@ -39,6 +39,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     /** 当前交易的原始数据（0x18 + 0x1E），供复制按钮使用 */
     private var rawHexToCopy = ""
+    /** 与原始记录面板使用同一组数据。 */
+    private var rawRecordForFeedback = ""
     private data class RawBlock(val sfi: Int, val protocol: String, val hex: String)
     private var feedbackDialog: Dialog? = null
     private var feedbackProgressToast: Toast? = null
@@ -176,6 +178,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             .orEmpty()
         feedbackDialog?.dismiss()
         viewModel.consumeFeedbackStatus()
+        // 在打开表单时固定当前展示内容，避免保存纠错后重新解析改变 Match 等信息。
+        val rawRecord = rawRecordForFeedback
         feedbackDialog = AppDialogs.feedback(
             context = requireContext(),
             prefix = prefix,
@@ -185,8 +189,9 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             type = txn.transitType,
             actualCityCode = txn.actualCityCode,
             actualCityName = txn.cityName,
+            hasRawRecord = rawRecord.isNotBlank(),
             accentColor = accentColor
-        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish ->
+        ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish, includeRawRecord ->
             val normalizedPrefix = enteredPrefix.trim()
             val normalizedCode = enteredCode.trim()
             val normalizedLine = enteredLine.trim()
@@ -217,7 +222,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 enteredCityCode,
                 enteredCityName,
                 locationSource,
-                publish
+                publish,
+                rawRecord = rawRecord.takeIf { publish && includeRawRecord }
             )
             true
         }
@@ -248,6 +254,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.btnCopyHex.alpha = 0.45f
         binding.btnFeedbackHex.alpha = 0.45f
         rawHexToCopy = ""
+        rawRecordForFeedback = ""
         binding.hexPanel.removeAllViews()
         addMonospaceLine(
             binding.hexPanel,
@@ -381,6 +388,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val variants = txn.rawVariants.orEmpty()
         if (mainHex.isBlank() && journeyHex.isNullOrBlank() && variants.isEmpty()) {
             rawHexToCopy = ""
+            rawRecordForFeedback = ""
             addMonospaceLine(binding.hexPanel, "无该交易原始数据", dim = true)
             return
         }
@@ -419,6 +427,16 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             for (f in fields) addLegendRow(binding.hexPanel, f)
         }
         rawHexToCopy = buildCopyText(sb.toString(), blocks, txn)
+        rawRecordForFeedback = buildString {
+            for (block in blocks) {
+                if (isNotEmpty()) append("\n\n")
+                append("SFI ${block.sfi.toSfiHex()}")
+                if (block.protocol.isNotBlank()) append(" (${block.protocol})")
+                append('\n').append(block.hex)
+            }
+            append("\n\n[Match] ").append(matchCode)
+            if (txn.spRule != null) append(' ').append(txn.spRule)
+        }
     }
 
     private fun buildCopyText(

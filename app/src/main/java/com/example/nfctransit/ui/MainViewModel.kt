@@ -803,7 +803,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         locationCityCode: String,
         locationCityName: String,
         locationSource: FeedbackLocationSource,
-        publish: Boolean
+        publish: Boolean,
+        rawRecord: String? = null
     ) {
         if (_feedbackSaving.value == true) return
         _feedbackSaving.value = true
@@ -845,7 +846,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.IO) {
                         FeedbackUploader.upload(
                             getApplication(), normalized, type.trim(), standard,
-                            locationCityCode, locationCityName, locationSource
+                            locationCityCode, locationCityName, locationSource, rawRecord
                         )
                     }
                 } else null

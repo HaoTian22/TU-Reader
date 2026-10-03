@@ -26,9 +26,10 @@ DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).with_name("data"))
 JSON_FILE = DATA_DIR / "overrides.json"
 WRITE_LOCK = Lock()
 
-# Submitted payloads are well under 1 KiB; reject anything larger before
-# parsing it so a single request can't inflate resident memory.
-MAX_BODY_BYTES = 16 * 1024
+# Bound optional raw-record text and the JSON body (including JSON escapes)
+# before parsing so a single request can't inflate resident memory.
+MAX_RAW_RECORD_BYTES = 32 * 1024
+MAX_BODY_BYTES = 256 * 1024
 DRAIN_CHUNK = 64 * 1024
 LOCATION_SOURCES = {"AUTO", "MANUAL"}
 CODE_PATTERN = re.compile(r"[0-9A-Za-z]+")
@@ -123,6 +124,17 @@ def _validate_location_source(value: str) -> str:
     return value
 
 
+def _validate_raw_record(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if not value.strip():
+        raise PayloadError("rawRecord: text must be non-empty")
+    if len(value.encode("utf-8")) > MAX_RAW_RECORD_BYTES:
+        raise PayloadError(f"rawRecord: at most {MAX_RAW_RECORD_BYTES} UTF-8 bytes")
+    # Preserve submitted record text and newlines verbatim.
+    return value
+
+
 def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | None], str]:
     """Validate one submission, returning (csv row, metadata, device_code)."""
     if not isinstance(payload, dict):
@@ -137,6 +149,7 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
         "locationCityCode",
         "locationCityName",
         "locationSource",
+        "rawRecord",
     }
     if unknown:
         raise PayloadError(f"unexpected fields: {', '.join(sorted(unknown))}")
@@ -164,6 +177,9 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
             _required_str(payload, "locationSource")
         ),
     }
+    raw_record = _validate_raw_record(_optional_str(payload, "rawRecord"))
+    if raw_record is not None:
+        metadata["rawRecord"] = raw_record
     return row, metadata, prefix + code
 
 

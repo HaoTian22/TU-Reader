@@ -51,7 +51,8 @@ object AppDialogs {
             "线路：读卡器所在的线路，例如「1号线」或公交线路号，可留空\n\n" +
             "站名：车站或站点名称，不确定/公交可留空\n\n" +
             "所在城市：不参与站名映射，仅随公开上传提供给开发者排查问题（有时一个城市会用多个城市前缀，开发者需要知道实际所在城市）\n\n" +
-            "公开上传纠错：开启后把这条纠错匿名上传，用于改进内置站名数据；关闭则只保存在本机"
+            "公开上传纠错：开启后把这条纠错上传，用于改进内置站名数据；关闭则只保存在本机\n\n" +
+            "提供更多信息：默认关闭。开启后随公开纠错上传该条交易的原始数据和匹配信息，可能包含余额、交易时间、金额等信息"
 
     private fun dialogWidth(context: Context): Int {
         val dm = context.resources.displayMetrics
@@ -218,6 +219,7 @@ object AppDialogs {
         actualCityName: String,
         title: String = "反馈站名纠错",
         showPublish: Boolean = true,
+        hasRawRecord: Boolean = false,
         accentColor: Int = Palette.ACCENT,
         maxScrollHeightDp: Int? = null,
         onConfirm: (
@@ -229,7 +231,8 @@ object AppDialogs {
             cityCode: String,
             cityName: String,
             locationSource: FeedbackLocationSource,
-            publish: Boolean
+            publish: Boolean,
+            includeRawRecord: Boolean
         ) -> Boolean
     ): Dialog {
         val dialog = Dialog(context)
@@ -237,6 +240,8 @@ object AppDialogs {
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_feedback, null)
         dialog.setContentView(view)
+        view.findViewById<View>(R.id.feedbackMoreInfoRow).visibility =
+            if (hasRawRecord) View.VISIBLE else View.GONE
         val formScroll = view.findViewById<android.widget.ScrollView>(R.id.feedbackScroll)
         val dm = context.resources.displayMetrics
         // 表单区限高（默认屏高 45%），标题与按钮固定，中间滚动；内容不足上限时按内容高度
@@ -281,6 +286,20 @@ object AppDialogs {
             if (showPublish) setOnClickListener { publishInput.toggle() }
         }
         (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.tintAccent(accentColor)
+        val moreInfoInput = view.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.feedbackMoreInfo)
+        val moreInfoRow = view.findViewById<View>(R.id.feedbackMoreInfoRow)
+        moreInfoInput.isChecked = false
+        moreInfoInput.tintAccent(accentColor)
+        fun updateMoreInfoAvailability() {
+            val enabled = showPublish && publishInput.isChecked && hasRawRecord
+            moreInfoInput.isEnabled = enabled
+            moreInfoRow.isEnabled = enabled
+            moreInfoRow.alpha = if (enabled) 1f else 0.5f
+            if (!enabled) moreInfoInput.isChecked = false
+        }
+        moreInfoRow.setOnClickListener { if (moreInfoInput.isEnabled) moreInfoInput.toggle() }
+        publishInput.setOnCheckedChangeListener { _, _ -> updateMoreInfoAvailability() }
+        updateMoreInfoAvailability()
         view.findViewById<TextView>(R.id.feedbackHelp).apply {
             typeface = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
             setOnClickListener {
@@ -435,7 +454,8 @@ object AppDialogs {
                     selectedCity?.code.orEmpty(),
                     selectedCity?.name ?: typedCity,
                     citySource,
-                    publishInput.isChecked
+                    publishInput.isChecked,
+                    publishInput.isChecked && moreInfoInput.isEnabled && moreInfoInput.isChecked
                 )
                 if (accepted) dialog.dismiss()
             }
@@ -488,7 +508,7 @@ object AppDialogs {
             showPublish = true,
             accentColor = accentColor,
             maxScrollHeightDp = 480
-        ) { prefix, code, type, line, station, cityCode, cityName, locationSource, publish ->
+        ) { prefix, code, type, line, station, cityCode, cityName, locationSource, publish, _ ->
             onSave(prefix, code, type, line, station, cityCode, cityName, locationSource, publish)
         }
     }
