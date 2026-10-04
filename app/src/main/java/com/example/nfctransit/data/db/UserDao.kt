@@ -59,6 +59,9 @@ interface UserDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRawRecord(record: RawRecordEntity): Long
 
+    @Upsert
+    suspend fun upsertRawRecords(records: List<RawRecordEntity>)
+
     @Query("UPDATE raw_records SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND rec_no = :recNo")
     suspend fun touchRawSlot(cardId: String, protocol: String, sfi: String, recNo: Int, lastSeenAt: Long)
 
@@ -84,6 +87,12 @@ interface UserDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArchiveRow(row: ArchivedTransactionEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertArchiveRows(rows: List<ArchivedTransactionEntity>): List<Long>
+
+    @Query("UPDATE transactions_archive SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND content_hash IN (:hashes)")
+    suspend fun touchArchives(cardId: String, protocol: String, sfi: String, hashes: List<String>, lastSeenAt: Long)
+
     @Query("UPDATE transactions_archive SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND content_hash = :contentHash AND protocol = :protocol AND sfi = :sfi")
     suspend fun touchArchive(cardId: String, contentHash: String, protocol: String, sfi: String, lastSeenAt: Long)
 
@@ -98,8 +107,20 @@ interface UserDao {
     @Insert
     suspend fun insertCardApp(row: CardAppEntity): Long
 
+    @Insert
+    suspend fun insertCardApps(rows: List<CardAppEntity>)
+
     @Query("SELECT * FROM card_app WHERE card_id = :cardId ORDER BY read_at DESC, row_id DESC")
     suspend fun getCardApps(cardId: String): List<CardAppEntity>
+
+    @Query("""SELECT * FROM card_app WHERE row_id IN (
+        SELECT MAX(snapshot.row_id) FROM card_app AS snapshot
+        INNER JOIN (SELECT selected_aid, MAX(read_at) AS latest_read_at
+            FROM card_app WHERE card_id = :cardId GROUP BY selected_aid) AS latest
+        ON snapshot.selected_aid = latest.selected_aid AND snapshot.read_at = latest.latest_read_at
+        WHERE snapshot.card_id = :cardId GROUP BY snapshot.selected_aid
+    ) ORDER BY selected_aid""")
+    suspend fun getLatestCardApps(cardId: String): List<CardAppEntity>
 
     @Query("SELECT * FROM card_app")
     suspend fun getAllCardApps(): List<CardAppEntity>

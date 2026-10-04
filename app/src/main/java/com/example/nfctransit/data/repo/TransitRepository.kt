@@ -130,24 +130,19 @@ class TransitRepository(private val context: Context) {
 
     suspend fun syncRawRecords(cardId: String, records: List<RawRecord>) {
         val now = System.currentTimeMillis()
-        for (rec in records) {
+        fun key(protocol: String, sfi: String, recNo: Int) = Triple(protocol, sfi, recNo)
+        val existingSlots = dao.getRawRecords(cardId).associateBy { key(it.protocol, it.sfi, it.recNo) }
+        val rows = records.associateBy { key(it.protocol, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
             val hash = RecordDecoder.contentHash(rec.hex)
-            val existing = dao.getRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo)
-            when {
-                existing == null ->
-                    dao.insertRawRecord(
-                        RawRecordEntity(
-                            cardId = cardId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
-                            protocol = rec.protocol, hex = rec.hex, contentHash = hash,
-                            firstSeenAt = now, lastSeenAt = now
-                        )
-                    )
-                existing.hex == rec.hex ->
-                    dao.touchRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo, now)
-                else ->
-                    dao.overwriteRawSlot(cardId, rec.protocol, rec.sfi.toSfiHex(), rec.recNo, rec.hex, hash, now)
-            }
+            val existing = existingSlots[key(rec.protocol, rec.sfi.toSfiHex(), rec.recNo)]
+            RawRecordEntity(
+                rowId = existing?.rowId ?: 0,
+                cardId = cardId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
+                protocol = rec.protocol, hex = rec.hex, contentHash = hash,
+                firstSeenAt = existing?.firstSeenAt ?: now, lastSeenAt = now
+            )
         }
+        dao.upsertRawRecords(rows)
     }
 
     suspend fun loadRawRecords(cardId: String): List<RawRecordEntity> =
@@ -155,10 +150,11 @@ class TransitRepository(private val context: Context) {
 
     // ── transactions_archive（渲染唯一来源，按内容去重）──
 
-    suspend fun archiveTransactions(cardId: String, transactions: List<CanonicalTransaction>) {
+    suspend fun archiveTransactions(cardId: String, transactions: List<CanonicalTransaction>): Boolean {
+        if (transactions.isEmpty()) return false
         val now = System.currentTimeMillis()
-        for (t in transactions) {
-            val inserted = dao.insertArchiveRow(
+        val rows = transactions.distinctBy { ArchiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) }
+            .map { t ->
                 ArchivedTransactionEntity(
                     cardId = cardId,
                     sfi = t.sfi.toSfiHex(),
@@ -170,12 +166,16 @@ class TransitRepository(private val context: Context) {
                     firstSeenAt = now,
                     lastSeenAt = now
                 )
-            )
-            if (inserted == -1L) {
-                // 完全一样（同内容同协议同扇区）→ 只更新 last_seen_at；不同协议/扇区的变体已作为新行插入
-                dao.touchArchive(cardId, t.identity, t.protocol, t.sfi.toSfiHex(), now)
+            }
+        val inserted = dao.insertArchiveRows(rows)
+        val repeated = rows.filterIndexed { index, _ -> inserted[index] == -1L }
+        for ((zone, entries) in repeated.groupBy { it.protocol to it.sfi }) {
+            // SQLite 绑定数量有上限，长历史导入也按小批次更新。
+            for (batch in entries.chunked(400)) {
+                dao.touchArchives(cardId, zone.first, zone.second, batch.map { it.contentHash }, now)
             }
         }
+        return inserted.any { it != -1L }
     }
 
     suspend fun backfillArchiveFromRaw(
@@ -232,13 +232,12 @@ class TransitRepository(private val context: Context) {
         rawRecords: List<RawRecord>,
         transactions: List<CanonicalTransaction>,
         apps: List<CardAppEntity>
-    ) {
-        database.withTransaction {
-            dao.upsertCard(card)
-            syncRawRecords(card.cardId, rawRecords)
-            archiveTransactions(card.cardId, transactions)
-            syncCardApps(card.cardId, apps)
-        }
+    ): Boolean = database.withTransaction {
+        dao.upsertCard(card)
+        syncRawRecords(card.cardId, rawRecords)
+        val archiveChanged = archiveTransactions(card.cardId, transactions)
+        syncCardApps(card.cardId, apps)
+        archiveChanged
     }
 
     suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =
@@ -249,11 +248,14 @@ class TransitRepository(private val context: Context) {
     // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
 
     suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {
-        for (app in apps) dao.insertCardApp(app)
+        dao.insertCardApps(apps.filter { it.selectedAid.isNotBlank() }.map { it.copy(cardId = cardId) })
     }
 
     suspend fun loadCardApps(cardId: String): List<CardAppEntity> =
         dao.getCardApps(cardId)
+
+    suspend fun loadLatestCardApps(cardId: String): List<CardAppEntity> =
+        dao.getLatestCardApps(cardId)
 
     // ── 删除 / 清空 ──
 

@@ -1,7 +1,6 @@
 package com.example.nfctransit
 
 import android.nfc.tech.IsoDep
-import android.util.Log
 import com.example.nfctransit.data.RawRecord
 import java.math.BigInteger
 import java.util.Calendar
@@ -29,9 +28,28 @@ internal fun parseCuCardNumber(data: ByteArray): String {
     return BigInteger(1, data.copyOfRange(12, 20)).toString()
 }
 
-class TransitCardReader(private val isoDep: IsoDep) {
+class TransitCardReader internal constructor(
+    private val channel: CardChannel,
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 }
+) {
+    constructor(isoDep: IsoDep) : this(IsoDepCardChannel(isoDep))
 
-    private val TAG = "TransitCardReader"
+    private var connectionError: Exception? = null
+    private var readError: String? = null
+    private var optionalReading = false
+    private var optionalDeadlineMs = Long.MAX_VALUE
+
+    /** 通信一旦中断，本次会话不再发送命令；业务上的非 9000 响应仍由各文件处理。 */
+    private fun transceive(command: ByteArray): ByteArray {
+        connectionError?.let { throw it }
+        return try {
+            channel.transceive(command)
+        } catch (error: Exception) {
+            connectionError = error
+            if (!optionalReading) readError = error.message ?: error.javaClass.simpleName
+            throw error
+        }
+    }
 
     /** 卡读取结果：信息 + 余额 + 年份锚点 + TICL SELECT/BALANCE 响应 */
     private data class YctCardResult(
@@ -39,7 +57,9 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val balance: Long?,             // LNT 钱包余额（分），BALANCE CHECK 失败为 null
         val payMonth: Int?,            // 统计月份 YYYYMM（LNT 交易年份锚点）
         val ticlSelectResp: String = "",   // PAY.TICL SELECT 成功响应（FCI）
-        val balanceResp: String? = null    // LNT 钱包 BALANCE CHECK 响应 hex
+        val balanceResp: String? = null,   // LNT 钱包 BALANCE CHECK 响应 hex
+        val statsRecord: RawRecord? = null,
+        val walletSelected: Boolean = false
     )
 
     /** 双协议卡 TU 钱包读取结果：信息 + 余额 + TU SELECT/BALANCE 响应 */
@@ -71,16 +91,18 @@ class TransitCardReader(private val isoDep: IsoDep) {
         val statsMonth: Int? = null,              // LNT 统计月份 YYYYMM（SFI 0x08 rec1，年份锚点）
         val rawRecords: List<RawRecord> = emptyList(),  // 各交易区原始记录（带 protocol 标签）
         val rawLog: List<String> = emptyList(),
-        val appReads: List<AppRead> = emptyList()      // 卡上各应用 SELECT/BALANCE（含 PSE）
+        val appReads: List<AppRead> = emptyList(),     // 卡上各应用 SELECT/BALANCE（含 PSE）
+        val readError: String? = null                  // 核心通信中断，已读部分仍保留
     )
 
     fun read(): ReadResult {
         val log = mutableListOf<String>()
-        isoDep.connect()
-        isoDep.timeout = 3000
         val appReads = mutableListOf<AppRead>()
+        val startedAt = nowMs()
 
         try {
+            channel.connect()
+            channel.timeout = 3000
             // 顺序尝试 CardProfiles.known（首命中即读；YCT/SZT 双协议卡在各自分支内部同时读 TU 钱包）。
             // 注意：PSE 不能先于识别——实测 SELECT PSE 后卡片会锁定到目录列出的应用，
             // 导致未列出的 PAY.APPY/PAY.TICL SELECT 返回 6A82（LNT 钱包读不到、双协议变纯 TU），
@@ -88,21 +110,23 @@ class TransitCardReader(private val isoDep: IsoDep) {
             for (profile in CardProfiles.known) {
                 val result = readProfile(profile, log, appReads)
                 if (result != null) {
-                    val pse = trySelectPse(log)
+                    optionalReading = true
+                    val pse = if (connectionError == null && nowMs() < optionalDeadlineMs) trySelectPse(log) else null
                     if (pse != null) {
                         appReads.add(AppRead(CardProfiles.PSE_AID, pse.respHex, null, null))
                     }
-                    return result.copy(appReads = appReads)
+                    log.add("读取总耗时: ${nowMs() - startedAt} ms")
+                    return result.copy(appReads = appReads.toList(), rawLog = log.toList(), readError = readError)
                 }
             }
         } catch (e: Exception) {
             log.add("异常: ${e.message}")
-            Log.e(TAG, "read error", e)
+            readError = e.message ?: e.javaClass.simpleName
         } finally {
-            try { isoDep.close() } catch (_: Exception) {}
+            try { channel.close() } catch (_: Exception) {}
         }
 
-        return ReadResult(null, null, rawLog = log, appReads = appReads)
+        return ReadResult(null, null, rawLog = log, appReads = appReads, readError = readError)
     }
 
     /**
@@ -115,96 +139,79 @@ class TransitCardReader(private val isoDep: IsoDep) {
         appReads: MutableList<AppRead>
     ): ReadResult? {
         for (aid in profile.aidCandidates) {
-            val selectResp = isoDep.transceive(ApduUtil.buildSelectByName(aid))
+            val selectResp = transceive(ApduUtil.buildSelectByName(aid))
             log.add("SELECT AID $aid -> ${ApduUtil.bytesToHex(selectResp)}")
             if (!ApduUtil.isSuccess(selectResp)) continue
             val selectHex = ApduUtil.bytesToHex(ApduUtil.dataOnly(selectResp))
 
-            return when (profile.cardType) {
-                // TU 卡：读信息文件 → 全部 SFI 探测 → 0x1E 建终端映射 → 0x18 主交易 → BALANCE CHECK
-                "TU" -> {
-                    val info = readCuInfo(profile, log)
-                    val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "TU", profile.transactionSfis)
-                    val lntBalance = collectTuWallet(profile, log, rawRecs)
-                    addInfoRecord(rawRecs, info, "TU")
-                    val bc = readBalance(profile, log)
-                    val balance = if (bc.respHex != null) bc.fen else lntBalance
-                    appReads.add(AppRead(aid, selectHex, balance, bc.respHex))
-                    ReadResult(profile, info, balance, rawRecords = rawRecs, rawLog = log, appReads = appReads)
-                }
-                "YCT" -> {
-                    val yct = readYctCard(profile, log)
-                    val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "LNT", profile.transactionSfis)
-                    collectFareZone(profile, log, profile.tradeSfi, "LNT", rawRecs)
-                    addInfoRecord(rawRecs, yct.info, "LNT")
-                    val tu = readTuWallet(log, rawRecs)
-                    addInfoRecord(rawRecs, tu.info, "TU")
-                    appReads.add(
-                        AppRead("5041592E5449434C", yct.ticlSelectResp, yct.balance, yct.balanceResp)
-                    )
-                    appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
-                    ReadResult(
-                        profile, yct.info, yct.balance,
-                        tu.info, tu.balance, yct.payMonth, rawRecs, log, appReads
-                    )
-                }
-                // CU 双标准卡：CU 钱包 + TU 钱包，两个标准分别保留信息文件和交易协议
-                "CU" -> {
-                    val info = readCuInfo(profile, log)
-                    val bc = readBalance(profile, log)
-                    val balanceFen: Long? = if (bc.respHex != null) bc.fen else null
-                    val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "CU", profile.transactionSfis)
-                    collectFareZone(profile, log, profile.tradeSfi, "CU", rawRecs)
-                    addInfoRecord(rawRecs, info, "CU")
-                    val tu = readTuWallet(log, rawRecs)
-                    addInfoRecord(rawRecs, tu.info, "TU")
-                    appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
-                    appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
-                    ReadResult(
-                        profile, info, balanceFen,
-                        tu.info, tu.balance, rawRecords = rawRecs, rawLog = log, appReads = appReads
-                    )
-                }
-                // SZT+TU 双协议卡：深圳通钱包标记 SZT，TU 钱包标记 TU，归档后按协议分别解码
-                "SZT" -> {
-                    val info = readCuInfo(profile, log)
-                    val bc = readBalance(profile, log)
-                    val balanceFen: Long? = if (bc.respHex != null) bc.fen else null
-                    val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "SZT", profile.transactionSfis)
-                    collectFareZone(profile, log, profile.tradeSfi, "SZT", rawRecs)
-                    for (sfi in profile.extraTradeSfis) {
-                        collectFareZone(profile, log, sfi, "SZT", rawRecs)
-                    }
-                    addInfoRecord(rawRecs, info, "SZT")
-                    val tu = readTuWallet(log, rawRecs)
-                    addInfoRecord(rawRecs, tu.info, "TU")
-                    appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
-                    appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
-                    ReadResult(
-                        profile, info, balanceFen,
-                        tu.info, tu.balance, rawRecords = rawRecs, rawLog = log, appReads = appReads
-                    )
-                }
-                // 通用（CU/TFT/苏州）：信息 + BALANCE CHECK + 全部 SFI + 0x18 + 附加区
-                else -> {
-                    val info = readCuInfo(profile, log)
-                    val bc = readBalance(profile, log)
-                    val balanceFen: Long? = if (bc.respHex != null) bc.fen else null
-                    val rawRecs = mutableListOf<RawRecord>()
-                    probeAllFiles(log, rawRecs, "", profile.transactionSfis)
-                    collectFareZone(profile, log, profile.tradeSfi, "", rawRecs)
-                    for (sfi in profile.extraTradeSfis) {
-                        collectFareZone(profile, log, sfi, "", rawRecs)
-                    }
-                    addInfoRecord(rawRecs, info, profile.cardType)
-                    appReads.add(AppRead(aid, selectHex, balanceFen, bc.respHex))
-                    ReadResult(profile, info, balanceFen, rawRecords = rawRecs, rawLog = log, appReads = appReads)
+            val coreStartedAt = nowMs()
+            val protocol = when (profile.cardType) {
+                "YCT" -> "LNT"
+                "TU", "CU", "SZT" -> profile.cardType
+                else -> ""
+            }
+            val rawRecs = mutableListOf<RawRecord>()
+            val yct = if (profile.cardType == "YCT") readYctCard(profile, log) else null
+            val info = yct?.info ?: if (yct == null) readCuInfo(profile, log) else null
+            val bc = if (yct == null) readBalance(profile, log) else null
+            var balance = yct?.balance ?: bc?.takeIf { it.respHex != null }?.fen
+            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType })
+            yct?.statsRecord?.let(rawRecs::add)
+            if (profile.cardType == "TU") {
+                val recordBalance = collectTuWallet(profile, log, rawRecs)
+                if (balance == null) balance = recordBalance
+            } else if (yct == null || yct.walletSelected) {
+                collectFareZone(profile, log, profile.tradeSfi, protocol, rawRecs)
+                for (sfi in profile.extraTradeSfis) {
+                    if (connectionError != null) break
+                    collectFareZone(profile, log, sfi, protocol, rawRecs)
                 }
             }
+            // 已有解析器依赖的统计文件属于必读数据，不受额外探测预算限制。
+            val statsSfis = when (profile.cardType) {
+                "CU" -> setOf(0x17)
+                "TU", "SZT" -> setOf(0x19)
+                else -> emptySet()
+            }
+            for (sfi in statsSfis) collectAuxiliaryFile(sfi, protocol, log, rawRecs)
+            val primaryAid = if (yct != null) "5041592E5449434C" else aid
+            val primarySelect = yct?.ticlSelectResp ?: selectHex
+            if (yct?.walletSelected == true || primarySelect.isNotEmpty()) {
+                appReads.add(AppRead(primaryAid, primarySelect, balance, yct?.balanceResp ?: bc?.respHex))
+            } else if (yct == null) {
+                appReads.add(AppRead(aid, selectHex, balance, bc?.respHex))
+            }
+            val tu = if (profile.cardType in setOf("YCT", "CU", "SZT") && connectionError == null) {
+                readTuWallet(log, rawRecs)
+            } else TuWalletResult(null, null)
+            addInfoRecord(rawRecs, tu.info, "TU")
+            if (tu.selectedAid.isNotEmpty()) {
+                appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
+            }
+            log.add("核心读取耗时: ${nowMs() - coreStartedAt} ms")
+
+            // 先完成全部钱包的核心读取，再限时保留未知文件；断卡不会丢弃核心结果。
+            optionalReading = true
+            if (connectionError == null && (yct == null || yct.walletSelected)) {
+                val optionalStartedAt = nowMs()
+                optionalDeadlineMs = optionalStartedAt + 600
+                try {
+                    channel.timeout = 500
+                    val primarySelected = profile.cardType !in setOf("YCT", "CU", "SZT") ||
+                        selectApplication(primaryAid, log) != null
+                    if (primarySelected && connectionError == null) {
+                        probeAllFiles(log, rawRecs, protocol,
+                            profile.transactionSfis + profile.infoSfi + statsSfis +
+                                (if (yct != null) setOf(0x08) else emptySet()),
+                            optionalStartedAt)
+                    }
+                } catch (error: Exception) {
+                    log.add("额外文件探测异常: ${error.message}")
+                }
+                log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
+            }
+            return ReadResult(profile, info, balance, tu.info, tu.balance, yct?.payMonth,
+                rawRecs, log, appReads, readError)
         }
         return null
     }
@@ -222,9 +229,10 @@ class TransitCardReader(private val isoDep: IsoDep) {
         var latestBalance: Long? = null
         var latestTs = ""
         for (recordNo in 1..30) {
+            if (connectionError != null) break
             try {
                 val cmd = ApduUtil.buildReadRecord(profile.stationSfi!!, recordNo, 0x00)
-                val resp = isoDep.transceive(cmd)
+                val resp = transceive(cmd)
                 log.add("READ RECORD SFI=${profile.stationSfi.toString(16).uppercase()} rec=$recordNo (TU map) -> ${ApduUtil.bytesToHex(resp)}")
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
@@ -250,22 +258,69 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun readTuWallet(log: MutableList<String>, collector: MutableList<RawRecord>): TuWalletResult {
         val tuProfile = CardProfiles.known.firstOrNull { it.cardType == "TU" }
             ?: return TuWalletResult(null, null)
-        val selectTu = isoDep.transceive(ApduUtil.buildSelectByName(tuProfile.aidCandidates.first()))
-        log.add("SELECT AID ${tuProfile.aidCandidates.first()} (dual TU) -> ${ApduUtil.bytesToHex(selectTu)}")
-        if (!ApduUtil.isSuccess(selectTu)) {
+        var selectedAid = ""
+        var selectTu: ByteArray? = null
+        for (aid in tuProfile.aidCandidates) {
+            if (connectionError != null) break
+            val response = selectApplication(aid, log) ?: continue
+            selectedAid = aid
+            selectTu = response
+            break
+        }
+        if (selectTu == null) {
             log.add("双协议卡 TU 协议选择失败")
             return TuWalletResult(null, null)
         }
         val info = readCuInfo(tuProfile, log)
+        val bc = readBalance(tuProfile, log)
         val lntBalance = collectTuWallet(tuProfile, log, collector)
-        val bc = readBalance(tuProfile, log)  // TU 也走 BALANCE CHECK
+        collectAuxiliaryFile(0x19, "TU", log, collector)
         val balance = if (bc.respHex != null) bc.fen else lntBalance
         return TuWalletResult(
             info, balance,
-            tuProfile.aidCandidates.first(),
+            selectedAid,
             ApduUtil.bytesToHex(ApduUtil.dataOnly(selectTu)),
             bc.respHex
         )
+    }
+
+    private fun selectApplication(aid: String, log: MutableList<String>): ByteArray? = try {
+        val response = transceive(ApduUtil.buildSelectByName(aid))
+        log.add("SELECT AID $aid -> ${ApduUtil.bytesToHex(response)}")
+        response.takeIf(ApduUtil::isSuccess)
+    } catch (error: Exception) {
+        log.add("选择应用异常: ${error.message}")
+        null
+    }
+
+    private fun collectAuxiliaryFile(
+        sfi: Int, protocol: String, log: MutableList<String>, collector: MutableList<RawRecord>,
+        deadlineMs: Long = Long.MAX_VALUE
+    ) {
+        if (connectionError != null || nowMs() >= deadlineMs) return
+        try {
+            val binary = transceive(ApduUtil.buildReadBinary(sfi, 0, 0x00))
+            log.add("PROBE SFI=${sfi.toString(16).uppercase()} BINARY -> ${ApduUtil.bytesToHex(binary)}")
+            if (ApduUtil.isSuccess(binary)) {
+                val data = ApduUtil.dataOnly(binary)
+                if (data.any { it.toInt() != 0 }) {
+                    collector.add(RawRecord(sfi, 0, protocol, ApduUtil.bytesToHex(data)))
+                }
+                return
+            }
+            for (recordNo in 1..30) {
+                if (connectionError != null || nowMs() >= deadlineMs) break
+                val response = transceive(ApduUtil.buildReadRecord(sfi, recordNo, 0x00))
+                log.add("PROBE SFI=${sfi.toString(16).uppercase()} REC rec=$recordNo -> ${ApduUtil.bytesToHex(response)}")
+                if (!ApduUtil.isSuccess(response)) break
+                val data = ApduUtil.dataOnly(response)
+                if (data.any { it.toInt() != 0 }) {
+                    collector.add(RawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
+                }
+            }
+        } catch (error: Exception) {
+            log.add("PROBE SFI=${sfi.toString(16).uppercase()} 异常: ${error.message}")
+        }
     }
 
     /** PSE/PPSE 枚举结果：目录响应 + 提取出的可用应用 AID */
@@ -277,7 +332,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
      */
     private fun trySelectPse(log: MutableList<String>): PseResult? {
         return try {
-            val resp = isoDep.transceive(ApduUtil.buildSelectByName(CardProfiles.PSE_AID))
+            val resp = transceive(ApduUtil.buildSelectByName(CardProfiles.PSE_AID))
             log.add("SELECT AID ${CardProfiles.PSE_AID} (PSE) -> ${ApduUtil.bytesToHex(resp)}")
             if (!ApduUtil.isSuccess(resp)) return null
             val data = ApduUtil.dataOnly(resp)
@@ -332,37 +387,19 @@ class TransitCardReader(private val isoDep: IsoDep) {
         log: MutableList<String>,
         collector: MutableList<RawRecord>,
         protocol: String,
-        skipSfis: Set<Int> = emptySet()
+        skipSfis: Set<Int> = emptySet(),
+        startedAt: Long = nowMs()
     ) {
         for (sfi in 0x01..0x1F) {
-            if (sfi in skipSfis) continue
-            try {
-                // 1) READ BINARY（线性 EF）
-                val resp = isoDep.transceive(ApduUtil.buildReadBinary(sfi, 0, 0x00))
-                log.add("PROBE SFI=${sfi.toString(16).uppercase()} BINARY -> ${ApduUtil.bytesToHex(resp)}")
-                if (ApduUtil.isSuccess(resp)) {
-                    // 空文件（全 0）不入库，避免整卡槽位膨胀
-                    val data = ApduUtil.dataOnly(resp)
-                    if (data.any { it.toInt() != 0 }) {
-                        collector.add(RawRecord(sfi, 0, protocol, ApduUtil.bytesToHex(data)))
-                    }
-                    continue
-                }
-                // 2) READ RECORD 循环（变长/循环记录文件不支持 READ BINARY）
-                for (recordNo in 1..30) {
-                    val rresp = isoDep.transceive(ApduUtil.buildReadRecord(sfi, recordNo, 0x00))
-                    log.add("PROBE SFI=${sfi.toString(16).uppercase()} REC rec=$recordNo -> ${ApduUtil.bytesToHex(rresp)}")
-                    if (!ApduUtil.isSuccess(rresp)) break
-                    val data = ApduUtil.dataOnly(rresp)
-                    if (data.any { it.toInt() != 0 }) {
-                        collector.add(RawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
-                    }
-                }
-            } catch (e: Exception) {
-                log.add("PROBE SFI=${sfi.toString(16).uppercase()} 异常: ${e.message}")
+            if (connectionError != null) break
+            if (nowMs() - startedAt >= 600) {
+                log.add("额外文件探测已达到 600 ms 预算，保留已读文件")
+                break
             }
+            if (sfi in skipSfis) continue
+            collectAuxiliaryFile(sfi, protocol, log, collector, startedAt + 600)
         }
-        log.add("PROBE 全部 SFI 探测完成")
+        log.add("PROBE 额外文件探测结束")
     }
 
     /**
@@ -377,9 +414,10 @@ class TransitCardReader(private val isoDep: IsoDep) {
         collector: MutableList<RawRecord>
     ) {
         for (recordNo in 1..30) {
+            if (connectionError != null) break
             try {
                 val cmd = ApduUtil.buildReadRecord(sfi, recordNo, profile.tradeRecordLen)
-                val resp = isoDep.transceive(cmd)
+                val resp = transceive(cmd)
                 log.add("READ RECORD SFI=${sfi.toString(16).uppercase()} rec=$recordNo -> ${ApduUtil.bytesToHex(resp)}")
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
@@ -405,10 +443,9 @@ class TransitCardReader(private val isoDep: IsoDep) {
     ): YctCardResult {
         // 0) 若识别为 YCT2(PAY.TICL)，先重选基本应用 PAY.APPY，信息文件在其上下文中
         val appyAid = "5041592E41505059"
-        val selectAppy = isoDep.transceive(ApduUtil.buildSelectByName(appyAid))
-        log.add("SELECT AID $appyAid (YCT basic app) -> ${ApduUtil.bytesToHex(selectAppy)}")
+        val selectAppy = selectApplication(appyAid, log)
         // ① 信息文件（PAY.APPY 上下文）：SFI=0x15, P2=0x40, Le=0x46
-        val info = if (ApduUtil.isSuccess(selectAppy)) {
+        val info = if (selectAppy != null) {
             readYctInfo(profile, log)
         } else {
             log.add("PAY.APPY 选择失败，跳过 YCT 信息文件读取")
@@ -417,11 +454,13 @@ class TransitCardReader(private val isoDep: IsoDep) {
         // ①.5 统计月份（PAY.APPY 上下文）：SFI=0x08 rec1（00 B2 01 44 16，22B）[3]年BCD+2000、[4]月BCD。
         //    LNT 交易记录无年份，用它做年份锚点（Trip Reader relYear 逻辑同源）
         var payMonth: Int? = null
+        var statsRecord: RawRecord? = null
         try {
-            val resp = isoDep.transceive(ApduUtil.buildReadRecord(0x08, 1, 0x16))
+            val resp = transceive(ApduUtil.buildReadRecord(0x08, 1, 0x16))
             log.add("READ RECORD SFI=08 rec=1 (stats month) -> ${ApduUtil.bytesToHex(resp)}")
             val d = ApduUtil.dataOnly(resp)
-            if (d.size >= 5) {
+            if (ApduUtil.isSuccess(resp) && d.size >= 5) {
+                statsRecord = RawRecord(0x08, 1, "LNT", ApduUtil.bytesToHex(d))
                 val year = 2000 + bcdNibble(d[3])
                 val month = bcdNibble(d[4])
                 if (month in 1..12) payMonth = year * 100 + month
@@ -432,17 +471,18 @@ class TransitCardReader(private val isoDep: IsoDep) {
         }
         // ② SELECT 钱包应用 PAY.TICL（AID=5041592E5449434C）
         val ticlAid = "5041592E5449434C"
-        val selectTicl = isoDep.transceive(ApduUtil.buildSelectByName(ticlAid))
-        log.add("SELECT AID $ticlAid (YCT wallet) -> ${ApduUtil.bytesToHex(selectTicl)}")
-        if (!ApduUtil.isSuccess(selectTicl)) {
+        val selectTicl = selectApplication(ticlAid, log)
+        if (selectTicl == null) {
             log.add("YCT 钱包应用 PAY.TICL 选择失败")
+            return YctCardResult(info, null, payMonth, statsRecord = statsRecord)
         }
         // ③ BALANCE CHECK 查余额（必须在 TICL 上下文）；失败（respHex=null）→ 余额未知为 null
         val balance = readBalance(profile, log)
         val balanceFen: Long? = if (balance.respHex != null) balance.fen else null
         return YctCardResult(
             info, balanceFen, payMonth,
-            ApduUtil.bytesToHex(ApduUtil.dataOnly(selectTicl)), balance.respHex
+            ApduUtil.bytesToHex(ApduUtil.dataOnly(selectTicl)),
+            balance.respHex, statsRecord, walletSelected = true
         )
     }
 
@@ -467,7 +507,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
             )
             var best: CardInfo? = null
             for (cmdHex in variants) {
-                val resp = isoDep.transceive(ApduUtil.hexToBytes(cmdHex))
+                val resp = transceive(ApduUtil.hexToBytes(cmdHex))
                 log.add("READ BINARY (YCT info) $cmdHex -> ${ApduUtil.bytesToHex(resp)}")
                 if (!ApduUtil.isSuccess(resp)) continue
                 best = parseYctInfo(profile.name, resp, cmdHex, log)
@@ -476,7 +516,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
             if (best == null) {
                 // 若 READ BINARY 全部失败，可能 SFI 0x15 是循环/变长记录文件，改用 READ RECORD
                 for (recordNo in 1..30) {
-                    val resp = isoDep.transceive(ApduUtil.buildReadRecord(0x15, recordNo, 0x00))
+                    val resp = transceive(ApduUtil.buildReadRecord(0x15, recordNo, 0x00))
                     log.add("READ RECORD (YCT info) SFI=15 rec=$recordNo -> ${ApduUtil.bytesToHex(resp)}")
                     if (!ApduUtil.isSuccess(resp)) break
                     val parsed = parseYctInfo(profile.name, resp, "READ RECORD SFI=15 rec=$recordNo", log)
@@ -498,6 +538,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
         log: MutableList<String>
     ): CardInfo? {
         val data = ApduUtil.dataOnly(resp)
+        if (data.size < 16) return null
         val hex = ApduUtil.bytesToHex(data)
         var validFrom = "未知"
         var validTo = "未知"
@@ -523,7 +564,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun readCuInfo(profile: CardProfile, log: MutableList<String>): CardInfo? {
         return try {
             val cmd = ApduUtil.buildReadBinary(profile.infoSfi, 0, 0x00)
-            val resp = isoDep.transceive(cmd)
+            val resp = transceive(cmd)
             log.add("READ BINARY SFI=${profile.infoSfi} -> ${ApduUtil.bytesToHex(resp)}")
             if (!ApduUtil.isSuccess(resp)) return null
 
@@ -569,7 +610,7 @@ class TransitCardReader(private val isoDep: IsoDep) {
     private fun readBalance(profile: CardProfile, log: MutableList<String>): BalanceResult {
         return try {
             val cmd = ApduUtil.hexToBytes("805C000204")
-            val resp = isoDep.transceive(cmd)
+            val resp = transceive(cmd)
             log.add("BALANCE CHECK -> ${ApduUtil.bytesToHex(resp)}")
             if (!ApduUtil.isSuccess(resp)) return BalanceResult(0L, null)
             val data = ApduUtil.dataOnly(resp)

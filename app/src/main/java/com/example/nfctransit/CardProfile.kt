@@ -32,8 +32,8 @@ data class CardProfile(
         get() {
             val set = mutableSetOf(tradeSfi)
             stationSfi?.let { set.add(it) }
-            // 0x1E 是 TU 旅程区：单协议 TU 卡与双协议 YCT/CU 的 TU 钱包都有，参与交易解析
-            if (cardType == "TU" || cardType == "YCT" || cardType == "CU") set.add(0x1E)
+            // 0x1E 是 TU 旅程区：单协议 TU 与双协议 YCT/CU/SZT 的 TU 钱包都参与交易解析
+            if (cardType in setOf("TU", "YCT", "CU", "SZT")) set.add(0x1E)
             set.addAll(extraTradeSfis)
             return set
         }

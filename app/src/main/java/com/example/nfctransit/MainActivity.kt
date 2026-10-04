@@ -4,12 +4,10 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import android.view.View
 import com.example.nfctransit.ui.keepTouchFeedback
-import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.IsoDep
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -28,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private var nfcAdapter: NfcAdapter? = null
     private val viewModel: MainViewModel by viewModels()
     private var predictiveBackAnimator: PredictiveBackFragmentAnimator? = null
+    private var nfcToast: Toast? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +67,13 @@ class MainActivity : AppCompatActivity() {
         if (nfcAdapter == null) {
             Toast.makeText(this, R.string.nfc_not_supported, Toast.LENGTH_LONG).show()
         }
+        viewModel.nfcReadMessage.observe(this) { message ->
+            if (message != null) {
+                nfcToast?.cancel()
+                nfcToast = Toast.makeText(this, message, Toast.LENGTH_LONG).also { it.show() }
+                viewModel.consumeNfcReadMessage()
+            }
+        }
     }
 
     fun animatePredictiveBack() {
@@ -87,26 +93,34 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         nfcAdapter?.let { adapter ->
-            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val pendingIntentFlags =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                    PendingIntent.FLAG_MUTABLE
-                else 0
-            val pendingIntent = PendingIntent.getActivity(
-                this, 0, intent, pendingIntentFlags
+            adapter.enableReaderMode(
+                this,
+                { tag -> viewModel.onNfcTagDiscovered(tag) },
+                NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
+                    NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                Bundle().apply { putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250) }
             )
-            val techLists = arrayOf(arrayOf(IsoDep::class.java.name))
-            adapter.enableForegroundDispatch(this, pendingIntent, null, techLists)
+            android.util.Log.d("TransitReader", "Reader mode enabled")
         }
     }
 
     override fun onPause() {
+        nfcToast?.cancel()
+        nfcToast = null
+        nfcAdapter?.disableReaderMode(this)
+        android.util.Log.d("TransitReader", "Reader mode disabled")
         super.onPause()
-        nfcAdapter?.disableForegroundDispatch(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        handleNfcIntent(intent)
+    }
+
+    private fun handleNfcIntent(intent: Intent) {
+        if (intent.action !in setOf(NfcAdapter.ACTION_TECH_DISCOVERED,
+                NfcAdapter.ACTION_TAG_DISCOVERED, NfcAdapter.ACTION_NDEF_DISCOVERED)) return
         val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
         } else {
@@ -118,38 +132,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val isoDep = IsoDep.get(tag)
-        if (isoDep == null) {
-            Toast.makeText(this, "该卡不支持 ISO-DEP", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        Toast.makeText(this, getString(R.string.nfc_detecting), Toast.LENGTH_SHORT).show()
-        Thread {
-            val result = TransitCardReader(isoDep).read()
-            // 调试：把完整读卡 APDU 日志输出到 logcat，便于真机排查
-            android.util.Log.d("TransitReader", result.rawLog.joinToString("\n"))
-            runOnUiThread {
-                viewModel.onNfcDataLoaded(result, onComplete = { readCount ->
-                    if (result.matchedProfile != null && readCount > 0) {
-                        Toast.makeText(
-                            this,
-                            "识别为：${result.matchedProfile.name}，读取到 $readCount 条记录",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else if (result.matchedProfile != null) {
-                        Toast.makeText(
-                            this,
-                            "识别为：${result.matchedProfile.name}，但未读取到交易记录",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        Toast.makeText(this, "未识别出支持的卡种", Toast.LENGTH_SHORT).show()
-                    }
-                }, onError = {
-                    Toast.makeText(this, "加载或保存卡片失败，请重试", Toast.LENGTH_LONG).show()
-                })
-            }
-        }.start()
+        // 系统从 manifest 启动应用的旧 TECH_DISCOVERED 入口也使用同一互斥保护。
+        viewModel.onNfcTagDiscovered(tag)
     }
 }

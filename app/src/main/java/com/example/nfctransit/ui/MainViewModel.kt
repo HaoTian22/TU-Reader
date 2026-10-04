@@ -3,6 +3,9 @@ package com.example.nfctransit.ui
 import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.nfc.Tag
+import android.nfc.tech.IsoDep
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -14,6 +17,7 @@ import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.parseLegacyCuCardNumber
 import com.example.nfctransit.TransitCardReader
+import com.example.nfctransit.R
 import com.example.nfctransit.data.CardUiCache
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
@@ -69,6 +73,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = TransitRepository(application)
     private val cardStateCoordinator = CardStateCoordinator()
+    private val nfcReadGate = NfcReadGate()
+    @Volatile private var activeIsoDep: IsoDep? = null
+    private val _nfcReadMessage = MutableLiveData<String?>()
+    val nfcReadMessage: LiveData<String?> = _nfcReadMessage
+
+    fun consumeNfcReadMessage() { _nfcReadMessage.value = null }
+
+    /** ReaderMode 回调可来自 Binder 线程，先同步准入，再在 ViewModel 生命周期中完成整条链路。 */
+    fun onNfcTagDiscovered(tag: Tag) {
+        val tagId = ApduUtil.bytesToHex(tag.id)
+        if (!nfcReadGate.tryBegin(tagId, SystemClock.elapsedRealtime())) {
+            Log.d("TransitReader", "NFC callback ignored: busy or cooldown")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val isoDep = IsoDep.get(tag)
+                if (isoDep == null) {
+                    _nfcReadMessage.value = "该卡不支持 ISO-DEP"
+                    return@launch
+                }
+                activeIsoDep = isoDep
+                _nfcReadMessage.value = getApplication<Application>().getString(R.string.nfc_detecting)
+                val startedAt = SystemClock.elapsedRealtime()
+                val result = withContext(Dispatchers.IO) { TransitCardReader(isoDep).read() }
+                activeIsoDep = null
+                Log.d("TransitReader", "NFC disconnected after ${SystemClock.elapsedRealtime() - startedAt} ms; raw=${result.rawRecords.size}; interrupted=${result.readError != null}")
+                if (result.readError != null) Log.w("TransitReader", "NFC core interrupted: ${result.readError}")
+                if (_keepDebugLogs.value == true) Log.d("TransitReader", result.rawLog.joinToString("\n"))
+                currentSessionNfcLog = result.rawLog
+                _nfcLog.value = result.rawLog
+                if (result.matchedProfile == null) {
+                    _nfcReadMessage.value = if (result.readError != null) "连接或读取中断，请移开卡片后重试"
+                        else "未识别出支持的卡种"
+                    return@launch
+                }
+                _nfcReadMessage.value = "卡片读取结束，可移开卡片，正在保存…"
+                val saved = cardStateCoordinator.withRestoredState { applyNfcData(result) }
+                _nfcReadMessage.value = when {
+                    !saved -> "未读取到可保存的卡片信息，请移开卡片后重试"
+                    result.readError != null -> "读取中断，已保存读到的数据（$lastReadCount 条交易），可移开后重试"
+                    lastReadCount == 0 -> "卡片信息和余额已保存，未读取到交易记录"
+                    else -> "识别为：${result.matchedProfile.name}，已保存 $lastReadCount 条交易"
+                }
+                Log.d("TransitReader", "NFC task finished after ${SystemClock.elapsedRealtime() - startedAt} ms; saved=$saved")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: NfcDataSavedException) {
+                Log.e("TransitReader", "数据已保存，界面重建失败", error)
+                _nfcReadMessage.value = "卡片数据已保存，但显示更新失败，请重新打开应用"
+            } catch (error: Exception) {
+                Log.e("TransitReader", "读取或保存卡片失败", error)
+                _nfcReadMessage.value = "读取或保存卡片失败，请移开卡片后重试"
+            } finally {
+                activeIsoDep?.let { try { it.close() } catch (_: Exception) {} }
+                activeIsoDep = null
+                nfcReadGate.finish(SystemClock.elapsedRealtime())
+            }
+        }
+    }
+
+    override fun onCleared() {
+        // close 会中断正在阻塞的 transceive，避免离开应用后留下未关闭的连接。
+        activeIsoDep?.let { try { it.close() } catch (_: Exception) {} }
+        super.onCleared()
+    }
+
+    private class NfcDataSavedException(cause: Exception) : Exception(cause)
 
     // ── In-memory working set（镜像持久层；UI 派生的唯一来源）──
 
@@ -363,11 +435,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             currentYear = Calendar.getInstance().get(Calendar.YEAR)
         )
         val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
-        val appRows = repo.loadCardApps(cardId)
-            .groupBy { it.selectedAid }
-            .values
-            .mapNotNull { rows -> rows.maxByOrNull { it.readAt } }
-            .sortedBy { it.selectedAid }
+        val appRows = repo.loadLatestCardApps(cardId)
         val cached = if (forceRebuild) null else UiCache.load(ctx, cardId, archiveRowId, dbVersion)
         return if (cached != null) {
             BuiltCardState(cached.canonicals, cached.txns, rawRecs, appRows)
@@ -401,34 +469,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── NFC 数据加载（等待恢复 → 串行解码/合并/持久化/重建）──
 
-    /**
-     * 启动期间保留读取结果，恢复成功后才匹配身份。队列由 ViewModel 持有，
-     * 每次处理包含落库和重建，避免后一次读取被较早的异步持久化结果覆盖。
-     */
-    fun onNfcDataLoaded(
-        result: TransitCardReader.ReadResult,
-        onComplete: (Int) -> Unit = {},
-        onError: (Exception) -> Unit = {}
-    ) {
-        viewModelScope.launch {
-            try {
-                cardStateCoordinator.withRestoredState {
-                    applyNfcData(result)
-                    onComplete(lastReadCount)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "处理 NFC 读取结果失败", e)
-                onError(e)
-            }
-        }
-    }
-
-    private suspend fun applyNfcData(result: TransitCardReader.ReadResult) {
+    /** 在协调锁中匹配身份、落库、构建；事务成功前不修改内存镜像。 */
+    private suspend fun applyNfcData(result: TransitCardReader.ReadResult): Boolean {
         lastReadCount = 0
         currentSessionNfcLog = result.rawLog
-        val profile = result.matchedProfile ?: return
+        val profile = result.matchedProfile ?: return false
         val cardNumber = result.cardInfo?.cardNumber ?: ""
         val secondCardNumber = result.secondCardInfo?.cardNumber ?: ""
         val legacyCardNumber = if (profile.cardType == "CU") {
@@ -446,15 +491,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex)
             }
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val decoded = RecordDecoder.decodeCard(
-            profile.cardType, records, result.statsMonth, currentYear
-        )
-        if (decoded.display.isEmpty()) {
-            return
+        val decodeStartedAt = SystemClock.elapsedRealtime()
+        val decoded = withContext(Dispatchers.Default) {
+            RecordDecoder.decodeCard(profile.cardType, records, result.statsMonth, currentYear)
         }
+        Log.d("TransitReader", "Decode: ${SystemClock.elapsedRealtime() - decodeStartedAt} ms")
+        if (decoded.display.isEmpty() && cardNumber.isEmpty() && secondCardNumber.isEmpty()) return false
         lastReadCount = decoded.display.size
 
         val lastFour = if (cardNumber.isNotEmpty()) cardNumber.takeLast(4)
+            else if (secondCardNumber.isNotEmpty()) secondCardNumber.takeLast(4)
             else lastFourFromCanonical(decoded.display)
         val now = System.currentTimeMillis()
 
@@ -486,7 +532,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        if (existing == null) existing = cardEntities.firstOrNull { it.lastFour == lastFour }
+        if (existing == null && cardNumber.isEmpty() && secondCardNumber.isEmpty()) {
+            existing = cardEntities.firstOrNull { it.lastFour == lastFour }
+        }
         val cardId = existing?.cardId ?: UUID.randomUUID().toString()
         val (gradStart, gradEnd) = existing?.let {
             it.gradientStartColor to it.gradientEndColor
@@ -501,11 +549,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             mergedSecondCardNumber != null
         ) existing?.cardType ?: profile.cardType else profile.cardType
 
-        // 内容去重合并进内存 (identity = content_hash，不含 rec_no)
-        canonicalByCard[cardId] = mergeCanonical(canonicalByCard[cardId] ?: emptyList(), decoded.display)
-        cachedTxnsByCard.remove(cardId)  // canonical 已更新 → 让 emitCardData 立刻从新 canonical 重派生
-        rawRecordsByCard[cardId] = result.rawRecords
-        cardAppsByCard[cardId] = result.appReads.map { app ->
+        val appRows = result.appReads.map { app ->
             CardAppEntity(
                 cardId = cardId,
                 readAt = now,
@@ -525,63 +569,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             lastFour = lastFour,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd,
-            latestBalanceFen = balanceFen,
+            latestBalanceFen = balanceFen ?: existing?.latestBalanceFen,
             createdAt = existing?.createdAt ?: now,
             lastReadAt = now
         )
-        val listIndex = cardEntities.indexOfFirst { it.cardId == cardId }
-        if (listIndex >= 0) cardEntities[listIndex] = entity else cardEntities.add(entity)
-
-        val updatedCards = cardEntities.map { it.toUiCard() }
-        _cards.value = updatedCards
-        _hasData.value = true
-        val index = updatedCards.indexOfFirst { it.id == cardId }
-        selectCardByIndex(index)
-        // 无论新卡还是重复读同一张卡，都让首页滑动到该卡
-        _cardAdded.value = index
-
-        // 持久化与重建都完成后才处理下一次读取；后台线程使用主线程捕获的顺序快照。
-        val rawRecords = result.rawRecords
-        val logLines = result.rawLog
-        val appRows = cardAppsByCard[cardId].orEmpty()
-        val cardOrder = cardEntities.map { it.cardId }
-        withContext(Dispatchers.IO) {
-            repo.persistNfcRead(entity, rawRecords, decoded.archive, appRows)
-            repo.setCardOrder(cardOrder)
-            repo.writeSessionLog(cardId, logLines)
-            // 写库完成后以数据库为唯一来源重建内存与 UI（读卡后与重启走同一条 decodeArchive 路径，
-            // 保证界面与重启一致，不依赖读卡时的内存解码结果）
-            val archive = repo.loadArchive(cardId)
-            val rawRecs = repo.loadRawRecords(cardId).map {
-                RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
-            }
-            val appRecs = repo.loadCardApps(cardId)
-                .groupBy { it.selectedAid }
-                .values
-                .mapNotNull { rows -> rows.maxByOrNull { it.readAt } }
-                .sortedBy { it.selectedAid }
-            val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
-            // 解码/映射是 CPU 密集：放 Default 计算，主线程只做状态落盘与 UI 刷新，避免大库/大卡读卡后卡顿
-            val canon = withContext(Dispatchers.Default) {
-                RecordDecoder.decodeArchive(effectiveCardType, archive)
-            }
-            val txns = withContext(Dispatchers.Default) {
-                enrichProtocols(canon, rawRecs).toUiTransactions(effectiveCardType)
-            }
-            withContext(Dispatchers.Main) {
-                canonicalByCard[cardId] = canon
-                rawRecordsByCard[cardId] = rawRecs
-                cardAppsByCard[cardId] = appRecs
-                cachedTxnsByCard[cardId] = txns
-                val idx = cardEntities.indexOfFirst { it.cardId == cardId }
-                if (idx >= 0 && _selectedIndex.value == idx) {
-                    emitCardData(cardId)
-                }
-            }
-            // 以数据库为准重建完成 → 回写磁盘缓存（下次启动直接命中）
-            val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
-            UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, canon, txns, dbVersion))
+        val cardOrder = cardEntities.map { it.cardId }.let { if (cardId in it) it else it + cardId }
+        val savedCanon = canonicalByCard[cardId]
+        val savedTxns = cachedTxnsByCard[cardId]
+        val saveStartedAt = SystemClock.elapsedRealtime()
+        val archiveChanged = withContext(Dispatchers.IO) {
+            repo.persistNfcRead(entity, result.rawRecords, decoded.archive, appRows)
         }
+        Log.d("TransitReader", "Database: ${SystemClock.elapsedRealtime() - saveStartedAt} ms; archiveChanged=$archiveChanged")
+        try {
+            val buildStartedAt = SystemClock.elapsedRealtime()
+            val state = withContext(Dispatchers.IO) {
+                val rawRecs = repo.loadRawRecords(cardId).map {
+                    RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+                }
+                val appRecs = repo.loadLatestCardApps(cardId)
+                val canReuse = !archiveChanged && existing?.cardType == effectiveCardType &&
+                    savedCanon != null && savedTxns != null
+                val built = if (canReuse) {
+                    BuiltCardState(savedCanon!!, savedTxns!!, rawRecs, appRecs)
+                } else {
+                    val archive = repo.loadArchive(cardId)
+                    withContext(Dispatchers.Default) {
+                        val canon = RecordDecoder.decodeArchive(effectiveCardType, archive)
+                        BuiltCardState(canon, enrichProtocols(canon, rawRecs).toUiTransactions(effectiveCardType), rawRecs, appRecs)
+                    }
+                }
+                if (!canReuse) {
+                    val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
+                    val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
+                    UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, built.canonicals, built.txns, dbVersion))
+                }
+                // 卡数据已经提交，轻量设置或调试日志失败不应被报告为保存失败。
+                try {
+                    repo.setCardOrder(cardOrder)
+                    repo.writeSessionLog(cardId, result.rawLog)
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    Log.w("TransitReader", "保存读卡附属设置/日志失败", error)
+                }
+                built
+            }
+            Log.d("TransitReader", "Build display: ${SystemClock.elapsedRealtime() - buildStartedAt} ms")
+            val listIndex = cardEntities.indexOfFirst { it.cardId == cardId }
+            if (listIndex >= 0) cardEntities[listIndex] = entity else cardEntities.add(entity)
+            applyCardState(cardId, state)
+            val updatedCards = cardEntities.map { it.toUiCard() }
+            _cards.value = updatedCards
+            _hasData.value = true
+            val index = updatedCards.indexOfFirst { it.id == cardId }
+            selectCardByIndex(index)
+            _cardAdded.value = index
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            throw NfcDataSavedException(error)
+        }
+        return true
     }
 
     fun selectCardByIndex(index: Int) {
@@ -1423,13 +1471,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 展示层合并（identity + 时间/金额/终端号/类型），内容不同但同一笔跨应用交易也只显示一条。 */
-    private fun mergeCanonical(
-        existing: List<CanonicalTransaction>,
-        fresh: List<CanonicalTransaction>
-    ): List<CanonicalTransaction> = RecordDecoder.mergeForDisplay(existing + fresh).sortedWith(
-        compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
-    )
-
     private fun filterTransactions(
         txns: List<UiTransaction>,
         selected: Set<String>,
