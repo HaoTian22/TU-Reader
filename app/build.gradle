@@ -34,7 +34,7 @@ def tencentMapWebServiceKey = readTencentMapCredential('TENCENT_MAP_WEB_SERVICE_
 def tencentMapSecretKey = readTencentMapCredential('TENCENT_MAP_SECRET_KEY')
 def feedbackUploadUrl = System.getenv('FEEDBACK_UPLOAD_URL')?.trim() ?: localProperties.getProperty('FEEDBACK_UPLOAD_URL', '').trim()
 
-def appVersionName = project.findProperty('versionName') ?: '0.1.7'
+def appVersionName = project.findProperty('versionName') ?: '1.0.0-debug'
 
 android {
     namespace = 'com.example.nfctransit'
