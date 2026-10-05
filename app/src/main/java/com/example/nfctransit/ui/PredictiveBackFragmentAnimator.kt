@@ -18,11 +18,17 @@ class PredictiveBackFragmentAnimator(
     private val navHostView: View
 ) : OnBackPressedCallback(false), NavController.OnDestinationChangedListener {
 
-    private val snapshots = LinkedHashMap<Int, Bitmap>(4, 0.75f, true)
+    /**
+     * 按回栈条目（[androidx.navigation.NavBackStackEntry.id]）而非目的地 ID 缓存页面截图：
+     * 同一目的地可在栈中出现多次（如 卡A概览 → 交易A → 卡B概览），按目的地存会互相覆盖，返回时露出别的卡。
+     */
+    private val snapshots = LinkedHashMap<String, Bitmap>(4, 0.75f, true)
     private var pendingForwardSnapshot: Bitmap? = null
     private var gestureActive = false
     private var committing = false
     private var currentSnapshot: Bitmap? = null
+    /** 非空时本次返回一路退到该目的地（长按返回键回首页），否则只退一级 */
+    private var popTargetId: Int? = null
 
     init {
         navController.addOnDestinationChangedListener(this)
@@ -34,10 +40,12 @@ class PredictiveBackFragmentAnimator(
         arguments: android.os.Bundle?
     ) {
         isEnabled = controller.previousBackStackEntry != null
+        pruneSnapshots()
         val forwardSnapshot = pendingForwardSnapshot
         pendingForwardSnapshot = null
+        val entryId = controller.currentBackStackEntry?.id
         navHostView.post {
-            captureCurrent(destination.id)
+            if (entryId != null && navController.currentBackStackEntry?.id == entryId) captureCurrent(entryId)
             if (forwardSnapshot != null && !committing) {
                 container.showForwardSnapshot(forwardSnapshot, navHostView)
                 container.animateForwardSnapshot(navHostView) {
@@ -58,9 +66,10 @@ class PredictiveBackFragmentAnimator(
 
     override fun handleOnBackStarted(backEvent: BackEventCompat) {
         if (!isEnabled) return
+        popTargetId = null
         val currentView = currentView() ?: return
         val current = captureView(currentView) ?: return
-        val previousId = navController.previousBackStackEntry?.destination?.id
+        val previousId = navController.previousBackStackEntry?.id
         val previous = previousId?.let { snapshots[it] } ?: run {
             current.recycleIfNeeded()
             return
@@ -92,7 +101,7 @@ class PredictiveBackFragmentAnimator(
         committing = true
         isEnabled = false
         if (!gestureActive) {
-            if (!navController.popBackStack()) {
+            if (!popBack()) {
                 committing = false
                 isEnabled = navController.previousBackStackEntry != null
             }
@@ -102,7 +111,7 @@ class PredictiveBackFragmentAnimator(
         val travel = container.width.toFloat()
         container.completeBackSnapshots(travel) {
             gestureActive = false
-            if (!navController.popBackStack()) {
+            if (!popBack()) {
                 container.hideBackSnapshots(navHostView)
                 clearGestureState()
                 committing = false
@@ -111,12 +120,29 @@ class PredictiveBackFragmentAnimator(
         }
     }
 
-    fun startBackNavigation() {
+    fun startBackNavigation() = startBackNavigation(targetId = null)
+
+    /** 直接返回到栈中的 [destinationId]（如长按返回键回首页），转场底图用该页的截图 */
+    fun startBackNavigationTo(destinationId: Int) {
+        if (navController.currentDestination?.id == destinationId) return
+        if (runCatching { navController.getBackStackEntry(destinationId) }.isFailure) return
+        startBackNavigation(targetId = destinationId)
+    }
+
+    private fun startBackNavigation(targetId: Int?) {
         if (!isEnabled || committing || gestureActive) return
-        val current = currentView()?.let(::captureView) ?: return
-        val previousId = navController.previousBackStackEntry?.destination?.id
-        val previous = previousId?.let { snapshots[it] } ?: run {
-            current.recycleIfNeeded()
+        popTargetId = targetId
+        val targetEntryId = if (targetId == null) {
+            navController.previousBackStackEntry?.id
+        } else {
+            runCatching { navController.getBackStackEntry(targetId).id }.getOrNull()
+        }
+        val previous = targetEntryId?.let { snapshots[it] }
+        val current = previous?.let { currentView()?.let(::captureView) }
+        if (previous == null || current == null) {
+            // 没有底图可做转场时直接返回
+            current?.recycleIfNeeded()
+            handleOnBackPressed()
             return
         }
         currentSnapshot = current
@@ -130,11 +156,17 @@ class PredictiveBackFragmentAnimator(
         handleOnBackPressed()
     }
 
+    private fun popBack(): Boolean {
+        val target = popTargetId
+        popTargetId = null
+        return if (target != null) navController.popBackStack(target, false) else navController.popBackStack()
+    }
+
     fun captureCurrentForNavigation() {
-        val destinationId = navController.currentDestination?.id ?: return
+        val entryId = navController.currentBackStackEntry?.id ?: return
         currentView()?.let { view ->
             captureView(view)?.let { bitmap ->
-                storeSnapshot(destinationId, bitmap)
+                storeSnapshot(entryId, bitmap)
                 pendingForwardSnapshot = bitmap
             }
         }
@@ -153,16 +185,28 @@ class PredictiveBackFragmentAnimator(
         clearGestureState()
     }
 
-    private fun captureCurrent(destinationId: Int) {
+    private fun captureCurrent(entryId: String) {
         val view = currentView() ?: return
-        captureView(view)?.let { bitmap -> storeSnapshot(destinationId, bitmap) }
+        captureView(view)?.let { bitmap -> storeSnapshot(entryId, bitmap) }
     }
 
-    private fun storeSnapshot(destinationId: Int, bitmap: Bitmap) {
-        snapshots.put(destinationId, bitmap)?.let { previous ->
+    /** 丢弃已出栈条目的截图 */
+    private fun pruneSnapshots() {
+        val live = navController.currentBackStack.value.mapTo(HashSet()) { it.id }
+        val iterator = snapshots.entries.iterator()
+        while (iterator.hasNext()) {
+            val (id, bitmap) = iterator.next()
+            if (id in live) continue
+            iterator.remove()
+            if (bitmap !== pendingForwardSnapshot && bitmap !== currentSnapshot) bitmap.recycleIfNeeded()
+        }
+    }
+
+    private fun storeSnapshot(entryId: String, bitmap: Bitmap) {
+        snapshots.put(entryId, bitmap)?.let { previous ->
             if (previous !== pendingForwardSnapshot) previous.recycleIfNeeded()
         }
-        while (snapshots.size > 3) {
+        while (snapshots.size > 4) {
             val eldest = snapshots.entries.iterator().next()
             snapshots.remove(eldest.key)
             if (eldest.value !== pendingForwardSnapshot) {

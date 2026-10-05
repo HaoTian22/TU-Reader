@@ -108,8 +108,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
         // 卡多时只滚动卡片区：卡片到顶后逐张叠起
         binding.contentScroll.setOnScrollChangeListener { _, _, scrollY, _, _ -> updateDeck(scrollY) }
-        // 卡片重建或尺寸变化后（首帧、增删卡）按当前滚动位置重算一次
-        binding.contentScroll.getChildAt(0).addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        // 卡片重建或尺寸变化后（首帧、增删卡）按当前滚动位置重算一次。
+        // 监听 ScrollView 本身而非子视图：返回本页时 ScrollView 在自身 onLayout 末尾才直接写回保存的 scrollY
+        // （不触发滚动回调），子视图的布局回调早于此，会按 scrollY=0 叠卡，导致返回首帧卡片错位闪一下
+        binding.contentScroll.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             _binding?.let { updateDeck(it.contentScroll.scrollY) }
         }
         observeViewModel()
@@ -179,10 +181,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         viewModel.cards.observe(viewLifecycleOwner) { cards -> renderWallet(cards) }
 
         // 读到卡片（新卡或重复读同一张）后直接打开该卡的概览页
-        viewModel.cardAdded.observe(viewLifecycleOwner) { index ->
-            if (index != null) {
+        viewModel.cardAdded.observe(viewLifecycleOwner) { event ->
+            if (event != null) {
                 viewModel.clearCardAdded()
-                openCard(index)
+                openCard(event.index)
             }
         }
     }
@@ -197,11 +199,29 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun openCard(index: Int) {
-        val nav = findNavController()
-        if (nav.currentDestination?.id != R.id.homeFragment) return
+        val root = _binding?.root ?: return
+        if (findNavController().currentDestination?.id != R.id.homeFragment) return
         viewModel.selectCardByIndex(index)
-        capturePredictiveBackSnapshot()
-        nav.navigate(R.id.action_home_to_cardHome)
+        // 读卡时 cards 刚更新、叠卡视图刚重建尚未布局，立即截图会得到空白卡包（返回动画底图空白）；
+        // 等这一轮布局完成后再截图跳转
+        val go = {
+            if (_binding != null && findNavController().currentDestination?.id == R.id.homeFragment) {
+                capturePredictiveBackSnapshot()
+                findNavController().navigate(R.id.action_home_to_cardHome)
+            }
+        }
+        if (root.isLaidOut && !root.isLayoutRequested) {
+            go()
+        } else {
+            root.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+                override fun onLayoutChange(
+                    v: View, l: Int, t: Int, r: Int, b: Int, ol: Int, ot: Int, or: Int, ob: Int
+                ) {
+                    v.removeOnLayoutChangeListener(this)
+                    go()
+                }
+            })
+        }
     }
 
     private var walletRendered = false

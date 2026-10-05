@@ -194,9 +194,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedCardApps = MutableLiveData<List<CardAppEntity>>(emptyList())
     val selectedCardApps: LiveData<List<CardAppEntity>> = _selectedCardApps
 
-    // 读卡后发出对应卡的下标，供首页自动滑动跳转到该卡（新卡或重复读同一张卡都会跳转）
-    private val _cardAdded = MutableLiveData<Int?>()
-    val cardAdded: LiveData<Int?> = _cardAdded
+    /**
+     * 读卡完成事件：[index] 为读到的卡在列表中的下标；[switchedCard] 表示读到的不是当前选中卡。
+     * 换卡时 ViewModel 不切换选中卡，由界面在转场截图后再选中，避免当前页先被换成新卡数据。
+     */
+    data class CardReadEvent(val index: Int, val switchedCard: Boolean)
+
+    // 读卡后发出事件，供界面打开该卡（新卡或重复读同一张卡）
+    private val _cardAdded = MutableLiveData<CardReadEvent?>()
+    val cardAdded: LiveData<CardReadEvent?> = _cardAdded
 
     private val _allTransactions = MutableLiveData<List<UiTransaction>>(emptyList())
     val allTransactions: LiveData<List<UiTransaction>> = _allTransactions
@@ -615,6 +621,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 built
             }
             Log.d("TransitReader", "Build display: ${SystemClock.elapsedRealtime() - buildStartedAt} ms")
+            val previousCardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId
             val listIndex = cardEntities.indexOfFirst { it.cardId == cardId }
             if (listIndex >= 0) cardEntities[listIndex] = entity else cardEntities.add(entity)
             applyCardState(cardId, state)
@@ -622,14 +629,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _cards.value = updatedCards
             _hasData.value = true
             val index = updatedCards.indexOfFirst { it.id == cardId }
-            selectCardByIndex(index)
-            _cardAdded.value = index
+            val switchedCard = previousCardId != cardId
+            // 同一张卡：就地刷新当前展示；换卡：交给界面在转场时选中
+            if (!switchedCard) selectCardByIndex(index)
+            _cardAdded.value = CardReadEvent(index, switchedCard)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
             throw NfcDataSavedException(error)
         }
         return true
+    }
+
+    /** 按卡号选中卡片；卡已被删除时忽略 */
+    fun selectCardById(cardId: String) {
+        val index = cardEntities.indexOfFirst { it.cardId == cardId }
+        if (index >= 0) selectCardByIndex(index)
     }
 
     fun selectCardByIndex(index: Int) {

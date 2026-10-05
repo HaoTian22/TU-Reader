@@ -118,8 +118,6 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         viewModel.homeWeeklySpending.observe(viewLifecycleOwner) { daily ->
             if (daily.isNotEmpty()) bindMiniChart(daily)
         }
-        // 本页已在展示当前卡：读卡触发的「打开该卡」事件在这里直接消费，避免返回首页时再跳一次
-        viewModel.cardAdded.observe(viewLifecycleOwner) { if (it != null) viewModel.clearCardAdded() }
         // 卡片全部删除后返回首页
         viewModel.cards.observe(viewLifecycleOwner) { cards ->
             if (cards.isEmpty()) findNavController().popBackStack(R.id.homeFragment, false)

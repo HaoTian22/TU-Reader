@@ -10,6 +10,8 @@
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:textSize">15sp</item>
+        <!-- 圆形底仅作水波纹蒙版（TouchFeedback 在视图创建时复制背景形状）；实际底色由 bindHeader 按卡面色设置 -->
+        <item name="android:background">@drawable/bg_back_button</item>
     </style>
 
     <!-- 快捷操作栏的一个分段：图标在上、文字在下；背景为圆角透明块，作为按压高亮的形状 -->
