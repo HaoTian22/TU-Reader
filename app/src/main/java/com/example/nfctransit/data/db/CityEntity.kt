@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/** 城市表。city_code 为交通卡内的 4 位城市码（如 5810=广州）。 */
+/** 市级城市表。city_code 依据 tripreader_tu_cities.csv 的标准 TU 代码，区县及省级条目不导入。 */
 @Entity(
     tableName = "city",
     indices = [Index(value = ["city_code"], unique = true)]

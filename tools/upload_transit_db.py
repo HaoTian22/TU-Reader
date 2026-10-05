@@ -43,7 +43,7 @@ DEFAULT_OBJECT = "transit.db"
 DEFAULT_PUBLIC_URL = "https://assets2.haotian22.top/transit.db"
 DEFAULT_VERSION_OBJECT = "transit.db.version"
 DEFAULT_VERSION_PUBLIC_URL = "https://assets2.haotian22.top/transit.db.version"
-SCHEMA_FILE = os.path.join(HERE, "../app/schemas/com.example.nfctransit.data.db.AppDatabase/3.json")
+SCHEMA_FILE = os.path.join(HERE, "../app/schemas/com.example.nfctransit.data.db.AppDatabase/5.json")
 
 
 def current_identity_hash():

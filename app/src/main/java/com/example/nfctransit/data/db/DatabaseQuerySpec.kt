@@ -104,16 +104,22 @@ enum class DatabaseQuerySpec(
             4. reader_device
                device_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
                standard TEXT NOT NULL（CU、TU 或 YCT）
-               device_code TEXT NOT NULL（唯一）
+               device_code TEXT NOT NULL
                city_id INTEGER NOT NULL，外键关联 city.city_id，删除城市时级联删除
                line_id INTEGER NULL
                station_id INTEGER NULL
                transit_type TEXT NOT NULL
-               match_key TEXT NULL
+               同一编号的 device_code + transit_type 唯一
                updated_at TEXT NULL
 
             常用关联：line.city_id = city.city_id；station.city_id = city.city_id；reader_device.city_id = city.city_id；reader_device.line_id = line.line_id；reader_device.station_id = station.station_id。
             经纬度字段为 REAL；NULL 表示没有值。
+
+            5. protocol_city_code
+               protocol TEXT NOT NULL（TU、CU 或 YCT）
+               code TEXT NOT NULL
+               city_id INTEGER NOT NULL，外键关联 city.city_id
+               protocol + code 为联合主键
 
             我的需求：
         """.trimIndent()

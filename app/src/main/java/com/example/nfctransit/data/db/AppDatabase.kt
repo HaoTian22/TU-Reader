@@ -5,8 +5,9 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.nfctransit.data.TransitDbVersion
+import com.example.nfctransit.data.UiCache
+import com.example.nfctransit.data.prefs.AppPreferences
 import java.io.File
 import kotlinx.coroutines.runBlocking
 
@@ -19,11 +20,12 @@ import kotlinx.coroutines.runBlocking
 @Database(
     entities = [
         CityEntity::class,
+        ProtocolCityCodeEntity::class,
         LineEntity::class,
         StationEntity::class,
         ReaderDeviceEntity::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,69 +39,19 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `reader_device` ADD COLUMN `device_location` TEXT")
-            }
-        }
+        // 与 Room 导出的 v5 schema 一致；仅用于决定本地映射缓存是否需要重建。
+        private const val SCHEMA_HASH = "6faef85bfabe32fba63ee2cb3c1a496e"
 
-        private fun migration2To3(context: Context) = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP INDEX IF EXISTS `index_reader_device_device_code`")
-                db.execSQL("CREATE UNIQUE INDEX `index_reader_device_device_code_transit_type` " +
-                    "ON `reader_device` (`device_code`, `transit_type`)")
-                backfillSharedMappings(context, db)
-            }
-        }
+        internal fun acceptsSchema(version: Int, identityHash: String?): Boolean =
+            version == 5 && identityHash == SCHEMA_HASH
 
-        /** 补回旧唯一索引丢掉的类型。按城市、线路及站名复用本地 ID，不替换较新的数据库。 */
-        private fun backfillSharedMappings(context: Context, db: SupportSQLiteDatabase) {
-            val copy = File.createTempFile("transit-migration-", ".db", context.cacheDir)
-            try {
-                context.assets.open(ASSET_PATH).use { input ->
-                    copy.outputStream().use { output -> input.copyTo(output) }
+        private fun hasCurrentSchema(file: File): Boolean = runCatching {
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("SELECT identity_hash FROM room_master_table WHERE id = 42", null).use { cursor ->
+                    acceptsSchema(db.version, if (cursor.moveToFirst()) cursor.getString(0) else null)
                 }
-                SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY).use { asset ->
-                    asset.rawQuery(
-                        """
-                        SELECT r.standard, r.device_code, r.transit_type, r.device_location,
-                               r.match_key, r.updated_at, c.city_code, l.line_name, s.station_name
-                        FROM reader_device r
-                        JOIN city c ON c.city_id = r.city_id
-                        LEFT JOIN line l ON l.line_id = r.line_id
-                        LEFT JOIN station s ON s.station_id = r.station_id
-                        WHERE EXISTS (SELECT 1 FROM reader_device other
-                            WHERE other.device_code = r.device_code
-                              AND other.transit_type != r.transit_type)
-                        """.trimIndent(), null
-                    ).use { cursor ->
-                        while (cursor.moveToNext()) {
-                            fun value(index: Int): String? = if (cursor.isNull(index)) null else cursor.getString(index)
-                            val lineName = value(7)
-                            val stationName = value(8)
-                            db.execSQL(
-                                """
-                                INSERT OR IGNORE INTO reader_device
-                                    (standard, device_code, city_id, line_id, station_id,
-                                     transit_type, device_location, match_key, updated_at)
-                                SELECT ?, ?, c.city_id, l.line_id, s.station_id, ?, ?, ?, ?
-                                FROM city c
-                                LEFT JOIN line l ON l.city_id = c.city_id AND l.line_name = ?
-                                LEFT JOIN station s ON s.city_id = c.city_id AND s.station_name = ?
-                                WHERE c.city_code = ?
-                                  AND (? IS NULL OR l.line_id IS NOT NULL)
-                                  AND (? IS NULL OR s.station_id IS NOT NULL)
-                                """.trimIndent(),
-                                arrayOf(value(0), value(1), value(2), value(3), value(4), value(5),
-                                    lineName, stationName, value(6), lineName, stationName)
-                            )
-                        }
-                    }
-                }
-            } finally {
-                copy.delete()
             }
-        }
+        }.getOrDefault(false)
 
         /** databases/transit.db 是否已存在（getDatabasePath 不会创建文件）。 */
         fun hasDatabaseFile(context: Context): Boolean =
@@ -107,15 +59,22 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    DB_NAME
-                )
-                    .createFromAsset(ASSET_PATH)
-                    .addMigrations(MIGRATION_1_2, migration2To3(context.applicationContext))
-                    .build()
-                    .also { instance = it }
+                instance ?: run {
+                    val appContext = context.applicationContext
+                    val file = appContext.getDatabasePath(DB_NAME)
+                    // transit.db 是可重建的映射缓存；升级时直接读取新资产，不迁移旧表。
+                    if (file.exists() && !hasCurrentSchema(file)) {
+                        check(appContext.deleteDatabase(DB_NAME)) { "无法重建站名映射缓存" }
+                        UiCache.clearAll(appContext)
+                        runBlocking {
+                            AppPreferences.setDbVersion(appContext, TransitDbVersion.readAssetVersion(appContext) ?: "0")
+                        }
+                    }
+                    Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME)
+                        .createFromAsset(ASSET_PATH)
+                        .build()
+                        .also { instance = it }
+                }
             }
         }
 
@@ -133,7 +92,6 @@ abstract class AppDatabase : RoomDatabase() {
             val validation = Room.databaseBuilder(
                 appContext, AppDatabase::class.java, downloaded.absolutePath
             ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_1_2, migration2To3(appContext))
                 .build()
             try {
                 runBlocking { validation.transitDao().countDevices() }

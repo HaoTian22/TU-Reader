@@ -1046,13 +1046,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         snapshot: com.example.nfctransit.data.OverrideSnapshot
     ) {
         val row = snapshot.rows.getValue(key)
-        val original = if (snapshot.originals.containsKey(key)) {
+        val savedOriginal = if (snapshot.originals.containsKey(key)) {
             snapshot.originals[key]
         } else {
             // 旧版本未记录覆盖前状态时，以内置库为恢复源；找不到则说明该设备由 override 新增。
             deviceFromAsset(context, row.deviceCode, row.type)
         }
         val current = dao.getDeviceByCode(row.deviceCode, row.type)
+        // 映射库重建后，保存的纠错快照可能持有已失效的外键；从当前资产补回原映射。
+        val original = savedOriginal?.let { saved ->
+            val referencesValid = dao.getCityById(saved.cityId) != null &&
+                (saved.lineId == null || dao.getLineById(saved.lineId) != null) &&
+                (saved.stationId == null || dao.getStationById(saved.stationId) != null)
+            if (referencesValid) saved
+            else deviceFromAsset(context, saved.deviceCode, saved.transitType)
+                ?: current?.copy(lineId = null, stationId = null)
+        }
         if (original != null && original.transitType != row.type) {
             // 旧版本可把公交行改成地铁行。撤销时删掉该覆盖，再按原类型恢复，避免重码冲突。
             dao.deleteDeviceByCode(row.deviceCode, row.type)
@@ -1078,7 +1087,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
                 database.rawQuery(
                     "SELECT device_id, standard, device_code, city_id, line_id, station_id, " +
-                        "transit_type, device_location, match_key, updated_at FROM reader_device " +
+                        "transit_type, updated_at FROM reader_device " +
                         "WHERE device_code = ? AND transit_type = ?",
                     arrayOf(deviceCode, transitType)
                 ).use { cursor ->
@@ -1095,8 +1104,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         lineId = nullableLong("line_id"),
                         stationId = nullableLong("station_id"),
                         transitType = cursor.getString(cursor.getColumnIndexOrThrow("transit_type")),
-                        deviceLocation = nullableString("device_location"),
-                        matchKey = nullableString("match_key"),
                         updatedAt = nullableString("updated_at")
                     )
                 }
@@ -1340,18 +1347,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else null
         val primary = primaryInfo?.let { parseInfoMetadata(it, cardType == "YCT") }
         val second = secondInfo?.let { parseInfoMetadata(it, false) }
-        val issuerCode = sequenceOf(
+        val tuIssuerCode = sequenceOf(
             card.secondCardNumber,
             card.cardNumber
         ).filterNotNull()
             .mapNotNull(TransitData::cardIssuerCode)
             .firstOrNull()
-            ?: primary?.issuerCode
+        val issuerCode = tuIssuerCode ?: primary?.issuerCode
+        val issuerProtocol = if (tuIssuerCode != null) "TU" else primaryProtocol
         val issuerCityCode = issuerCode?.takeLast(4)
-            ?.takeIf { it.length == 4 && TransitData.cityZh(it) != it }
+            ?.takeIf { it.length == 4 && TransitData.cityZh(it, issuerProtocol) != it }
         val issuer = issuerCode ?: primary?.issuerCode
         return UiCardMetadata(
-            issuerCity = issuerCityCode?.let { TransitData.cityZh(it) },
+            issuerCity = issuerCityCode?.let { TransitData.cityZh(it, issuerProtocol) },
             issuer = issuer,
             issueDate = primary?.issueDate,
             validUntil = primary?.validUntil,

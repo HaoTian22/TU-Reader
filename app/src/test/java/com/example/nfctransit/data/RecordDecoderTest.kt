@@ -434,7 +434,7 @@ class RecordDecoderTest {
         lineId = 1, lineName = if (type == "地铁") "测试地铁" else "测试公交", lineNameEn = null,
         lineColor = null, stationId = if (type == "地铁") 20 else null,
         stationName = if (type == "地铁") "测试站" else null, stationNameEn = null,
-        standard = "YCT", transitType = type, deviceCode = "99000018", deviceLocation = null, matchKey = null
+        standard = "YCT", transitType = type, deviceCode = "99000018"
     )
 
     private fun tuJourneyRecord(type: Int, subtype: Int): RecordDecoder.ZoneRecord {
@@ -456,13 +456,19 @@ class RecordDecoderTest {
         val index = candidates.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
         val key = "9900" to null
         val previous = index[key]
+        val rawBuckets = TransitData::class.java.getDeclaredField("resolutionsByCity").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val rawIndex = rawBuckets.get(TransitData) as MutableMap<String, MutableList<StationResolution>>
+        val previousRaw = rawIndex["9900"]
         val wasLoaded = loaded.getBoolean(TransitData)
         try {
             loaded.setBoolean(TransitData, true)
             index[key] = mappings
+            rawIndex["9900"] = mappings.toMutableList()
             block()
         } finally {
             if (previous == null) index.remove(key) else index[key] = previous
+            if (previousRaw == null) rawIndex.remove("9900") else rawIndex["9900"] = previousRaw
             loaded.setBoolean(TransitData, wasLoaded)
         }
     }

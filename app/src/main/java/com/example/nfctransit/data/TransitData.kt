@@ -41,7 +41,6 @@ object TransitData {
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,    // 命中设备所在城市码（广佛跨城匹配时用于显示佛山）
-        val deviceLocation: String? = null, // 无站点 GEO 时由 CSV 上层目录确定的实际城市码
         val spRule: String? = null       // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行展示
     )
 
@@ -51,13 +50,33 @@ object TransitData {
     private var appContext: Context? = null
 
     private val cityInfos = mutableMapOf<String, CityInfo>()             // 城市码 -> 中英文名
+    private val protocolCityCodes = mutableMapOf<Pair<String, String>, String>()
+
+    internal fun cityProtocol(standard: String): String = when (standard.uppercase(Locale.ROOT)) {
+        "LNT", "YCT" -> "YCT"
+        "SZT", "SUXIN", "SZTK", "TFT", "CU" -> "CU"
+        else -> standard.uppercase(Locale.ROOT)
+    }
+
+    /** 深圳 TU 的终端号与 CU 共用 cu.csv；编号前缀仍为 5180，实际城市为 5840。 */
+    private fun acceptsMapping(standard: String, resolution: StationResolution): Boolean {
+        val protocol = cityProtocol(standard)
+        val mappingProtocol = cityProtocol(resolution.standard)
+        return protocol == mappingProtocol ||
+            (protocol == "TU" && mappingProtocol == "CU" && resolution.deviceCode.startsWith("5180"))
+    }
+
+    internal fun tuCandidates(
+        candidates: List<StationResolution>,
+        family: TuTransitFamily?
+    ): List<StationResolution> = unambiguousCandidates(candidates.filter { acceptsMapping("TU", it) }, family)
     private val cityBoundaries = mutableListOf<CityBoundary>()
     @Volatile
     private var boundaryVersion: String = "0"
     private val byDeviceCode = mutableMapOf<String, MutableList<StationResolution>>() // 同编号保留所有类型
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
-    // 前缀/城市码（device_code[:4] == city_code 已验证成立）-> 该前缀下全部设备映射；
+    // 原始编号前缀 -> 该前缀下全部设备映射，与设备实际城市 city_id 无关；
     // 最长重叠/终端前缀匹配只扫本桶，避免 DB 增大后每次 O(全部设备)
     private val resolutionsByCity = mutableMapOf<String, MutableList<StationResolution>>()
     private val candidatesByCityAndFamily = mutableMapOf<Pair<String, TuTransitFamily?>, List<StationResolution>>()
@@ -120,9 +139,9 @@ object TransitData {
     }
 
     /** 城市码 -> 显示名（如 "广州 (Guangzhou)"），英文缺失时仅中文，未知时返回 "城市码:xxxx" */
-    fun cityName(cityCode: String): String {
+    fun cityName(cityCode: String, standard: String = "TU"): String {
         ensureLoaded()
-        val info = cityInfos[cityCode] ?: return "城市码:$cityCode"
+        val info = cityInfos[canonicalCityCode(cityCode, standard)] ?: return "城市码:$cityCode"
         return if (info.en.isNullOrEmpty()) info.zh else "${info.zh} (${info.en})"
     }
 
@@ -139,12 +158,13 @@ object TransitData {
         return boundaryVersion
     }
 
-    /** 根据站点 GEO、来源目录的设备地点和 declared city 生成实际地点。 */
+    /** 根据站点 GEO、设备 city_id 和卡内声明城市生成实际地点。 */
     fun actualLocation(
         stationId: Long?,
         deviceCode: String?,
         declaredCityCode: String?,
-        lineId: Long? = null
+        lineId: Long? = null,
+        standard: String = "TU"
     ): ActualLocation {
         ensureLoaded()
         val resolution = stationId?.let { byStationId[it] }
@@ -154,17 +174,21 @@ object TransitData {
             cityBoundaries.firstOrNull { boundary ->
                 boundary.polygons.any { polygon -> pointInPolygon(longitude, latitude, polygon) }
             }?.let { boundary ->
-                return ActualLocation(boundary.cityCode, boundary.cityName, LocationSource.STATION_GEO)
+                val code = cityInfos.entries.firstOrNull { it.value.zh == boundary.cityName }?.key
+                    ?: boundary.cityCode
+                return ActualLocation(code, boundary.cityName, LocationSource.STATION_GEO)
             }
         }
         val candidates = deviceCode?.let { byDeviceCode[it] }.orEmpty()
-        val deviceLocation = (if (lineId != null) candidates.filter { it.lineId == lineId }
-            else candidates).map { it.deviceLocation }.distinct().singleOrNull()
-        if (!deviceLocation.isNullOrBlank()) {
-            return ActualLocation(deviceLocation, cityZh(deviceLocation), LocationSource.PARENT_DIRECTORY)
+            .filter { acceptsMapping(standard, it) }
+            .filter { stationId == null || it.stationId == stationId }
+            .filter { lineId == null || it.lineId == lineId }
+        val deviceCity = candidates.map { it.cityCode }.distinct().singleOrNull()
+        if (!deviceCity.isNullOrBlank()) {
+            return ActualLocation(deviceCity, cityInfos[deviceCity]?.zh ?: deviceCity, LocationSource.PARENT_DIRECTORY)
         }
-        val fallback = declaredCityCode?.takeIf { it.isNotBlank() }
-        return ActualLocation(fallback, fallback?.let(::cityZh).orEmpty(), LocationSource.DECLARED_CITY_FALLBACK)
+        val fallback = declaredCityCode?.takeIf { it.isNotBlank() }?.let { canonicalCityCode(it, standard) }
+        return ActualLocation(fallback, fallback?.let { cityInfos[it]?.zh ?: it }.orEmpty(), LocationSource.DECLARED_CITY_FALLBACK)
     }
 
     private fun pointInPolygon(lon: Double, lat: Double, polygon: List<List<Double>>): Boolean {
@@ -191,10 +215,13 @@ object TransitData {
     }
 
     /** 城市码 -> 中文城市名（如 "广州"），未知时返回原城市码 */
-    fun cityZh(cityCode: String): String {
+    fun cityZh(cityCode: String, standard: String = "TU"): String {
         ensureLoaded()
-        return cityInfos[cityCode]?.zh ?: cityCode
+        return cityInfos[canonicalCityCode(cityCode, standard)]?.zh ?: cityCode
     }
+
+    private fun canonicalCityCode(code: String, standard: String): String =
+        protocolCityCodes[cityProtocol(standard) to code] ?: code
 
     enum class TuTransitFamily { RAIL, BUS }
 
@@ -222,7 +249,7 @@ object TransitData {
         expectedFamily: TuTransitFamily? = null
     ): StationEntry? {
         ensureLoaded()
-        // 深圳 TU：卡片 1E 城市码 5840 无独立站点数据（city_id 200 空），重定向到 5180（深圳数据所在）
+        // 深圳 TU：标准城市码 5840，CU/TU 共用的终端号映射使用原始编号前缀 5180。
         val shenzhenRedirect = cityCode == "5840"
         val baseCity = if (shenzhenRedirect) "5180" else cityCode
         // 广佛跨城：5810 记录把城市前缀变换为 5880 后与原始 5810 数据连表匹配，两城候选同一优先级取更精确者，
@@ -463,12 +490,13 @@ object TransitData {
      * （候选串偶数下标 = BCD 字节边界），跨字节伪重叠（如 00131335 里的 0131 与真实站码 1335）同长时不误取。
      * 返回命中设备与重叠长度；无命中返回 null。
      */
-    private fun longestOverlap(prefix: String, body: String): Pair<StationResolution, Int>? {
+    private fun longestOverlap(prefix: String, body: String, standard: String): Pair<StationResolution, Int>? {
         val candidate = prefix + body
         var best: StationResolution? = null
         var bestLen = 0   // 从 0 起，只接受真实重叠（ov>0），避免无重叠时误取第一个设备
         var bestAligned = false
-        for (r in candidatesByCityAndFamily[prefix to null].orEmpty()) {
+        for (r in unambiguousCandidates(resolutionsByCity[prefix].orEmpty()
+            .filter { acceptsMapping(standard, it) })) {
             val dev = r.deviceCode
             if (!dev.startsWith(prefix)) continue
             val devCode = dev.removePrefix(prefix)
@@ -628,7 +656,7 @@ object TransitData {
         val prefix = if (code.length >= 4) code.substring(0, 4) else code
         val body = if (code.length > 4) code.substring(4) else code
         if (body.isEmpty()) return null
-        return longestOverlap(prefix, body)?.first?.toEntry()
+        return longestOverlap(prefix, body, standard)?.first?.toEntry()
     }
 
     /**
@@ -642,7 +670,7 @@ object TransitData {
             else -> ""
         }
         if (body.isEmpty()) return null
-        return longestOverlap("5180", body)?.first?.toEntry(SP_RULE_SHENZHEN)
+        return longestOverlap("5180", body, "CU")?.first?.toEntry(SP_RULE_SHENZHEN)
     }
 
     /**
@@ -739,7 +767,6 @@ object TransitData {
             lineId = lineId,
             stationId = stationId,
             cityCode = cityCode,
-            deviceLocation = deviceLocation,
             spRule = spRule
         )
     }
@@ -764,6 +791,7 @@ object TransitData {
     fun reload() {
         synchronized(loadLock) {
             cityInfos.clear()
+            protocolCityCodes.clear()
             cityBoundaries.clear()
             boundaryVersion = "0"
             byDeviceCode.clear()
@@ -794,6 +822,12 @@ object TransitData {
                     val dao = AppDatabase.get(ctx).transitDao()
                     for (c in dao.getAllCities()) {
                         cityInfos[c.cityCode] = CityInfo(c.cityName, c.cityNameEn)
+                    }
+                    val cityCodesById = dao.getAllCities().associate { it.cityId to it.cityCode }
+                    for (mapping in dao.getProtocolCityCodes()) {
+                        cityCodesById[mapping.cityId]?.let { code ->
+                            protocolCityCodes[mapping.protocol to mapping.code] = code
+                        }
                     }
                     for (r in dao.getAllResolutions()) {
                         byDeviceCode.getOrPut(r.deviceCode, ::mutableListOf).add(r)
@@ -826,11 +860,11 @@ object TransitData {
                             .forEach { name ->
                                 byNormalizedStationName.getOrPut(name, ::mutableListOf).add(r)
                             }
-                        resolutionsByCity.getOrPut(r.cityCode, ::mutableListOf).add(r)
+                        resolutionsByCity.getOrPut(r.deviceCode.take(4), ::mutableListOf).add(r)
                     }
                     for ((city, candidates) in resolutionsByCity) {
                         for (family in listOf(null, TuTransitFamily.RAIL, TuTransitFamily.BUS)) {
-                            candidatesByCityAndFamily[city to family] = unambiguousCandidates(candidates, family)
+                            candidatesByCityAndFamily[city to family] = tuCandidates(candidates, family)
                         }
                     }
                 }

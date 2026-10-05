@@ -1,6 +1,8 @@
 code,province,cityEn,cityZh
+0344,Hong Kong,Hong Kong,香港
+0446,Macau,Macau,澳门
 1000,Beijing,Beijing,北京
-1121,Tianjin,Tianjin,天津
+1100,Tianjin,Tianjin,天津
 1210,Hebei,Shijiazhuang,石家庄
 1240,Hebei,Tangshan,唐山
 1260,Hebei,Qinhuangdao,秦皇岛
@@ -19,7 +21,7 @@ code,province,cityEn,cityZh
 1680,Shanxi,Jincheng,晋城
 1690,Shanxi,Shuozhou,朔州
 1710,Shanxi,Xinzhou,忻州
-1730,Shanxi,Lvliang,吕梁
+1730,Shanxi,Luliang,吕梁
 1750,Shanxi,Jinzhong,晋中
 1770,Shanxi,Linfen,临汾
 1810,Shanxi,Yuncheng,运城
@@ -27,10 +29,9 @@ code,province,cityEn,cityZh
 1920,Inner Mongolia,Baotou,包头
 1930,Inner Mongolia,Wuhai,乌海
 1940,Inner Mongolia,Chifeng,赤峰
-1960,Inner Mongolia,Hulunbuir,呼伦贝尔
+1960,Inner Mongolia,Hulun Buir,呼伦贝尔
 1980,Inner Mongolia,Hinggan,兴安盟
 1990,Inner Mongolia,Tongliao,通辽
-2000,Shanghai,Shanghai,上海
 2010,Inner Mongolia,Xilingol,锡林郭勒盟
 2030,Inner Mongolia,Ulanqab,乌兰察布
 2050,Inner Mongolia,Ordos,鄂尔多斯
@@ -48,7 +49,7 @@ code,province,cityEn,cityZh
 2310,Liaoning,Liaoyang,辽阳
 2320,Liaoning,Panjin,盘锦
 2330,Liaoning,Tieling,铁岭
-2340,Liaoning,Zhaoyang,朝阳
+2340,Liaoning,Chaoyang,朝阳
 2360,Liaoning,Huludao,葫芦岛
 2410,Jilin,Changchun,长春
 2420,Jilin,Jilin,吉林
@@ -81,10 +82,9 @@ code,province,cityEn,cityZh
 3060,Jiangsu,Nantong,南通
 3070,Jiangsu,Lianyungang,连云港
 3080,Jiangsu,Huai'an,淮安
-3100,Zhejiang,Hangzhou,杭州
 3110,Jiangsu,Yancheng,盐城
-3120,Zhejiang,Shaoxing,绍兴
-3140,Zhejiang,Jiaxing,嘉兴
+3120,Jiangsu,Yangzhou,扬州
+3140,Jiangsu,Zhenjiang,镇江
 3160,Jiangsu,Taizhou,泰州
 3180,Jiangsu,Suqian,宿迁
 3310,Zhejiang,Hangzhou,杭州
@@ -102,7 +102,7 @@ code,province,cityEn,cityZh
 3620,Anhui,Wuhu,芜湖
 3630,Anhui,Bengbu,蚌埠
 3640,Anhui,Huainan,淮南
-3650,Anhui,Maanshan,马鞍山
+3650,Anhui,Ma'anshan,马鞍山
 3660,Anhui,Huaibei,淮北
 3670,Anhui,Tongling,铜陵
 3680,Anhui,Anqing,安庆
@@ -167,7 +167,6 @@ code,province,cityEn,cityZh
 5110,Henan,Zhumadian,驻马店
 5130,Henan,Nanyang,南阳
 5150,Henan,Xinyang,信阳
-5180,Guangdong,Shenzhen,深圳
 5210,Hubei,Wuhan,武汉
 5220,Hubei,Huangshi,黄石
 5230,Hubei,Shiyan,十堰
@@ -288,7 +287,6 @@ code,province,cityEn,cityZh
 7790,Tibet,Nagqu,那曲
 7810,Tibet,Ngari,阿里地区
 7830,Tibet,Nyingchi,林芝
-7835,Guangdong,Zhuhai,珠海
 7910,Shaanxi,Xi'an,西安
 7920,Shaanxi,Tongchuan,铜川
 7930,Shaanxi,Baoji,宝鸡

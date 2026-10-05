@@ -24,8 +24,6 @@ data class StationResolution(
     @ColumnInfo(name = "standard") val standard: String,
     @ColumnInfo(name = "transit_type") val transitType: String,
     @ColumnInfo(name = "device_code") val deviceCode: String,
-    @ColumnInfo(name = "device_location") val deviceLocation: String?,
-    @ColumnInfo(name = "match_key") val matchKey: String?,
     @ColumnInfo(name = "longitude") val longitude: Double? = null,
     @ColumnInfo(name = "latitude") val latitude: Double? = null
 )
@@ -39,8 +37,14 @@ interface TransitDao {
     @Query("SELECT * FROM city")
     suspend fun getAllCities(): List<CityEntity>
 
+    @Query("SELECT * FROM protocol_city_code")
+    suspend fun getProtocolCityCodes(): List<ProtocolCityCodeEntity>
+
+    @Query("SELECT c.* FROM city c JOIN protocol_city_code p ON c.city_id = p.city_id WHERE p.protocol = :protocol AND p.code = :code LIMIT 1")
+    suspend fun getProtocolCity(protocol: String, code: String): CityEntity?
+
     /**
-     * 全部站点解析结果（城市/线路/站点 + 英文 + match_key）。
+     * 全部站点解析结果（城市/线路/站点 + 英文）。
      * LEFT JOIN station：空站名的大类 fallback 设备（如 51804=地铁）也载入，
      * 供最长前缀匹配兜底显示交通类型/线路。
      * 数据量为参考数据集（约 2.7 万行），首次读取时一次性载入内存缓存。
@@ -50,7 +54,7 @@ interface TransitDao {
         SELECT c.city_id, c.city_code, c.city_name, c.city_name_en,
                l.line_id, l.line_name, l.line_name_en, l.line_color,
                s.station_id, s.station_name, s.station_name_en,
-               r.standard, r.transit_type, r.device_code, r.device_location, r.match_key,
+               r.standard, r.transit_type, r.device_code,
                s.longitude, s.latitude
         FROM reader_device r
         JOIN city c ON c.city_id = r.city_id
@@ -88,18 +92,18 @@ interface TransitDao {
     @Query(
         """
         UPDATE reader_device
-        SET standard = :standard, line_id = :lineId, station_id = :stationId,
-            transit_type = :transitType, device_location = :deviceLocation, updated_at = :updatedAt
+        SET standard = :standard, city_id = :cityId, line_id = :lineId, station_id = :stationId,
+            transit_type = :transitType, updated_at = :updatedAt
         WHERE device_id = :deviceId
         """
     )
     suspend fun updateDeviceMapping(
         deviceId: Long,
         standard: String,
+        cityId: Long,
         lineId: Long?,
         stationId: Long?,
         transitType: String,
-        deviceLocation: String?,
         updatedAt: String
     )
 

@@ -20,7 +20,7 @@ class TransitOverrideStoreTest {
     @Test
     fun sharedCodeStoresEditsAndRemovesEachTypeIndependently() {
         val original = ReaderDeviceEntity(deviceId = 100, standard = "TU", deviceCode = bus.deviceCode,
-            cityId = 1, lineId = 12, transitType = "公交", deviceLocation = "3320")
+            cityId = 1, lineId = 12, transitType = "公交")
         TransitOverrideStore.upsert(folder.root, FeedbackOverride(bus, "TU", false, "3320"), original)
         TransitOverrideStore.upsert(folder.root, FeedbackOverride(metro, "TU", false))
         val changed = metro.copy(station = "更正站名")

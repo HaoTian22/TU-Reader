@@ -87,7 +87,7 @@ object TransactionMapper {
         val actualLocation = if (effRecharge) {
             ActualLocation(null, "", LocationSource.DECLARED_CITY_FALLBACK)
         } else {
-            TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode, resolved.lineId)
+            TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode, resolved.lineId, protocol)
         }
 
         return UiTransaction(

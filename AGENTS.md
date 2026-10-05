@@ -15,7 +15,7 @@ export JAVA_HOME="C:/Users/Hao_T/.gradle/jdks/eclipse_adoptium-17-amd64-windows.
 
 | 库 | Room | 内容 | 位置 |
 |---|---|---|---|
-| 站名映射库 `transit.db` | `AppDatabase`（version=3） | city / line / station / reader_device（含 device_location） | `assets/data/transit.db` → 私有 databases/ |
+| 站名映射库 `transit.db` | `AppDatabase`（version=5） | city / protocol_city_code / line / station / reader_device | `assets/data/transit.db` → 私有 databases/ |
 | 用户库 `user_data.db` | `UserDatabase` | cards / raw_records / transactions_archive | 应用私有目录 |
 
 站名/线路在应用内以数据库 ID（stationId/lineId）传递，名称按界面语言即时解析，不持久化中文名。
@@ -33,7 +33,13 @@ export JAVA_HOME="C:/Users/Hao_T/.gradle/jdks/eclipse_adoptium-17-amd64-windows.
 
 ## 关键约束
 
-`AppDatabase` 当前为 `version=3`，服务端 DB 必须与 App schema 的 identity_hash 一致（当前 `58d991d9ea0f85d7bc52c1aa802c3124`）。**任何 schema 升级必须同步升级 App 版本并加 Room Migration，并让服务端用新 schema 重建 DB**，否则在线更新会被拒绝。`reader_device` 的唯一键是 `(device_code, transit_type)`；数据库导入、纠错、撤销及反馈存储必须按这个组合定位。更新/删除已命中的行可按 `device_id` 操作，不能仅按编号批量覆盖。
+`AppDatabase` 当前为 `version=5`，服务端 DB 必须与 App schema 的 identity_hash 一致（当前 `6faef85bfabe32fba63ee2cb3c1a496e`）。**transit.db 不做应用内迁移：版本或 identity_hash 不一致时清除本地映射库及 UI 缓存，从 asset 重建；user_data.db 等用户数据库继续保留 Room Migration。任何 transit schema 升级必须同步升级 App 版本、内置库及服务端库**，否则在线更新会被拒绝。`reader_device` 的唯一键是 `(device_code, transit_type)`；数据库导入、纠错、撤销及反馈存储必须按这个组合定位。更新/删除已命中的行可按 `device_id` 操作，不能仅按编号批量覆盖。
+
+`city` 以 `assets/data/citylist.csv` 为标准 TU 城市目录，仅收录城市级代码（含州/地区、直辖市及港澳），当前 339 条。省级及区县代码不收录，不能仅按代码末尾 0 判断行政级别。设备、线路和站点的 `city_id` 按来源 CSV 的省份/城市目录确定；原始 `device_code` 保留用于匹配分桶。`protocol_city_code(protocol, code, city_id)` 解释非标准/别名代码，允许 TU、CU、YCT；不能从网络代码推断已匹配设备的实际城市。Python 更新工具只接受当前发版 schema，保留已有 ID、坐标、英文名及配色，不转换旧结构；应用重建后从独立保存的 overrides 文件重新导入纠错。
+
+深圳 TU 轨道交通的终端号与 CU 共用 `Guangdong/Shenzhen/cu.csv`，原始编号前缀为 `5180`，实际城市为标准 TU `5840`。协议筛选必须保留这项共享规则（包括 TU 终端匹配、0x18 兜底匹配和命中后的实际城市解析）；其他地区的 CU 映射不能混入 TU。
+
+同城标准别名天津 1121→1100、南京 3018→3010、香港 9101→0344、澳门 9102→0446 均通过 `protocol_city_code` 解析，城市选择器仅保留主代码。
 
 ## 反馈服务（server/）
 

@@ -39,7 +39,6 @@ object RecordDecoder {
         val lineId: Long? = null,
         val stationId: Long? = null,
         val cityCode: String? = null,
-        val deviceLocation: String? = null,
         val deviceCode: String? = null,
         val spRule: String? = null
     )
@@ -421,7 +420,6 @@ object RecordDecoder {
                 lineId = mappedRef?.lineId,
                 stationId = mappedRef?.stationId,
                 cityCode = mappedRef?.cityCode,
-                deviceLocation = mappedRef?.deviceLocation,
                 deviceCode = mappedRef?.code,
                 spRule = mappedRef?.spRule
             )
@@ -761,7 +759,6 @@ object RecordDecoder {
             lineId = lineId,
             stationId = stationId,
             cityCode = cityCode,
-            deviceLocation = deviceLocation,
             deviceCode = code,
             spRule = spRule
         )

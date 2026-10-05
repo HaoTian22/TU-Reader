@@ -1,6 +1,7 @@
 app/build/*
 build/*
 .gradle
+.kotlin/
 .idea
 tripreader-data-master/
 release.jks

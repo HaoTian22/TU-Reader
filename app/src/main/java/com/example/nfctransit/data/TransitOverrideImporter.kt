@@ -34,10 +34,22 @@ object TransitOverrideImporter {
                     errors += "第 ${index + 2} 行：$error"
                     return@forEachIndexed
                 }
-                val city = dao.getCity(row.prefix)
+                val existing = dao.getDeviceByCode(row.deviceCode, row.type)
+                val standard = snapshot.standards[row.mappingKey]
+                    ?.trim()?.takeIf { it.isNotEmpty() } ?: existing?.standard ?: "OVERRIDE"
+                val requestedLocation = snapshot.locations[row.mappingKey]
+                    ?.trim()?.takeIf { it.isNotEmpty() }
+                // 旧纠错 sidecar 可能保存协议代码（如 TU 0755、YCT 0100）。
+                // 当前选择器保存标准城市码，优先按 city 查找，再兼容旧协议代码。
+                val city = if (requestedLocation != null) {
+                    dao.getCity(requestedLocation)
+                        ?: dao.getProtocolCity(TransitData.cityProtocol(standard), requestedLocation)
+                } else existing?.let { dao.getCityById(it.cityId) }
+                        ?: dao.getProtocolCity(TransitData.cityProtocol(standard), row.prefix)
+                        ?: dao.getCity(row.prefix)
                 if (city == null) {
                     skipped++
-                    errors += "第 ${index + 2} 行：未知城市码 ${row.prefix}"
+                    errors += "第 ${index + 2} 行：未知城市码 ${requestedLocation ?: row.prefix}"
                     return@forEachIndexed
                 }
                 val lineId = row.line.takeIf { it.isNotBlank() }?.let { line ->
@@ -56,21 +68,6 @@ object TransitOverrideImporter {
                             StationEntity(cityId = city.cityId, stationName = station)
                         )
                 }
-                val existing = dao.getDeviceByCode(row.deviceCode, row.type)
-                val requestedLocation = snapshot.locations[row.mappingKey]
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-                if (requestedLocation != null && dao.getCity(requestedLocation) == null) {
-                    skipped++
-                    errors += "第 ${index + 2} 行：未知实际城市码 $requestedLocation"
-                    return@forEachIndexed
-                }
-                val deviceLocation = requestedLocation?.takeIf { stationId == null }
-                val standard = snapshot.standards[row.mappingKey]
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-                    ?: existing?.standard
-                    ?: "OVERRIDE"
                 if (existing == null) {
                     dao.insertDevice(
                         ReaderDeviceEntity(
@@ -80,7 +77,6 @@ object TransitOverrideImporter {
                             lineId = lineId,
                             stationId = stationId,
                             transitType = row.type,
-                            deviceLocation = deviceLocation,
                             updatedAt = now
                         )
                     )
@@ -90,16 +86,15 @@ object TransitOverrideImporter {
                     existing.cityId != city.cityId ||
                     existing.lineId != lineId ||
                     existing.stationId != stationId ||
-                    existing.transitType != row.type ||
-                    existing.deviceLocation != deviceLocation
+                    existing.transitType != row.type
                 ) {
                     dao.updateDeviceMapping(
                         deviceId = existing.deviceId,
                         standard = standard,
+                        cityId = city.cityId,
                         lineId = lineId,
                         stationId = stationId,
                         transitType = row.type,
-                        deviceLocation = deviceLocation,
                         updatedAt = now
                     )
                     updated++

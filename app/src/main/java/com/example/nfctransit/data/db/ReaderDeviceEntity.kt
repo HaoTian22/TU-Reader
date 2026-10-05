@@ -11,10 +11,6 @@ import androidx.room.PrimaryKey
  * 同一编号可用于不同交通类型，唯一键为 (device_code, transit_type)。
  * 例如 广州地铁 00010001 站 → "581000010001"；深圳 CU 60026 → "518060026"。
  * CU 标准的线路可能缺失（数据源限制），line_id 允许为空。
- *
- * match_key 为线路头行城市专用的「去前导0」规范化键（{city}|{线路码去0}|{站点码去0}），
- * 用于兼容变长编码（如北京 010001、重庆 4/8 位）下卡片读取的 4 位 BCD 线路/站点码匹配；
- * 终端号城市（整行 Code 即终端号）该列为 NULL。
  */
 @Entity(
     tableName = "reader_device",
@@ -28,7 +24,6 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["device_code", "transit_type"], unique = true),
-        Index(value = ["match_key"]),
         Index(value = ["city_id"]),
         Index(value = ["line_id"]),
         Index(value = ["station_id"])
@@ -43,7 +38,5 @@ data class ReaderDeviceEntity(
     @ColumnInfo(name = "line_id") val lineId: Long? = null,
     @ColumnInfo(name = "station_id") val stationId: Long? = null,
     @ColumnInfo(name = "transit_type") val transitType: String, // CSV Type 列：地铁/公交/BRT/城际/…
-    @ColumnInfo(name = "device_location") val deviceLocation: String? = null, // 实际地点城市码；无可用站点 GEO 时使用
-    @ColumnInfo(name = "match_key") val matchKey: String? = null,
     @ColumnInfo(name = "updated_at") val updatedAt: String? = null
 )
