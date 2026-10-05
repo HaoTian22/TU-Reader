@@ -2,6 +2,8 @@ package com.example.nfctransit.data
 
 import com.example.nfctransit.data.db.ReaderDeviceEntity
 import java.util.LinkedHashMap
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 const val OVERRIDE_HEADER = "Prefix,Code,Type,Line,Station"
 
@@ -28,11 +30,9 @@ data class OverrideImportSummary(
     val errors: List<String> = emptyList()
 ) {
     fun message(): String = buildString {
-        append("本地覆盖已导入：新增 ").append(added)
-            .append(" 条，修改 ").append(updated)
-            .append(" 条，未变化 ").append(unchanged)
-        if (skipped > 0) append("，跳过 ").append(skipped).append(" 条")
-        if (errors.isNotEmpty()) append("，失败 ").append(errors.size).append(" 条")
+        append(L10n.str(R.string.override_import_summary, added, updated, unchanged))
+        if (skipped > 0) append(L10n.str(R.string.override_import_skipped, skipped))
+        if (errors.isNotEmpty()) append(L10n.str(R.string.override_import_failed, errors.size))
     }
 }
 

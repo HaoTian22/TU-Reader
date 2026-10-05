@@ -37,7 +37,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private var rawRecords = emptyList<RawRecord>()
     private var cardApps = emptyList<CardAppEntity>()
 
-    private val colorNames = CardPalette.swatches.map { it.name }
+    private val colorNames get() = CardPalette.swatches.map { getString(it.nameRes) }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -59,13 +59,13 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         binding.btnChangeColor.typeface = binding.btnEditName.typeface
         binding.rowEditName.setOnClickListener { showRenameDialog() }
         binding.rowChangeColor.setOnClickListener { showColorDialog() }
-        binding.btnCopyRawData.typeface = binding.btnEditName.typeface
+        binding.btnCopyRawData.setIconLabel(binding.btnEditName.typeface, "\uF0C5", getString(R.string.action_copy)) // fa-copy
         binding.btnCopyRawData.setOnClickListener {
             if (rawHexToCopy.isNotBlank()) {
                 val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                     as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("卡片原始数据", rawHexToCopy))
-                Toast.makeText(requireContext(), "已复制卡片原始数据", Toast.LENGTH_SHORT).show()
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.card_info_copy_raw_cd), rawHexToCopy))
+                Toast.makeText(requireContext(), R.string.card_raw_copied, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -98,16 +98,17 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         issuerCity = metadata.issuerCity
         binding.tvIssuerCity.text = metadata.issuerCity ?: "—"
         binding.tvIssuer.text = metadata.issuer ?: "—"
-        binding.tvIssueDate.text = metadata.issueDate ?: "—"
-        binding.tvValidUntil.text = metadata.validUntil ?: "—"
+        binding.tvIssueDate.text = displayValue(metadata.issueDate)
+        binding.tvValidUntil.text = displayValue(metadata.validUntil)
         val secondStandard = metadata.secondStandard
         val hasSecondStandard = secondStandard != null
         binding.secondStandardIssueRow.visibility = if (hasSecondStandard) View.VISIBLE else View.GONE
         binding.secondStandardValidRow.visibility = if (hasSecondStandard) View.VISIBLE else View.GONE
-        binding.tvSecondIssueLabel.text = "${secondStandard ?: "第二标准"}发行日期"
-        binding.tvSecondValidLabel.text = "${secondStandard ?: "第二标准"}有效期至"
-        binding.tvSecondIssueDate.text = metadata.secondIssueDate ?: "—"
-        binding.tvSecondValidUntil.text = metadata.secondValidUntil ?: "—"
+        val standardName = secondStandard ?: getString(R.string.standard_second)
+        binding.tvSecondIssueLabel.text = getString(R.string.card_info_std_issue_date, standardName)
+        binding.tvSecondValidLabel.text = getString(R.string.card_info_std_valid_until, standardName)
+        binding.tvSecondIssueDate.text = displayValue(metadata.secondIssueDate)
+        binding.tvSecondValidUntil.text = displayValue(metadata.secondValidUntil)
         viewModel.selectedCard.value?.let { updateHeroSubtitle(it) }
         refreshRowDividers(binding.sectionValidity)
     }
@@ -142,13 +143,13 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             if (card.secondCardNumber.isNullOrBlank()) View.GONE else View.VISIBLE
         binding.tvSecondCardNumber.text = card.secondCardNumber.orEmpty()
         binding.tvBalance.text = "¥${String.format(Locale.getDefault(), "%.2f", card.balanceYuan)}"
-        binding.tvLastRead.text = "上次读取 ${formatLastRead(card.lastReadAt)}"
+        binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))
         binding.heroCardFace.background = cardGradient(card, dpToPx(6))
         binding.cardColorPreview.background = cardGradient(card, dpToPx(4))
         val colorIndex = viewModel.cardColorOptions().indexOfFirst {
             it.first == card.gradientStartColor && it.second == card.gradientEndColor
         }
-        binding.tvColorName.text = colorNames.getOrNull(colorIndex) ?: "自定义"
+        binding.tvColorName.text = colorNames.getOrNull(colorIndex) ?: getString(R.string.period_custom)
         refreshRowDividers(binding.sectionCardInfo)
     }
 
@@ -344,7 +345,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         }
         AppDialogs.options(
             context = requireContext(),
-            title = "选择卡面颜色",
+            title = getString(R.string.card_color_title),
             options = colorNames.take(colors.size),
             selectedIndex = selected,
             accentColor = accentColor,
@@ -361,14 +362,14 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         val card = viewModel.selectedCard.value ?: return
         renameDialog = AppDialogs.textInput(
             context = requireContext(),
-            title = "自定义卡片名称",
+            title = getString(R.string.card_rename_title),
             initialValue = card.name,
-            hint = "请输入卡片名称",
+            hint = getString(R.string.card_rename_hint),
             maxLength = 30,
             accentColor = accentColor
         ) { value ->
             if (!viewModel.renameSelectedCard(value)) {
-                Toast.makeText(requireContext(), "卡片名称不能为空", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), R.string.card_name_empty, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -381,20 +382,11 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         }
     }
 
-    private fun formatLastRead(lastReadAt: Long): String {
-        if (lastReadAt <= 0L) return "—"
-        val cal = Calendar.getInstance().apply { timeInMillis = lastReadAt }
-        val now = Calendar.getInstance()
-        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
-        if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-            cal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
-        ) return "今天 $time"
-        val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) {
-            "M月d日"
-        } else {
-            "yyyy年M月d日"
-        }
-        return "${SimpleDateFormat(datePattern, Locale.getDefault()).format(cal.time)} $time"
+    /** 读卡解析在字段缺失时写入 "未知"（数据键），显示时按界面语言替换 */
+    private fun displayValue(value: String?): String = when (value) {
+        null -> "—"
+        "未知" -> getString(R.string.unknown)
+        else -> value
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()

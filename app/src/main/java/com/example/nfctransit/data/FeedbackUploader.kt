@@ -5,6 +5,8 @@ import com.example.nfctransit.BuildConfig
 import com.google.gson.Gson
 import java.net.HttpURLConnection
 import java.net.URL
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 object FeedbackUploader {
     private val gson = Gson()
@@ -33,7 +35,7 @@ object FeedbackUploader {
         rawRecord: String? = null
     ): String {
         val endpoint = BuildConfig.FEEDBACK_UPLOAD_URL.trim()
-        if (endpoint.isEmpty()) return "未配置公开上传地址"
+        if (endpoint.isEmpty()) return L10n.str(R.string.upload_not_configured)
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -59,11 +61,11 @@ object FeedbackUploader {
             )
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             when (val code = connection.responseCode) {
-                in 200..299 -> "公开纠错已上传"
-                else -> "公开上传失败（HTTP $code）"
+                in 200..299 -> L10n.str(R.string.upload_done)
+                else -> L10n.str(R.string.upload_failed_http, code)
             }
         } catch (e: Exception) {
-            "公开上传失败：${e.message ?: "网络错误"}"
+            L10n.str(R.string.upload_failed, e.message ?: L10n.str(R.string.network_error))
         } finally {
             connection.disconnect()
         }

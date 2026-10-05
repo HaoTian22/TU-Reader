@@ -84,6 +84,12 @@ android {
             }
         }
     }
+    // 应用内切换语言：AAB 不按语言拆分资源，否则未下载的语言无法切换
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8

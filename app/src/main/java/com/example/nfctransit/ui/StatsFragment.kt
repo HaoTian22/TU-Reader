@@ -50,7 +50,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         // 回到当前周期按钮的 ↻ 图标与前后周期箭头用 FontAwesome 渲染（汉字部分自动回退系统字体）
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-        binding.btnBackCurrent.typeface = fa
+        binding.btnBackCurrent.setIconLabel(fa, "\uF2EA", getString(R.string.stats_now)) // fa-rotate-left
         binding.btnPrevPeriod.typeface = fa
         binding.btnNextPeriod.typeface = fa
 
@@ -74,8 +74,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         binding.tvCustomStart.setOnClickListener { showCustomRangeDialog() }
         binding.tvCustomEnd.setOnClickListener { showCustomRangeDialog() }
         viewModel.customRange.observe(viewLifecycleOwner) { (start, end) ->
-            binding.tvCustomStart.text = start.ifEmpty { "开始日期" }
-            binding.tvCustomEnd.text = end.ifEmpty { "结束日期" }
+            binding.tvCustomStart.text = start.ifEmpty { getString(R.string.label_start_date) }
+            binding.tvCustomEnd.text = end.ifEmpty { getString(R.string.label_end_date) }
         }
 
         // 主题色跟随卡片：◀/▶/返回按钮、badge、柱状图、排行条、选中 chip 一起变
@@ -113,7 +113,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         viewModel.statsSummary.observe(viewLifecycleOwner) { summary ->
             binding.cardSummary.sumTotalSpending.text =
                 "¥${String.format("%.2f", summary.totalSpendingYuan)}"
-            binding.cardSummary.sumRideCount.text = "${summary.rideCount} 次"
+            binding.cardSummary.sumRideCount.text =
+                resources.getQuantityString(R.plurals.rides_count, summary.rideCount, summary.rideCount)
             binding.cardSummary.sumAvgDaily.text =
                 "¥${String.format("%.2f", summary.avgDailyYuan)}"
         }
@@ -131,11 +132,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
 
         viewModel.categorySpending.observe(viewLifecycleOwner) { items ->
-            bindDonutChart(binding.cardCategories.donutChart, binding.cardCategories.categoryLegend, items)
+            bindDonutChart(binding.cardCategories.donutChart, binding.cardCategories.categoryLegend, items, TransitLabels::type)
         }
 
         viewModel.citySpending.observe(viewLifecycleOwner) { items ->
-            bindDonutChart(binding.cardCities.donutChart, binding.cardCities.cityLegend, items)
+            bindDonutChart(binding.cardCities.donutChart, binding.cardCities.cityLegend, items, TransitLabels::city)
         }
     }
 
@@ -272,7 +273,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
 
             // 稠密视图（整月 30+ 列）每列很窄，"14号" 三字符放不下被裁，去掉"号"只显示数字
-            val displayLabel = if (data.size > 15) d.dayLabel.removeSuffix("号") else d.dayLabel
+            val displayLabel = if (data.size > 15) d.compactLabel else d.dayLabel
             val label = TextView(requireContext()).apply {
                 text = displayLabel
                 setTextColor(Palette.INK_3)
@@ -378,7 +379,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     private fun buildPopupText(d: DailySpending): String {
         val amount = d.amountLabel()
         // 年视图的柱代表月份，用 "1月" 更直观；其余显示日期
-        return if (d.dayLabel.endsWith("月")) {
+        return if (d.isMonth) {
             "${d.dayLabel} $amount"
         } else if (d.date.isNotEmpty()) {
             val parts = d.date.split("-")
@@ -389,17 +390,22 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     }
 
     /** 环形图：中心总开销 + 右侧图例（分类/城市共用） */
-    private fun bindDonutChart(donut: DonutChartView, legend: LinearLayout, items: List<CategorySpending>) {
+    private fun bindDonutChart(
+        donut: DonutChartView,
+        legend: LinearLayout,
+        items: List<CategorySpending>,
+        label: (String) -> String
+    ) {
         val total = items.sumOf { it.amountYuan }
         donut.setSegments(items, "¥${String.format("%.2f", total)}")
-        bindSpendingLegend(legend, items)
+        bindSpendingLegend(legend, items, label)
     }
 
-    private fun bindSpendingLegend(container: LinearLayout, items: List<CategorySpending>) {
+    private fun bindSpendingLegend(container: LinearLayout, items: List<CategorySpending>, label: (String) -> String) {
         container.removeAllViews()
         if (items.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
-                text = "暂无支出数据，请先读取交通卡"
+                setText(R.string.stats_empty_spending)
                 setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = Gravity.CENTER
@@ -429,7 +435,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
 
             val name = TextView(requireContext()).apply {
-                text = item.name
+                text = label(item.name)
                 textSize = 13f
                 setTextColor(Palette.INK)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -469,7 +475,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         if (items.isEmpty()) {
             val emptyView = TextView(requireContext()).apply {
-                text = "暂无数据，请先读取交通卡"
+                setText(R.string.stats_empty)
                 setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = android.view.Gravity.CENTER
@@ -508,7 +514,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             nameViews.forEach { names.addView(it) }
             row.addView(names)
             row.addView(TextView(requireContext()).apply {
-                text = "$count 次"
+                text = resources.getQuantityString(R.plurals.rides_count, count, count)
                 textSize = 13f
                 setTextColor(Palette.INK)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -552,8 +558,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     /** 车站行：城市药丸 + 站名文本（城市未知时不加药丸） */
     private fun buildStationViews(station: StationStat): List<TextView> {
         val views = mutableListOf<TextView>()
-        if (station.cityName.isNotBlank()) views.add(rankPill(station.cityName))
-        views.add(rankNameView(station.name))
+        if (station.cityName.isNotBlank()) views.add(rankPill(TransitLabels.city(station.cityName)))
+        views.add(rankNameView(TransitLabels.station(station.name)))
         return views
     }
 
@@ -567,7 +573,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     /** 线路行药丸：先城市后线路；线路药丸按数据库线路颜色着色（无颜色保持灰色），与交易列表一致 */
     private fun buildLinePills(line: LineStat): List<TextView> {
         val pills = mutableListOf<TextView>()
-        if (line.cityName.isNotBlank()) pills.add(rankPill(line.cityName))
+        if (line.cityName.isNotBlank()) pills.add(rankPill(TransitLabels.city(line.cityName)))
         pills.add(rankPill(line.name, line.lineColor))
         return pills
     }

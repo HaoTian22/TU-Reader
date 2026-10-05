@@ -133,8 +133,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         }
         AppDialogs.multiSelect(
             context = requireContext(),
-            title = "筛选类别",
+            title = getString(R.string.filter_title),
             options = categories,
+            optionLabel = TransitLabels::type,
             selected = selectedFilters,
             accentColor = accentColor,
             onClear = { selectedFilters.clear(); applyFilterAndButton() },
@@ -180,9 +181,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             txn = txn,
             accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
             actions = listOf(
-                TransactionActionSheet.Action("\uF15C", "查看详情") { openDetail(txn) },        // fa-file-lines
-                TransactionActionSheet.Action("\uF03A", "查看上下文") { showTransactionContext(txn) }, // fa-list
-                TransactionActionSheet.Action("\uF0C5", "复制交易信息") { copyTransaction(txn) }  // fa-copy
+                TransactionActionSheet.Action("\uF15C", getString(R.string.action_view_details)) { openDetail(txn) },        // fa-file-lines
+                TransactionActionSheet.Action("\uF03A", getString(R.string.action_view_context)) { showTransactionContext(txn) }, // fa-list
+                TransactionActionSheet.Action("\uF0C5", getString(R.string.action_copy_transaction)) { copyTransaction(txn) }  // fa-copy
             )
         )
     }
@@ -198,10 +199,10 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         val ctx = context ?: return
         val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
             as android.content.ClipboardManager
-        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("交易", TransactionActionSheet.plainText(txn)))
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.transactions), TransactionActionSheet.plainText(txn)))
         // Android 13+ 系统会自行提示已复制
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
-            android.widget.Toast.makeText(ctx, "已复制", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(ctx, R.string.copied, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -245,17 +246,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         val parsed = runCatching {
             java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(date)
         }.getOrNull() ?: return date
-        val cal = java.util.Calendar.getInstance().apply { time = parsed }
-        val now = java.util.Calendar.getInstance()
-        fun sameDay(a: java.util.Calendar, b: java.util.Calendar) =
-            a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) &&
-                a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)
-        if (sameDay(cal, now)) return "今天"
-        val yesterday = (now.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
-        if (sameDay(cal, yesterday)) return "昨天"
-        val week = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
-        val pattern = if (cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR)) "M月d日" else "yyyy年M月d日"
-        return "${java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(parsed)} $week"
+        return TimeLabels.dayTitle(java.util.Calendar.getInstance().apply { time = parsed })
     }
 
     /** 组内行之间的细分隔线：从图标右侧（文字起点）画到行尾 */
@@ -364,8 +355,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 val day = list.subList(i, j)
                 val spend = day.filter { it.amountText.startsWith("-") }.sumOf { it.amountYuan }
                 val summary = buildString {
-                    append("${day.size} 笔")
-                    if (spend > 0) append(" · 支出 ¥${String.format("%.2f", spend)}")
+                    append(resources.getQuantityString(R.plurals.txn_day_count, day.size, day.size))
+                    if (spend > 0) append(" · ").append(getString(R.string.txn_day_spend, String.format("%.2f", spend)))
                 }
                 out += Entry.Header(dayTitle(date), summary)
                 day.forEachIndexed { k, txn -> out += Entry.Row(txn, first = k == 0, last = k == day.lastIndex) }
@@ -428,10 +419,10 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 icon.text = txn.icon
                 (icon.parent as? View)?.let { Palette.applyTransitIcon(icon, it, txn.transitType) }
                 // 第一行胶囊：城市 / 交通类型（两个独立胶囊）；空白或占位符（- / —）时整个隐藏
-                val cityText = txn.cityName ?: "未知"
+                val cityText = TransitLabels.city(txn.cityName)
                 city.text = cityText
                 city.visibility = if (isPlaceholderPill(cityText)) View.GONE else View.VISIBLE
-                type.text = txn.transitType
+                type.text = TransitLabels.type(txn.transitType)
                 type.visibility = if (isPlaceholderPill(txn.transitType)) View.GONE else View.VISIBLE
                 // 第三行：时间（日期已在分组标题里，这里只显示时分）
                 time.text = txn.time.take(5)
@@ -446,7 +437,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 protocol2.visibility = if (txn.protocols.size > 1) View.VISIBLE else View.GONE
 
                 // 第二行：出入站图标 + 站名
-                station.text = stationText.ifEmpty { "未知" }
+                station.text = TransitLabels.station(stationText).ifEmpty { getString(R.string.unknown) }
                 // 线路胶囊（数据库线路颜色着色；空白/占位符保持隐藏）。FlowLayout 自动整行换行
                 line.text = lineText
                 applyLineColor(line, txn.lineColor)

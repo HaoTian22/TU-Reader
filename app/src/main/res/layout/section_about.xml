@@ -37,7 +37,7 @@
 
     <TextView
         style="@style/SettingsSectionTitle"
-        android:text="关于" />
+        android:text="@string/about" />
 
     <LinearLayout style="@style/SettingsSectionCard">
 
@@ -68,7 +68,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="版本号"
+                android:text="@string/version_number"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -162,7 +162,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="开源致谢"
+                android:text="@string/oss_acknowledgements"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -204,7 +204,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="反馈入口"
+                android:text="@string/feedback"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView

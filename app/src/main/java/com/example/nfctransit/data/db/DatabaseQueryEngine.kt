@@ -5,6 +5,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.os.CancellationSignal
 import java.io.File
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 data class DatabaseQueryResult(
     val columns: List<String>,
@@ -47,7 +49,7 @@ object DatabaseQueryEngine {
         val statement = validate(sql)
         val appContext = context.applicationContext
         val databaseFile = ensureDatabaseFile(appContext, spec)
-        if (!databaseFile.isFile) throw IllegalStateException("数据库文件不存在")
+        if (!databaseFile.isFile) throw IllegalStateException(L10n.str(R.string.db_err_missing_file))
 
         val database = SQLiteDatabase.openDatabase(
             databaseFile.absolutePath,
@@ -58,7 +60,7 @@ object DatabaseQueryEngine {
             database.rawQuery(statement, null, cancellationSignal).use { cursor ->
                 val columnCount = cursor.columnCount
                 require(columnCount <= MAX_RESULT_COLUMNS) {
-                    "查询结果列数不能超过 $MAX_RESULT_COLUMNS 列"
+                    L10n.str(R.string.db_err_too_many_columns, MAX_RESULT_COLUMNS)
                 }
                 val columns = cursor.columnNames.toList()
                 val rows = ArrayList<List<String>>()
@@ -89,12 +91,12 @@ object DatabaseQueryEngine {
 
     private fun validate(sql: String): String {
         val statement = sql.trim().removeSuffix(";").trim()
-        require(statement.isNotEmpty()) { "SQL 不能为空" }
+        require(statement.isNotEmpty()) { L10n.str(R.string.db_err_empty) }
         require(statement.firstToken() == "SELECT" || statement.firstToken() == "WITH") {
-            "只允许执行 SELECT 查询"
+            L10n.str(R.string.db_err_select_only)
         }
-        require(!hasSemicolonOutsideQuotes(statement)) { "只允许执行一条 SQL" }
-        require(!hasForbiddenKeyword(statement)) { "只允许执行只读查询" }
+        require(!hasSemicolonOutsideQuotes(statement)) { L10n.str(R.string.db_err_single) }
+        require(!hasForbiddenKeyword(statement)) { L10n.str(R.string.db_err_read_only) }
         return statement
     }
 

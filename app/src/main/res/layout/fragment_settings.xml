@@ -33,7 +33,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="设置"
+                android:text="@string/settings"
                 android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -76,7 +76,7 @@
 
                 <TextView
                     style="@style/SettingsSectionTitle"
-                    android:text="调试工具" />
+                    android:text="@string/settings_debug_tools" />
 
                 <LinearLayout style="@style/SettingsSectionCard">
 
@@ -110,7 +110,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="导出读取数据 (TXT)"
+                            android:text="@string/settings_export_read_data"
                             android:textColor="@color/ink"
                             android:textSize="14sp" />
                         <TextView
@@ -152,7 +152,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="导出 APDU 日志 (TXT)"
+                            android:text="@string/settings_export_apdu"
                             android:textColor="@color/ink"
                             android:textSize="14sp" />
                         <TextView
@@ -191,7 +191,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="保留调试日志"
+                            android:text="@string/settings_keep_debug_log"
                             android:textColor="@color/ink"
                             android:textSize="14sp" />
 

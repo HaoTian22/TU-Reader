@@ -1,5 +1,6 @@
 package com.example.nfctransit.ui
 
+import com.example.nfctransit.R
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -160,7 +161,8 @@ object TransactionActionSheet {
             else -> Unit
         }
         titleRow.addView(TextView(context).apply {
-            text = txn.stationName.ifBlank { txn.transitType.ifBlank { "未知" } }
+            text = TransitLabels.station(txn.stationName.ifBlank { txn.transitType })
+                .ifBlank { context.getString(R.string.unknown) }
             textSize = 17f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Palette.INK)
@@ -173,6 +175,7 @@ object TransactionActionSheet {
             .map { it.trim() }
             .filter { it.isNotEmpty() && it != "-" && it != "—" && it != txn.stationName }
             .distinct()
+            .map { TransitLabels.type(TransitLabels.city(it)) }
             .joinToString(" · ")
         if (meta.isNotEmpty()) col.addView(TextView(context).apply {
             text = meta
@@ -217,7 +220,7 @@ object TransactionActionSheet {
     /** 复制用的纯文本摘要 */
     fun plainText(txn: UiTransaction): String = listOf(
         "${txn.date} ${txn.time}".trim(),
-        listOf(txn.cityName, txn.transitType, txn.lineName, txn.stationName)
+        listOf(TransitLabels.city(txn.cityName), TransitLabels.type(txn.transitType), txn.lineName, TransitLabels.station(txn.stationName))
             .map { it.trim() }.filter { it.isNotEmpty() && it != "-" && it != "—" }.distinct().joinToString(" · "),
         listOfNotNull(txn.amountText, txn.balanceAfterText).joinToString("  ")
     ).filter { it.isNotBlank() }.joinToString("\n")

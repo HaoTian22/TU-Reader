@@ -40,7 +40,8 @@ data class UiTransaction(
     val cardType: String = "", // "YCT"/"CU"/"TU" 等解析卡型
     val protocol: String = "", // 该原始记录的来源协议（LNT/TU/空）
     val amountYuan: Double,
-    val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"
+    val amountText: String,        // e.g. "-¥3.00" or "+¥50.00"；0 元旅程事件为本地化标签（进站/出站/乘车/票务处理）
+    val ticketProcessing: Boolean = false, // TU 0 元票务处理记录
     val typeHex: String,
     val transitType: String,       // "地铁", "公交", "消费", "便利店", "充值"
     val terminal: String,
@@ -84,11 +85,13 @@ data class LineStat(
 )
 
 data class DailySpending(
-    val dayLabel: String,          // "周一"..."周日" / "1号"..."31号" / "1月"..."12月"
+    val dayLabel: String,          // 星期 / 日期 / 月份标签（按界面语言）
     val amountYuan: Double,
     val barHeightPercent: Float,   // relative to max (0..1)
     val isToday: Boolean = false,
-    val date: String = ""          // "yyyy-MM-dd"，用于柱点击弹窗与日期范围显示
+    val date: String = "",         // "yyyy-MM-dd"，用于柱点击弹窗与日期范围显示
+    val isMonth: Boolean = false,  // 柱代表整月（年视图 / 长自定义范围）
+    val compactLabel: String = dayLabel  // 稠密视图（整月 30+ 列）用的短标签
 )
 
 data class CategorySpending(

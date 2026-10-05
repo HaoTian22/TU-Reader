@@ -7,6 +7,8 @@ import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
 import kotlin.math.abs
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 /**
  * 持久化实体/内部模型 → UI 模型的映射。
@@ -74,11 +76,11 @@ object TransactionMapper {
         val amountText = when {
             // 原生充值（02）才按入账显示 "+"；映射类充值/退款保持 "-"，红色计入消费
             isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
-            isTicketProcessing && amountYuan == 0.0 -> "票务处理"
+            isTicketProcessing && amountYuan == 0.0 -> L10n.str(R.string.amount_ticket_processing)
             amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when (direction) {
-                TransitDirection.ENTRY -> "进站"
-                TransitDirection.EXIT -> "出站"
-                null -> "乘车"
+                TransitDirection.ENTRY -> L10n.str(R.string.amount_entry)
+                TransitDirection.EXIT -> L10n.str(R.string.amount_exit)
+                null -> L10n.str(R.string.amount_ride)
             }
             else -> "-¥${String.format("%.2f", amountAbs)}"
         }
@@ -99,6 +101,7 @@ object TransactionMapper {
             protocol = protocol,
             amountYuan = amountYuan,
             amountText = amountText,
+            ticketProcessing = isTicketProcessing && amountYuan == 0.0,
             typeHex = typeHex,
             transitType = transitType,
             terminal = terminal,
@@ -117,7 +120,7 @@ object TransactionMapper {
             time = formattedTime,
             displayDateTime = "$formattedDate $formattedTime",
             balanceAfterYuan = balanceAfterYuan,
-            balanceAfterText = balanceAfterFen?.let { "余额 ¥${String.format("%.2f", it / 100.0)}" },
+            balanceAfterText = balanceAfterFen?.let { L10n.str(R.string.balance_after_format, String.format("%.2f", it / 100.0)) },
             icon = icon,
             iconBgColor = ICON_BG,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
@@ -164,7 +167,7 @@ object TransactionMapper {
             stationName = station,
             lineName = line.ifEmpty { lineName },
             lineColor = entry.lineColor ?: lineColor,
-            transitType = TransitData.transitTypeLabel(entry.type),
+            transitType = entry.type,
             cityCode = entry.cityCode ?: cityCode,
             lineId = entry.lineId ?: lineId,
             stationId = entry.stationId ?: stationId,

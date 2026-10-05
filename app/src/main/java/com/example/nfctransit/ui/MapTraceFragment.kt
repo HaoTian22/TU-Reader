@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.nfctransit.util.AppLanguage
 
 internal fun shouldShowFullCurrentTripRoute(
     mode: CurrentTripRouteDisplayMode,
@@ -352,7 +353,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             binding.currentStationRow.removeAllViews()
             binding.currentStationRow.addView(
                 TextView(requireContext()).apply {
-                    text = "暂无行程数据"
+                    setText(R.string.map_no_trips)
                     setTextColor(Palette.INK)
                     textSize = 14f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -593,19 +594,19 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private fun updateRouteHint() {
         if (_binding == null) return
         binding.tvMapHint.text = when {
-            routeServiceDisabled -> "路线服务未开通 · 已使用示意线"
-            routeQuotaExceeded -> "腾讯路线当日额度已用完 · 未缓存路线使用示意线"
+            routeServiceDisabled -> getString(R.string.map_route_disabled)
+            routeQuotaExceeded -> getString(R.string.map_route_quota)
             routeTotal > 0 && routeFinished < routeTotal ->
-                "正在加载真实路线 ${routeFinished}/${routeTotal}"
+                getString(R.string.map_route_loading, routeFinished, routeTotal)
             routeTotal > 0 -> buildList {
-                if (routeFailures > 0) add("部分路线使用示意线")
-                if (routeHasStaleCache) add("含过期路线缓存")
-                if (routeHasEstimate) add("按当前路网推算")
-                if (routeHasApproximateRail) add("城际段仅按站点连接")
-                if (isEmpty()) add("路线由腾讯地图推算")
-                add("可能与实际乘坐不同")
+                if (routeFailures > 0) add(getString(R.string.map_route_partial))
+                if (routeHasStaleCache) add(getString(R.string.map_route_stale))
+                if (routeHasEstimate) add(getString(R.string.map_route_estimate))
+                if (routeHasApproximateRail) add(getString(R.string.map_route_intercity))
+                if (isEmpty()) add(getString(R.string.map_route_tencent))
+                add(getString(R.string.map_route_may_differ))
             }.joinToString(" · ")
-            else -> "双指缩放 · 滑动下方列表调整时间"
+            else -> getString(R.string.map_hint_default)
         }
     }
 
@@ -915,7 +916,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 MarkerOptions()
                     .position(LatLng(point.lat, point.lng))
                     .anchor(0.5f, 0.5f)
-                    .title("换乘 ${leg.title}")
+                    .title(getString(R.string.map_transfer_to, leg.title))
                     .level(OverlayLevel.OverlayLevelAboveLabels)
                     .zIndex(TRANSFER_Z.toFloat())
                     .icon(transferDot())
@@ -991,7 +992,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 row.addView(stationChip(to.name, to.lineName, to.lineColor))
             }
             val minutes = ((to.timeMillis - active.from.timeMillis) / 60_000L).coerceAtLeast(0L)
-            binding.tvCurrentTime.text = "${dateText(active.from.timeMillis)} · 用时 ${durationText(minutes)}"
+            binding.tvCurrentTime.text = getString(R.string.map_trip_time, dateText(active.from.timeMillis), durationText(minutes))
         } else {
             row.addView(stationChip(ev.name, ev.lineName, ev.lineColor))
             binding.tvCurrentTime.text = dateText(ev.timeMillis)
@@ -1012,7 +1013,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         for ((index, leg) in transit.withIndex()) {
             container.addView(arrowView())
             val nextLine = transit.getOrNull(index + 1) ?: leg
-            val fallbackName = if (index == transit.lastIndex) segment.to?.name.orEmpty() else "换乘"
+            val fallbackName = if (index == transit.lastIndex) segment.to?.name.orEmpty() else getString(R.string.map_transfer)
             container.addView(
                 stationChip(
                     leg.toName ?: fallbackName,
@@ -1035,10 +1036,11 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     private fun dateText(millis: Long): String =
-        SimpleDateFormat("yyyy-MM-dd EEE", Locale.getDefault()).format(Date(millis))
+        SimpleDateFormat("yyyy-MM-dd EEE", AppLanguage.locale()).format(Date(millis))
 
     private fun durationText(minutes: Long): String =
-        if (minutes < 60) "$minutes 分钟" else "${minutes / 60} 小时 ${minutes % 60} 分钟"
+        if (minutes < 60) getString(R.string.duration_minutes, minutes)
+        else getString(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
 
     private fun colorHex(color: Int): String = String.format(Locale.US, "#%06X", color and 0xFFFFFF)
 
@@ -1784,7 +1786,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (segments.isEmpty()) {
             container.addView(
                 TextView(requireContext()).apply {
-                    text = "暂无行程数据"
+                    setText(R.string.map_no_trips)
                     setTextColor(Palette.INK_3)
                     textSize = 12f
                     setPadding(dpToPx(12).toInt(), dpToPx(16).toInt(), dpToPx(12).toInt(), dpToPx(16).toInt())

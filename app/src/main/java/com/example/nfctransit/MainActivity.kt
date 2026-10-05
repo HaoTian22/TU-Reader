@@ -26,6 +26,7 @@ import com.example.nfctransit.ui.AppDialogs
 import com.example.nfctransit.ui.AppUpdateViewModel
 import com.example.nfctransit.ui.PredictiveBackFragmentAnimator
 import com.example.nfctransit.ui.PredictiveBackLayout
+import com.example.nfctransit.util.AppLanguage
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 import kotlinx.coroutines.launch
 
@@ -76,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         UiCache.clearOnPackageUpdate(applicationContext)
+        AppLanguage.init(applicationContext)
         TransitData.init(applicationContext)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
@@ -113,7 +115,7 @@ class MainActivity : AppCompatActivity() {
                                 startActivity(Intent(Intent.ACTION_VIEW,
                                     Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
                             } catch (error: Exception) {
-                                Toast.makeText(this@MainActivity, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this@MainActivity, R.string.cannot_open_browser, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -217,7 +219,7 @@ class MainActivity : AppCompatActivity() {
             intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
         }
         if (tag == null) {
-            Toast.makeText(this, "未检测到卡片", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.nfc_no_card, Toast.LENGTH_SHORT).show()
             return
         }
 

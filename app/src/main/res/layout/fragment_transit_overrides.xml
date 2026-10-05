@@ -31,7 +31,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="本地映射表管理"
+            android:text="@string/overrides_title"
             android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -57,7 +57,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:paddingTop="48dp"
-                android:text="暂无本地映射数据"
+                android:text="@string/overrides_empty"
                 android:textColor="@color/ink_3"
                 android:textSize="14sp" />
         </LinearLayout>

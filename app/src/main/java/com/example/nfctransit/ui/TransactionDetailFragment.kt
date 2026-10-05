@@ -98,15 +98,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
 
         // 复制原始数据按钮
-        binding.btnCopyHex.typeface =
-            Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-        binding.btnFeedbackHex.typeface = binding.btnCopyHex.typeface
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
+        binding.btnCopyHex.setIconLabel(fa, "\uF0C5", getString(R.string.action_copy))       // fa-copy
+        binding.btnFeedbackHex.setIconLabel(fa, "\uF075", getString(R.string.action_report)) // fa-comment
         binding.btnCopyHex.setOnClickListener {
             if (rawHexToCopy.isNotBlank()) {
                 val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                     as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("原始数据", rawHexToCopy))
-                android.widget.Toast.makeText(requireContext(), "✓ 已复制原始数据", android.widget.Toast.LENGTH_SHORT).show()
+                cm.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.label_raw_data), rawHexToCopy))
+                android.widget.Toast.makeText(requireContext(), R.string.raw_copied, android.widget.Toast.LENGTH_SHORT).show()
             }
         }
         binding.btnFeedbackHex.setOnClickListener { showFeedbackDialog() }
@@ -127,7 +127,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun startFeedbackProgressToast() {
         if (feedbackProgressToast == null) {
             feedbackProgressToast = Toast.makeText(
-                requireContext(), "正在保存并上传…", Toast.LENGTH_LONG
+                requireContext(), R.string.feedback_saving, Toast.LENGTH_LONG
             )
         }
         feedbackToastHandler.removeCallbacks(repeatFeedbackProgressToast)
@@ -198,12 +198,12 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             val normalizedStation = enteredStation.trim()
             val codeRegex = Regex("[0-9A-Za-z]+")
             val error = when {
-                !normalizedPrefix.matches(codeRegex) -> "请填写有效的 Prefix"
-                !normalizedCode.matches(codeRegex) -> "请填写有效的 Code"
+                !normalizedPrefix.matches(codeRegex) -> getString(R.string.err_invalid_prefix)
+                !normalizedCode.matches(codeRegex) -> getString(R.string.err_invalid_code)
                 normalizedLine.length > 128 || normalizedLine.contains('\n') || normalizedLine.contains('\r') ->
-                    "线路不能包含换行且最多 128 个字符"
+                    getString(R.string.err_line_format)
                 normalizedStation.length > 128 || normalizedStation.contains('\n') || normalizedStation.contains('\r') ->
-                    "站名不能包含换行且最多 128 个字符"
+                    getString(R.string.err_station_format)
                 else -> null
             }
             if (error != null) {
@@ -242,7 +242,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             return
         }
 
-        binding.tvAmountHeader.text = "正在加载数据..."
+        binding.tvAmountHeader.setText(R.string.loading_data)
         binding.tvAmountHeader.setTextColor(Palette.INK_3)
         binding.tvHeroTitle.text = ""
         binding.tvHeroSubtitle.text = ""
@@ -258,7 +258,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.hexPanel.removeAllViews()
         addMonospaceLine(
             binding.hexPanel,
-            "正在加载数据...",
+            getString(R.string.loading_data),
             dim = true
         )
     }
@@ -274,22 +274,24 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         val isEntry = txn.direction == TransitDirection.ENTRY
         val isExit = txn.direction == TransitDirection.EXIT
-        val transactionType = if (txn.amountText == "票务处理") {
-            "票务处理"
+        val transactionType = if (txn.ticketProcessing) {
+            getString(R.string.amount_ticket_processing)
         } else {
             when (txn.transitType) {
-                "地铁" -> if (isEntry) "地铁入站" else if (isExit) "地铁出站" else "地铁"
-                "公交" -> "公交乘车"
-                "消费" -> "小额消费"
-                "便利店" -> "便利店"
-                "充值" -> "充值"
-                else -> txn.transitType
+                "地铁" -> getString(
+                    if (isEntry) R.string.txn_type_metro_entry
+                    else if (isExit) R.string.txn_type_metro_exit
+                    else R.string.transit_metro
+                )
+                "公交" -> getString(R.string.txn_type_bus_ride)
+                "消费" -> getString(R.string.txn_type_small_purchase)
+                else -> TransitLabels.type(txn.transitType)
             }
         }
         fun known(v: String?) = v?.trim()?.takeIf { it.isNotEmpty() && it != "-" && it != "—" && it != "未知" }
         // 站名保持原样，进出站方向由独立字段提供；未命中站点库（stationId 为空）时不显示站名
         val station = known(txn.stationName)?.takeIf { txn.stationId != null }
-        val city = known(txn.cityName)
+        val city = known(txn.cityName)?.let(TransitLabels::city)
         val line = known(txn.lineName)
 
         // ── 第一层：摘要 ──
@@ -301,7 +303,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.tvHeroTitle.text = station ?: transactionType
         binding.tvHeroSubtitle.text = listOfNotNull(
             city,
-            known(txn.transitType)?.takeIf { station != null || it != transactionType },
+            known(txn.transitType)?.let(TransitLabels::type)?.takeIf { station != null || it != transactionType },
             line?.takeIf { it != station }
         ).joinToString(" · ")
         binding.tvHeroSubtitle.visibility = if (binding.tvHeroSubtitle.text.isEmpty()) View.GONE else View.VISIBLE
@@ -309,7 +311,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.tvHeroDirection.apply {
             if (isEntry || isExit) {
                 visibility = View.VISIBLE
-                text = if (isEntry) "进站" else "出站"
+                text = getString(if (isEntry) R.string.amount_entry else R.string.amount_exit)
                 val tone = if (isEntry) Palette.AMOUNT_IN else Palette.INK_2
                 setTextColor(tone)
                 background = android.graphics.drawable.GradientDrawable().apply {
@@ -323,7 +325,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
         // ── 第二层：交易信息 ──
         fillSection(binding.sectionTxn, fa, listOf(
-            DetailRow("交易类型", transactionType) { _, _, icon ->
+            DetailRow(getString(R.string.txn_row_type), transactionType) { _, _, icon ->
                 if (isEntry || isExit) {
                     // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
                     icon.visibility = View.VISIBLE
@@ -331,24 +333,24 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                     icon.setTextColor(Palette.INK_3)
                 }
             },
-            DetailRow("交易金额", if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText) { _, value, _ ->
+            DetailRow(getString(R.string.txn_row_amount), if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText) { _, value, _ ->
                 if (txn.amountText.startsWith("+")) value.setTextColor(Palette.AMOUNT_IN)
             },
-            DetailRow("交易后余额", txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-")
+            DetailRow(getString(R.string.txn_row_balance), txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-")
         ))
 
         // ── 第三层：行程（全部未知时整块隐藏） ──
         val tripShown = fillSection(binding.sectionTrip, fa, listOf(
-            DetailRow("城市", city ?: "-"),
-            DetailRow("站名", station ?: "-"),
-            DetailRow("线路", line ?: "-")
+            DetailRow(getString(R.string.label_city), city ?: "-"),
+            DetailRow(getString(R.string.label_station), station ?: "-"),
+            DetailRow(getString(R.string.label_line), line ?: "-")
         ))
         binding.sectionTripWrap.visibility = if (tripShown) View.VISIBLE else View.GONE
 
         // ── 第四层：设备与协议 ──
         fillSection(binding.sectionDevice, fa, listOf(
-            DetailRow("协议", txn.protocols.joinToString(" / ").ifEmpty { "-" }),
-            DetailRow("终端编号", txn.terminal) { _, value, _ -> value.typeface = Typeface.MONOSPACE }
+            DetailRow(getString(R.string.txn_row_protocol), txn.protocols.joinToString(" / ").ifEmpty { "-" }),
+            DetailRow(getString(R.string.txn_row_terminal), txn.terminal) { _, value, _ -> value.typeface = Typeface.MONOSPACE }
         ))
     }
 
@@ -389,7 +391,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         if (mainHex.isBlank() && journeyHex.isNullOrBlank() && variants.isEmpty()) {
             rawHexToCopy = ""
             rawRecordForFeedback = ""
-            addMonospaceLine(binding.hexPanel, "无该交易原始数据", dim = true)
+            addMonospaceLine(binding.hexPanel, getString(R.string.txn_no_raw), dim = true)
             return
         }
         val blocks = mutableListOf<RawBlock>()

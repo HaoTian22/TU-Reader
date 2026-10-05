@@ -18,6 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.example.nfctransit.util.AppLanguage
 
 /**
  * 自定义日期范围弹窗（浅色 sheet 风格）：
@@ -96,7 +97,7 @@ object DateRangeDialog {
         }
         header.addView(icon("", 22, primary))  // fa-calendar-days
         header.addView(TextView(context).apply {
-            text = "选择日期范围"
+            setText(R.string.date_range_title)
             setTextColor(onSurface)
             textSize = 18f
             typeface = Typeface.DEFAULT_BOLD
@@ -111,7 +112,7 @@ object DateRangeDialog {
 
         // 副标题
         root.addView(TextView(context).apply {
-            text = "选择要查看统计的开始和结束日期"
+            setText(R.string.date_range_subtitle)
             setTextColor(muted)
             textSize = 13f
             gravity = Gravity.CENTER
@@ -121,7 +122,7 @@ object DateRangeDialog {
         // ── 起止日期输入盒 ──
         fun dateField(isStart: Boolean, box: LinearLayout) {
             val label = TextView(context).apply {
-                text = if (isStart) "开始日期" else "结束日期"
+                setText(if (isStart) R.string.label_start_date else R.string.label_end_date)
                 setTextColor(muted)
                 textSize = 11f
             }
@@ -168,7 +169,8 @@ object DateRangeDialog {
             setTextColor(onSurface)
         }
         fun renderMonthLabel() {
-            monthLabel.text = "${displayYear}年${displayMonth + 1}月"
+            val monthCal = Calendar.getInstance().apply { set(displayYear, displayMonth, 1) }
+            monthLabel.text = localizedFormat("yyyyMMMM").format(monthCal.time)
         }
         val prevBtn = icon("", 20, primary).apply {  // fa-chevron-left
             isClickable = true
@@ -187,7 +189,10 @@ object DateRangeDialog {
         root.addView(monthHeader)
 
         // 星期表头（周日开头，与设计一致）
-        val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
+        val weekdays = (Calendar.SUNDAY..Calendar.SATURDAY).map { dow ->
+            val cal = Calendar.getInstance().apply { set(Calendar.DAY_OF_WEEK, dow) }
+            SimpleDateFormat("EEEEE", AppLanguage.locale()).format(cal.time)
+        }
         val weekdayRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -219,7 +224,7 @@ object DateRangeDialog {
 
         // ── 底部按钮：取消 / 确定 ──
         val cancelBtn = TextView(context).apply {
-            text = "取消"
+            setText(R.string.action_cancel)
             textSize = 16f
             setTextColor(onSurface)
             setPadding(dp(16), dp(10), dp(16), dp(10))
@@ -227,7 +232,7 @@ object DateRangeDialog {
             setOnClickListener { dialog.dismiss() }
         }
         val confirmBtn = TextView(context).apply {
-            text = "确定"
+            setText(R.string.action_ok)
             textSize = 16f
             setTextColor(primary)
             setPadding(dp(16), dp(10), dp(8), dp(10))
@@ -258,8 +263,8 @@ object DateRangeDialog {
         }
 
         fun renderFields() {
-            renderField(startBox, start, "选择日期")
-            renderField(endBox, end, "选择日期")
+            renderField(startBox, start, context.getString(R.string.date_range_pick))
+            renderField(endBox, end, context.getString(R.string.date_range_pick))
         }
 
         fun renderGrid() {
@@ -353,7 +358,15 @@ object DateRangeDialog {
         return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 160
     }
 
-    /** "2026-08-05" → "08月05日" */
-    private fun formatFieldDate(date: String): String =
-        "${date.substring(5, 7)}月${date.substring(8, 10)}日"
+    /** "2026-08-05" → "08月05日" / "Aug 05" */
+    private fun formatFieldDate(date: String): String {
+        val parsed = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(date) }.getOrNull()
+            ?: return date
+        return localizedFormat("MMMdd").format(parsed)
+    }
+
+    private fun localizedFormat(skeleton: String): SimpleDateFormat {
+        val locale = AppLanguage.locale()
+        return SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(locale, skeleton), locale)
+    }
 }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -34,7 +35,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="交易记录"
+            android:text="@string/transactions"
             android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -53,7 +54,7 @@
                 android:id="@+id/tvCardBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="深圳通 · 3821"
+                tools:text="深圳通 · 3821"
                 android:textColor="@color/accent"
                 android:textSize="12sp"
                 android:textStyle="bold"
@@ -101,7 +102,7 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:hint="搜索 时间/站点/类型/城市/金额/协议…"
+                android:hint="@string/txn_list_search_hint"
                 android:inputType="text"
                 android:maxLines="1"
                 android:imeOptions="actionSearch"
@@ -143,7 +144,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
-            android:text="暂无交易记录"
+            android:text="@string/empty_transactions"
             android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:visibility="gone" />

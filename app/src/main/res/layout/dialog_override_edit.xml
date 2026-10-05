@@ -19,7 +19,7 @@
                 android:id="@+id/overrideEditorTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="编辑本地映射表"
+                android:text="@string/override_edit_title"
                 android:textColor="@color/ink"
                 android:textSize="20sp"
                 android:fontFamily="sans-serif-medium" />
@@ -28,7 +28,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="修改后会立即应用到本机站名映射表"
+                android:text="@string/override_edit_subtitle"
                 android:textColor="@color/ink_2"
                 android:textSize="12sp" />
 
@@ -96,7 +96,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="线路"
+                android:text="@string/label_line"
                 android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
@@ -116,7 +116,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="站名"
+                android:text="@string/label_station"
                 android:textColor="@color/ink_2"
                 android:textSize="12sp" />
             <EditText
@@ -150,7 +150,7 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:text="取消"
+            android:text="@string/action_cancel"
             android:textColor="@color/ink_2"
             android:textSize="14sp"
             android:minWidth="64dp"
@@ -167,7 +167,7 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:text="保存"
+            android:text="@string/action_save"
             android:textColor="@color/accent"
             android:textSize="15sp"
             android:textStyle="bold" />

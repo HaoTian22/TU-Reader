@@ -412,8 +412,7 @@ object RecordDecoder {
             val ref = StationRef(
                 station = mappedRef?.station ?: fallbackStation,
                 line = mappedRef?.line ?: "",
-                transitType = mappedRef?.let { TransitData.transitTypeLabel(it.type) }
-                    ?: fallbackTransitType,
+                transitType = mappedRef?.type ?: fallbackTransitType,
                 direction = direction,
                 mappingTransitType = mappedRef?.type,
                 lineColor = mappedRef?.lineColor,
@@ -733,27 +732,21 @@ object RecordDecoder {
             }
             val fallback = TransitData.resolveByStandard("TU", cityCode, posHex, terminal)
             if (fallback != null) return fallback.toStationRef()
-            return StationRef("轨道交通", "", "轨道交通 (Metro)")
+            return UNMATCHED_STATION
         }
         val entry = TransitData.resolveByStandard(cardType, cityCode, posHex, terminal)
         if (entry != null) return entry.toStationRef()
-        return StationRef(
-            station = when (cardType) {
-                "CU" -> "轨道交通"
-                "YCT" -> "公共交通"
-                "SZT" -> "深圳通"
-                else -> "公共交通"
-            },
-            line = "",
-            transitType = "公共交通"
-        )
+        return UNMATCHED_STATION
     }
+
+    /** 映射表与其他规则均未命中：统一按公共交通兜底（站名位与类型一致） */
+    private val UNMATCHED_STATION = StationRef("公共交通", "", "公共交通")
 
     private fun TransitData.StationEntry.toStationRef(): StationRef {
         return StationRef(
             station = station,
             line = line,
-            transitType = TransitData.transitTypeLabel(type),
+            transitType = type,
             mappingTransitType = type,
             lineColor = lineColor,
             lineId = lineId,

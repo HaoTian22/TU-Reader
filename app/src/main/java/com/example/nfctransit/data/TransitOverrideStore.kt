@@ -6,6 +6,8 @@ import com.google.gson.reflect.TypeToken
 import com.example.nfctransit.data.db.ReaderDeviceEntity
 import java.io.File
 import java.nio.charset.StandardCharsets
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 object TransitOverrideStore {
     private const val CSV_NAME = "overrides.csv"
@@ -32,13 +34,13 @@ object TransitOverrideStore {
             file.useLines { lines ->
                 val all = lines.toList()
                 if (all.isEmpty() || all.first() != OVERRIDE_HEADER) {
-                    throw IllegalStateException("override CSV 表头无效")
+                    throw IllegalStateException(L10n.str(R.string.override_csv_bad_header))
                 }
                 all.drop(1).forEachIndexed { index, line ->
                     if (line.isBlank()) return@forEachIndexed
                     parseCsvLine(line)?.let { row ->
                         rows[row.mappingKey] = row
-                    } ?: throw IllegalStateException("override CSV 第 ${index + 2} 行格式无效")
+                    } ?: throw IllegalStateException(L10n.str(R.string.override_csv_bad_row, index + 2))
                 }
             }
         }

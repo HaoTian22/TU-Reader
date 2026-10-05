@@ -43,17 +43,6 @@ object AppDialogs {
     /** 反馈表单的常用交通类型（取自 transit.db 中数量最多的类型）；其余经「其他」手动输入。 */
     private val FEEDBACK_TYPES = listOf("公交", "地铁", "有轨电车", "城际", "BRT", "自行车")
     private const val FEEDBACK_TYPE_OTHER = "其他"
-    private const val FEEDBACK_HELP =
-        "城市前缀：原始数据CITY的字段，与编号一起组成读卡器的完整编号写入数据库，通常保持预填值即可\n\n" +
-            "设备编号：刷卡记录中的读卡器 Terminal 编号，或 Line & Station 的内容，是纠错映射的依据，请先判断填写的内容是否和线路/站名有关联\n\n" +
-            "交通类型：该读卡器所属的交通方式。同一编号在不同类型下是不同的读卡器；" +
-            "列表中没有时选「其他」并手动输入，如 轮渡、单轨、轻轨\n\n" +
-            "线路：读卡器所在的线路，例如「1号线」或公交线路号，可留空\n\n" +
-            "站名：车站或站点名称，不确定/公交可留空\n\n" +
-            "所在城市：不参与站名映射，仅随公开上传提供给开发者排查问题（有时一个城市会用多个城市前缀，开发者需要知道实际所在城市）\n\n" +
-            "公开上传纠错：开启后把这条纠错上传，用于改进内置站名数据；关闭则只保存在本机\n\n" +
-            "提供更多信息：默认关闭。开启后随公开纠错上传该条交易的原始数据和匹配信息，可能包含余额、交易时间、金额等信息"
-
     private fun dialogWidth(context: Context): Int {
         val dm = context.resources.displayMetrics
         return minOf((312 * dm.density).toInt(), dm.widthPixels - (48 * dm.density).toInt())
@@ -62,10 +51,10 @@ object AppDialogs {
     fun confirm(
         context: Context,
         title: String,
-        message: String,
+        message: CharSequence,
         confirmLabel: String,
         confirmColor: Int = Palette.DANGER,
-        cancelLabel: String = "取消",
+        cancelLabel: String = context.getString(R.string.action_cancel),
         onConfirm: () -> Unit
     ) {
         val dialog = Dialog(context)
@@ -80,6 +69,15 @@ object AppDialogs {
 
         view.findViewById<TextView>(R.id.dialogTitle)?.text = title
         view.findViewById<TextView>(R.id.dialogMessage)?.text = message
+        // 正文过长时限高为屏高 60% 并滚动，按钮始终可见
+        view.findViewById<View>(R.id.dialogMessageScroll)?.let { scroll ->
+            val maxHeight = (context.resources.displayMetrics.heightPixels * 0.6f).toInt()
+            scroll.post {
+                if (scroll.height > maxHeight) {
+                    scroll.layoutParams = scroll.layoutParams.apply { height = maxHeight }
+                }
+            }
+        }
         view.findViewById<TextView>(R.id.dialogCancel)?.apply {
             text = cancelLabel
             // cancelLabel 为空 = 单按钮提示框
@@ -226,7 +224,7 @@ object AppDialogs {
         type: String,
         actualCityCode: String?,
         actualCityName: String,
-        title: String = "反馈站名纠错",
+        title: String = context.getString(R.string.feedback_title),
         showPublish: Boolean = true,
         hasRawRecord: Boolean = false,
         accentColor: Int = Palette.ACCENT,
@@ -314,9 +312,9 @@ object AppDialogs {
             setOnClickListener {
                 confirm(
                     context,
-                    title = "填写说明",
-                    message = FEEDBACK_HELP,
-                    confirmLabel = "知道了",
+                    title = context.getString(R.string.feedback_help),
+                    message = context.getText(R.string.feedback_help_text),
+                    confirmLabel = context.getString(R.string.action_got_it),
                     confirmColor = accentColor,
                     cancelLabel = ""
                 ) {}
@@ -344,7 +342,8 @@ object AppDialogs {
             typeInput.addView(row)
             labels.mapIndexed { i, label ->
                 TextView(context).apply {
-                    text = label
+                    tag = label  // 数据键（中文类型），显示按界面语言翻译
+                    text = TransitLabels.type(label)
                     textSize = 13f
                     gravity = Gravity.CENTER
                     maxLines = 1
@@ -362,7 +361,7 @@ object AppDialogs {
         }
         fun styleTypeChips() {
             typeChips.forEach { chip ->
-                val checked = chip.text == selectedTypeChip
+                val checked = chip.tag == selectedTypeChip
                 chip.background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = 999 * density
                     setColor(if (checked) accentColor else Palette.LINE)
@@ -375,7 +374,7 @@ object AppDialogs {
         }
         typeChips.forEach { chip ->
             chip.setOnClickListener {
-                selectedTypeChip = chip.text.toString()
+                selectedTypeChip = chip.tag as String
                 styleTypeChips()
                 if (selectedTypeChip == FEEDBACK_TYPE_OTHER) typeCustomInput.requestFocus()
             }
@@ -446,7 +445,7 @@ object AppDialogs {
                     selectedType.contains('\n') || selectedType.contains('\r')
                 ) {
                     android.widget.Toast.makeText(
-                        context, "请填写交通类型（最多 32 个字符）", android.widget.Toast.LENGTH_SHORT
+                        context, R.string.feedback_type_required, android.widget.Toast.LENGTH_SHORT
                     ).show()
                     typeCustomInput.requestFocus()
                     return@setOnClickListener
@@ -513,7 +512,7 @@ object AppDialogs {
             type = row.type,
             actualCityCode = city?.code,
             actualCityName = city?.name.orEmpty(),
-            title = "编辑本地映射表",
+            title = context.getString(R.string.override_edit_title),
             showPublish = true,
             accentColor = accentColor,
             maxScrollHeightDp = 480
@@ -529,7 +528,7 @@ object AppDialogs {
         selectedIndex: Int = -1,
         accentColor: Int = Palette.ACCENT,
         maxHeightDp: Int? = null,
-        cancelLabel: String = "取消",
+        cancelLabel: String = context.getString(R.string.action_cancel),
         onSelect: (Int) -> Unit
     ) {
         val dialog = Dialog(context)
@@ -622,6 +621,7 @@ object AppDialogs {
         options: List<String>,
         selected: Set<String>,
         accentColor: Int = Palette.ACCENT,
+        optionLabel: (String) -> String = { it },
         onClear: () -> Unit,
         onDone: (Set<String>) -> Unit
     ) {
@@ -668,7 +668,7 @@ object AppDialogs {
             }
             row.addView(
                 TextView(context).apply {
-                    text = label
+                    text = optionLabel(label)
                     setTextColor(Palette.INK)
                     textSize = 15f
                     gravity = Gravity.CENTER_VERTICAL
@@ -752,7 +752,7 @@ object AppDialogs {
                     textSize = 14f
                     setTextColor(Palette.INK_3)
                     gravity = Gravity.CENTER
-                    contentDescription = "拖动排序"
+                    contentDescription = context.getString(R.string.reorder_drag_cd)
                     layoutParams = LinearLayout.LayoutParams(
                         (40 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
                     )
@@ -797,12 +797,12 @@ object AppDialogs {
                 }
                 val actionIds = mutableListOf<Int>()
                 if (position > 0) {
-                    actionIds += ViewCompat.addAccessibilityAction(holder.row, "上移") { _, _ ->
+                    actionIds += ViewCompat.addAccessibilityAction(holder.row, holder.row.context.getString(R.string.reorder_move_up)) { _, _ ->
                         move(holder.bindingAdapterPosition, holder.bindingAdapterPosition - 1); true
                     }
                 }
                 if (position < order.lastIndex) {
-                    actionIds += ViewCompat.addAccessibilityAction(holder.row, "下移") { _, _ ->
+                    actionIds += ViewCompat.addAccessibilityAction(holder.row, holder.row.context.getString(R.string.reorder_move_down)) { _, _ ->
                         move(holder.bindingAdapterPosition, holder.bindingAdapterPosition + 1); true
                     }
                 }

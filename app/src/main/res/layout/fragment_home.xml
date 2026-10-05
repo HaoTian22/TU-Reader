@@ -21,7 +21,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="正在加载数据…"
+            android:text="@string/loading_data"
             android:textColor="@color/ink_3"
             android:textSize="14sp"
             android:layout_marginTop="16dp" />
@@ -74,7 +74,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="请将手机背面靠近交通卡"
+            android:text="@string/nfc_scan_hint"
             android:textColor="@color/ink_3"
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
@@ -82,7 +82,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="支持 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通"
+            android:text="@string/home_supported_cards"
             android:textColor="@color/ink_disabled"
             android:textSize="12sp" />
 
@@ -90,7 +90,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="已有历史数据？"
+            android:text="@string/home_has_history"
             android:textColor="@color/ink_3"
             android:textSize="13sp" />
 
@@ -106,7 +106,7 @@
             android:minWidth="0dp"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:text="导入旧数据"
+            android:text="@string/home_import_old"
             android:textAllCaps="false"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
@@ -116,7 +116,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="导入数据库备份"
+            android:text="@string/home_import_backup"
             android:textColor="@color/ink_disabled"
             android:textSize="11sp" />
 
@@ -168,7 +168,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:fontFamily="sans-serif-medium"
-                    android:text="我的卡片"
+                    android:text="@string/my_cards"
                     android:textColor="@color/ink"
                     android:textSize="28sp"
                     android:textStyle="bold" />
@@ -179,7 +179,7 @@
                     android:layout_height="44dp"
                     android:background="@drawable/bg_action_circle"
                     android:clickable="true"
-                    android:contentDescription="设置"
+                    android:contentDescription="@string/settings"
                     android:focusable="true"
                     android:gravity="center"
                     android:text="&#xF013;"
@@ -202,7 +202,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="总余额"
+                        android:text="@string/home_total_balance"
                         android:textColor="@color/ink_3"
                         android:textSize="13sp" />
 
@@ -226,7 +226,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="卡片"
+                        android:text="@string/home_cards_label"
                         android:textColor="@color/ink_3"
                         android:textSize="13sp" />
 
@@ -285,7 +285,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
-                        android:text="+  贴卡读取新卡片"
+                        android:text="@string/home_add_card"
                         android:textColor="@color/ink_2"
                         android:textSize="15sp" />
                 </LinearLayout>

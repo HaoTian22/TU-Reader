@@ -28,6 +28,9 @@ import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.amountLabel
+import com.example.nfctransit.util.AppLanguage
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * 单卡概览：卡面色头部（卡名·尾号 / 余额 / 上次读取）+ 浮起的快捷操作（交易记录 / 统计 / 轨迹），
@@ -164,14 +167,14 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 setColor(chip)
             }
         }
-        binding.tvBalanceLabel.text = "当前余额"
+        binding.tvBalanceLabel.setText(R.string.label_current_balance)
         binding.tvBalanceLabel.setTextColor(onCardAlpha(0xCC))
         binding.tvBalance.text = SpannableStringBuilder("¥${String.format("%.2f", card.balanceYuan)}").apply {
             setSpan(AbsoluteSizeSpan(24, true), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             setSpan(ForegroundColorSpan(onCardAlpha(0xB3)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         binding.tvBalance.setTextColor(onCard)
-        binding.tvLastRead.text = "上次读取 ${TimeLabels.absolute(card.lastReadAt)}"
+        binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))
         binding.tvLastRead.setTextColor(onCardAlpha(0xB3))
     }
 
@@ -202,7 +205,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             val policy = DiscountPolicy.policyFor(ui.cityZh) ?: return@forEachIndexed
             // 城市胶囊：背景用卡片主题色，与快捷图标/按钮保持一致
             val pill = TextView(requireContext()).apply {
-                text = ui.cityZh
+                text = TransitLabels.city(ui.cityZh)
                 setTextColor(accentColor)
                 textSize = 12f
                 background = GradientDrawable().apply {
@@ -216,7 +219,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             ).apply { if (index > 0) marginStart = (6 * density).toInt() })
 
             hintColumn.addView(TextView(requireContext()).apply {
-                text = "${ui.cityZh}：" + hintFor(policy, ui.monthlyFen)
+                text = getString(R.string.discount_city_hint, TransitLabels.city(ui.cityZh), hintFor(policy, ui.monthlyFen))
                 setTextColor(Palette.INK_2)
                 textSize = 12f
             }, LinearLayout.LayoutParams(
@@ -227,28 +230,28 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
     private fun hintFor(p: DiscountPolicy, monthlyFen: Long): String {
         val fmtDiff = { fen: Long -> String.format("%.2f", fen / 100.0) }
+        // 折扣率：中文「9 折」，其他语言「10% off」
+        val off = { percent: Int -> if (AppLanguage.isChinese()) "${percent / 10}" else "${100 - percent}%" }
         val t = p.tiers
         return if (t.first().minFen == 0L && t.first().discountPercent < 100) {
             // 首乘即打折的政策（杭州）：提示当前档与下一档门槛
             when {
-                monthlyFen < t[1].minFen ->
-                    "已享 ${t[0].discountPercent / 10} 折 · 满 ¥${t[1].minFen / 100} 起 ${t[1].discountPercent / 10} 折，还差 ¥${fmtDiff(t[1].minFen - monthlyFen)}"
-                monthlyFen < t[2].minFen ->
-                    "已享 ${t[1].discountPercent / 10} 折 · 满 ¥${t[2].minFen / 100} 起 ${t[2].discountPercent / 10} 折，还差 ¥${fmtDiff(t[2].minFen - monthlyFen)}"
-                else ->
-                    "已满 ¥${t[2].minFen / 100}，每乘次享 ${t[2].discountPercent / 10} 折"
+                monthlyFen < t[1].minFen -> getString(R.string.discount_tiered_next,
+                    off(t[0].discountPercent), t[1].minFen / 100, off(t[1].discountPercent), fmtDiff(t[1].minFen - monthlyFen))
+                monthlyFen < t[2].minFen -> getString(R.string.discount_tiered_next,
+                    off(t[1].discountPercent), t[2].minFen / 100, off(t[2].discountPercent), fmtDiff(t[2].minFen - monthlyFen))
+                else -> getString(R.string.discount_tiered_max, t[2].minFen / 100, off(t[2].discountPercent))
             }
         } else {
             // 满 X 元后的部分才打折的政策（广州/佛山）
             val t1 = t[1].minFen
             val t2 = t[2].minFen
             when {
-                monthlyFen < t1 ->
-                    "当月消费满 ¥${t1 / 100} 享 ${t[1].discountPercent / 10} 折 · 还差 ¥${fmtDiff(t1 - monthlyFen)}"
-                monthlyFen < t2 ->
-                    "已享 ${t[1].discountPercent / 10} 折 · 超 ¥${t2 / 100} 部分享 ${t[2].discountPercent / 10} 折，还差 ¥${fmtDiff(t2 - monthlyFen)}"
-                else ->
-                    "已超 ¥${t2 / 100}，超出部分享 ${t[2].discountPercent / 10} 折"
+                monthlyFen < t1 -> getString(R.string.discount_threshold_first,
+                    t1 / 100, off(t[1].discountPercent), fmtDiff(t1 - monthlyFen))
+                monthlyFen < t2 -> getString(R.string.discount_threshold_next,
+                    off(t[1].discountPercent), t2 / 100, off(t[2].discountPercent), fmtDiff(t2 - monthlyFen))
+                else -> getString(R.string.discount_threshold_max, t2 / 100, off(t[2].discountPercent))
             }
         }
     }
@@ -262,7 +265,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
         if (transactions.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
-                text = "暂无交易记录"
+                setText(R.string.empty_transactions)
                 setTextColor(Palette.INK_3)
                 textSize = 13f
                 gravity = Gravity.CENTER
@@ -287,7 +290,8 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             Palette.applyTransitIcon(icon, icon, txn.transitType)
 
             row.findViewById<TextView>(R.id.txnStation).text =
-                txn.stationName.ifBlank { txn.transitType.ifBlank { "未知" } }
+                TransitLabels.station(txn.stationName.ifBlank { txn.transitType })
+                    .ifBlank { getString(R.string.unknown) }
 
             // 入站 = U+F090 箭头进框，出站 = U+F08B 箭头出框
             row.findViewById<TextView>(R.id.txnDirIcon).apply {
@@ -301,8 +305,8 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             // 城市 · 类型 · 线路（与站名不同时）· 时间；占位符（空 / - / —）不出现
             val line = txn.lineName.takeUnless { isPlaceholderPill(it) || it == txn.stationName }
             row.findViewById<TextView>(R.id.txnMeta).text = listOfNotNull(
-                txn.cityName.takeUnless { isPlaceholderPill(it) },
-                txn.transitType.takeUnless { isPlaceholderPill(it) || it == txn.stationName },
+                txn.cityName.takeUnless { isPlaceholderPill(it) }?.let(TransitLabels::city),
+                txn.transitType.takeUnless { isPlaceholderPill(it) || it == txn.stationName }?.let(TransitLabels::type),
                 line,
                 "${txn.date.drop(5)} ${txn.time.take(5)}"
             ).joinToString(" · ")
@@ -314,13 +318,21 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 if (!hasAmount) textSize = 13f
             }
             row.findViewById<TextView>(R.id.txnBalance).apply {
-                text = txn.balanceAfterYuan?.let { "余额 ¥${String.format("%.2f", it)}" }.orEmpty()
+                text = txn.balanceAfterYuan?.let { getString(R.string.balance_after_format, String.format("%.2f", it)) }.orEmpty()
                 visibility = if (txn.balanceAfterYuan == null) View.GONE else View.VISIBLE
             }
 
             row.setOnClickListener { go(R.id.action_cardHome_to_transactionList) }
             container.addView(row)
         }
+    }
+
+    /** 迷你图星期标签：中文用单字（一…日），其他语言用缩写（Mon…Sun） */
+    private fun weekdayLabel(d: DailySpending): String {
+        val date = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(d.date) }.getOrNull()
+            ?: return d.dayLabel
+        val locale = AppLanguage.locale()
+        return SimpleDateFormat(if (AppLanguage.isChinese()) "EEEEE" else "EEE", locale).format(date)
     }
 
     /** 无有效内容（空白、"-"、"—" 占位） */
@@ -342,9 +354,8 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         if (week.isEmpty()) return
 
         val total = week.sumOf { it.amountYuan }
-        binding.tvWeekTotal.text = "合计 ¥${String.format("%.2f", total)}"
+        binding.tvWeekTotal.text = getString(R.string.week_total, String.format("%.2f", total))
 
-        val weekdays = listOf("一", "二", "三", "四", "五", "六", "日")
         val maxBar = 84f.dpToPx()
         val lightAccent = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.45f)
 
@@ -380,7 +391,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 marginEnd = 6.dpToPx()
             })
             col.addView(TextView(requireContext()).apply {
-                text = weekdays.getOrElse(i) { d.dayLabel }
+                text = weekdayLabel(d)
                 textSize = 12f
                 gravity = Gravity.CENTER
                 if (d.isToday) {
@@ -403,16 +414,16 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         AppDialogs.options(
             context = requireContext(),
             title = card.name,
-            options = listOf("卡片信息", "删除卡片"),
+            options = listOf(getString(R.string.card_info_title), getString(R.string.delete_card)),
             accentColor = accentColor
         ) { which ->
             when (which) {
                 0 -> go(R.id.action_cardHome_to_cardInfo)
                 1 -> AppDialogs.confirm(
                     context = requireContext(),
-                    title = "删除卡片",
-                    message = "确定删除这张卡及其全部交易数据吗？此操作无法撤销。",
-                    confirmLabel = "删除"
+                    title = getString(R.string.delete_card),
+                    message = getText(R.string.delete_card_message),
+                    confirmLabel = getString(R.string.action_delete)
                 ) {
                     val index = viewModel.selectedIndex.value ?: return@confirm
                     viewModel.deleteCard(index)

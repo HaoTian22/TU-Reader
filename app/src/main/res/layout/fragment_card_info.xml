@@ -5,6 +5,7 @@
   分区内行间分隔线由代码按可见行设置（第二标准/第二卡号行可能隐藏）。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/paper"
@@ -36,7 +37,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="卡片信息"
+            android:text="@string/card_info_title"
             android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -58,7 +59,7 @@
                 android:ellipsize="end"
                 android:maxWidth="140dp"
                 android:maxLines="1"
-                android:text="卡片"
+                android:text="@string/home_cards_label"
                 android:textColor="@color/accent"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -114,7 +115,7 @@
                             android:ellipsize="end"
                             android:fontFamily="sans-serif-medium"
                             android:maxLines="2"
-                            android:text="卡片名称"
+                            android:text="@string/card_info_name"
                             android:textColor="@color/ink"
                             android:textSize="18sp" />
 
@@ -140,7 +141,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="当前余额"
+                    android:text="@string/label_current_balance"
                     android:textColor="@color/ink_3"
                     android:textSize="13sp" />
 
@@ -169,7 +170,7 @@
             <!-- 个性化：整行可点 -->
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="个性化" />
+                android:text="@string/card_info_personalize" />
 
             <LinearLayout style="@style/DetailSectionCard">
 
@@ -181,7 +182,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="卡片名称" />
+                        android:text="@string/card_info_name" />
 
                     <TextView
                         android:id="@+id/tvNameValue"
@@ -210,12 +211,12 @@
                     android:id="@+id/rowChangeColor"
                     style="@style/DetailRow"
                     android:clickable="true"
-                    android:contentDescription="更换卡面颜色"
+                    android:contentDescription="@string/card_info_change_color_cd"
                     android:focusable="true">
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="卡面颜色" />
+                        android:text="@string/card_info_color" />
 
                     <TextView
                         android:id="@+id/tvColorName"
@@ -243,7 +244,7 @@
             <!-- 卡片信息 -->
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="卡片信息" />
+                android:text="@string/card_info_title" />
 
             <LinearLayout
                 android:id="@+id/sectionCardInfo"
@@ -253,7 +254,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="卡号" />
+                        android:text="@string/card_info_number" />
 
                     <TextView
                         android:id="@+id/tvCardNumber"
@@ -268,7 +269,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="第二卡号" />
+                        android:text="@string/card_info_second_number" />
 
                     <TextView
                         android:id="@+id/tvSecondCardNumber"
@@ -281,7 +282,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="卡片类型" />
+                        android:text="@string/card_info_type" />
 
                     <TextView
                         android:id="@+id/tvCardType"
@@ -292,7 +293,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="发卡城市" />
+                        android:text="@string/card_info_issuer_city" />
 
                     <TextView
                         android:id="@+id/tvIssuerCity"
@@ -303,7 +304,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="发卡机构" />
+                        android:text="@string/card_info_issuer" />
 
                     <TextView
                         android:id="@+id/tvIssuer"
@@ -314,7 +315,7 @@
             <!-- 有效期 -->
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="有效期" />
+                android:text="@string/card_info_validity" />
 
             <LinearLayout
                 android:id="@+id/sectionValidity"
@@ -324,7 +325,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="发行日期" />
+                        android:text="@string/card_info_issue_date" />
 
                     <TextView
                         android:id="@+id/tvIssueDate"
@@ -335,7 +336,7 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="有效期至" />
+                        android:text="@string/card_info_valid_until" />
 
                     <TextView
                         android:id="@+id/tvValidUntil"
@@ -350,7 +351,7 @@
                     <TextView
                         android:id="@+id/tvSecondIssueLabel"
                         style="@style/DetailRowLabel"
-                        android:text="第二标准发行日期" />
+                        tools:text="第二标准发行日期" />
 
                     <TextView
                         android:id="@+id/tvSecondIssueDate"
@@ -365,7 +366,7 @@
                     <TextView
                         android:id="@+id/tvSecondValidLabel"
                         style="@style/DetailRowLabel"
-                        android:text="第二标准有效期至" />
+                        tools:text="第二标准有效期至" />
 
                     <TextView
                         android:id="@+id/tvSecondValidUntil"
@@ -396,7 +397,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="sans-serif-medium"
-                        android:text="原始数据"
+                        android:text="@string/label_raw_data"
                         android:textColor="@color/ink"
                         android:textSize="15sp" />
 
@@ -406,13 +407,12 @@
                         android:layout_height="32dp"
                         android:background="@drawable/bg_text_button"
                         android:clickable="true"
-                        android:contentDescription="复制卡片原始数据"
+                        android:contentDescription="@string/card_info_copy_raw_cd"
                         android:focusable="true"
                         android:gravity="center"
                         android:paddingStart="10dp"
                         android:paddingEnd="10dp"
-                        android:tag="fa"
-                        android:text="&#xf0c5; 复制"
+                        android:text="@string/action_copy"
                         android:textColor="@color/accent"
                         android:textSize="12sp" />
                 </LinearLayout>

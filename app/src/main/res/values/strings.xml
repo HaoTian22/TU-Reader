@@ -1,106 +1,485 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认语言（英文）。中文见 values-zh；新增语言见 AppLanguage.SUPPORTED -->
 <resources>
-    <string name="app_name">行旅录</string>
-    <string name="brand_english_name">TransitU</string>
-    <string name="app_slogan">读交通卡，记每一程</string>
-    <string name="brand_lockup">TransitU · 读交通卡，记每一程</string>
+
+    <!-- Brand -->
+    <string name="app_name">TransitU</string>
+    <string name="brand_english_name" translatable="false">TransitU</string>
+    <string name="app_slogan">Read your transit card, log every trip</string>
+    <string name="brand_lockup">Read your transit card, log every trip</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_ok">OK</string>
+    <string name="action_done">Done</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_report">Report</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_run">Run</string>
+    <string name="action_got_it">Got it</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_more">More</string>
+    <string name="hint_optional">Optional</string>
+    <string name="hint_enter_name">Enter a name</string>
+    <string name="label_line">Line</string>
+    <string name="label_station">Station</string>
+    <string name="label_city">City</string>
+    <string name="label_raw_data">Raw data</string>
+    <string name="label_current_balance">Current balance</string>
+    <string name="label_start_date">Start date</string>
+    <string name="label_end_date">End date</string>
+    <string name="loading_data">Loading data…</string>
+    <string name="unknown">Unknown</string>
+    <string name="copied">Copied</string>
+    <string name="cannot_open_browser">Unable to open the browser</string>
+    <string name="network_error">Network error</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="empty_transactions">No transactions yet</string>
+    <string name="transactions">Transactions</string>
+    <string name="balance_after_format">Bal. ¥%s</string>
+    <string name="last_read_format">Last read %s</string>
+    <plurals name="rides_count">
+        <item quantity="one">%d ride</item>
+        <item quantity="other">%d rides</item>
+    </plurals>
+    <plurals name="cards_count">
+        <item quantity="one">%d card</item>
+        <item quantity="other">%d cards</item>
+    </plurals>
 
     <!-- Home -->
-    <string name="my_cards">我的卡片</string>
-    <string name="card_count_format">%d 张</string>
-    <string name="read_card">读取卡片</string>
-    <string name="transaction_records">交易记录</string>
-    <string name="spending_stats">消费统计</string>
-    <string name="recharge_records">充值记录</string>
-    <string name="card_details">卡片详情</string>
-    <string name="current_balance">当前余额</string>
-    <string name="last_read">上次读取：今天 09:41</string>
-    <string name="refresh">重新读取</string>
-    <string name="monthly_discount_progress">月度优惠进度</string>
-    <string name="recent_transactions">最近交易</string>
-    <string name="txn_desc_format">%1$s%2$s %3$s</string>
-    <string name="view_all">查看全部 ></string>
-    <string name="shenzhen_tong">深圳通</string>
-    <string name="lingnan_tong">岭南通</string>
+    <string name="my_cards">My cards</string>
+    <string name="settings">Settings</string>
+    <string name="nfc_scan_hint">Hold the back of your phone against a transit card</string>
+    <string name="home_supported_cards">Supports 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通</string>
+    <string name="home_has_history">Already have data?</string>
+    <string name="home_import_old">Import old data</string>
+    <string name="home_import_backup">Import database backup</string>
+    <string name="home_total_balance">Total balance</string>
+    <string name="home_cards_label">Cards</string>
+    <string name="home_add_card">+  Tap a card to add it</string>
 
-    <!-- Transaction List -->
-    <string name="filter_all">全部</string>
-    <string name="filter_metro">地铁</string>
-    <string name="filter_bus">公交</string>
-    <string name="filter_consumption">消费</string>
-    <string name="filter_recharge">充值</string>
-    <string name="balance_format">余额 ¥%s</string>
+    <!-- Card home -->
+    <string name="card_home_stats">Stats</string>
+    <string name="card_home_trace">Trace</string>
+    <string name="card_home_monthly_discount">Discount this month</string>
+    <string name="card_home_monthly_ride_spend">Ride spending this month</string>
+    <string name="card_home_recent">Recent transactions</string>
+    <string name="card_home_view_all">All ›</string>
+    <string name="card_home_week_spending">Spending this week</string>
+    <string name="card_home_view_stats">Stats ›</string>
 
-    <!-- Transaction Detail -->
-    <string name="transaction_detail">交易详情</string>
-    <string name="view_raw_data">▼ 查看原始数据</string>
-    <string name="txn_time">交易时间</string>
-    <string name="location_station">地点/站名</string>
-    <string name="line">线路</string>
-    <string name="txn_type">交易类型</string>
-    <string name="deduct_amount">扣款金额</string>
-    <string name="balance_after">交易后余额</string>
-    <string name="terminal_code">终端编号</string>
+    <!-- Card info -->
+    <string name="card_info_title">Card info</string>
+    <string name="card_info_name">Card name</string>
+    <string name="card_info_personalize">Personalize</string>
+    <string name="card_info_change_color_cd">Change card color</string>
+    <string name="card_info_color">Card color</string>
+    <string name="card_info_number">Card number</string>
+    <string name="card_info_second_number">Second card number</string>
+    <string name="card_info_type">Card type</string>
+    <string name="card_info_issuer_city">Issuing city</string>
+    <string name="card_info_issuer">Issuer</string>
+    <string name="card_info_validity">Validity</string>
+    <string name="card_info_issue_date">Issue date</string>
+    <string name="card_info_valid_until">Valid until</string>
+    <string name="card_info_copy_raw_cd">Copy raw card data</string>
+
+    <!-- Database query -->
+    <string name="db_query_title">Browse database</string>
+    <string name="db_query_instructions">Copy the prompt below to an AI assistant and describe what you need at the end</string>
+    <string name="db_query_no_sql">No SQL pasted yet</string>
+    <string name="db_query_results_placeholder">Results appear here after you run SQL</string>
+    <string name="sql_input_title">Paste SQL query</string>
+    <string name="sql_input_hint">Paste the AI-generated SELECT SQL here</string>
+
+    <!-- Map trace -->
+    <string name="map_trace">Map trace</string>
+    <string name="trip_info">Trip info</string>
+    <string name="map_hint_default">Pinch to zoom · Scroll the list below to change time</string>
 
     <!-- Stats -->
-    <string name="data_stats">数据统计</string>
-    <string name="this_week">本周</string>
-    <string name="this_month">本月</string>
-    <string name="this_year">本年</string>
-    <string name="custom">自定义</string>
-    <string name="spending_trend">消费趋势</string>
-    <string name="total_spending">总消费</string>
-    <string name="ride_count">乘车次数</string>
-    <string name="avg_daily_spending">日均消费</string>
-    <string name="top_stations">最常去的车站 Top 5</string>
-    <string name="top_lines">最常坐的线路 Top 5</string>
-    <string name="ride_count_format">%d 次</string>
+    <string name="stats_title">Statistics</string>
+    <string name="stats_total_spending">Total spent</string>
+    <string name="stats_ride_count">Rides</string>
+    <string name="stats_daily_avg">Daily average</string>
+    <string name="period_week">Week</string>
+    <string name="period_month">Month</string>
+    <string name="period_year">Year</string>
+    <string name="period_custom">Custom</string>
+    <string name="stats_prev_cd">Previous period</string>
+    <string name="stats_next_cd">Next period</string>
+    <string name="stats_now">Now</string>
+    <string name="stats_current_cd">Back to current period</string>
+    <string name="stats_range_to">to</string>
+    <string name="stats_tap_pick_date">Tap to choose dates</string>
+    <string name="stats_spending_trend">Spending trend</string>
+    <string name="stats_by_category">By category</string>
+    <string name="stats_by_city">By city</string>
+    <string name="stats_top_stations">Top 5 stations</string>
+    <string name="stats_top_lines">Top 5 lines</string>
 
-    <!-- Map Trace -->
-    <string name="map_trace">地图轨迹</string>
-    <string name="playback_speed">播放速度:</string>
-    <string name="trip_info">行程信息</string>
-    <string name="map_placeholder">需集成高德地图 SDK 实现</string>
+    <!-- Transaction detail / list -->
+    <string name="txn_detail_title">Details</string>
+    <string name="txn_detail_info">Transaction</string>
+    <string name="txn_detail_trip">Trip</string>
+    <string name="txn_detail_device">Device &amp; protocol</string>
+    <string name="txn_list_search_hint">Search time/station/type/city/amount/protocol…</string>
+
+    <!-- Local mapping overrides -->
+    <string name="overrides_title">Local mappings</string>
+    <string name="overrides_empty">No local mapping data</string>
+    <string name="override_edit_title">Edit local mapping</string>
+    <string name="override_edit_subtitle">Applied to this device on save</string>
+
+    <!-- Feedback dialog -->
+    <string name="feedback_title">Report a station correction</string>
+    <string name="feedback_help">Help</string>
+    <string name="feedback_subtitle">Applied to this device on save</string>
+    <string name="feedback_section_reader">Card reader</string>
+    <string name="feedback_city_prefix">City prefix</string>
+    <string name="feedback_device_code">Device code</string>
+    <string name="feedback_transit_type">Transit type</string>
+    <string name="feedback_transit_type_hint">Enter a transit type, e.g. 轮渡 (ferry), 单轨 (monorail)</string>
+    <string name="feedback_section_location">Actual location</string>
+    <string name="feedback_section_extra">Additional info</string>
+    <string name="feedback_city">City (helps the developer investigate)</string>
+    <string name="feedback_city_hint">Select or enter a city</string>
+    <string name="feedback_public_upload">Upload correction publicly</string>
+    <string name="feedback_public_upload_desc">Helps improve station data</string>
+    <string name="feedback_more_info">Include more details</string>
+    <string name="feedback_more_info_desc">Uploads this record\'s raw data (may include balance, time, amount)</string>
 
     <!-- Settings -->
-    <string name="settings">设置</string>
-    <string name="card_management">卡片管理</string>
-    <string name="bound_cards">已绑定卡片</string>
-    <string name="station_map_update">站名映射表更新</string>
-    <string name="card_sorting">卡片排序</string>
-    <string name="data_and_privacy">数据与隐私</string>
-    <string name="local_data_storage">本地数据存储</string>
-    <string name="data_export">数据导出 (CSV/JSON)</string>
-    <string name="clear_all_data">清除全部本地数据</string>
-    <string name="privacy_policy">隐私说明</string>
-    <string name="display_and_experience">显示与体验</string>
-    <string name="dark_mode">深色模式</string>
-    <string name="currency_unit">金额显示单位</string>
-    <string name="map_animation_speed">地图动画播放速度</string>
-    <string name="language_switch">语言切换</string>
-    <string name="about">关于</string>
-    <string name="version_number">版本号</string>
-    <string name="check_for_updates">检查更新</string>
-    <string name="checking_for_updates">正在检查…</string>
-    <string name="app_up_to_date">当前已是最新版本</string>
-    <string name="app_no_release">暂无可用的正式发布版本</string>
-    <string name="app_update_failed">检查更新失败：%1$s</string>
-    <string name="app_update_available">发现新版本</string>
-    <string name="official_release_available">最新正式版可用</string>
-    <string name="app_update_testing_notice">当前为测试版 / Debug 版，以下为最新正式版，版本号可能低于当前版本。</string>
-    <string name="app_update_versions">当前版本：%1$s\n最新版本：%2$s</string>
-    <string name="app_update_no_notes">此版本未提供更新说明。</string>
-    <string name="app_update_history_unavailable">历史更新说明加载失败，以下仅显示最新正式版说明。可重新检查更新以重试。</string>
-    <string name="download_apk">下载 APK</string>
-    <string name="view_release">查看发布页</string>
-    <string name="update_later">稍后</string>
-    <string name="ignore_app_version">忽略此版本</string>
-    <string name="app_update_ignore_failed">无法保存忽略设置，下次启动可能再次提醒</string>
-    <string name="supported_cards">支持的卡种列表</string>
-    <string name="oss_acknowledgements">开源致谢</string>
-    <string name="feedback">反馈入口</string>
+    <string name="settings_debug_tools">Debug tools</string>
+    <string name="settings_export_read_data">Export read data (TXT)</string>
+    <string name="settings_export_apdu">Export APDU log (TXT)</string>
+    <string name="settings_keep_debug_log">Keep debug logs</string>
+    <string name="card_management">Cards</string>
+    <string name="bound_cards">Saved cards</string>
+    <string name="station_map_update">Update station database</string>
+    <string name="card_sorting">Reorder cards</string>
+    <string name="data_and_privacy">Data &amp; privacy</string>
+    <string name="local_data_storage">Local data storage</string>
+    <string name="manage_overrides">Manage local mappings</string>
+    <string name="data_export">Export data (CSV/JSON/DB)</string>
+    <string name="import_backup_db">Import backup database</string>
+    <string name="clear_cache">Clear cache</string>
+    <string name="clear_all_data">Delete all local data</string>
+    <string name="display_and_experience">Display</string>
+    <string name="dark_mode">Dark mode</string>
+    <string name="current_trip_route">Current trip route</string>
+    <string name="map_animation_speed">Map animation speed</string>
+    <string name="playback_haptics">Playback haptics</string>
+    <string name="language_switch">Language</string>
+    <string name="about">About</string>
+    <string name="version_number">Version</string>
+    <string name="oss_acknowledgements">Open-source licenses</string>
+    <string name="feedback">Feedback</string>
+
+    <!-- App update -->
+    <string name="check_for_updates">Check for updates</string>
+    <string name="checking_for_updates">Checking…</string>
+    <string name="app_up_to_date">You\'re on the latest version</string>
+    <string name="app_no_release">No official release available yet</string>
+    <string name="app_update_failed">Update check failed: %1$s</string>
+    <string name="app_update_available">New version available</string>
+    <string name="official_release_available">Latest official release available</string>
+    <string name="app_update_testing_notice">Test build: the official release below may have a lower version.</string>
+    <string name="app_update_versions">Current version: %1$s\nLatest version: %2$s</string>
+    <string name="app_update_no_notes">No release notes for this version.</string>
+    <string name="app_update_history_unavailable">Older release notes failed to load. Showing the latest only.</string>
+    <string name="download_apk">Download APK</string>
+    <string name="view_release">View release page</string>
+    <string name="update_later">Later</string>
+    <string name="ignore_app_version">Skip this version</string>
+    <string name="app_update_ignore_failed">Couldn\'t save \"Skip\". You may be reminded again.</string>
 
     <!-- NFC -->
-    <string name="nfc_scan_hint">请将手机背面靠近交通卡</string>
-    <string name="nfc_not_supported">此设备不支持 NFC</string>
-    <string name="nfc_detecting">检测到卡片，正在读取…</string>
+    <string name="nfc_not_supported">This device doesn\'t support NFC</string>
+    <string name="nfc_detecting">Card detected, reading…</string>
+    <string name="nfc_no_card">No card detected</string>
+
+    <!-- Settings (code) -->
+    <string name="language_follow_system">Follow system</string>
+    <string name="export_done">✓ Exported %s</string>
+    <string name="export_db_done">✓ Database exported</string>
+    <string name="export_failed">Export failed: %s</string>
+    <string name="import_failed">Import failed: %s</string>
+    <string name="importing">Importing…</string>
+    <string name="no_data">No data</string>
+    <string name="card_sort_need_two">Need at least 2 cards</string>
+    <string name="db_select_title">Choose a database</string>
+    <string name="route_mode_endpoints">Endpoints only</string>
+    <string name="route_mode_full">Full transfers</string>
+    <string name="route_mode_full_option">Full transfer details</string>
+    <string name="export_title">Export data</string>
+    <string name="export_csv">CSV file</string>
+    <string name="export_json">JSON file</string>
+    <string name="export_sqlite">SQLite database (.db)</string>
+    <string name="clear_all_data_message"><b>Deletes:</b> all cards and transactions\n\n<b>This can\'t be undone.</b></string>
+    <string name="clear_all_data_done">✓ All local data deleted</string>
+    <string name="clear_cache_message"><b>Clears:</b> UI cache, map routes\n<b>Keeps:</b> cards and transactions\n\nThe station database resets only if the built-in one is newer.</string>
+    <string name="clear_cache_confirm">Clear</string>
+    <string name="report_header">=== TransitU read data ===</string>
+    <string name="report_card">Card: %1$s (%2$s)</string>
+    <string name="report_balance">Balance: ¥%s</string>
+    <string name="report_txn_count">Transactions: %d</string>
+    <string name="report_txn_type">Type: %1$s  Amount: %2$s</string>
+    <string name="report_txn_place">Station: %1$s  Line: %2$s</string>
+    <string name="report_txn_terminal">Terminal: %1$s  TypeHex: %2$s</string>
+    <string name="report_txn_balance">Balance: %s</string>
+    <string name="report_apdu_header">=== APDU raw log ===</string>
+
+    <!-- Transit types (display only; data keys stay Chinese) -->
+    <string name="transit_metro">Metro</string>
+    <string name="transit_bus">Bus</string>
+    <string name="transit_recharge">Top-up</string>
+    <string name="transit_purchase">Purchase</string>
+    <string name="transit_convenience">Convenience store</string>
+    <string name="transit_tram">Tram</string>
+    <string name="transit_intercity">Intercity</string>
+    <string name="transit_rail">Rail transit</string>
+    <string name="transit_public">Public transit</string>
+    <string name="transit_other">Other</string>
+    <string name="amount_ticket_processing">Ticket processing</string>
+    <string name="amount_entry">Entry</string>
+    <string name="amount_exit">Exit</string>
+    <string name="amount_ride">Ride</string>
+
+    <!-- Database query -->
+    <string name="db_user_data">User data database</string>
+    <string name="db_transit">Station mapping database</string>
+    <string name="db_prompt_copied">Prompt copied</string>
+    <string name="db_paste_first">Tap “Paste” to enter SQL first</string>
+    <string name="db_querying">Running query…</string>
+    <string name="db_result_truncated">" (large result, partially shown)"</string>
+    <plurals name="db_query_done">
+        <item quantity="one">Query finished: %d row</item>
+        <item quantity="other">Query finished: %d rows</item>
+    </plurals>
+    <string name="db_query_timeout">Query timed out</string>
+    <string name="db_query_timeout_detail">Stopped after 15 s</string>
+    <string name="db_query_failed">Query failed</string>
+    <string name="db_no_columns">No columns to show</string>
+    <string name="db_result_empty">No results (0 rows)</string>
+    <string name="db_err_missing_file">Database file not found</string>
+    <string name="db_err_too_many_columns">Results can\'t have more than %d columns</string>
+    <string name="db_err_empty">SQL can\'t be empty</string>
+    <string name="db_err_select_only">Only SELECT queries are allowed</string>
+    <string name="db_err_single">Only one SQL statement is allowed</string>
+    <string name="db_err_read_only">Only read-only queries are allowed</string>
+
+    <!-- Card reading -->
+    <string name="nfc_no_isodep">This card doesn\'t support ISO-DEP</string>
+    <string name="nfc_interrupted">Read interrupted. Remove the card and retry.</string>
+    <string name="nfc_unsupported_card">Card type not supported</string>
+    <string name="nfc_saving">Read done. Remove the card, saving…</string>
+    <string name="nfc_nothing_saved">Nothing to save. Remove the card and retry.</string>
+    <plurals name="nfc_partial_saved">
+        <item quantity="one">Interrupted. Saved %d transaction; remove the card and retry.</item>
+        <item quantity="other">Interrupted. Saved %d transactions; remove the card and retry.</item>
+    </plurals>
+    <string name="nfc_saved_no_txns">Card saved. No transactions found.</string>
+    <plurals name="nfc_saved">
+        <item quantity="one">%1$s · %2$d transaction saved</item>
+        <item quantity="other">%1$s · %2$d transactions saved</item>
+    </plurals>
+    <string name="nfc_saved_ui_failed">Saved, but the screen didn\'t refresh. Reopen the app.</string>
+    <string name="nfc_read_failed">Read failed. Remove the card and retry.</string>
+
+    <!-- Status messages -->
+    <string name="feedback_save_failed">Couldn\'t save feedback: %s</string>
+    <string name="override_err_missing">Override doesn\'t exist</string>
+    <string name="override_err_exists">This Prefix+Code+Type already exists</string>
+    <string name="override_saved">Override saved: %s</string>
+    <string name="override_save_failed">Couldn\'t save override: %s</string>
+    <string name="override_deleted">Override deleted, original restored</string>
+    <string name="override_delete_failed">Couldn\'t delete override: %s</string>
+    <string name="csv_header">No.,Time,Type,Line,Station,Amount,Balance after,Terminal</string>
+    <string name="import_done">Imported: %s</string>
+    <string name="list_separator">", "</string>
+    <plurals name="import_cards">
+        <item quantity="one">%d new card</item>
+        <item quantity="other">%d new cards</item>
+    </plurals>
+    <plurals name="import_txns">
+        <item quantity="one">%d transaction</item>
+        <item quantity="other">%d transactions</item>
+    </plurals>
+    <plurals name="import_raw">
+        <item quantity="one">%d raw record</item>
+        <item quantity="other">%d raw records</item>
+    </plurals>
+    <plurals name="import_merged">
+        <item quantity="one">%d duplicate card merged</item>
+        <item quantity="other">%d duplicate cards merged</item>
+    </plurals>
+    <string name="err_read_selected_file">Can\'t read the selected file</string>
+    <string name="station_db_updated">✓ Station database updated</string>
+    <string name="station_db_update_failed">Update failed: %s</string>
+    <string name="cache_cleared_reset">✓ Cache cleared, station database reset</string>
+    <string name="cache_cleared_kept">✓ Cache cleared</string>
+    <string name="cache_clear_failed">Clearing failed: %s</string>
+    <string name="standard_tunion">T-Union</string>
+    <string name="standard_second">Second standard</string>
+    <string name="stats_day_of_month">%d</string>
+
+    <!-- Transaction detail (code) -->
+    <string name="raw_copied">✓ Raw data copied</string>
+    <string name="feedback_saving">Saving and uploading…</string>
+    <string name="err_invalid_prefix">Enter a valid Prefix</string>
+    <string name="err_invalid_code">Enter a valid Code</string>
+    <string name="err_line_format">Line: one line, max 128 characters</string>
+    <string name="err_station_format">Station: one line, max 128 characters</string>
+    <string name="txn_type_metro_entry">Metro entry</string>
+    <string name="txn_type_metro_exit">Metro exit</string>
+    <string name="txn_type_bus_ride">Bus ride</string>
+    <string name="txn_type_small_purchase">Small purchase</string>
+    <string name="txn_row_type">Transaction type</string>
+    <string name="txn_row_amount">Amount</string>
+    <string name="txn_row_balance">Balance after</string>
+    <string name="txn_row_protocol">Protocol</string>
+    <string name="txn_row_terminal">Terminal ID</string>
+    <string name="txn_no_raw">No raw data for this transaction</string>
+
+    <!-- Transaction list / time -->
+    <string name="filter_title">Filter by type</string>
+    <string name="action_view_details">View details</string>
+    <string name="action_view_context">View in context</string>
+    <string name="action_copy_transaction">Copy transaction</string>
+    <plurals name="txn_day_count">
+        <item quantity="one">%d transaction</item>
+        <item quantity="other">%d transactions</item>
+    </plurals>
+    <string name="txn_day_spend">Spent ¥%s</string>
+    <string name="time_today">Today</string>
+    <string name="time_yesterday">Yesterday</string>
+    <string name="time_today_at">today %s</string>
+    <string name="time_yesterday_at">yesterday %s</string>
+    <plurals name="time_days_ago">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <plurals name="time_weeks_ago">
+        <item quantity="one">%d week ago</item>
+        <item quantity="other">%d weeks ago</item>
+    </plurals>
+
+    <!-- Home / card home (code) -->
+    <string name="err_unsupported_format">Unsupported file format</string>
+    <string name="add_card_title">Read a new card</string>
+    <string name="add_card_message">Hold the card to the back of your phone and keep still. It opens when done.</string>
+    <string name="import_old_progress">Reading and merging backup…</string>
+    <string name="card_cd">%1$s, balance ¥%2$s</string>
+    <string name="read_at">Read %s</string>
+    <string name="discount_city_hint">%1$s: %2$s</string>
+    <string name="discount_tiered_next">%1$s off now · %3$s off from ¥%2$d, ¥%4$s to go</string>
+    <string name="discount_tiered_max">Reached ¥%1$d: %2$s off every ride</string>
+    <string name="discount_threshold_first">Spend ¥%1$d this month for %2$s off · ¥%3$s to go</string>
+    <string name="discount_threshold_next">%1$s off now · %3$s off above ¥%2$d, ¥%4$s to go</string>
+    <string name="discount_threshold_max">Over ¥%1$d: %2$s off the excess</string>
+    <string name="week_total">Total ¥%s</string>
+    <string name="delete_card">Delete card</string>
+    <string name="delete_card_message"><b>Deletes:</b> this card and its transactions\n\n<b>This can\'t be undone.</b></string>
+
+    <!-- Card colors -->
+    <string name="color_mint">Mint</string>
+    <string name="color_peach">Peach</string>
+    <string name="color_lavender">Lavender</string>
+    <string name="color_sky">Sky blue</string>
+    <string name="color_sakura">Sakura pink</string>
+    <string name="color_lemon">Lemon</string>
+    <string name="color_matcha">Matcha</string>
+    <string name="color_coral">Coral</string>
+    <string name="color_lake">Lake teal</string>
+    <string name="color_lilac">Lilac</string>
+    <string name="color_apricot">Apricot</string>
+    <string name="color_haze">Haze blue</string>
+
+    <!-- Card info (code) -->
+    <string name="card_raw_copied">Raw card data copied</string>
+    <string name="card_info_std_issue_date">%s issue date</string>
+    <string name="card_info_std_valid_until">%s valid until</string>
+    <string name="card_color_title">Choose card color</string>
+    <string name="card_rename_title">Rename card</string>
+    <string name="card_rename_hint">Enter a card name</string>
+    <string name="card_name_empty">Card name can\'t be empty</string>
+
+    <!-- Stats (code) -->
+    <string name="stats_empty_spending">No spending yet. Read a transit card first</string>
+    <string name="stats_empty">No data yet. Read a transit card first</string>
+    <string name="stats_donut_total">Total</string>
+
+    <!-- Date range dialog -->
+    <string name="date_range_title">Choose date range</string>
+    <string name="date_range_subtitle">Choose the start and end dates for statistics</string>
+    <string name="date_range_pick">Choose a date</string>
+
+    <!-- Local mapping overrides (code) -->
+    <string name="override_delete_title">Delete local mapping</string>
+    <string name="override_delete_message">Restores this device\'s original station mapping.</string>
+    <string name="override_err_prefix">Invalid Prefix</string>
+    <string name="override_err_code">Invalid Code</string>
+    <string name="override_err_type">Invalid Type</string>
+    <string name="override_err_line">Line is too long</string>
+    <string name="override_err_station">Station is too long</string>
+    <string name="override_err_city">Choose an actual city from the database</string>
+    <string name="override_err_newline">Fields can\'t contain line breaks</string>
+    <string name="override_err_unknown_city">Unknown city code %s</string>
+    <string name="override_import_row_error">Row %1$d: %2$s</string>
+    <string name="override_import_summary">Overrides imported: %1$d new, %2$d changed, %3$d unchanged</string>
+    <string name="override_import_skipped">, %d skipped</string>
+    <string name="override_import_failed">, %d failed</string>
+
+    <!-- Feedback dialog (code) -->
+    <string name="feedback_type_required">Enter a transit type (max 32 characters)</string>
+    <string name="reorder_drag_cd">Drag to reorder</string>
+    <string name="reorder_move_up">Move up</string>
+    <string name="reorder_move_down">Move down</string>
+    <string name="feedback_help_text">• <b>City prefix:</b> from the record\'s CITY field. Usually keep the prefilled value.\n\n• <b>Device code:</b> the reader\'s Terminal ID or Line &amp; Station. Corrections are keyed on it.\n\n• <b>Transit type:</b> same code + different type = different reader. Not listed? Pick “Other”.\n\n• <b>Line / Station:</b> optional. Leave blank if unsure.\n\n• <b>City:</b> not used for mapping. Only sent with uploads to help the developer.\n\n• <b>Upload publicly:</b> on = improves built-in data; off = this device only.\n\n• <b>More details:</b> off by default. Adds raw data (balance, time, amount) to the upload.</string>
+
+    <!-- Map trace (code) -->
+    <string name="map_no_trips">No trips yet</string>
+    <string name="map_route_disabled">Route service not enabled · showing schematic lines</string>
+    <string name="map_route_quota">Today\'s Tencent route quota is used up · uncached routes use schematic lines</string>
+    <string name="map_route_loading">Loading real routes %1$d/%2$d</string>
+    <string name="map_route_partial">Some routes use schematic lines</string>
+    <string name="map_route_stale">Includes outdated cached routes</string>
+    <string name="map_route_estimate">Estimated from the current network</string>
+    <string name="map_route_intercity">Intercity legs connect stations directly</string>
+    <string name="map_route_tencent">Routes estimated by Tencent Maps</string>
+    <string name="map_route_may_differ">May differ from your actual ride</string>
+    <string name="map_transfer_to">Transfer to %s</string>
+    <string name="map_transfer">Transfer</string>
+    <string name="map_trip_time">%1$s · took %2$s</string>
+    <string name="duration_minutes">%d min</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+
+    <!-- Data-layer errors -->
+    <string name="update_err_release_version">Unrecognized release version</string>
+    <string name="update_err_current_version">Unrecognized current version</string>
+    <string name="update_err_history">Couldn\'t read earlier release notes</string>
+    <string name="update_err_rate_limited">GitHub rate limit hit. Try later.</string>
+    <string name="update_err_http">GitHub returned HTTP %d</string>
+    <string name="upload_not_configured">Public upload URL is not configured</string>
+    <string name="upload_done">Public correction uploaded</string>
+    <string name="upload_failed_http">Public upload failed (HTTP %d)</string>
+    <string name="upload_failed">Public upload failed: %s</string>
+    <string name="download_empty">Downloaded file is empty</string>
+    <string name="override_csv_bad_header">Invalid override CSV header</string>
+    <string name="override_csv_bad_row">Invalid override CSV row %d</string>
+    <string name="db_err_rebuild">Couldn\'t rebuild the station mapping cache</string>
+    <string name="db_err_dir">Couldn\'t locate the database directory</string>
+    <string name="err_write_target">Can\'t write to the target file</string>
+    <string name="err_tripreader_schema">Unsupported TripReader database structure</string>
+    <string name="status_separator">"; "</string>
+    <plurals name="home_card_count">
+        <item quantity="one">%d</item>
+        <item quantity="other">%d</item>
+    </plurals>
 </resources>

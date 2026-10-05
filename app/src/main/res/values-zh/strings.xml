@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Brand -->
+    <string name="app_name">行旅录</string>
+    <string name="app_slogan">读交通卡，记每一程</string>
+    <string name="brand_lockup">TransitU · 读交通卡，记每一程</string>
+
+    <!-- Common -->
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_clear">清除</string>
+    <string name="action_ok">确定</string>
+    <string name="action_done">完成</string>
+    <string name="action_delete">删除</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_copy">复制</string>
+    <string name="action_report">反馈</string>
+    <string name="action_paste">粘贴</string>
+    <string name="action_run">运行</string>
+    <string name="action_got_it">知道了</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_more">更多</string>
+    <string name="hint_optional">可留空</string>
+    <string name="hint_enter_name">请输入名称</string>
+    <string name="label_line">线路</string>
+    <string name="label_station">站名</string>
+    <string name="label_city">城市</string>
+    <string name="label_raw_data">原始数据</string>
+    <string name="label_current_balance">当前余额</string>
+    <string name="label_start_date">开始日期</string>
+    <string name="label_end_date">结束日期</string>
+    <string name="loading_data">正在加载数据…</string>
+    <string name="unknown">未知</string>
+    <string name="copied">已复制</string>
+    <string name="cannot_open_browser">无法打开浏览器</string>
+    <string name="network_error">网络错误</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="empty_transactions">暂无交易记录</string>
+    <string name="transactions">交易记录</string>
+    <string name="balance_after_format">余额 ¥%s</string>
+    <string name="last_read_format">上次读取 %s</string>
+    <plurals name="rides_count">
+        <item quantity="other">%d 次</item>
+    </plurals>
+    <plurals name="cards_count">
+        <item quantity="other">%d 张</item>
+    </plurals>
+
+    <!-- Home -->
+    <string name="my_cards">我的卡片</string>
+    <string name="settings">设置</string>
+    <string name="nfc_scan_hint">请将手机背面靠近交通卡</string>
+    <string name="home_supported_cards">支持 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通</string>
+    <string name="home_has_history">已有历史数据？</string>
+    <string name="home_import_old">导入旧数据</string>
+    <string name="home_import_backup">导入数据库备份</string>
+    <string name="home_total_balance">总余额</string>
+    <string name="home_cards_label">卡片</string>
+    <string name="home_add_card">+  贴卡读取新卡片</string>
+
+    <!-- Card home -->
+    <string name="card_home_stats">统计</string>
+    <string name="card_home_trace">轨迹</string>
+    <string name="card_home_monthly_discount">本月优惠</string>
+    <string name="card_home_monthly_ride_spend">本月累计乘车消费</string>
+    <string name="card_home_recent">最近交易</string>
+    <string name="card_home_view_all">全部 ›</string>
+    <string name="card_home_week_spending">本周消费</string>
+    <string name="card_home_view_stats">统计 ›</string>
+
+    <!-- Card info -->
+    <string name="card_info_title">卡片信息</string>
+    <string name="card_info_name">卡片名称</string>
+    <string name="card_info_personalize">个性化</string>
+    <string name="card_info_change_color_cd">更换卡面颜色</string>
+    <string name="card_info_color">卡面颜色</string>
+    <string name="card_info_number">卡号</string>
+    <string name="card_info_second_number">第二卡号</string>
+    <string name="card_info_type">卡片类型</string>
+    <string name="card_info_issuer_city">发卡城市</string>
+    <string name="card_info_issuer">发卡机构</string>
+    <string name="card_info_validity">有效期</string>
+    <string name="card_info_issue_date">发行日期</string>
+    <string name="card_info_valid_until">有效期至</string>
+    <string name="card_info_copy_raw_cd">复制卡片原始数据</string>
+
+    <!-- Database query -->
+    <string name="db_query_title">查看数据库</string>
+    <string name="db_query_instructions">请复制以下 prompt 给 AI，并在最后写出你的需求</string>
+    <string name="db_query_no_sql">尚未粘贴 SQL</string>
+    <string name="db_query_results_placeholder">运行 SQL 后在此显示结果</string>
+    <string name="sql_input_title">粘贴 SQL 查询</string>
+    <string name="sql_input_hint">在这里粘贴 AI 生成的 SELECT SQL</string>
+
+    <!-- Map trace -->
+    <string name="map_trace">地图轨迹</string>
+    <string name="trip_info">行程信息</string>
+    <string name="map_hint_default">双指缩放 · 滑动下方列表调整时间</string>
+
+    <!-- Stats -->
+    <string name="stats_title">数据统计</string>
+    <string name="stats_total_spending">总消费</string>
+    <string name="stats_ride_count">乘车次数</string>
+    <string name="stats_daily_avg">日均消费</string>
+    <string name="period_week">本周</string>
+    <string name="period_month">本月</string>
+    <string name="period_year">本年</string>
+    <string name="period_custom">自定义</string>
+    <string name="stats_prev_cd">上一期</string>
+    <string name="stats_next_cd">下一期</string>
+    <string name="stats_now">当前</string>
+    <string name="stats_current_cd">回到当前周期</string>
+    <string name="stats_range_to">至</string>
+    <string name="stats_tap_pick_date">点击选择日期</string>
+    <string name="stats_spending_trend">消费趋势</string>
+    <string name="stats_by_category">分类开销</string>
+    <string name="stats_by_city">城市开销</string>
+    <string name="stats_top_stations">常去车站 · Top 5</string>
+    <string name="stats_top_lines">常坐线路 · Top 5</string>
+
+    <!-- Transaction detail / list -->
+    <string name="txn_detail_title">交易详情</string>
+    <string name="txn_detail_info">交易信息</string>
+    <string name="txn_detail_trip">行程</string>
+    <string name="txn_detail_device">设备与协议</string>
+    <string name="txn_list_search_hint">搜索 时间/站点/类型/城市/金额/协议…</string>
+
+    <!-- Local mapping overrides -->
+    <string name="overrides_title">本地映射表管理</string>
+    <string name="overrides_empty">暂无本地映射数据</string>
+    <string name="override_edit_title">编辑本地映射表</string>
+    <string name="override_edit_subtitle">保存后立即在本机生效</string>
+
+    <!-- Feedback dialog -->
+    <string name="feedback_title">反馈站名纠错</string>
+    <string name="feedback_help">填写说明</string>
+    <string name="feedback_subtitle">保存后立即在本机生效</string>
+    <string name="feedback_section_reader">读卡器</string>
+    <string name="feedback_city_prefix">城市前缀</string>
+    <string name="feedback_device_code">设备编号</string>
+    <string name="feedback_transit_type">交通类型</string>
+    <string name="feedback_transit_type_hint">输入交通类型，如 轮渡、单轨</string>
+    <string name="feedback_section_location">实际位置</string>
+    <string name="feedback_section_extra">补充信息</string>
+    <string name="feedback_city">所在城市（供开发者排查）</string>
+    <string name="feedback_city_hint">选择或输入城市</string>
+    <string name="feedback_public_upload">公开上传纠错</string>
+    <string name="feedback_public_upload_desc">帮助改进站名数据</string>
+    <string name="feedback_more_info">提供更多信息</string>
+    <string name="feedback_more_info_desc">附带原始数据上传（可能含余额、时间、金额）</string>
+
+    <!-- Settings -->
+    <string name="settings_debug_tools">调试工具</string>
+    <string name="settings_export_read_data">导出读取数据 (TXT)</string>
+    <string name="settings_export_apdu">导出 APDU 日志 (TXT)</string>
+    <string name="settings_keep_debug_log">保留调试日志</string>
+    <string name="card_management">卡片管理</string>
+    <string name="bound_cards">已绑定卡片</string>
+    <string name="station_map_update">站名映射表更新</string>
+    <string name="card_sorting">卡片排序</string>
+    <string name="data_and_privacy">数据与隐私</string>
+    <string name="local_data_storage">本地数据存储</string>
+    <string name="manage_overrides">管理本地映射数据</string>
+    <string name="data_export">数据导出 (CSV/JSON/DB)</string>
+    <string name="import_backup_db">导入备份数据库</string>
+    <string name="clear_cache">清理缓存</string>
+    <string name="clear_all_data">清除全部本地数据</string>
+    <string name="display_and_experience">显示与体验</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="current_trip_route">当前行程路线</string>
+    <string name="map_animation_speed">地图动画播放速度</string>
+    <string name="playback_haptics">轨迹回放震动</string>
+    <string name="language_switch">语言切换</string>
+    <string name="about">关于</string>
+    <string name="version_number">版本号</string>
+    <string name="oss_acknowledgements">开源致谢</string>
+    <string name="feedback">反馈入口</string>
+
+    <!-- App update -->
+    <string name="check_for_updates">检查更新</string>
+    <string name="checking_for_updates">正在检查…</string>
+    <string name="app_up_to_date">当前已是最新版本</string>
+    <string name="app_no_release">暂无可用的正式发布版本</string>
+    <string name="app_update_failed">检查更新失败：%1$s</string>
+    <string name="app_update_available">发现新版本</string>
+    <string name="official_release_available">最新正式版可用</string>
+    <string name="app_update_testing_notice">测试版：下方正式版的版本号可能更低。</string>
+    <string name="app_update_versions">当前版本：%1$s\n最新版本：%2$s</string>
+    <string name="app_update_no_notes">此版本未提供更新说明。</string>
+    <string name="app_update_history_unavailable">历史说明加载失败，仅显示最新版说明。</string>
+    <string name="download_apk">下载 APK</string>
+    <string name="view_release">查看发布页</string>
+    <string name="update_later">稍后</string>
+    <string name="ignore_app_version">忽略此版本</string>
+    <string name="app_update_ignore_failed">忽略设置未保存，可能会再次提醒。</string>
+
+    <!-- NFC -->
+    <string name="nfc_not_supported">此设备不支持 NFC</string>
+    <string name="nfc_detecting">检测到卡片，正在读取…</string>
+    <string name="nfc_no_card">未检测到卡片</string>
+
+    <!-- Settings (code) -->
+    <string name="language_follow_system">跟随系统</string>
+    <string name="export_done">✓ 已导出 %s</string>
+    <string name="export_db_done">✓ 已导出数据库</string>
+    <string name="export_failed">导出失败: %s</string>
+    <string name="import_failed">导入失败: %s</string>
+    <string name="importing">正在导入…</string>
+    <string name="no_data">暂无数据</string>
+    <string name="card_sort_need_two">至少需要 2 张卡片</string>
+    <string name="db_select_title">选择数据库</string>
+    <string name="route_mode_endpoints">仅起终点</string>
+    <string name="route_mode_full">完整换乘</string>
+    <string name="route_mode_full_option">完整换乘过程</string>
+    <string name="export_title">导出数据</string>
+    <string name="export_csv">CSV 文件</string>
+    <string name="export_json">JSON 文件</string>
+    <string name="export_sqlite">SQLite 数据库 (.db)</string>
+    <string name="clear_all_data_message"><b>删除：</b>全部卡片与交易记录\n\n<b>此操作无法撤销。</b></string>
+    <string name="clear_all_data_done">✓ 已清除全部本地数据</string>
+    <string name="clear_cache_message"><b>清除：</b>界面缓存、地图路线\n<b>保留：</b>卡片与交易记录\n\n仅当内置站名库较新时才重置站名库。</string>
+    <string name="clear_cache_confirm">清理</string>
+    <string name="report_header">=== TransitU 读取数据 ===</string>
+    <string name="report_card">卡片: %1$s (%2$s)</string>
+    <string name="report_balance">余额: ¥%s</string>
+    <string name="report_txn_count">交易记录: %d 条</string>
+    <string name="report_txn_type">类型: %1$s  金额: %2$s</string>
+    <string name="report_txn_place">站点: %1$s  线路: %2$s</string>
+    <string name="report_txn_terminal">终端: %1$s  TypeHex: %2$s</string>
+    <string name="report_txn_balance">余额: %s</string>
+    <string name="report_apdu_header">=== APDU 原始日志 ===</string>
+
+    <!-- Transit types (display only; data keys stay Chinese) -->
+    <string name="transit_metro">地铁</string>
+    <string name="transit_bus">公交</string>
+    <string name="transit_recharge">充值</string>
+    <string name="transit_purchase">消费</string>
+    <string name="transit_convenience">便利店</string>
+    <string name="transit_tram">有轨电车</string>
+    <string name="transit_intercity">城际</string>
+    <string name="transit_rail">轨道交通</string>
+    <string name="transit_public">公共交通</string>
+    <string name="transit_other">其他</string>
+    <string name="amount_ticket_processing">票务处理</string>
+    <string name="amount_entry">进站</string>
+    <string name="amount_exit">出站</string>
+    <string name="amount_ride">乘车</string>
+
+    <!-- Database query -->
+    <string name="db_user_data">用户数据数据库</string>
+    <string name="db_transit">站名映射数据库</string>
+    <string name="db_prompt_copied">Prompt 已复制</string>
+    <string name="db_paste_first">请先点击“粘贴”输入 SQL</string>
+    <string name="db_querying">正在查询…</string>
+    <string name="db_result_truncated">（结果较大，仅显示部分内容）</string>
+    <plurals name="db_query_done">
+        <item quantity="other">查询完成：%d 行</item>
+    </plurals>
+    <string name="db_query_timeout">查询超时</string>
+    <string name="db_query_timeout_detail">超过 15 秒，已停止</string>
+    <string name="db_query_failed">查询失败</string>
+    <string name="db_no_columns">没有可显示的列</string>
+    <string name="db_result_empty">查询结果为空（0 行）</string>
+    <string name="db_err_missing_file">数据库文件不存在</string>
+    <string name="db_err_too_many_columns">查询结果列数不能超过 %d 列</string>
+    <string name="db_err_empty">SQL 不能为空</string>
+    <string name="db_err_select_only">只允许执行 SELECT 查询</string>
+    <string name="db_err_single">只允许执行一条 SQL</string>
+    <string name="db_err_read_only">只允许执行只读查询</string>
+
+    <!-- Card reading -->
+    <string name="nfc_no_isodep">该卡不支持 ISO-DEP</string>
+    <string name="nfc_interrupted">读取中断，请移开卡片重试</string>
+    <string name="nfc_unsupported_card">不支持的卡种</string>
+    <string name="nfc_saving">读取完成，可移开卡片，保存中…</string>
+    <string name="nfc_nothing_saved">没有可保存的数据，请移开卡片重试</string>
+    <plurals name="nfc_partial_saved">
+        <item quantity="other">读取中断，已保存 %d 条交易，可移开重试</item>
+    </plurals>
+    <string name="nfc_saved_no_txns">已保存卡片，无交易记录</string>
+    <plurals name="nfc_saved">
+        <item quantity="other">%1$s · 已保存 %2$d 条交易</item>
+    </plurals>
+    <string name="nfc_saved_ui_failed">已保存，但界面未刷新，请重开应用</string>
+    <string name="nfc_read_failed">读取失败，请移开卡片重试</string>
+
+    <!-- Status messages -->
+    <string name="feedback_save_failed">反馈保存失败：%s</string>
+    <string name="override_err_missing">override 不存在</string>
+    <string name="override_err_exists">该 Prefix+Code+Type 已存在</string>
+    <string name="override_saved">override 已保存：%s</string>
+    <string name="override_save_failed">override 保存失败：%s</string>
+    <string name="override_deleted">override 已删除，已恢复原映射</string>
+    <string name="override_delete_failed">override 删除失败：%s</string>
+    <string name="csv_header">序号,交易时间,类型,线路,站点,金额,交易后余额,终端编号</string>
+    <string name="import_done">已导入：%s</string>
+    <string name="list_separator">、</string>
+    <plurals name="import_cards">
+        <item quantity="other">新增 %d 张卡</item>
+    </plurals>
+    <plurals name="import_txns">
+        <item quantity="other">%d 条交易</item>
+    </plurals>
+    <plurals name="import_raw">
+        <item quantity="other">%d 条原始记录</item>
+    </plurals>
+    <plurals name="import_merged">
+        <item quantity="other">合并 %d 张重复卡</item>
+    </plurals>
+    <string name="err_read_selected_file">无法读取所选文件</string>
+    <string name="station_db_updated">✓ 站名映射表已更新</string>
+    <string name="station_db_update_failed">更新失败: %s</string>
+    <string name="cache_cleared_reset">✓ 已清理缓存，站名库已重置</string>
+    <string name="cache_cleared_kept">✓ 已清理缓存</string>
+    <string name="cache_clear_failed">清理失败: %s</string>
+    <string name="standard_tunion">交通联合</string>
+    <string name="standard_second">第二标准</string>
+    <string name="stats_day_of_month">%d号</string>
+
+    <!-- Transaction detail (code) -->
+    <string name="raw_copied">✓ 已复制原始数据</string>
+    <string name="feedback_saving">正在保存并上传…</string>
+    <string name="err_invalid_prefix">请填写有效的 Prefix</string>
+    <string name="err_invalid_code">请填写有效的 Code</string>
+    <string name="err_line_format">线路：单行，最多 128 字</string>
+    <string name="err_station_format">站名：单行，最多 128 字</string>
+    <string name="txn_type_metro_entry">地铁入站</string>
+    <string name="txn_type_metro_exit">地铁出站</string>
+    <string name="txn_type_bus_ride">公交乘车</string>
+    <string name="txn_type_small_purchase">小额消费</string>
+    <string name="txn_row_type">交易类型</string>
+    <string name="txn_row_amount">交易金额</string>
+    <string name="txn_row_balance">交易后余额</string>
+    <string name="txn_row_protocol">协议</string>
+    <string name="txn_row_terminal">终端编号</string>
+    <string name="txn_no_raw">无该交易原始数据</string>
+
+    <!-- Transaction list / time -->
+    <string name="filter_title">筛选类别</string>
+    <string name="action_view_details">查看详情</string>
+    <string name="action_view_context">查看上下文</string>
+    <string name="action_copy_transaction">复制交易信息</string>
+    <plurals name="txn_day_count">
+        <item quantity="other">%d 笔</item>
+    </plurals>
+    <string name="txn_day_spend">支出 ¥%s</string>
+    <string name="time_today">今天</string>
+    <string name="time_yesterday">昨天</string>
+    <string name="time_today_at">今天 %s</string>
+    <string name="time_yesterday_at">昨天 %s</string>
+    <plurals name="time_days_ago">
+        <item quantity="other">%d 天前</item>
+    </plurals>
+    <plurals name="time_weeks_ago">
+        <item quantity="other">%d 周前</item>
+    </plurals>
+
+    <!-- Home / card home (code) -->
+    <string name="err_unsupported_format">文件格式不受支持</string>
+    <string name="add_card_title">读取新卡片</string>
+    <string name="add_card_message">将卡贴在手机背面，保持不动。读完自动打开。</string>
+    <string name="import_old_progress">正在读取并合并备份…</string>
+    <string name="card_cd">%1$s，余额 %2$s 元</string>
+    <string name="read_at">读取于 %s</string>
+    <string name="discount_city_hint">%1$s：%2$s</string>
+    <string name="discount_tiered_next">已享 %1$s 折 · 满 ¥%2$d 起 %3$s 折，还差 ¥%4$s</string>
+    <string name="discount_tiered_max">已满 ¥%1$d，每乘次享 %2$s 折</string>
+    <string name="discount_threshold_first">当月消费满 ¥%1$d 享 %2$s 折 · 还差 ¥%3$s</string>
+    <string name="discount_threshold_next">已享 %1$s 折 · 超 ¥%2$d 部分享 %3$s 折，还差 ¥%4$s</string>
+    <string name="discount_threshold_max">已超 ¥%1$d，超出部分享 %2$s 折</string>
+    <string name="week_total">合计 ¥%s</string>
+    <string name="delete_card">删除卡片</string>
+    <string name="delete_card_message"><b>删除：</b>此卡及其全部交易\n\n<b>此操作无法撤销。</b></string>
+
+    <!-- Card colors -->
+    <string name="color_mint">薄荷</string>
+    <string name="color_peach">蜜桃</string>
+    <string name="color_lavender">薰衣草</string>
+    <string name="color_sky">天空蓝</string>
+    <string name="color_sakura">樱花粉</string>
+    <string name="color_lemon">柠檬黄</string>
+    <string name="color_matcha">抹茶</string>
+    <string name="color_coral">珊瑚</string>
+    <string name="color_lake">湖水青</string>
+    <string name="color_lilac">丁香紫</string>
+    <string name="color_apricot">杏色</string>
+    <string name="color_haze">雾霾蓝</string>
+
+    <!-- Card info (code) -->
+    <string name="card_raw_copied">已复制卡片原始数据</string>
+    <string name="card_info_std_issue_date">%s发行日期</string>
+    <string name="card_info_std_valid_until">%s有效期至</string>
+    <string name="card_color_title">选择卡面颜色</string>
+    <string name="card_rename_title">自定义卡片名称</string>
+    <string name="card_rename_hint">请输入卡片名称</string>
+    <string name="card_name_empty">卡片名称不能为空</string>
+
+    <!-- Stats (code) -->
+    <string name="stats_empty_spending">暂无支出数据，请先读取交通卡</string>
+    <string name="stats_empty">暂无数据，请先读取交通卡</string>
+    <string name="stats_donut_total">总开销</string>
+
+    <!-- Date range dialog -->
+    <string name="date_range_title">选择日期范围</string>
+    <string name="date_range_subtitle">选择要查看统计的开始和结束日期</string>
+    <string name="date_range_pick">选择日期</string>
+
+    <!-- Local mapping overrides (code) -->
+    <string name="override_delete_title">删除本地映射数据</string>
+    <string name="override_delete_message">将恢复该设备的原站名映射。</string>
+    <string name="override_err_prefix">Prefix 无效</string>
+    <string name="override_err_code">Code 无效</string>
+    <string name="override_err_type">Type 无效</string>
+    <string name="override_err_line">线路过长</string>
+    <string name="override_err_station">站名过长</string>
+    <string name="override_err_city">请选择数据库中的实际城市</string>
+    <string name="override_err_newline">字段不能包含换行</string>
+    <string name="override_err_unknown_city">未知城市码 %s</string>
+    <string name="override_import_row_error">第 %1$d 行：%2$s</string>
+    <string name="override_import_summary">覆盖已导入：新增 %1$d，修改 %2$d，未变 %3$d</string>
+    <string name="override_import_skipped">，跳过 %d</string>
+    <string name="override_import_failed">，失败 %d</string>
+
+    <!-- Feedback dialog (code) -->
+    <string name="feedback_type_required">请填写交通类型（最多 32 字）</string>
+    <string name="reorder_drag_cd">拖动排序</string>
+    <string name="reorder_move_up">上移</string>
+    <string name="reorder_move_down">下移</string>
+    <string name="feedback_help_text">• <b>城市前缀：</b>取自记录的 CITY 字段，一般保持预填。\n\n• <b>设备编号：</b>读卡器 Terminal 编号或 Line &amp; Station，纠错按它匹配。\n\n• <b>交通类型：</b>同编号不同类型视为不同读卡器；列表没有就选「其他」。\n\n• <b>线路 / 站名：</b>不确定/没有时可留空\n\n• <b>所在城市：</b>不参与匹配，仅随上传供开发者排查。\n\n• <b>公开上传：</b>开启用于改进内置数据；关闭仅存本机。\n\n• <b>提供更多信息：</b>默认关闭，开启后附带原始数据（余额、时间、金额）。</string>
+
+    <!-- Map trace (code) -->
+    <string name="map_no_trips">暂无行程数据</string>
+    <string name="map_route_disabled">路线服务未开通 · 已使用示意线</string>
+    <string name="map_route_quota">腾讯路线当日额度已用完 · 未缓存路线使用示意线</string>
+    <string name="map_route_loading">正在加载真实路线 %1$d/%2$d</string>
+    <string name="map_route_partial">部分路线使用示意线</string>
+    <string name="map_route_stale">含过期路线缓存</string>
+    <string name="map_route_estimate">按当前路网推算</string>
+    <string name="map_route_intercity">城际段仅按站点连接</string>
+    <string name="map_route_tencent">路线由腾讯地图推算</string>
+    <string name="map_route_may_differ">可能与实际乘坐不同</string>
+    <string name="map_transfer_to">换乘 %s</string>
+    <string name="map_transfer">换乘</string>
+    <string name="map_trip_time">%1$s · 用时 %2$s</string>
+    <string name="duration_minutes">%d 分钟</string>
+    <string name="duration_hours_minutes">%1$d 小时 %2$d 分钟</string>
+
+    <!-- Data-layer errors -->
+    <string name="update_err_release_version">无法识别发布版本号</string>
+    <string name="update_err_current_version">无法识别当前版本号</string>
+    <string name="update_err_history">无法读取历史更新说明</string>
+    <string name="update_err_rate_limited">GitHub 限流，请稍后再试</string>
+    <string name="update_err_http">GitHub 返回 HTTP %d</string>
+    <string name="upload_not_configured">未配置公开上传地址</string>
+    <string name="upload_done">公开纠错已上传</string>
+    <string name="upload_failed_http">公开上传失败（HTTP %d）</string>
+    <string name="upload_failed">公开上传失败：%s</string>
+    <string name="download_empty">下载内容为空</string>
+    <string name="override_csv_bad_header">override CSV 表头无效</string>
+    <string name="override_csv_bad_row">override CSV 第 %d 行格式无效</string>
+    <string name="db_err_rebuild">无法重建站名映射缓存</string>
+    <string name="db_err_dir">无法定位数据库目录</string>
+    <string name="err_write_target">无法写入目标文件</string>
+    <string name="err_tripreader_schema">不支持的 TripReader 数据库结构</string>
+    <string name="status_separator">；</string>
+    <plurals name="home_card_count">
+        <item quantity="other">%d 张</item>
+    </plurals>
+</resources>

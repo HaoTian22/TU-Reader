@@ -6,6 +6,8 @@ import java.io.IOException
 import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 data class AppRelease(
     val version: String,
@@ -36,13 +38,13 @@ class AppUpdateChecker(private val fetchRelease: (String) -> String? = ::fetchRe
             return AppUpdateResult.NoRelease
         }
         val tag = root.string("tag_name").orEmpty()
-        val latest = AppVersion.parse(tag) ?: throw IOException("无法识别发布版本号")
+        val latest = AppVersion.parse(tag) ?: throw IOException(L10n.str(R.string.update_err_release_version))
         if (latest.prerelease.isNotEmpty()) return AppUpdateResult.NoRelease
         val current = AppVersion.parse(currentVersion)
         val testingBuild = isTestingBuild || current?.prerelease?.isNotEmpty() == true
         // 测试版始终提供正式版入口，不以测试版的版本号阻止切换。
         if (!testingBuild) {
-            if (current == null) throw IOException("无法识别当前版本号")
+            if (current == null) throw IOException(L10n.str(R.string.update_err_current_version))
             if (latest <= current) return AppUpdateResult.UpToDate
         }
         val apkUrl = root.getAsJsonArray("assets")?.firstNotNullOfOrNull { element ->
@@ -78,7 +80,7 @@ class AppUpdateChecker(private val fetchRelease: (String) -> String? = ::fetchRe
         var page = 1
         while (true) {
             val json = fetchRelease("$RELEASES_API_URL?per_page=$PAGE_SIZE&page=$page")
-                ?: throw IOException("无法读取历史更新说明")
+                ?: throw IOException(L10n.str(R.string.update_err_history))
             val releases = JsonParser.parseString(json).asJsonArray
             for (element in releases) {
                 val root = element.asJsonObject
@@ -122,8 +124,8 @@ class AppUpdateChecker(private val fetchRelease: (String) -> String? = ::fetchRe
                     HttpURLConnection.HTTP_OK -> connection.inputStream.bufferedReader(Charsets.UTF_8)
                         .use { it.readText() }
                     HttpURLConnection.HTTP_NOT_FOUND -> null
-                    HttpURLConnection.HTTP_FORBIDDEN, 429 -> throw IOException("GitHub 请求受限，请稍后重试")
-                    else -> throw IOException("GitHub 返回 HTTP $status")
+                    HttpURLConnection.HTTP_FORBIDDEN, 429 -> throw IOException(L10n.str(R.string.update_err_rate_limited))
+                    else -> throw IOException(L10n.str(R.string.update_err_http, status))
                 }
             } finally {
                 connection.disconnect()

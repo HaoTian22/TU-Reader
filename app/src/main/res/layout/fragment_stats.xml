@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -33,7 +34,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="数据统计"
+                android:text="@string/stats_title"
                 android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -52,7 +53,7 @@
                     android:id="@+id/tvCardBadge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="深圳通 · 3821"
+                    tools:text="深圳通 · 3821"
                     android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:textStyle="bold"
@@ -76,25 +77,25 @@
             <TextView
                 android:id="@+id/segWeek"
                 style="@style/StatsPeriodChip"
-                android:text="本周" />
+                android:text="@string/period_week" />
 
             <TextView
                 android:id="@+id/segMonth"
                 style="@style/StatsPeriodChip"
                 android:layout_marginStart="8dp"
-                android:text="本月" />
+                android:text="@string/period_month" />
 
             <TextView
                 android:id="@+id/segYear"
                 style="@style/StatsPeriodChip"
                 android:layout_marginStart="8dp"
-                android:text="本年" />
+                android:text="@string/period_year" />
 
             <TextView
                 android:id="@+id/segCustom"
                 style="@style/StatsPeriodChip"
                 android:layout_marginStart="8dp"
-                android:text="自定义" />
+                android:text="@string/period_custom" />
         </LinearLayout>
 
         <!-- 周期导航（固定在顶部，作用于下方全部统计）：上一期 | 日期范围（+ 回到当前） | 下一期；自定义周期下隐藏 -->
@@ -111,7 +112,7 @@
             <TextView
                 android:id="@+id/btnPrevPeriod"
                 style="@style/StatsNavButton"
-                android:contentDescription="上一期"
+                android:contentDescription="@string/stats_prev_cd"
                 android:text="&#xF053;" />
 
             <LinearLayout
@@ -137,12 +138,12 @@
                     android:layout_marginStart="8dp"
                     android:background="@drawable/bg_nav_circle"
                     android:clickable="true"
-                    android:contentDescription="回到当前周期"
+                    android:contentDescription="@string/stats_current_cd"
                     android:focusable="true"
                     android:gravity="center"
                     android:paddingStart="10dp"
                     android:paddingEnd="10dp"
-                    android:text="&#xF2EA; 当前"
+                    android:text="@string/stats_now"
                     android:textColor="@color/accent"
                     android:textSize="11sp"
                     android:visibility="gone" />
@@ -151,7 +152,7 @@
             <TextView
                 android:id="@+id/btnNextPeriod"
                 style="@style/StatsNavButton"
-                android:contentDescription="下一期"
+                android:contentDescription="@string/stats_next_cd"
                 android:text="&#xF054;" />
         </LinearLayout>
 
@@ -178,14 +179,14 @@
                 android:paddingEnd="12dp"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="开始日期"
+                android:text="@string/label_start_date"
                 android:textColor="@color/ink_2"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="至"
+                android:text="@string/stats_range_to"
                 android:textColor="@color/ink_3"
                 android:textSize="13sp"
                 android:paddingStart="8dp"
@@ -202,7 +203,7 @@
                 android:paddingEnd="12dp"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="结束日期"
+                android:text="@string/label_end_date"
                 android:textColor="@color/ink_2"
                 android:textSize="13sp" />
 
@@ -215,7 +216,7 @@
                 android:id="@+id/tvCustomRangeHint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="点击选择日期"
+                android:text="@string/stats_tap_pick_date"
                 android:textColor="@color/ink_3"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -244,31 +245,31 @@
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="消费趋势" />
+                android:text="@string/stats_spending_trend" />
 
             <include android:id="@+id/cardTrend" layout="@layout/card_spending_trend" />
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="分类开销" />
+                android:text="@string/stats_by_category" />
 
             <include android:id="@+id/cardCategories" layout="@layout/card_spending_categories" />
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="城市开销" />
+                android:text="@string/stats_by_city" />
 
             <include android:id="@+id/cardCities" layout="@layout/card_spending_cities" />
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="常去车站 · Top 5" />
+                android:text="@string/stats_top_stations" />
 
             <include android:id="@+id/cardStations" layout="@layout/card_top_stations" />
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="常坐线路 · Top 5" />
+                android:text="@string/stats_top_lines" />
 
             <include android:id="@+id/cardLines" layout="@layout/card_top_lines" />
             </LinearLayout>

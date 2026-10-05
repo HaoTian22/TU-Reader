@@ -33,7 +33,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="交易详情"
+                android:text="@string/txn_detail_title"
                 android:textColor="@color/ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -165,7 +165,7 @@
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="交易信息" />
+                android:text="@string/txn_detail_info" />
 
             <LinearLayout
                 android:id="@+id/sectionTxn"
@@ -179,7 +179,7 @@
 
                 <TextView
                     style="@style/DetailSectionTitle"
-                    android:text="行程" />
+                    android:text="@string/txn_detail_trip" />
 
                 <LinearLayout
                     android:id="@+id/sectionTrip"
@@ -188,7 +188,7 @@
 
             <TextView
                 style="@style/DetailSectionTitle"
-                android:text="设备与协议" />
+                android:text="@string/txn_detail_device" />
 
             <LinearLayout
                 android:id="@+id/sectionDevice"
@@ -216,7 +216,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="原始数据"
+                    android:text="@string/label_raw_data"
                     android:textColor="@color/ink"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -225,10 +225,9 @@
                     android:id="@+id/btnCopyHex"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="&#xf0c5; 复制"
+                    android:text="@string/action_copy"
                     android:textColor="@color/accent"
                     android:textSize="12sp"
-                    android:tag="fa"
                     android:clickable="true"
                     android:focusable="true" />
 
@@ -237,7 +236,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="&#xf075; 反馈"
+                    android:text="@string/action_report"
                     android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:clickable="true"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.StationResolution
+import com.example.nfctransit.util.AppLanguage
 import com.google.gson.Gson
 import java.util.Locale
 import kotlinx.coroutines.runBlocking
@@ -14,18 +15,12 @@ import kotlinx.coroutines.runBlocking
  * 底层由 Room SQLite（预置 assets/data/transit.db，tools/update_transit_db.py 生成）提供；
  * 首次访问时把全部站点解析结果载入内存索引（约 2.7 万行），读卡链路为纯内存查询。
  *
- * 站点/线路在应用内以数据库 ID（stationId / lineId）传递，名称按界面语言（system/zh/en）即时解析，
+ * 站点/线路在应用内以数据库 ID（stationId / lineId）传递，名称按界面语言（AppLanguage）即时解析，
  * 避免持久化/页面间直接传名字导致渲染错乱，也便于切换语言时直接转换。
  */
 object TransitData {
 
     private const val ROOT = "data"
-
-    private const val PREFS = "transit_prefs"
-    private const val KEY_LANG = "display_lang"
-    private const val LANG_SYSTEM = "system"
-    private const val LANG_ZH = "zh"
-    private const val LANG_EN = "en"
 
     // 特殊匹配规则标记（详情页 Match 行展示）：命中经特殊规则解析时附加到 device_code 之后
     private const val SP_RULE_GUANGZHOU_FOSHAN = "(SP Rule: Guangzhou/Foshan)"
@@ -212,6 +207,13 @@ object TransitData {
             j = i
         }
         return inside
+    }
+
+    /** 中文城市名（UI 模型里的城市键）-> 当前界面语言的显示名；英文缺失或未知城市时原样返回 */
+    fun cityLabel(cityZh: String): String {
+        if (cityZh.isEmpty() || !useEnglish()) return cityZh
+        ensureLoaded()
+        return cityInfos.values.firstOrNull { it.zh == cityZh }?.en?.takeIf { it.isNotBlank() } ?: cityZh
     }
 
     /** 城市码 -> 中文城市名（如 "广州"），未知时返回原城市码 */
@@ -726,27 +728,8 @@ object TransitData {
         }
     }
 
-    /** 站点/线路显示语言："system" 跟随系统，否则强制 zh / en */
-    fun getDisplayLanguage(): String {
-        val ctx = appContext ?: return LANG_SYSTEM
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_LANG, LANG_SYSTEM) ?: LANG_SYSTEM
-    }
-
-    /** 设置站点/线路显示语言并立即生效（下次读取即可用） */
-    fun setDisplayLanguage(lang: String) {
-        val ctx = appContext ?: return
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY_LANG, lang).apply()
-    }
-
-    private fun useEnglish(): Boolean {
-        return when (getDisplayLanguage()) {
-            LANG_EN -> true
-            LANG_ZH -> false
-            else -> Locale.getDefault().language == "en"
-        }
-    }
+    /** 站点/线路名跟随界面语言：中文界面用中文名，其他语言优先英文名 */
+    private fun useEnglish(): Boolean = !AppLanguage.isChinese()
 
     /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID。
      *  空站名/空线路名的大类 fallback 设备 → 站名回退到线路名或交通类型（空串也要兜底，不能用 ?: 只对 null 生效） */

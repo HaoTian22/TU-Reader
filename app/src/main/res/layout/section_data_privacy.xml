@@ -7,7 +7,7 @@
 
     <TextView
         style="@style/SettingsSectionTitle"
-        android:text="数据与隐私" />
+        android:text="@string/data_and_privacy" />
 
     <LinearLayout style="@style/SettingsSectionCard">
 
@@ -38,7 +38,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="本地数据存储"
+                android:text="@string/local_data_storage"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -80,7 +80,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="查看数据库"
+                android:text="@string/db_query_title"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -122,7 +122,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="管理本地映射数据"
+                android:text="@string/manage_overrides"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -164,7 +164,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="数据导出 (CSV/JSON/DB)"
+                android:text="@string/data_export"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
             <TextView
@@ -211,7 +211,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="导入备份数据库"
+                    android:text="@string/import_backup_db"
                     android:textColor="@color/ink"
                     android:textSize="14sp" />
                 <TextView
@@ -271,7 +271,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="清理缓存"
+                    android:text="@string/clear_cache"
                     android:textColor="@color/ink"
                     android:textSize="14sp" />
                 <!-- 右侧状态：箭头 / 清理中进度环 / 成功 ✓ / 失败 ⚠（同一位置切换，与「站名映射表更新」一致） -->
@@ -335,7 +335,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="清除全部本地数据"
+                android:text="@string/clear_all_data"
                 android:textColor="@color/danger"
                 android:textSize="14sp" />
             <TextView

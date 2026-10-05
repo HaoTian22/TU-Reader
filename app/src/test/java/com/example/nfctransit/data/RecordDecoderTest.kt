@@ -29,7 +29,7 @@ class RecordDecoderTest {
                         assertEquals("1200${ApduUtil.bytesToHex(byteArrayOf(seconds.toByte()))}", tx.time)
                         assertEquals("09", tx.typeHex)
                         assertNull(tx.direction)
-                        assertEquals(type?.let { TransitData.transitTypeLabel(it) } ?: "公共交通", tx.transitType)
+                        assertEquals(type ?: "公共交通", tx.transitType)
                         val field = RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last()
                         assertEquals("Seconds", field.label)
                         assertEquals("BCD", field.method)
@@ -59,7 +59,7 @@ class RecordDecoderTest {
                 val record = lntRecord(1, 1, "0101", 0x09, subtype, "990030180001")
                 val tx = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026).display.single()
                 assertEquals("120000", tx.time)
-                assertEquals(TransitData.transitTypeLabel("地铁"), tx.transitType)
+                assertEquals("地铁", tx.transitType)
                 assertEquals(if (subtype == 0x11) TransitDirection.ENTRY else TransitDirection.EXIT, tx.direction)
                 assertEquals("Subtype", RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last().label)
             }
@@ -83,7 +83,7 @@ class RecordDecoderTest {
                     val record = lntRecord(1, 1, "0101", 0x09, subtype, "990030180001")
                     val tx = RecordDecoder.decodeCard("YCT", listOf(record), 202601, 2026).display.single()
                     assertEquals("120000", tx.time)
-                    assertEquals(type?.let { TransitData.transitTypeLabel(it) } ?: "地铁", tx.transitType)
+                    assertEquals(type ?: "地铁", tx.transitType)
                     assertEquals(if (type == null) TransitDirection.EXIT else null, tx.direction)
                     assertEquals("Subtype", RawHexFormatter.fieldsFor(0x18, 23, "LNT", record.hex).last().label)
                 }
@@ -104,7 +104,7 @@ class RecordDecoderTest {
     fun lntExitSubtypesUseBusMappingWithoutRailDirection() = withDeviceMappings(listOf(lntMapping("公交"))) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
-            assertEquals(TransitData.transitTypeLabel("公交"), tx.transitType)
+            assertEquals("公交", tx.transitType)
             assertEquals("测试公交", tx.lineName)
             assertEquals("99000018", tx.deviceCode)
             assertEquals("09", tx.typeHex)
@@ -119,7 +119,7 @@ class RecordDecoderTest {
     )) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
-            assertEquals(TransitData.transitTypeLabel("地铁"), tx.transitType)
+            assertEquals("地铁", tx.transitType)
             assertEquals("测试站", tx.stationName)
             assertEquals("990000180001", tx.deviceCode)
             assertEquals(TransitDirection.EXIT, tx.direction)
@@ -140,7 +140,7 @@ class RecordDecoderTest {
     fun lntExitSubtypesKeepNonRailMapping() = withDeviceMappings(listOf(lntMapping("便利店"))) {
         for (subtype in listOf(0x17, 0x31)) {
             val tx = decodeLnt(subtype = subtype)
-            assertEquals(TransitData.transitTypeLabel("便利店"), tx.transitType)
+            assertEquals("便利店", tx.transitType)
             assertNull(tx.direction)
         }
     }
@@ -270,7 +270,7 @@ class RecordDecoderTest {
                     .display.single()
                 assertEquals("06", tx.typeHex)
                 assertEquals("99000018", tx.deviceCode)
-                assertEquals(TransitData.transitTypeLabel(type), tx.transitType)
+                assertEquals(type, tx.transitType)
                 assertEquals(if (type == "地铁") TransitDirection.ENTRY else null, tx.direction)
             }
         }

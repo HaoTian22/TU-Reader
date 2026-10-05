@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 统计摘要：一张白卡三栏（总消费 / 乘车次数 / 日均消费），栏间竖分隔线 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginStart="20dp"
@@ -16,7 +17,7 @@
 
         <TextView
             style="@style/StatsSummaryLabel"
-            android:text="总消费" />
+            android:text="@string/stats_total_spending" />
 
         <TextView
             android:id="@+id/sumTotalSpending"
@@ -30,12 +31,12 @@
 
         <TextView
             style="@style/StatsSummaryLabel"
-            android:text="乘车次数" />
+            android:text="@string/stats_ride_count" />
 
         <TextView
             android:id="@+id/sumRideCount"
             style="@style/StatsSummaryValue"
-            android:text="0 次" />
+            tools:text="0 次" />
     </LinearLayout>
 
     <View style="@style/StatsSummaryDivider" />
@@ -44,7 +45,7 @@
 
         <TextView
             style="@style/StatsSummaryLabel"
-            android:text="日均消费" />
+            android:text="@string/stats_daily_avg" />
 
         <TextView
             android:id="@+id/sumAvgDaily"

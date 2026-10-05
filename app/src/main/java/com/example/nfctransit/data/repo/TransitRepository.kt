@@ -31,6 +31,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 /** 导入数据库的结果统计（新增卡片/原始记录/交易行数） */
 data class ImportSummary(
@@ -283,7 +285,7 @@ class TransitRepository(private val context: Context) {
             .use { cursor -> cursor.moveToFirst() }
         val src = context.getDatabasePath(UserDatabase.DB_NAME)
         val out = context.contentResolver.openOutputStream(dest)
-            ?: throw IOException("无法写入目标文件")
+            ?: throw IOException(L10n.str(R.string.err_write_target))
         out.use { FileInputStream(src).use { input -> input.copyTo(out) } }
     }
 

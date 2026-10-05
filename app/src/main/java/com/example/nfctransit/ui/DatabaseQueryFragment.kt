@@ -78,12 +78,12 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             binding.btnPasteSql.setTextColor(accentColor)
             binding.btnRunSql.backgroundTintList = ColorStateList.valueOf(accentColor)
         }
-        binding.tvDatabaseTitle.text = spec.displayName
+        binding.tvDatabaseTitle.setText(spec.displayNameRes)
         binding.tvPrompt.text = spec.prompt
         binding.btnCopyPrompt.setOnClickListener { copyPrompt(spec.prompt) }
         binding.btnPasteSql.setOnClickListener { showSqlDialog() }
         binding.btnRunSql.setOnClickListener { runQuery() }
-        showEmptyResult("运行 SQL 后在此显示结果")
+        showEmptyResult(getString(R.string.db_query_results_placeholder))
 
         val loadRevision = sqlRevision
         viewLifecycleOwner.lifecycleScope.launch {
@@ -111,8 +111,8 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
     private fun copyPrompt(prompt: String) {
         val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE)
             as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("数据库查询 prompt", prompt))
-        showStatus("Prompt 已复制，可粘贴给 AI")
+        clipboard.setPrimaryClip(ClipData.newPlainText("prompt", prompt))
+        showStatus(getString(R.string.db_prompt_copied))
     }
 
     private fun showSqlDialog() {
@@ -179,7 +179,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
 
     private fun updateSqlPreview() {
         val preview = savedSql.trim().replace(Regex("\\s+"), " ")
-        binding.tvSqlPreview.text = if (preview.isEmpty()) "尚未粘贴 SQL" else preview
+        binding.tvSqlPreview.text = if (preview.isEmpty()) getString(R.string.db_query_no_sql) else preview
         binding.tvSqlPreview.setTextColor(
             if (preview.isEmpty()) Palette.INK_3 else Palette.INK_2
         )
@@ -188,7 +188,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
     private fun runQuery() {
         val sql = savedSql.trim()
         if (sql.isEmpty()) {
-            showStatus("请先点击“粘贴”输入 SQL", error = true)
+            showStatus(getString(R.string.db_paste_first), error = true)
             return
         }
         queryRevision++
@@ -198,7 +198,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val spec = databaseSpec
         binding.btnRunSql.isEnabled = false
         binding.tvResultsEmpty.visibility = View.GONE
-        showStatus("正在查询…")
+        showStatus(getString(R.string.db_querying))
         queryJob = viewLifecycleOwner.lifecycleScope.launch {
             val cancellationSignal = CancellationSignal()
             val cancellationHandle = coroutineContext[Job]?.invokeOnCompletion {
@@ -216,19 +216,19 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
                 }
                 if (generation != queryRevision || _binding == null) return@launch
                 renderResult(result)
-                val suffix = if (result.truncated) "（结果较大，仅显示部分内容）" else ""
-                showStatus("查询完成：${result.rows.size} 行$suffix")
+                val suffix = if (result.truncated) getString(R.string.db_result_truncated) else ""
+                showStatus(resources.getQuantityString(R.plurals.db_query_done, result.rows.size, result.rows.size) + suffix)
             } catch (e: CancellationException) {
                 if (timedOut && generation == queryRevision && _binding != null) {
-                    showEmptyResult("查询超时")
-                    showStatus("查询超过 15 秒，已停止", error = true)
+                    showEmptyResult(getString(R.string.db_query_timeout))
+                    showStatus(getString(R.string.db_query_timeout_detail), error = true)
                 } else {
                     throw e
                 }
             } catch (e: Exception) {
                 if (timedOut && generation == queryRevision && _binding != null) {
-                    showEmptyResult("查询超时")
-                    showStatus("查询超过 15 秒，已停止", error = true)
+                    showEmptyResult(getString(R.string.db_query_timeout))
+                    showStatus(getString(R.string.db_query_timeout_detail), error = true)
                     return@launch
                 }
                 if (coroutineContext[Job]?.isActive != true ||
@@ -236,8 +236,8 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
                 ) {
                     return@launch
                 }
-                showEmptyResult("查询失败")
-                showStatus(e.message ?: "查询失败", error = true)
+                showEmptyResult(getString(R.string.db_query_failed))
+                showStatus(e.message ?: getString(R.string.db_query_failed), error = true)
             } finally {
                 timeoutJob.cancel()
                 cancellationHandle?.dispose()
@@ -252,7 +252,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val table = binding.resultsTable
         table.removeAllViews()
         if (result.columns.isEmpty()) {
-            showEmptyResult("没有可显示的列")
+            showEmptyResult(getString(R.string.db_no_columns))
             return
         }
         table.addView(buildTableRow(result.columns, header = true, rowIndex = 0))
@@ -260,7 +260,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             table.addView(buildTableRow(row, header = false, rowIndex = index + 1))
         }
         binding.tvResultsEmpty.visibility = if (result.rows.isEmpty()) View.VISIBLE else View.GONE
-        if (result.rows.isEmpty()) binding.tvResultsEmpty.text = "查询结果为空（0 行）"
+        if (result.rows.isEmpty()) binding.tvResultsEmpty.setText(R.string.db_result_empty)
     }
 
     private fun buildTableRow(

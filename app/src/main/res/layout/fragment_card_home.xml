@@ -44,7 +44,7 @@
                         android:id="@+id/btnBack"
                         style="@style/CardHomeHeaderButton"
                         android:layout_gravity="start|center_vertical"
-                        android:contentDescription="返回"
+                        android:contentDescription="@string/cd_back"
                         android:text="&#xF053;" />
 
                     <TextView
@@ -62,7 +62,7 @@
                         android:id="@+id/btnMore"
                         style="@style/CardHomeHeaderButton"
                         android:layout_gravity="end|center_vertical"
-                        android:contentDescription="更多"
+                        android:contentDescription="@string/cd_more"
                         android:text="&#xF141;" />
                 </FrameLayout>
 
@@ -119,7 +119,7 @@
 
                     <TextView
                         style="@style/CardHomeActionLabel"
-                        android:text="交易记录" />
+                        android:text="@string/transactions" />
                 </LinearLayout>
 
                 <View style="@style/CardHomeActionDivider" />
@@ -135,7 +135,7 @@
 
                     <TextView
                         style="@style/CardHomeActionLabel"
-                        android:text="统计" />
+                        android:text="@string/card_home_stats" />
                 </LinearLayout>
 
                 <View style="@style/CardHomeActionDivider" />
@@ -151,7 +151,7 @@
 
                     <TextView
                         style="@style/CardHomeActionLabel"
-                        android:text="轨迹" />
+                        android:text="@string/card_home_trace" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -169,7 +169,7 @@
                         style="@style/CardHomeSectionTitle"
                         android:layout_width="wrap_content"
                         android:layout_weight="0"
-                        android:text="本月优惠" />
+                        android:text="@string/card_home_monthly_discount" />
 
                     <TextView
                         android:id="@+id/tvDiscountMonth"
@@ -193,7 +193,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="本月累计乘车消费"
+                        android:text="@string/card_home_monthly_ride_spend"
                         android:textColor="@color/ink_3"
                         android:textSize="12sp" />
 
@@ -221,12 +221,12 @@
 
                 <TextView
                     style="@style/CardHomeSectionTitle"
-                    android:text="最近交易" />
+                    android:text="@string/card_home_recent" />
 
                 <TextView
                     android:id="@+id/btnViewAll"
                     style="@style/CardHomeSectionLink"
-                    android:text="全部 ›" />
+                    android:text="@string/card_home_view_all" />
             </LinearLayout>
 
             <LinearLayout
@@ -247,7 +247,7 @@
                     style="@style/CardHomeSectionTitle"
                     android:layout_width="wrap_content"
                     android:layout_weight="0"
-                    android:text="本周消费" />
+                    android:text="@string/card_home_week_spending" />
 
                 <TextView
                     android:id="@+id/tvWeekTotal"
@@ -261,7 +261,7 @@
                 <TextView
                     android:id="@+id/btnMiniStatsAll"
                     style="@style/CardHomeSectionLink"
-                    android:text="统计 ›" />
+                    android:text="@string/card_home_view_stats" />
             </LinearLayout>
 
             <LinearLayout style="@style/CardHomeSectionCard">

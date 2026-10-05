@@ -2,6 +2,8 @@ package com.example.nfctransit.data.repo
 
 import android.database.sqlite.SQLiteDatabase
 import java.io.File
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 /** TripReader（card_table / tran_table）数据库的只读解析结果 */
 data class TripReaderSource(
@@ -86,7 +88,7 @@ object TripReaderDatabase {
         val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
         try {
             val schema = schemaFor(db)
-                ?: throw IllegalArgumentException("不支持的 TripReader 数据库结构")
+                ?: throw IllegalArgumentException(L10n.str(R.string.err_tripreader_schema))
             val cards = mutableListOf<TripReaderCard>()
             db.rawQuery("SELECT * FROM ${schema.cardTable}", null).use { c ->
                 val iRaw = c.getColumnIndex(schema.cardRawNo)

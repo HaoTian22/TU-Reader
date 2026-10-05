@@ -10,6 +10,8 @@ import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.data.prefs.AppPreferences
 import java.io.File
 import kotlinx.coroutines.runBlocking
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 /**
  * 站点/线路/城市映射数据库。
@@ -64,7 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                     val file = appContext.getDatabasePath(DB_NAME)
                     // transit.db 是可重建的映射缓存；升级时直接读取新资产，不迁移旧表。
                     if (file.exists() && !hasCurrentSchema(file)) {
-                        check(appContext.deleteDatabase(DB_NAME)) { "无法重建站名映射缓存" }
+                        check(appContext.deleteDatabase(DB_NAME)) { L10n.str(R.string.db_err_rebuild) }
                         UiCache.clearAll(appContext)
                         runBlocking {
                             AppPreferences.setDbVersion(appContext, TransitDbVersion.readAssetVersion(appContext) ?: "0")
@@ -103,7 +105,7 @@ abstract class AppDatabase : RoomDatabase() {
             instance = null
 
             val dest = appContext.getDatabasePath(DB_NAME)
-            val dir = dest.parentFile ?: throw IllegalStateException("无法定位数据库目录")
+            val dir = dest.parentFile ?: throw IllegalStateException(L10n.str(R.string.db_err_dir))
             val staged = File(dir, "$DB_NAME.downloaded")
             downloaded.copyTo(staged, overwrite = true)
             appContext.deleteDatabase(DB_NAME)

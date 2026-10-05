@@ -10,6 +10,7 @@ import android.util.AttributeSet
 import android.view.View
 import com.example.nfctransit.model.CategorySpending
 import kotlin.math.min
+import com.example.nfctransit.R
 
 /** 环形饼图（空心圆）：按分类画圆弧，中心显示总开销 */
 class DonutChartView @JvmOverloads constructor(
@@ -83,7 +84,8 @@ class DonutChartView @JvmOverloads constructor(
         var scale = 1f
         val amountW = amountPaint.measureText(totalText)
         if (amountW > maxTextW) scale = min(scale, maxTextW / amountW)
-        val labelW = labelPaint.measureText("总开销")
+        val totalLabel = context.getString(R.string.stats_donut_total)
+        val labelW = labelPaint.measureText(totalLabel)
         if (labelW > maxTextW) scale = min(scale, maxTextW / labelW)
         val baseGlyphH = Rect().also { amountPaint.getTextBounds(totalText, 0, totalText.length, it) }.height().toFloat()
         val baseBlockH = labelLineH + gap + baseGlyphH
@@ -102,7 +104,7 @@ class DonutChartView @JvmOverloads constructor(
         val labelBaseline = blockTop - lFm.top
         // 金额字形顶部贴到标签基线，去掉标签 descender 与数字行顶部留白，两行间距尽量小
         val amountBaseline = labelBaseline + gap - aTop
-        canvas.drawText("总开销", centerX, labelBaseline, labelPaint)
+        canvas.drawText(totalLabel, centerX, labelBaseline, labelPaint)
         canvas.drawText(totalText, centerX, amountBaseline, amountPaint)
     }
 

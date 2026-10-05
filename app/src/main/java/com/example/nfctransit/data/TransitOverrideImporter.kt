@@ -9,6 +9,8 @@ import com.example.nfctransit.data.db.StationEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 object TransitOverrideImporter {
     private val codeRegex = Regex("[0-9A-Za-z]+")
@@ -31,7 +33,7 @@ object TransitOverrideImporter {
                 val error = validate(row)
                 if (error != null) {
                     skipped++
-                    errors += "第 ${index + 2} 行：$error"
+                    errors += L10n.str(R.string.override_import_row_error, index + 2, error)
                     return@forEachIndexed
                 }
                 val existing = dao.getDeviceByCode(row.deviceCode, row.type)
@@ -49,7 +51,7 @@ object TransitOverrideImporter {
                         ?: dao.getCity(row.prefix)
                 if (city == null) {
                     skipped++
-                    errors += "第 ${index + 2} 行：未知城市码 ${requestedLocation ?: row.prefix}"
+                    errors += L10n.str(R.string.override_import_row_error, index + 2, L10n.str(R.string.override_err_unknown_city, requestedLocation ?: row.prefix))
                     return@forEachIndexed
                 }
                 val lineId = row.line.takeIf { it.isNotBlank() }?.let { line ->
@@ -107,13 +109,13 @@ object TransitOverrideImporter {
     }
 
     private fun validate(row: TransitOverrideRow): String? {
-        if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return "Prefix 无效"
-        if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return "Code 无效"
-        if (row.type.isBlank() || row.type.length > 32) return "Type 无效"
-        if (row.line.length > 128) return "线路过长"
-        if (row.station.length > 128) return "站名过长"
+        if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return L10n.str(R.string.override_err_prefix)
+        if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return L10n.str(R.string.override_err_code)
+        if (row.type.isBlank() || row.type.length > 32) return L10n.str(R.string.override_err_type)
+        if (row.line.length > 128) return L10n.str(R.string.override_err_line)
+        if (row.station.length > 128) return L10n.str(R.string.override_err_station)
         if (listOf(row.type, row.line, row.station).any { it.contains('\n') || it.contains('\r') }) {
-            return "字段不能包含换行"
+            return L10n.str(R.string.override_err_newline)
         }
         return null
     }

@@ -26,7 +26,7 @@
             android:layout_weight="1"
             android:fontFamily="sans-serif-medium"
             android:paddingTop="8dp"
-            android:text="反馈站名纠错"
+            android:text="@string/feedback_title"
             android:textColor="@color/ink"
             android:textSize="20sp" />
 
@@ -36,7 +36,7 @@
             android:layout_height="40dp"
             android:background="@drawable/bg_back_button"
             android:clickable="true"
-            android:contentDescription="填写说明"
+            android:contentDescription="@string/feedback_help"
             android:focusable="true"
             android:gravity="center"
             android:text="&#xf059;"
@@ -50,7 +50,7 @@
         android:layout_marginTop="6dp"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
-        android:text="保存后会立即应用到本机站名映射表"
+        android:text="@string/feedback_subtitle"
         android:textColor="@color/ink_3"
         android:textSize="13sp" />
 
@@ -81,7 +81,7 @@
             <!-- 读卡器 -->
             <TextView
                 style="@style/FeedbackSection"
-                android:text="读卡器" />
+                android:text="@string/feedback_section_reader" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -97,7 +97,7 @@
 
                     <TextView
                         style="@style/FeedbackLabel"
-                        android:text="城市前缀" />
+                        android:text="@string/feedback_city_prefix" />
 
                     <EditText
                         android:id="@+id/feedbackPrefix"
@@ -114,7 +114,7 @@
 
                     <TextView
                         style="@style/FeedbackLabel"
-                        android:text="设备编号" />
+                        android:text="@string/feedback_device_code" />
 
                     <EditText
                         android:id="@+id/feedbackCode"
@@ -127,7 +127,7 @@
             <TextView
                 style="@style/FeedbackLabel"
                 android:layout_marginTop="12dp"
-                android:text="交通类型" />
+                android:text="@string/feedback_transit_type" />
 
             <!-- 胶囊单选：芯片由代码按常用类型生成，每行最多 4 个、等分铺满整行，
                  选中态底色/字色按卡片主题色设置；「其他」展开下方输入框，填写列表外的类型 -->
@@ -141,43 +141,43 @@
                 android:id="@+id/feedbackTypeCustom"
                 style="@style/FeedbackField"
                 android:layout_marginTop="8dp"
-                android:hint="输入交通类型，如 轮渡、单轨"
+                android:hint="@string/feedback_transit_type_hint"
                 android:visibility="gone" />
 
             <!-- 实际位置 -->
             <TextView
                 style="@style/FeedbackSection"
                 android:layout_marginTop="20dp"
-                android:text="实际位置" />
+                android:text="@string/feedback_section_location" />
 
             <TextView
                 style="@style/FeedbackLabel"
-                android:text="线路" />
+                android:text="@string/label_line" />
 
             <EditText
                 android:id="@+id/feedbackLine"
                 style="@style/FeedbackField"
-                android:hint="可留空" />
+                android:hint="@string/hint_optional" />
 
             <TextView
                 style="@style/FeedbackLabel"
                 android:layout_marginTop="12dp"
-                android:text="站名" />
+                android:text="@string/label_station" />
 
             <EditText
                 android:id="@+id/feedbackStation"
                 style="@style/FeedbackField"
-                android:hint="可留空" />
+                android:hint="@string/hint_optional" />
 
             <!-- 补充信息：城市不参与映射，仅随公开上传提供给开发者排查 -->
             <TextView
                 style="@style/FeedbackSection"
                 android:layout_marginTop="20dp"
-                android:text="补充信息" />
+                android:text="@string/feedback_section_extra" />
 
             <TextView
                 style="@style/FeedbackLabel"
-                android:text="所在城市（供开发者排查）" />
+                android:text="@string/feedback_city" />
 
             <!-- 城市选择：胶囊框 + 下拉箭头，点按展开与弹窗同风格的候选列表，也可输入筛选 -->
             <FrameLayout
@@ -189,7 +189,7 @@
                     style="@style/FeedbackField"
                     android:completionThreshold="1"
                     android:dropDownVerticalOffset="6dp"
-                    android:hint="选择或输入城市"
+                    android:hint="@string/feedback_city_hint"
                     android:paddingEnd="44dp"
                     android:popupBackground="@drawable/bg_dropdown_popup" />
 
@@ -231,7 +231,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="公开上传纠错"
+                        android:text="@string/feedback_public_upload"
                         android:textColor="@color/ink"
                         android:textSize="14sp" />
 
@@ -239,7 +239,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="帮助提升站名数据的准确度"
+                        android:text="@string/feedback_public_upload_desc"
                         android:textColor="@color/ink_3"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -273,7 +273,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="提供更多信息"
+                        android:text="@string/feedback_more_info"
                         android:textColor="@color/ink"
                         android:textSize="14sp" />
 
@@ -281,7 +281,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="随公开纠错上传该条原始数据，可能包含余额、交易时间、金额等信息"
+                        android:text="@string/feedback_more_info_desc"
                         android:textColor="@color/ink_3"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -291,7 +291,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:checked="false"
-                    android:contentDescription="提供更多信息" />
+                    android:contentDescription="@string/feedback_more_info" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
@@ -325,7 +325,7 @@
             android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:text="取消"
+            android:text="@string/action_cancel"
             android:textColor="@color/ink_2"
             android:textSize="14sp" />
 
@@ -341,7 +341,7 @@
             android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:text="保存"
+            android:text="@string/action_save"
             android:textColor="@color/accent"
             android:textSize="14sp" />
     </LinearLayout>

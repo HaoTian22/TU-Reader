@@ -6,6 +6,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import com.example.nfctransit.R
+import com.example.nfctransit.util.L10n
 
 /** 站名映射表（transit.db）在线更新：从固定 HTTPS 地址下载到缓存目录，供后续校验替换 */
 object StationDbUpdater {
@@ -59,7 +61,7 @@ object StationDbUpdater {
                     }
                 }
             }
-            if (tmp.length() == 0L) throw IOException("下载内容为空")
+            if (tmp.length() == 0L) throw IOException(L10n.str(R.string.download_empty))
             val lastModified = connection.getHeaderFieldDate("Last-Modified", 0L)
             return DownloadedDb(tmp, lastModified.takeIf { it > 0 })
         } finally {

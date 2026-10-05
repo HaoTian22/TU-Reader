@@ -68,6 +68,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.nfctransit.util.AppLanguage
+import com.example.nfctransit.util.L10n
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -91,11 +93,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val isoDep = IsoDep.get(tag)
                 if (isoDep == null) {
-                    _nfcReadMessage.value = "该卡不支持 ISO-DEP"
+                    _nfcReadMessage.value = L10n.str(R.string.nfc_no_isodep)
                     return@launch
                 }
                 activeIsoDep = isoDep
-                _nfcReadMessage.value = getApplication<Application>().getString(R.string.nfc_detecting)
+                _nfcReadMessage.value = L10n.str(R.string.nfc_detecting)
                 val startedAt = SystemClock.elapsedRealtime()
                 val result = withContext(Dispatchers.IO) { TransitCardReader(isoDep).read() }
                 activeIsoDep = null
@@ -105,27 +107,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 currentSessionNfcLog = result.rawLog
                 _nfcLog.value = result.rawLog
                 if (result.matchedProfile == null) {
-                    _nfcReadMessage.value = if (result.readError != null) "连接或读取中断，请移开卡片后重试"
-                        else "未识别出支持的卡种"
+                    _nfcReadMessage.value = if (result.readError != null) L10n.str(R.string.nfc_interrupted)
+                        else L10n.str(R.string.nfc_unsupported_card)
                     return@launch
                 }
-                _nfcReadMessage.value = "卡片读取结束，可移开卡片，正在保存…"
+                _nfcReadMessage.value = L10n.str(R.string.nfc_saving)
                 val saved = cardStateCoordinator.withRestoredState { applyNfcData(result) }
                 _nfcReadMessage.value = when {
-                    !saved -> "未读取到可保存的卡片信息，请移开卡片后重试"
-                    result.readError != null -> "读取中断，已保存读到的数据（$lastReadCount 条交易），可移开后重试"
-                    lastReadCount == 0 -> "卡片信息和余额已保存，未读取到交易记录"
-                    else -> "识别为：${result.matchedProfile.name}，已保存 $lastReadCount 条交易"
+                    !saved -> L10n.str(R.string.nfc_nothing_saved)
+                    result.readError != null -> L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount)
+                    lastReadCount == 0 -> L10n.str(R.string.nfc_saved_no_txns)
+                    else -> L10n.plural(R.plurals.nfc_saved, lastReadCount, result.matchedProfile.name, lastReadCount)
                 }
                 Log.d("TransitReader", "NFC task finished after ${SystemClock.elapsedRealtime() - startedAt} ms; saved=$saved")
             } catch (error: CancellationException) {
                 throw error
             } catch (error: NfcDataSavedException) {
                 Log.e("TransitReader", "数据已保存，界面重建失败", error)
-                _nfcReadMessage.value = "卡片数据已保存，但显示更新失败，请重新打开应用"
+                _nfcReadMessage.value = L10n.str(R.string.nfc_saved_ui_failed)
             } catch (error: Exception) {
                 Log.e("TransitReader", "读取或保存卡片失败", error)
-                _nfcReadMessage.value = "读取或保存卡片失败，请移开卡片后重试"
+                _nfcReadMessage.value = L10n.str(R.string.nfc_read_failed)
             } finally {
                 activeIsoDep?.let { try { it.close() } catch (_: Exception) {} }
                 activeIsoDep = null
@@ -387,7 +389,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 每张卡的构建/加载都在 Default 线程（decodeArchive / Gson 解析是 CPU 密集），结果回主线程落内存；
             // 单张卡失败不影响其余卡片（缓存命中的直接恢复，未命中的重建）
             cachedTxnsByCard.clear()
-            val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
+            val dbVersion = uiCacheVersion()
             cardEntities.forEach { card ->
                 val state = try {
                     withContext(Dispatchers.Default) { loadCardState(card, dbVersion = dbVersion) }
@@ -433,6 +435,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      *
      * @param forceRebuild 忽略缓存强制重建（站名映射表更新/清缓存后站名与 ID 可能变化，须重新解析）
      */
+    /** UI 磁盘缓存键：站名库版本 + 城市边界版本 + 界面语言（缓存里的站名/文案按语言生成） */
+    private suspend fun uiCacheVersion(): String =
+        AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion() +
+            "|" + AppLanguage.locale().toLanguageTag()
+
     private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()
         val cardId = card.cardId
@@ -462,7 +469,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存，刷新当前选中卡 */
     private suspend fun rebuildAllCardsAndRefresh() {
         cachedTxnsByCard.clear()
-        val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
+        val dbVersion = uiCacheVersion()
         cardEntities.forEach { card ->
             try {
                 val state = withContext(Dispatchers.Default) {
@@ -612,7 +619,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (!canReuse) {
                     val archiveRowId = repo.maxArchiveRowId(cardId) ?: 0L
-                    val dbVersion = AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion()
+                    val dbVersion = uiCacheVersion()
                     UiCache.save(getApplication(), cardId, CardUiCache(archiveRowId, built.canonicals, built.txns, dbVersion))
                 }
                 // 卡数据已经提交，轻量设置或调试日志失败不应被报告为保存失败。
@@ -926,10 +933,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else null
                 _feedbackStatus.value = buildString {
                     append(result.message())
-                    if (uploadStatus != null) append("；").append(uploadStatus)
+                    if (uploadStatus != null) append(L10n.str(R.string.status_separator)).append(uploadStatus)
                 }
             } catch (e: Exception) {
-                _feedbackStatus.value = "反馈保存失败：${e.message ?: "未知错误"}"
+                _feedbackStatus.value = L10n.str(R.string.feedback_save_failed, e.message ?: L10n.str(R.string.unknown_error))
             } finally {
                 _feedbackSaving.value = false
             }
@@ -955,10 +962,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
                     if (!snapshot.rows.containsKey(oldKey)) {
-                        throw IllegalArgumentException("override 不存在")
+                        throw IllegalArgumentException(L10n.str(R.string.override_err_missing))
                     }
                     if (oldKey != row.mappingKey && snapshot.rows.containsKey(row.mappingKey)) {
-                        throw IllegalArgumentException("新的 Prefix+Code+Type 已存在")
+                        throw IllegalArgumentException(L10n.str(R.string.override_err_exists))
                     }
                     val standard = snapshot.standards[oldKey]
                         ?: snapshot.standards[row.mappingKey]
@@ -1004,11 +1011,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else null
                 _overrideStatus.value = buildString {
-                    append("override 已保存：").append(update.first.message())
-                    if (uploadStatus != null) append("；").append(uploadStatus)
+                    append(L10n.str(R.string.override_saved, update.first.message()))
+                    if (uploadStatus != null) append(L10n.str(R.string.status_separator)).append(uploadStatus)
                 }
             } catch (e: Exception) {
-                _overrideStatus.value = "override 保存失败：${e.message ?: "未知错误"}"
+                _overrideStatus.value = L10n.str(R.string.override_save_failed, e.message ?: L10n.str(R.string.unknown_error))
             }
         }
     }
@@ -1021,7 +1028,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val database = AppDatabase.get(context)
                     val snapshot = TransitOverrideStore.read(context)
                     if (!snapshot.rows.containsKey(key)) {
-                        throw IllegalArgumentException("override 不存在")
+                        throw IllegalArgumentException(L10n.str(R.string.override_err_missing))
                     }
                     database.withTransaction {
                         restoreOriginal(context, database.transitDao(), key, snapshot)
@@ -1032,9 +1039,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _overrideRows.postValue(TransitOverrideStore.list(context))
                 }
                 rebuildAllCardsAndRefresh()
-                _overrideStatus.value = "override 已删除并恢复原映射"
+                _overrideStatus.value = L10n.str(R.string.override_deleted)
             } catch (e: Exception) {
-                _overrideStatus.value = "override 删除失败：${e.message ?: "未知错误"}"
+                _overrideStatus.value = L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error))
             }
         }
     }
@@ -1156,10 +1163,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 导出数据为 CSV */
     fun exportCsv(): String {
         val sb = StringBuilder()
-        sb.appendLine("序号,交易时间,类型,线路,站点,金额,交易后余额,终端编号")
+        sb.appendLine(L10n.str(R.string.csv_header))
         for (t in _allTransactions.value.orEmpty()) {
             sb.appendLine(
-                "${t.seq},${t.displayDateTime},${t.transitType},${t.lineName}," +
+                "${t.seq},${t.displayDateTime},${TransitLabels.type(t.transitType)},${t.lineName}," +
                 "\"${t.stationName}\",${t.amountText},${t.balanceAfterText ?: "-"},${t.terminal}"
             )
         }
@@ -1193,12 +1200,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         restore()
-        val mergedMessage = summary.merged.takeIf { it > 0 }?.let { "、合并 $it 张重复卡" }.orEmpty()
-        if (fromTripReader) {
-            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易$mergedMessage"
-        } else {
-            "已导入：新增 ${summary.cards} 张卡、${summary.archive} 条交易、${summary.raw} 条原始记录$mergedMessage"
-        }
+        val parts = mutableListOf(
+            L10n.plural(R.plurals.import_cards, summary.cards, summary.cards),
+            L10n.plural(R.plurals.import_txns, summary.archive, summary.archive)
+        )
+        if (!fromTripReader) parts += L10n.plural(R.plurals.import_raw, summary.raw, summary.raw)
+        if (summary.merged > 0) parts += L10n.plural(R.plurals.import_merged, summary.merged, summary.merged)
+        L10n.str(R.string.import_done, parts.joinToString(L10n.str(R.string.list_separator)))
     }
 
     private fun copyUriToCache(uri: Uri): File {
@@ -1206,7 +1214,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val tmp = File(app.cacheDir, "import_${System.currentTimeMillis()}.db")
         app.contentResolver.openInputStream(uri)?.use { input ->
             FileOutputStream(tmp).use { output -> input.copyTo(output) }
-        } ?: throw IOException("无法读取所选文件")
+        } ?: throw IOException(L10n.str(R.string.err_read_selected_file))
         return tmp
     }
 
@@ -1253,9 +1261,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
                 rebuildAllCardsAndRefresh()
                 // 界面重建完成后再报成功，避免「提示已更新但界面还是旧站名」
-                _stationDbUpdateStatus.value = "✓ 站名映射表已更新"
+                _stationDbUpdateStatus.value = L10n.str(R.string.station_db_updated)
             } catch (e: Exception) {
-                _stationDbUpdateStatus.value = "更新失败: ${e.message}"
+                _stationDbUpdateStatus.value = L10n.str(R.string.station_db_update_failed, e.message.orEmpty())
             } finally {
                 _stationDbUpdating.value = false
             }
@@ -1290,12 +1298,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (resetToAsset) AppPreferences.setDbVersion(ctx, assetVersion ?: "0")
                 rebuildAllCardsAndRefresh()
                 _cacheClearStatus.value = if (resetToAsset) {
-                    "✓ 已清理缓存并重置站名映射表"
+                    L10n.str(R.string.cache_cleared_reset)
                 } else {
-                    "✓ 已清理缓存（站名映射表保持当前版本）"
+                    L10n.str(R.string.cache_cleared_kept)
                 }
             } catch (e: Exception) {
-                _cacheClearStatus.value = "清理失败: ${e.message}"
+                _cacheClearStatus.value = L10n.str(R.string.cache_clear_failed, e.message.orEmpty())
             } finally {
                 _cacheClearing.value = false
             }
@@ -1359,14 +1367,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?.takeIf { it.length == 4 && TransitData.cityZh(it, issuerProtocol) != it }
         val issuer = issuerCode ?: primary?.issuerCode
         return UiCardMetadata(
-            issuerCity = issuerCityCode?.let { TransitData.cityZh(it, issuerProtocol) },
+            issuerCity = issuerCityCode?.let { TransitLabels.city(TransitData.cityZh(it, issuerProtocol)) },
             issuer = issuer,
             issueDate = primary?.issueDate,
             validUntil = primary?.validUntil,
             secondStandard = second?.let {
                 when (cardType) {
-                    "YCT", "SZT", "CU" -> "交通联合"
-                    else -> "第二标准"
+                    "YCT", "SZT", "CU" -> L10n.str(R.string.standard_tunion)
+                    else -> L10n.str(R.string.standard_second)
                 }
             },
             secondIssueDate = second?.issueDate,
@@ -1528,6 +1536,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             append(cityName).append(' ')
             append(lineName).append(' ')
             append(transitType).append(' ')
+            append(TransitLabels.type(transitType)).append(' ')
+            append(TransitLabels.city(cityName)).append(' ')
             append(amountText).append(' ')
             append(balanceAfterText.orEmpty()).append(' ')
             append(hex).append(' ')
@@ -1741,7 +1751,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val byCity = mutableMapOf<String, Double>()
         for (t in uiTxns) {
             if (t.amountText.startsWith("+") || t.amountYuan <= 0) continue
-            val city = t.cityName?.takeIf { it.isNotBlank() } ?: "未知"
+            val city = t.cityName?.takeIf { it.isNotBlank() } ?: L10n.str(R.string.unknown)
             byCity[city] = (byCity[city] ?: 0.0) + t.amountYuan
         }
         val total = byCity.values.sum()
@@ -1807,7 +1817,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val date = addDays(winStart, d - 1)
                 val amt = dayMap[date] ?: 0.0
                 DailySpending(
-                    dayLabel = if (d in keyDays) "${d}号" else "",
+                    dayLabel = if (d in keyDays) L10n.str(R.string.stats_day_of_month, d) else "",
+                    compactLabel = if (d in keyDays) d.toString() else "",
                     amountYuan = amt,
                     barHeightPercent = (amt / max).toFloat(),
                     isToday = date == today,
@@ -1828,7 +1839,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val key = "$year-${m.toString().padStart(2, '0')}"
                 val amt = monthMap[key] ?: 0.0
                 DailySpending(
-                    dayLabel = "${m}月",
+                    dayLabel = shortMonthLabel(m),
+                    isMonth = true,
                     amountYuan = amt,
                     barHeightPercent = (amt / max).toFloat(),
                     date = "$key-01"
@@ -1867,7 +1879,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val amt = monthMap[key] ?: 0.0
                 months.add(
                     DailySpending(
-                        dayLabel = "${key.substring(5).toInt()}月",
+                        dayLabel = shortMonthLabel(key.substring(5).toInt()),
+                        isMonth = true,
                         amountYuan = amt,
                         barHeightPercent = (amt / max).toFloat(),
                         date = "$key-01"
@@ -1883,7 +1896,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val sorted = dayMap.entries.sortedBy { it.key }.takeLast(7)
         return sorted.map { (date, amount) ->
             DailySpending(
-                dayLabel = "${date.substring(8).toInt()}号",
+                dayLabel = L10n.str(R.string.stats_day_of_month, date.substring(8).toInt()),
                 amountYuan = amount,
                 barHeightPercent = (amount / max).toFloat(),
                 isToday = date == today,
@@ -1892,16 +1905,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val weekdayNames = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
-
-    /** 根据日期（"yyyy-MM-dd"）返回星期几标签 */
+    /** 根据日期（"yyyy-MM-dd"）返回星期几标签（中文 "周一"，英文 "Mon"） */
     private fun weekdayLabel(date: String): String {
         return try {
-            val cal = Calendar.getInstance().apply { time = dayFmt.parse(date)!! }
-            weekdayNames[cal.get(Calendar.DAY_OF_WEEK) - 1] // DAY_OF_WEEK: 1=周日…7=周六
+            SimpleDateFormat("EEE", AppLanguage.locale()).format(dayFmt.parse(date)!!)
         } catch (e: Exception) {
             date.substring(5)
         }
+    }
+
+    /** 月份标签（1..12；中文 "1月"，英文 "Jan"） */
+    private fun shortMonthLabel(month: Int): String {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.MONTH, month - 1)
+        }
+        return SimpleDateFormat("MMM", AppLanguage.locale()).format(cal.time)
     }
 }
 

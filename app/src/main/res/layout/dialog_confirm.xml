@@ -17,16 +17,25 @@
         android:paddingBottom="16dp"
         android:fontFamily="sans-serif-medium" />
 
-    <TextView
-        android:id="@+id/dialogMessage"
+    <!-- 长说明（如反馈填写说明）可滚动；高度上限在 AppDialogs.confirm 里按屏高设置 -->
+    <ScrollView
+        android:id="@+id/dialogMessageScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/ink_2"
-        android:textSize="14sp"
-        android:lineSpacingExtra="3dp"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="24dp" />
+        android:fadeScrollbars="false"
+        android:scrollbarStyle="outsideOverlay">
+
+        <TextView
+            android:id="@+id/dialogMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:lineSpacingExtra="3dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="24dp" />
+    </ScrollView>
 
     <LinearLayout
         android:layout_width="match_parent"

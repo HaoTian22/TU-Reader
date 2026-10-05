@@ -66,10 +66,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
             } catch (e: Exception) {
                 isImportingOldData = false
-                val detail = e.message?.takeIf { it.isNotBlank() } ?: "文件格式不受支持"
+                val detail = e.message?.takeIf { it.isNotBlank() } ?: getString(R.string.err_unsupported_format)
                 renderOldDataImportState(
                     importing = false,
-                    message = "导入失败：$detail",
+                    message = getString(R.string.import_failed, detail),
                     success = false
                 )
             }
@@ -98,9 +98,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.btnAddCard.setOnClickListener {
             AppDialogs.confirm(
                 context = requireContext(),
-                title = "读取新卡片",
-                message = "将交通卡贴在手机背面的 NFC 区域并保持不动，读取完成后会自动打开这张卡。",
-                confirmLabel = "知道了",
+                title = getString(R.string.add_card_title),
+                message = getString(R.string.add_card_message),
+                confirmLabel = getString(R.string.action_got_it),
                 confirmColor = Palette.ACCENT,
                 cancelLabel = "",
                 onConfirm = {}
@@ -158,7 +158,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     ) {
         val currentBinding = _binding ?: return
         currentBinding.btnImportOldData.isEnabled = !importing
-        currentBinding.btnImportOldData.text = if (importing) "正在导入…" else "导入旧数据"
+        currentBinding.btnImportOldData.setText(if (importing) R.string.importing else R.string.home_import_old)
         currentBinding.tvImportOldDataStatus.apply {
             text = message.orEmpty()
             setTextColor(
@@ -169,7 +169,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 }
             )
             visibility = if (importing || message != null) View.VISIBLE else View.GONE
-            if (importing) text = "正在读取并合并备份数据…"
+            if (importing) setText(R.string.import_old_progress)
         }
     }
 
@@ -229,7 +229,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private fun renderWallet(cards: List<UiCard>) {
         val totalFen = cards.sumOf { it.balanceFen ?: 0L }
         binding.tvTotalBalance.text = "¥${String.format("%.2f", totalFen / 100.0)}"
-        binding.tvCardCount.text = getString(R.string.card_count_format, cards.size)
+        binding.tvCardCount.text = resources.getQuantityString(R.plurals.home_card_count, cards.size, cards.size)
 
         val stack = binding.cardStack
         stack.removeAllViews()
@@ -278,7 +278,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             // 触屏模式下不抢焦点：避免 ScrollView 为「把焦点卡片滚进可视区」自动滚动，导致首屏位置偏移
             isFocusable = true
             isFocusableInTouchMode = false
-            contentDescription = "${card.name}，余额 ${String.format("%.2f", card.balanceYuan)} 元"
+            contentDescription = getString(R.string.card_cd, card.name, String.format("%.2f", card.balanceYuan))
             setOnClickListener { openCard(index) }
         }
 
@@ -297,7 +297,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         })
         val city = viewModel.issuerCityFor(card.id)
         titleCol.addView(TextView(ctx).apply {
-            text = listOfNotNull(city, "读取于 ${TimeLabels.relative(card.lastReadAt)}").joinToString(" · ")
+            text = listOfNotNull(city, getString(R.string.read_at, TimeLabels.relative(card.lastReadAt))).joinToString(" · ")
             setTextColor(onCardAlpha(0xBF))
             textSize = 12f
             maxLines = 1

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -33,7 +34,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="地图轨迹"
+            android:text="@string/map_trace"
             android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -52,7 +53,7 @@
                 android:id="@+id/tvCardBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="深圳通 · 3821"
+                tools:text="深圳通 · 3821"
                 android:textColor="@color/accent"
                 android:textSize="12sp"
                 android:textStyle="bold"
@@ -89,7 +90,7 @@
             android:paddingEnd="10dp"
             android:paddingTop="5dp"
             android:paddingBottom="5dp"
-            android:text="双指缩放 · 滑动下方列表调整时间"
+            android:text="@string/map_hint_default"
             android:textColor="@color/ink_2"
             android:textSize="11sp" />
     </FrameLayout>
@@ -220,7 +221,7 @@
         style="@style/SettingsSectionTitle"
         android:layout_marginStart="20dp"
         android:layout_marginTop="16dp"
-        android:text="行程信息" />
+        android:text="@string/trip_info" />
 
     <!-- Trip Info 卡片（可滑动调时间） -->
     <ScrollView

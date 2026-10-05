@@ -22,7 +22,6 @@ import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.BuildConfig
 import com.example.nfctransit.R
-import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
@@ -33,6 +32,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
+import com.example.nfctransit.util.AppLanguage
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
@@ -55,7 +55,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/*")) { uri ->
             if (uri != null) {
                 pendingExportContent?.let { writeToUri(uri, it) }
-                showStatus("✓ 已导出 ${pendingExportName}")
+                showStatus(getString(R.string.export_done, pendingExportName))
             }
         }
 
@@ -66,9 +66,9 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             viewLifecycleOwner.lifecycleScope.launch {
                 try {
                     viewModel.exportDatabase(uri)
-                    showStatus("✓ 已导出数据库")
+                    showStatus(getString(R.string.export_db_done))
                 } catch (e: Exception) {
-                    showStatus("导出失败: ${e.message}")
+                    showStatus(getString(R.string.export_failed, e.message.orEmpty()))
                 }
             }
         }
@@ -86,7 +86,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     val fallback = try {
                         viewModel.importDatabase(uri)
                     } catch (e: Exception) {
-                        "导入失败: ${e.message}"
+                        getString(R.string.import_failed, e.message.orEmpty())
                     }
                     showStatus(fallback)
                     return@launch
@@ -135,11 +135,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     }
                     chevron.postDelayed(pendingRevert!!, 5000)
                 }
-                feedback("loading", "正在导入…")
+                feedback("loading", getString(R.string.importing))
                 val (state, msg) = try {
                     "success" to viewModel.importDatabase(uri)
                 } catch (e: Exception) {
-                    "error" to "导入失败: ${e.message}"
+                    "error" to getString(R.string.import_failed, e.message.orEmpty())
                 }
                 feedback(state, msg)
                 if (state == "success") updateLocalStorageSize()
@@ -206,7 +206,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         // 导出 APDU 日志
         binding.rowExportLog.setOnClickListener {
-            val log = viewModel.nfcLog.value?.joinToString("\n") ?: "暂无数据"
+            val log = viewModel.nfcLog.value?.joinToString("\n") ?: getString(R.string.no_data)
             pendingExportContent = log
             pendingExportName = "transitu-apdu-log.txt"
             exportLauncher.launch("transitu-apdu-log.txt")
@@ -215,7 +215,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 已绑定卡片数量
         binding.root.findViewById<TextView>(R.id.tvCardCount)?.let { tv ->
             viewModel.cards.observe(viewLifecycleOwner) { list ->
-                tv.text = "${list.size} 张"
+                tv.text = resources.getQuantityString(R.plurals.cards_count, list.size, list.size)
             }
         }
 
@@ -223,7 +223,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         binding.root.findViewById<View>(R.id.rowCardSort)?.setOnClickListener {
             val cards = viewModel.cards.value.orEmpty()
             if (cards.size < 2) {
-                showStatus("至少需要 2 张卡片才能排序")
+                showStatus(getString(R.string.card_sort_need_two))
                 return@setOnClickListener
             }
             AppDialogs.reorder(
@@ -235,10 +235,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
 
         binding.root.findViewById<View>(R.id.rowDatabaseViewer)?.setOnClickListener {
-            val options = DatabaseQuerySpec.values().map { it.displayName }
+            val options = DatabaseQuerySpec.values().map { getString(it.displayNameRes) }
             AppDialogs.options(
                 context = requireContext(),
-                title = "选择数据库",
+                title = getString(R.string.db_select_title),
                 options = options,
                 accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
                 onSelect = { index ->
@@ -273,8 +273,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             binding.root.findViewById<TextView>(R.id.tvCurrentTripRouteValue)
         viewModel.currentTripRouteDisplayMode.observe(viewLifecycleOwner) { mode ->
             currentTripRouteValue.text = when (mode) {
-                CurrentTripRouteDisplayMode.ENDPOINTS_ONLY -> "仅起终点"
-                CurrentTripRouteDisplayMode.FULL_TRANSFERS -> "完整换乘"
+                CurrentTripRouteDisplayMode.ENDPOINTS_ONLY -> getString(R.string.route_mode_endpoints)
+                CurrentTripRouteDisplayMode.FULL_TRANSFERS -> getString(R.string.route_mode_full)
             }
         }
         binding.root.findViewById<View>(R.id.rowCurrentTripRoute)?.setOnClickListener {
@@ -282,8 +282,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 ?: CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
             AppDialogs.options(
                 context = requireContext(),
-                title = "当前行程路线",
-                options = listOf("仅起终点", "完整换乘过程"),
+                title = getString(R.string.current_trip_route),
+                options = listOf(getString(R.string.route_mode_endpoints), getString(R.string.route_mode_full_option)),
                 selectedIndex = if (current == CurrentTripRouteDisplayMode.ENDPOINTS_ONLY) 0 else 1,
                 accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
                 onSelect = { which ->
@@ -455,37 +455,27 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private fun updateLanguageRow() {
         val tv = binding.root.findViewById<TextView>(R.id.tvLanguageValue) ?: return
-        tv.text = when (TransitData.getDisplayLanguage()) {
-            "zh" -> "中文"
-            "en" -> "English"
-            else -> "跟随系统"
-        }
+        tv.text = AppLanguage.SUPPORTED[AppLanguage.selectedTag()] ?: getString(R.string.language_follow_system)
     }
 
     private fun showLanguageDialog() {
-        val options = arrayOf("跟随系统", "中文", "English")
-        val current = TransitData.getDisplayLanguage()
-        val checked = when (current) {
-            "zh" -> 1
-            "en" -> 2
-            else -> 0
-        }
+        // 选项：跟随系统 + 各语言（以该语言自称显示）
+        val tags = listOf("") + AppLanguage.SUPPORTED.keys
+        val labels = listOf(getString(R.string.language_follow_system)) + AppLanguage.SUPPORTED.values
+        val current = AppLanguage.selectedTag()
         AppDialogs.options(
             context = requireContext(),
-            title = "语言切换",
-            options = options.toList(),
-            selectedIndex = checked,
+            title = getString(R.string.language_switch),
+            options = labels,
+            selectedIndex = tags.indexOf(current).coerceAtLeast(0),
             accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
             onSelect = { which ->
-                when (which) {
-                    0 -> TransitData.setDisplayLanguage("system")
-                    1 -> TransitData.setDisplayLanguage("zh")
-                    2 -> TransitData.setDisplayLanguage("en")
+                val tag = tags[which]
+                if (tag != current) {
+                    // AppCompat 随即重建 Activity；ViewModel 保留，需按新语言重新解析站点/线路名与已构建的文案
+                    AppLanguage.select(tag)
+                    viewModel.reloadDisplayLanguage()
                 }
-                updateLanguageRow()
-                // 语言已切换：按 ID 重新解析全部站点/线路名并刷新界面
-                viewModel.reloadDisplayLanguage()
-                showStatus("✓ 语言已切换")
             }
         )
     }
@@ -493,10 +483,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     // ── 数据导出 ──
 
     private fun showExportDialog() {
-        val options = arrayOf("CSV 文件", "JSON 文件", "SQLite 数据库 (.db)")
+        val options = arrayOf(getString(R.string.export_csv), getString(R.string.export_json), getString(R.string.export_sqlite))
         AppDialogs.options(
             context = requireContext(),
-            title = "导出数据",
+            title = getString(R.string.export_title),
             options = options.toList(),
             onSelect = { which ->
                 when (which) {
@@ -522,7 +512,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 out.write(content.toByteArray(Charsets.UTF_8))
             }
         } catch (e: Exception) {
-            showStatus("导出失败: ${e.message}")
+            showStatus(getString(R.string.export_failed, e.message.orEmpty()))
         }
     }
 
@@ -531,12 +521,12 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     private fun showClearDialog() {
         AppDialogs.confirm(
             context = requireContext(),
-            title = "清除全部本地数据",
-            message = "将删除所有已保存的卡片和交易记录，此操作不可恢复。确定要清除吗？",
-            confirmLabel = "清除",
+            title = getString(R.string.clear_all_data),
+            message = getText(R.string.clear_all_data_message),
+            confirmLabel = getString(R.string.action_delete),
             onConfirm = {
                 viewModel.clearAllData()
-                showStatus("✓ 已清除全部本地数据")
+                showStatus(getString(R.string.clear_all_data_done))
                 // 回到首页显示空状态
                 findNavController().popBackStack()
             }
@@ -546,9 +536,9 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     private fun showClearCacheDialog() {
         AppDialogs.confirm(
             context = requireContext(),
-            title = "清理缓存",
-            message = "将清除界面构建缓存和地图路线缓存；站名映射表仅在内置版本更新时才重置为内置版本，否则保留当前版本（如需最新站名请联网更新）。\n已保存的卡片与交易不受影响。确定要清理吗？",
-            confirmLabel = "清理",
+            title = getString(R.string.clear_cache),
+            message = getText(R.string.clear_cache_message),
+            confirmLabel = getString(R.string.clear_cache_confirm),
             confirmColor = Palette.ACCENT,  // 不删用户数据，用主题蓝而非警示红
             onConfirm = { viewModel.clearCache() }
         )
@@ -558,7 +548,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (e: Exception) {
-            showStatus("无法打开浏览器")
+            showStatus(getString(R.string.cannot_open_browser))
         }
     }
 
@@ -566,26 +556,26 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private fun buildDataReport(): String {
         val sb = StringBuilder()
-        sb.appendLine("=== TransitU 读取数据 ===")
+        sb.appendLine(getString(R.string.report_header))
 
         val card = viewModel.selectedCard.value
         if (card != null) {
-            sb.appendLine("卡片: ${card.name} (${card.lastFour})")
-            sb.appendLine("余额: ¥${String.format("%.2f", card.balanceYuan)}")
+            sb.appendLine(getString(R.string.report_card, card.name, card.lastFour))
+            sb.appendLine(getString(R.string.report_balance, String.format("%.2f", card.balanceYuan)))
         }
 
         val txns = viewModel.allTransactions.value ?: emptyList()
-        sb.appendLine("交易记录: ${txns.size} 条")
+        sb.appendLine(getString(R.string.report_txn_count, txns.size))
         txns.forEach { txn ->
             sb.appendLine("#${txn.seq} ${txn.displayDateTime}")
-            sb.appendLine("  类型: ${txn.transitType}  金额: ${txn.amountText}")
-            sb.appendLine("  站点: ${txn.stationName}  线路: ${txn.lineName}")
-            sb.appendLine("  终端: ${txn.terminal}  TypeHex: ${txn.typeHex}")
-            sb.appendLine("  余额: ${txn.balanceAfterText ?: "-"}")
+            sb.appendLine("  " + getString(R.string.report_txn_type, TransitLabels.type(txn.transitType), txn.amountText))
+            sb.appendLine("  " + getString(R.string.report_txn_place, txn.stationName, txn.lineName))
+            sb.appendLine("  " + getString(R.string.report_txn_terminal, txn.terminal, txn.typeHex))
+            sb.appendLine("  " + getString(R.string.report_txn_balance, txn.balanceAfterText ?: "-"))
         }
 
         sb.appendLine()
-        sb.appendLine("=== APDU 原始日志 ===")
+        sb.appendLine(getString(R.string.report_apdu_header))
         (viewModel.nfcLog.value ?: emptyList()).forEach { sb.appendLine(it) }
 
         return sb.toString()
@@ -639,7 +629,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                                 startActivity(Intent(Intent.ACTION_VIEW,
                                     Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
                             } catch (e: Exception) {
-                                Toast.makeText(context, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, R.string.cannot_open_browser, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -648,7 +638,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 throw e
             } catch (e: Exception) {
                 Toast.makeText(context, context.getString(R.string.app_update_failed,
-                    e.localizedMessage ?: "网络错误"), Toast.LENGTH_LONG).show()
+                    e.localizedMessage ?: context.getString(R.string.network_error)), Toast.LENGTH_LONG).show()
             } finally {
                 row.isEnabled = true
                 label.setText(R.string.check_for_updates)

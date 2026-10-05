@@ -57,7 +57,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         container.removeAllViews()
         if (rows.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
-                text = "暂无本地映射数据"
+                setText(R.string.overrides_empty)
                 gravity = Gravity.CENTER
                 setTextColor(Palette.INK_3)
                 textSize = 14f
@@ -85,7 +85,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             textSize = 15f
         }
         val detailView = TextView(requireContext()).apply {
-            text = "${row.type} · ${row.line} · ${row.station}"
+            text = "${TransitLabels.type(row.type)} · ${row.line} · ${row.station}"
             setTextColor(Palette.INK_2)
             textSize = 13f
             setPadding(0, dp(6), 0, 0)
@@ -96,14 +96,14 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             setPadding(0, dp(8), 0, 0)
         }
         actions.addView(TextView(requireContext()).apply {
-            text = "编辑"
+            setText(R.string.action_edit)
             setTextColor(accentColor)
             textSize = 14f
             setPadding(dp(12), dp(6), dp(12), dp(6))
             setOnClickListener { showEditDialog(row) }
         })
         actions.addView(TextView(requireContext()).apply {
-            text = "删除"
+            setText(R.string.action_delete)
             setTextColor(Palette.DANGER)
             textSize = 14f
             setPadding(dp(12), dp(6), dp(0), dp(6))
@@ -139,9 +139,9 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
     private fun showDeleteDialog(row: TransitOverrideRow) {
         AppDialogs.confirm(
             context = requireContext(),
-            title = "删除本地映射数据",
-            message = "删除后将恢复该设备原来的站名映射。确定删除吗？",
-            confirmLabel = "删除",
+            title = getString(R.string.override_delete_title),
+            message = getString(R.string.override_delete_message),
+            confirmLabel = getString(R.string.action_delete),
             confirmColor = Palette.DANGER
         ) {
             viewModel.deleteOverride(row.mappingKey)
@@ -150,17 +150,17 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
 
     private fun validate(row: TransitOverrideRow): String? {
         val codeRegex = Regex("[0-9A-Za-z]+")
-        if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return "Prefix 无效"
-        if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return "Code 无效"
-        if (row.type.isBlank() || row.type.length > 32) return "Type 无效"
-        if (row.line.length > 128) return "线路过长"
-        if (row.station.length > 128) return "站名过长"
+        if (row.prefix.length !in 1..16 || !row.prefix.matches(codeRegex)) return getString(R.string.override_err_prefix)
+        if (row.code.length !in 1..64 || !row.code.matches(codeRegex)) return getString(R.string.override_err_code)
+        if (row.type.isBlank() || row.type.length > 32) return getString(R.string.override_err_type)
+        if (row.line.length > 128) return getString(R.string.override_err_line)
+        if (row.station.length > 128) return getString(R.string.override_err_station)
         val locationCityCode = row.locationCityCode
         if (locationCityCode.isNullOrBlank() ||
             TransitData.cityOptions().none { it.code == locationCityCode }
-        ) return "请选择数据库中的实际城市"
+        ) return getString(R.string.override_err_city)
         if (listOf(row.type, row.line, row.station).any { it.contains('\n') || it.contains('\r') }) {
-            return "字段不能包含换行"
+            return getString(R.string.override_err_newline)
         }
         return null
     }
