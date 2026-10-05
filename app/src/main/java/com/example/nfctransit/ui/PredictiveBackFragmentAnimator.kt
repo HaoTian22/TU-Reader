@@ -44,10 +44,12 @@ class PredictiveBackFragmentAnimator(
         val forwardSnapshot = pendingForwardSnapshot
         pendingForwardSnapshot = null
         val entryId = controller.currentBackStackEntry?.id
+        // 同步把新页面移出屏幕并铺上旧页截图：若推迟到 post 里做，低端机会先画出一帧未偏移的新页面（闪一下）
+        val animateForward = forwardSnapshot != null && !committing
+        if (animateForward) container.showForwardSnapshot(forwardSnapshot!!, navHostView)
         navHostView.post {
             if (entryId != null && navController.currentBackStackEntry?.id == entryId) captureCurrent(entryId)
-            if (forwardSnapshot != null && !committing) {
-                container.showForwardSnapshot(forwardSnapshot, navHostView)
+            if (animateForward) {
                 container.animateForwardSnapshot(navHostView) {
                     releaseForwardSnapshot(forwardSnapshot)
                 }
@@ -98,6 +100,8 @@ class PredictiveBackFragmentAnimator(
 
     override fun handleOnBackPressed() {
         if (committing) return
+        // 旧版 Android / 三键导航不会回调 handleOnBackStarted：这里补上截图，同样播放返回动画
+        if (!gestureActive) showBackSnapshotsFor(popTargetId)
         committing = true
         isEnabled = false
         if (!gestureActive) {
@@ -132,6 +136,11 @@ class PredictiveBackFragmentAnimator(
     private fun startBackNavigation(targetId: Int?) {
         if (!isEnabled || committing || gestureActive) return
         popTargetId = targetId
+        handleOnBackPressed()
+    }
+
+    /** 铺好返回转场的截图（底图为目标条目的截图）；没有底图可做转场时返回 false，调用方直接返回 */
+    private fun showBackSnapshotsFor(targetId: Int?): Boolean {
         val targetEntryId = if (targetId == null) {
             navController.previousBackStackEntry?.id
         } else {
@@ -140,10 +149,8 @@ class PredictiveBackFragmentAnimator(
         val previous = targetEntryId?.let { snapshots[it] }
         val current = previous?.let { currentView()?.let(::captureView) }
         if (previous == null || current == null) {
-            // 没有底图可做转场时直接返回
             current?.recycleIfNeeded()
-            handleOnBackPressed()
-            return
+            return false
         }
         currentSnapshot = current
         container.showBackSnapshots(
@@ -153,7 +160,7 @@ class PredictiveBackFragmentAnimator(
             keepCurrentLive = isMapDestination()
         )
         gestureActive = true
-        handleOnBackPressed()
+        return true
     }
 
     private fun popBack(): Boolean {
