@@ -23,7 +23,6 @@ import com.example.nfctransit.MainActivity
 import com.example.nfctransit.BuildConfig
 import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitData
-import com.example.nfctransit.data.AppUpdateChecker
 import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
@@ -47,6 +46,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
     }
 
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
+    private val appUpdateViewModel: AppUpdateViewModel by viewModels({ requireActivity() })
 
     private var pendingExportContent: String? = null
     private var pendingExportName: String = "transactions"
@@ -627,10 +627,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         progress.visibility = View.VISIBLE
         updateCheckJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    AppUpdateChecker().check(BuildConfig.VERSION_NAME,
-                        BuildConfig.DEBUG || BuildConfig.IS_PRERELEASE_BUILD)
-                }
+                val result = appUpdateViewModel.checkManually()
                 when (result) {
                     AppUpdateResult.UpToDate -> Toast.makeText(context, R.string.app_up_to_date, Toast.LENGTH_SHORT).show()
                     AppUpdateResult.NoRelease -> Toast.makeText(context, R.string.app_no_release, Toast.LENGTH_SHORT).show()

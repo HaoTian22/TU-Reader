@@ -105,6 +105,8 @@ object AppDialogs {
         testingBuild: Boolean,
         releaseNotes: List<AppReleaseNotes>,
         historyUnavailable: Boolean,
+        onIgnoreVersion: (() -> Unit)? = null,
+        onLater: (() -> Unit)? = null,
         onDownload: () -> Unit
     ): Dialog {
         val dialog = Dialog(context)
@@ -144,7 +146,14 @@ object AppDialogs {
             height = minOf(scroll.getChildAt(0).measuredHeight + scroll.paddingBottom,
                 (dm.heightPixels * 0.4f).toInt())
         }
-        view.findViewById<View>(R.id.updateCancel).setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.updateCancel).apply {
+            setText(if (onIgnoreVersion != null) R.string.ignore_app_version else R.string.update_later)
+            setOnClickListener {
+                dialog.dismiss()
+                (onIgnoreVersion ?: onLater)?.invoke()
+            }
+        }
+        dialog.setOnCancelListener { onLater?.invoke() }
         view.findViewById<TextView>(R.id.updateDownload).apply {
             setText(if (release.apkUrl != null) R.string.download_apk else R.string.view_release)
             setOnClickListener {

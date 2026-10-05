@@ -93,6 +93,8 @@
     <string name="download_apk">下载 APK</string>
     <string name="view_release">查看发布页</string>
     <string name="update_later">稍后</string>
+    <string name="ignore_app_version">忽略此版本</string>
+    <string name="app_update_ignore_failed">无法保存忽略设置，下次启动可能再次提醒</string>
     <string name="supported_cards">支持的卡种列表</string>
     <string name="oss_acknowledgements">开源致谢</string>
     <string name="feedback">反馈入口</string>

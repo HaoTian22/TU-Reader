@@ -8,23 +8,33 @@ import android.content.Intent
 import android.graphics.Color
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.net.Uri
+import android.app.Dialog
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.NavHostFragment
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.ui.MainViewModel
+import com.example.nfctransit.ui.AppDialogs
+import com.example.nfctransit.ui.AppUpdateViewModel
 import com.example.nfctransit.ui.PredictiveBackFragmentAnimator
 import com.example.nfctransit.ui.PredictiveBackLayout
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private var nfcAdapter: NfcAdapter? = null
     private val viewModel: MainViewModel by viewModels()
+    private val appUpdateViewModel: AppUpdateViewModel by viewModels()
+    private var startupUpdateDialog: Dialog? = null
     private var predictiveBackAnimator: PredictiveBackFragmentAnimator? = null
     private var nfcToast: Toast? = null
 
@@ -81,6 +91,35 @@ class MainActivity : AppCompatActivity() {
                 viewModel.consumeNfcReadMessage()
             }
         }
+        observeStartupUpdate()
+    }
+
+    private fun observeStartupUpdate() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                appUpdateViewModel.startupUpdate.collect { result ->
+                    if (result == null) {
+                        startupUpdateDialog?.dismiss()
+                        startupUpdateDialog = null
+                    } else if (startupUpdateDialog?.isShowing != true) {
+                        startupUpdateDialog = AppDialogs.appUpdate(
+                            this@MainActivity, BuildConfig.VERSION_NAME, result.release,
+                            result.testingBuild, result.releaseNotes, result.historyUnavailable,
+                            onIgnoreVersion = { appUpdateViewModel.ignoreVersion(result.release.version) },
+                            onLater = { appUpdateViewModel.dismissStartupPrompt() }
+                        ) {
+                            appUpdateViewModel.dismissStartupPrompt()
+                            try {
+                                startActivity(Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
+                            } catch (error: Exception) {
+                                Toast.makeText(this@MainActivity, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -133,6 +172,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        startupUpdateDialog?.dismiss()
+        startupUpdateDialog = null
         predictiveBackAnimator?.dispose()
         predictiveBackAnimator = null
         super.onDestroy()

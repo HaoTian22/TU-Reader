@@ -101,6 +101,16 @@ class AppUpdateChecker(private val fetchRelease: (String) -> String? = ::fetchRe
         const val API_URL = "$RELEASES_API_URL/latest"
         private const val PAGE_SIZE = 100
 
+        fun shouldCheckAutomatically(currentVersion: String, isTestingBuild: Boolean = false): Boolean =
+            !isTestingBuild && AppVersion.parse(currentVersion)?.prerelease?.isEmpty() == true
+
+        /** 忽略仅针对同一正式版本；兼容 v 前缀、补零和构建元数据。 */
+        fun isIgnoredVersion(version: String, ignoredVersion: String?): Boolean {
+            val release = AppVersion.parse(version) ?: return false
+            val ignored = ignoredVersion?.let(AppVersion::parse) ?: return false
+            return release.compareTo(ignored) == 0
+        }
+
         private fun fetchReleaseJson(url: String): String? {
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.connectTimeout = 15_000
