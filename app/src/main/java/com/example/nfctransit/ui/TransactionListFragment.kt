@@ -8,7 +8,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
@@ -173,42 +172,37 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
      *  无有效颜色时必须重置为默认灰色，否则 RecyclerView 复用时会残留上一行的线路色。 */
     private fun applyLineColor(line: TextView, color: String?) = line.applyLinePill(color)
 
-    private fun showTransactionActions(txn: UiTransaction, anchor: View) {
-        val density = resources.displayMetrics.density
-        val popupWidth = (150 * density).toInt()
-        val action = TextView(requireContext()).apply {
-            text = "查看上下文"
-            textSize = 15f
-            setTextColor(Palette.INK)
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                (48 * density).toInt()
+    /** 长按交易行：底部抽屉展示交易摘要 + 操作列表 */
+    private fun showTransactionActions(txn: UiTransaction) {
+        val ctx = context ?: return
+        TransactionActionSheet.show(
+            context = ctx,
+            txn = txn,
+            accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
+            actions = listOf(
+                TransactionActionSheet.Action("\uF15C", "查看详情") { openDetail(txn) },        // fa-file-lines
+                TransactionActionSheet.Action("\uF03A", "查看上下文") { showTransactionContext(txn) }, // fa-list
+                TransactionActionSheet.Action("\uF0C5", "复制交易信息") { copyTransaction(txn) }  // fa-copy
             )
+        )
+    }
+
+    private fun openDetail(txn: UiTransaction) {
+        if (_binding == null) return
+        val action = TransactionListFragmentDirections.actionTransactionListToTransactionDetail(txn.id)
+        capturePredictiveBackSnapshot()
+        findNavController().navigate(action)
+    }
+
+    private fun copyTransaction(txn: UiTransaction) {
+        val ctx = context ?: return
+        val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+            as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("交易", TransactionActionSheet.plainText(txn)))
+        // Android 13+ 系统会自行提示已复制
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+            android.widget.Toast.makeText(ctx, "已复制", android.widget.Toast.LENGTH_SHORT).show()
         }
-        val content = LinearLayout(requireContext()).apply {
-            setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
-            addView(action)
-        }
-        val popup = PopupWindow(
-            content,
-            popupWidth,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            true
-        ).apply {
-            setBackgroundDrawable(GradientDrawable().apply {
-                cornerRadius = (12 * density)
-                setColor(0xFFFFFFFF.toInt())
-                setStroke((1 * density).toInt(), Palette.LINE)
-            })
-            isOutsideTouchable = true
-        }
-        action.setOnClickListener {
-            popup.dismiss()
-            showTransactionContext(txn)
-        }
-        popup.showAsDropDown(anchor, anchor.width - popupWidth, -anchor.height)
     }
 
     private fun showTransactionContext(txn: UiTransaction) {
@@ -471,14 +465,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 amount.setTextColor(Palette.amountColor(txn.amountText))
 
 
-                itemView.setOnClickListener {
-                    val action = TransactionListFragmentDirections
-                        .actionTransactionListToTransactionDetail(txn.id)
-                    capturePredictiveBackSnapshot()
-                    findNavController().navigate(action)
-                }
+                itemView.setOnClickListener { openDetail(txn) }
                 itemView.setOnLongClickListener {
-                    showTransactionActions(txn, itemView)
+                    showTransactionActions(txn)
                     true
                 }
             }

@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 腾讯地图 SDK：瓦片下载/网络状态检测 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

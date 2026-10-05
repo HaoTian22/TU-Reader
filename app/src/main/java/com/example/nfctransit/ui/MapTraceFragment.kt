@@ -148,6 +148,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var ringClock: ValueAnimator? = null         // 播放中：播放按钮倒计时环（仅镜头静止期间）
     private var departing = false                        // 播放中镜头已起飞前往下一段：地图上当前段先恢复为非激活
     private var playRing: PlaybackRingDrawable? = null
+    private var haptics: PlaybackHaptics? = null
     private var renderedEventIndex = -1                  // 播放卡片当前展示的事件（切换时做入场动画）
     private var renderedSegment: MapSegment? = null      // 播放卡片当前展示的行程（同一行程进/出站切换只淡入时间）
     // 流光：自外向内逐层变短变亮；每层按所经过的腿切成多段纯色折线（各段取下面线路的颜色）
@@ -267,6 +268,8 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         binding.btnNext.text = ""   // fa-forward-step（下一行程）
 
         playRing = PlaybackRingDrawable(resources.displayMetrics.density).also { binding.btnPlay.foreground = it }
+        haptics = PlaybackHaptics(requireContext())
+        viewModel.playbackHaptics.observe(viewLifecycleOwner) { haptics?.enabled = it }
         binding.btnPlay.setOnClickListener { togglePlay() }
         binding.btnPrev.setOnClickListener { if (model.events.isNotEmpty()) { pause(); jumpTo(currentEventIndex - 1) } }
         binding.btnNext.setOnClickListener { if (model.events.isNotEmpty()) { pause(); jumpTo(currentEventIndex + 1) } }
@@ -628,6 +631,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     private fun stopPlayback() {
+        haptics?.cancel()
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
         stopRouteClock()
@@ -637,6 +641,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     private fun pause() {
+        haptics?.cancel()
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
         stopRouteClock()
@@ -703,6 +708,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         // 起飞：地图上当前段立即恢复为非激活（卡片/列表仍显示当前段，到达后再切换）
         departing = true
         updateHighlight(scrollList = false)
+        haptics?.depart()   // 触感：起飞一下脉冲
         flyCameraNow(center, zoom)
         // 镜头到达：下一段的静止倒计时 = 飞后停 + 下一段总览停留 + 下一段飞前停
         startRingClock(postFlyMs + overviewHoldMs(exitIndexFor(nextIdx)) + preFlyMs)
@@ -711,6 +717,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         departing = false
         if (nextIdx <= curIdx) setProgressWidth(0)   // 循环回到开头
         updateHighlight()
+        haptics?.routeShown()   // 新行程高亮出现
     }
 
     /** 事件是某整段的进站端时，返回该段出站端的事件下标 */
@@ -1525,6 +1532,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
      */
     private fun startShimmer(holder: SegmentOverlay) {
         val path = ShimmerPath.of(holder.legs) ?: return
+        var lastFraction = -1f
         shimmerAnimator = ValueAnimator.ofFloat(-SHIMMER_HALF, 1f + SHIMMER_HALF).apply {
             duration = shimmerDurationMs()
             startDelay = TRANSITION_MS
@@ -1532,6 +1540,12 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             interpolator = LinearInterpolator()
             addUpdateListener { va ->
                 if (holder.legs.any { it.removed }) return@addUpdateListener
+                // 每趟流光开始（首帧或进度回绕）时，播放中给一次随流光渐弱的振动
+                val fraction = va.animatedFraction
+                if ((lastFraction < 0f || fraction < lastFraction) && playing && !departing) {
+                    haptics?.highlightSweep(va.duration)
+                }
+                lastFraction = fraction
                 val center = va.animatedValue as Float
                 drawShimmerLayers(path, center)
             }
@@ -1851,6 +1865,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     override fun onStop() { super.onStop(); mapView?.onStop() }
 
     override fun onDestroyView() {
+        haptics?.cancel(); haptics = null
         stopShimmer()
         scrollAnimator?.cancel()
         progressAnimator?.cancel()

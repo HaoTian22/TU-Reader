@@ -258,6 +258,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _keepDebugLogs = MutableLiveData(true)
     val keepDebugLogs: LiveData<Boolean> = _keepDebugLogs
 
+    // 轨迹回放触感反馈（默认开）
+    private val _playbackHaptics = MutableLiveData(true)
+    val playbackHaptics: LiveData<Boolean> = _playbackHaptics
+
     /** 地图页顶部当前行程是否展开完整换乘过程 */
     private val _currentTripRouteDisplayMode =
         MutableLiveData(CurrentTripRouteDisplayMode.ENDPOINTS_ONLY)
@@ -342,6 +346,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
+            _playbackHaptics.value = repo.isPlaybackHaptics()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
             repo.migrateCuCardNumbers()
             // 修复旧版本启动抢读留下的重复 UUID，保留全部交易和用户自定义元数据。
@@ -789,6 +794,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 设置是否保留调试日志（设置页开关） */
+    fun setPlaybackHaptics(enabled: Boolean) {
+        _playbackHaptics.value = enabled
+        viewModelScope.launch(Dispatchers.IO) { repo.setPlaybackHaptics(enabled) }
+    }
+
     fun setKeepDebugLogs(keep: Boolean) {
         _keepDebugLogs.value = keep
         viewModelScope.launch(Dispatchers.IO) { repo.setKeepDebugLogs(keep) }
@@ -1125,6 +1135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _homeWeeklySpending.value = emptyList()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
+        _playbackHaptics.value = true
         _currentTripRouteDisplayMode.value = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
         cachedTxnsByCard.clear()
         viewModelScope.launch(Dispatchers.IO) {

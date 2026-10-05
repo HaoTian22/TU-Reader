@@ -707,6 +707,8 @@ class TransitRepository(private val context: Context) {
     suspend fun setCardOrder(cardIds: List<String>) = AppPreferences.setCardOrder(context, cardIds)
     suspend fun isKeepDebugLogs(): Boolean = AppPreferences.isKeepDebugLogs(context)
     suspend fun setKeepDebugLogs(keep: Boolean) = AppPreferences.setKeepDebugLogs(context, keep)
+    suspend fun isPlaybackHaptics(): Boolean = AppPreferences.isPlaybackHaptics(context)
+    suspend fun setPlaybackHaptics(enabled: Boolean) = AppPreferences.setPlaybackHaptics(context, enabled)
     suspend fun getCurrentTripRouteDisplayMode(): CurrentTripRouteDisplayMode =
         AppPreferences.getCurrentTripRouteDisplayMode(context)
     suspend fun setCurrentTripRouteDisplayMode(mode: CurrentTripRouteDisplayMode) =

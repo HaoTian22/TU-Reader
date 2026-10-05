@@ -179,7 +179,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache,
             R.id.iconDarkMode, R.id.iconCurrentTripRoute,
-            R.id.iconMapSpeed, R.id.iconLanguage,
+            R.id.iconMapSpeed, R.id.iconPlaybackHaptics, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconCheckUpdate,
             R.id.iconOpenSource, R.id.iconFeedback
@@ -434,6 +434,21 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
         binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchDarkMode)
             ?.tintAccent(Palette.ACCENT)
+
+        // 轨迹回放震动：打开时立即给一下「行程高亮」触感作为预览
+        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchPlaybackHaptics)?.let { toggle ->
+            toggle.isChecked = viewModel.playbackHaptics.value ?: true
+            toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
+            viewModel.playbackHaptics.observe(viewLifecycleOwner) { v ->
+                if (v != toggle.isChecked) toggle.isChecked = v
+            }
+            viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
+            toggle.setOnCheckedChangeListener { _, checked ->
+                if (checked == viewModel.playbackHaptics.value) return@setOnCheckedChangeListener
+                viewModel.setPlaybackHaptics(checked)
+                if (checked) PlaybackHaptics(requireContext()).routeShown()
+            }
+        }
     }
 
     // ── 显示语言 ──

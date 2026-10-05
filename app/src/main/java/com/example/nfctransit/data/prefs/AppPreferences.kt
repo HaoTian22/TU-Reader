@@ -30,6 +30,7 @@ object AppPreferences {
     private val KEY_SELECTED_CARD_ID = stringPreferencesKey("selected_card_id")
     private val KEY_CARD_ORDER = stringPreferencesKey("card_order")          // 逗号连接的 cardId 列表
     private val KEY_KEEP_DEBUG_LOGS = stringPreferencesKey("keep_debug_logs") // "true"/"false"
+    private val KEY_PLAYBACK_HAPTICS = stringPreferencesKey("playback_haptics") // "true"/"false"
     private val KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE =
         stringPreferencesKey("current_trip_route_display_mode")
     private val KEY_SCHEMA_VERSION = intPreferencesKey("schema_version")
@@ -50,6 +51,9 @@ object AppPreferences {
 
     suspend fun isKeepDebugLogs(context: Context): Boolean =
         context.dataStore.data.first()[KEY_KEEP_DEBUG_LOGS] != "false"  // 默认 true
+
+    suspend fun isPlaybackHaptics(context: Context): Boolean =
+        context.dataStore.data.first()[KEY_PLAYBACK_HAPTICS] != "false"  // 默认 true
 
     suspend fun getCurrentTripRouteDisplayMode(context: Context): CurrentTripRouteDisplayMode {
         val stored = context.dataStore.data.first()[KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE]
@@ -108,6 +112,12 @@ object AppPreferences {
     suspend fun setKeepDebugLogs(context: Context, keep: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_KEEP_DEBUG_LOGS] = keep.toString()
+        }
+    }
+
+    suspend fun setPlaybackHaptics(context: Context, enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_PLAYBACK_HAPTICS] = enabled.toString()
         }
     }
 
