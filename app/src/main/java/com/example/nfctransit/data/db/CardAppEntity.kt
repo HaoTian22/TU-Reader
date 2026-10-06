@@ -7,10 +7,10 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * 卡上应用 SELECT/BALANCE 记录（用户数据库）——每次读卡、每个应用一行。
+ * 卡上应用 SELECT/BALANCE 记录（用户数据库）——每张卡、每个应用一行。
  * 同一张卡可能命中多个应用（双协议 YCT 的 LNT 钱包 PAY.TICL + TU 钱包 A000000632010105，
  * 各存一行）；PSE（2PAY.SYS.DDF01）枚举结果也存一行（selected_aid=PSE_AID，无余额）。
- * 追加式历史（read_at 区分每次读卡），与 cards.latest_balance_fen（当前值）互补。
+ * 按 (card_id, selected_aid) 合并，read_at 标记最新读取时间，保留该次完整快照。
  */
 @Entity(
     tableName = "card_app",
@@ -22,7 +22,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["card_id", "read_at"])]
+    indices = [
+        Index(value = ["card_id", "read_at"]),
+        Index(value = ["card_id", "selected_aid"], unique = true)
+    ]
 )
 data class CardAppEntity(
     @PrimaryKey(autoGenerate = true)

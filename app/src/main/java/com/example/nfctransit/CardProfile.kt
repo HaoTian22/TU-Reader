@@ -41,6 +41,11 @@ data class CardProfile(
 
 object CardProfiles {
 
+    /** 仅用于运行时解码，raw_records 使用实际 AID 定位应用。 */
+    fun protocolForAid(aid: String): String = known.firstOrNull { profile ->
+        profile.aidCandidates.any { it.equals(aid, ignoreCase = true) }
+    }?.cardType?.let { if (it == "YCT") "LNT" else it }.orEmpty()
+
     val PSE_AID = "325041592E5359532E4444463031" // 2PAY.SYS.DDF01，PSE 目录
 
     /**

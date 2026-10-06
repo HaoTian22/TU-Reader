@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
 import androidx.room.Upsert
 
 @Dao
@@ -53,8 +55,8 @@ interface UserDao {
     @Query("SELECT * FROM raw_records")
     suspend fun getAllRawRecords(): List<RawRecordEntity>
 
-    @Query("SELECT * FROM raw_records WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND rec_no = :recNo LIMIT 1")
-    suspend fun getRawSlot(cardId: String, protocol: String, sfi: String, recNo: Int): RawRecordEntity?
+    @Query("SELECT * FROM raw_records WHERE card_id = :cardId AND selected_aid = :selectedAid AND sfi = :sfi AND rec_no = :recNo LIMIT 1")
+    suspend fun getRawSlot(cardId: String, selectedAid: String, sfi: String, recNo: Int): RawRecordEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRawRecord(record: RawRecordEntity): Long
@@ -62,11 +64,11 @@ interface UserDao {
     @Upsert
     suspend fun upsertRawRecords(records: List<RawRecordEntity>)
 
-    @Query("UPDATE raw_records SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND rec_no = :recNo")
-    suspend fun touchRawSlot(cardId: String, protocol: String, sfi: String, recNo: Int, lastSeenAt: Long)
+    @Query("UPDATE raw_records SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND selected_aid = :selectedAid AND sfi = :sfi AND rec_no = :recNo")
+    suspend fun touchRawSlot(cardId: String, selectedAid: String, sfi: String, recNo: Int, lastSeenAt: Long)
 
-    @Query("UPDATE raw_records SET hex = :hex, content_hash = :contentHash, last_seen_at = :lastSeenAt WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND rec_no = :recNo")
-    suspend fun overwriteRawSlot(cardId: String, protocol: String, sfi: String, recNo: Int, hex: String, contentHash: String, lastSeenAt: Long)
+    @Query("UPDATE raw_records SET hex = :hex, content_hash = :contentHash, last_seen_at = :lastSeenAt WHERE card_id = :cardId AND selected_aid = :selectedAid AND sfi = :sfi AND rec_no = :recNo")
+    suspend fun overwriteRawSlot(cardId: String, selectedAid: String, sfi: String, recNo: Int, hex: String, contentHash: String, lastSeenAt: Long)
 
     // ── transactions_archive（渲染唯一来源，按内容去重）──
 
@@ -105,24 +107,37 @@ interface UserDao {
     @Query("DELETE FROM transactions_archive WHERE card_id = :cardId")
     suspend fun clearArchive(cardId: String)
 
-    // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
+    // ── card_app（每张卡、每个应用的最新 SELECT/BALANCE 快照）──
 
     @Insert
-    suspend fun insertCardApp(row: CardAppEntity): Long
+    suspend fun insertCardAppRow(row: CardAppEntity): Long
 
-    @Insert
-    suspend fun insertCardApps(rows: List<CardAppEntity>)
+    @Update
+    suspend fun updateCardAppRow(row: CardAppEntity)
+
+    @Query("SELECT * FROM card_app WHERE card_id = :cardId AND selected_aid = :selectedAid LIMIT 1")
+    suspend fun getCardApp(cardId: String, selectedAid: String): CardAppEntity?
+
+    /** 所有写入入口共用：旧备份不覆盖新快照，同时间保留最后写入的完整快照。 */
+    @Transaction
+    suspend fun insertCardApp(row: CardAppEntity): Long {
+        val existing = getCardApp(row.cardId, row.selectedAid)
+            ?: return insertCardAppRow(row.copy(rowId = 0))
+        if (row.readAt >= existing.readAt) {
+            updateCardAppRow(row.copy(rowId = existing.rowId))
+        }
+        return existing.rowId
+    }
+
+    @Transaction
+    suspend fun insertCardApps(rows: List<CardAppEntity>) {
+        rows.forEach { insertCardApp(it) }
+    }
 
     @Query("SELECT * FROM card_app WHERE card_id = :cardId ORDER BY read_at DESC, row_id DESC")
     suspend fun getCardApps(cardId: String): List<CardAppEntity>
 
-    @Query("""SELECT * FROM card_app WHERE row_id IN (
-        SELECT MAX(snapshot.row_id) FROM card_app AS snapshot
-        INNER JOIN (SELECT selected_aid, MAX(read_at) AS latest_read_at
-            FROM card_app WHERE card_id = :cardId GROUP BY selected_aid) AS latest
-        ON snapshot.selected_aid = latest.selected_aid AND snapshot.read_at = latest.latest_read_at
-        WHERE snapshot.card_id = :cardId GROUP BY snapshot.selected_aid
-    ) ORDER BY selected_aid""")
+    @Query("SELECT * FROM card_app WHERE card_id = :cardId ORDER BY selected_aid")
     suspend fun getLatestCardApps(cardId: String): List<CardAppEntity>
 
     @Query("SELECT * FROM card_app")

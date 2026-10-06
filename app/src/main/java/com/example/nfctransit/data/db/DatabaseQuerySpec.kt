@@ -39,7 +39,7 @@ enum class DatabaseQuerySpec(
                card_id TEXT NOT NULL，外键关联 cards.card_id，删除卡片时级联删除
                sfi TEXT NOT NULL（例如 0x18）
                rec_no INTEGER NOT NULL
-               protocol TEXT NOT NULL
+               selected_aid TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                first_seen_at INTEGER NOT NULL（Unix 毫秒时间戳）
@@ -95,7 +95,7 @@ enum class DatabaseQuerySpec(
                card_id TEXT NOT NULL, foreign key to cards.card_id, deleted together with the card
                sfi TEXT NOT NULL (e.g. 0x18)
                rec_no INTEGER NOT NULL
-               protocol TEXT NOT NULL
+               selected_aid TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                first_seen_at INTEGER NOT NULL (Unix timestamp in milliseconds)

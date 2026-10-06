@@ -37,7 +37,28 @@ class TransitCardReader internal constructor(
     private var connectionError: Exception? = null
     private var readError: String? = null
     private var optionalReading = false
-    private var optionalDeadlineMs = Long.MAX_VALUE
+    private var activeAid = ""
+    private val applicationReads = linkedMapOf<String, AppRead>()
+    private val attemptedAids = mutableSetOf<String>()
+    private val selectedAids = mutableSetOf<String>()
+
+    private fun rememberApplication(aid: String, response: ByteArray) {
+        activeAid = aid
+        selectedAids.add(aid)
+        val previous = applicationReads[aid]
+        applicationReads[aid] = AppRead(
+            aid, ApduUtil.bytesToHex(ApduUtil.dataOnly(response)),
+            previous?.balanceFen, previous?.balanceResp
+        )
+    }
+
+    private fun rememberBalance(aid: String, balance: Long?, response: String?) {
+        val application = applicationReads[aid] ?: return
+        applicationReads[aid] = application.copy(balanceFen = balance, balanceResp = response)
+    }
+
+    private fun rawRecord(sfi: Int, recNo: Int, protocol: String, hex: String) =
+        RawRecord(sfi, recNo, protocol, hex, selectedAid = activeAid)
 
     /** 通信一旦中断，本次会话不再发送命令；业务上的非 9000 响应仍由各文件处理。 */
     private fun transceive(command: ByteArray): ByteArray {
@@ -56,7 +77,6 @@ class TransitCardReader internal constructor(
         val info: CardInfo?,
         val balance: Long?,             // LNT 钱包余额（分），BALANCE CHECK 失败为 null
         val payMonth: Int?,            // 统计月份 YYYYMM（LNT 交易年份锚点）
-        val ticlSelectResp: String = "",   // PAY.TICL SELECT 成功响应（FCI）
         val balanceResp: String? = null,   // LNT 钱包 BALANCE CHECK 响应 hex
         val statsRecord: RawRecord? = null,
         val walletSelected: Boolean = false
@@ -67,7 +87,6 @@ class TransitCardReader internal constructor(
         val info: CardInfo?,
         val balance: Long?,             // TU 钱包余额（分），BALANCE CHECK 失败为 null
         val selectedAid: String = "",
-        val selectResp: String = "",
         val balanceResp: String? = null
     )
 
@@ -97,7 +116,9 @@ class TransitCardReader internal constructor(
 
     fun read(): ReadResult {
         val log = mutableListOf<String>()
-        val appReads = mutableListOf<AppRead>()
+        applicationReads.clear()
+        attemptedAids.clear()
+        selectedAids.clear()
         val startedAt = nowMs()
 
         try {
@@ -106,17 +127,21 @@ class TransitCardReader internal constructor(
             // 顺序尝试 CardProfiles.known（首命中即读；YCT/SZT 双协议卡在各自分支内部同时读 TU 钱包）。
             // 注意：PSE 不能先于识别——实测 SELECT PSE 后卡片会锁定到目录列出的应用，
             // 导致未列出的 PAY.APPY/PAY.TICL SELECT 返回 6A82（LNT 钱包读不到、双协议变纯 TU），
-            // 因此 PSE 只在读取完成后补一次，仅用于 card_app 留档。
+            // 因此全部应用枚举（含 PSE）放在核心数据和额外文件读取之后。
             for (profile in CardProfiles.known) {
-                val result = readProfile(profile, log, appReads)
+                val result = readProfile(profile, log)
                 if (result != null) {
                     optionalReading = true
-                    val pse = if (connectionError == null && nowMs() < optionalDeadlineMs) trySelectPse(log) else null
-                    if (pse != null) {
-                        appReads.add(AppRead(CardProfiles.PSE_AID, pse.respHex, null, null))
+                    if (connectionError == null) {
+                        try {
+                            channel.timeout = 500
+                            discoverApplications(log)
+                        } catch (error: Exception) {
+                            log.add("应用枚举异常: ${error.message}")
+                        }
                     }
                     log.add("读取总耗时: ${nowMs() - startedAt} ms")
-                    return result.copy(appReads = appReads.toList(), rawLog = log.toList(), readError = readError)
+                    return result.copy(appReads = applicationReads.values.toList(), rawLog = log.toList(), readError = readError)
                 }
             }
         } catch (e: Exception) {
@@ -126,7 +151,7 @@ class TransitCardReader internal constructor(
             try { channel.close() } catch (_: Exception) {}
         }
 
-        return ReadResult(null, null, rawLog = log, appReads = appReads, readError = readError)
+        return ReadResult(null, null, rawLog = log, appReads = applicationReads.values.toList(), readError = readError)
     }
 
     /**
@@ -135,14 +160,14 @@ class TransitCardReader internal constructor(
      */
     private fun readProfile(
         profile: CardProfile,
-        log: MutableList<String>,
-        appReads: MutableList<AppRead>
+        log: MutableList<String>
     ): ReadResult? {
         for (aid in profile.aidCandidates) {
+            attemptedAids.add(aid)
             val selectResp = transceive(ApduUtil.buildSelectByName(aid))
             log.add("SELECT AID $aid -> ${ApduUtil.bytesToHex(selectResp)}")
             if (!ApduUtil.isSuccess(selectResp)) continue
-            val selectHex = ApduUtil.bytesToHex(ApduUtil.dataOnly(selectResp))
+            rememberApplication(aid, selectResp)
 
             val coreStartedAt = nowMs()
             val protocol = when (profile.cardType) {
@@ -155,7 +180,8 @@ class TransitCardReader internal constructor(
             val info = yct?.info ?: if (yct == null) readCuInfo(profile, log) else null
             val bc = if (yct == null) readBalance(profile, log) else null
             var balance = yct?.balance ?: bc?.takeIf { it.respHex != null }?.fen
-            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType })
+            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType },
+                if (yct != null) "5041592E41505059" else aid)
             yct?.statsRecord?.let(rawRecs::add)
             if (profile.cardType == "TU") {
                 val recordBalance = collectTuWallet(profile, log, rawRecs)
@@ -175,18 +201,15 @@ class TransitCardReader internal constructor(
             }
             for (sfi in statsSfis) collectAuxiliaryFile(sfi, protocol, log, rawRecs)
             val primaryAid = if (yct != null) "5041592E5449434C" else aid
-            val primarySelect = yct?.ticlSelectResp ?: selectHex
-            if (yct?.walletSelected == true || primarySelect.isNotEmpty()) {
-                appReads.add(AppRead(primaryAid, primarySelect, balance, yct?.balanceResp ?: bc?.respHex))
-            } else if (yct == null) {
-                appReads.add(AppRead(aid, selectHex, balance, bc?.respHex))
+            if (yct == null || yct.walletSelected) {
+                rememberBalance(primaryAid, balance, yct?.balanceResp ?: bc?.respHex)
             }
             val tu = if (profile.cardType in setOf("YCT", "CU", "SZT") && connectionError == null) {
                 readTuWallet(log, rawRecs)
             } else TuWalletResult(null, null)
-            addInfoRecord(rawRecs, tu.info, "TU")
+            addInfoRecord(rawRecs, tu.info, "TU", tu.selectedAid)
             if (tu.selectedAid.isNotEmpty()) {
-                appReads.add(AppRead(tu.selectedAid, tu.selectResp, tu.balance, tu.balanceResp))
+                rememberBalance(tu.selectedAid, tu.balance, tu.balanceResp)
             }
             log.add("核心读取耗时: ${nowMs() - coreStartedAt} ms")
 
@@ -194,7 +217,6 @@ class TransitCardReader internal constructor(
             optionalReading = true
             if (connectionError == null && (yct == null || yct.walletSelected)) {
                 val optionalStartedAt = nowMs()
-                optionalDeadlineMs = optionalStartedAt + 600
                 try {
                     channel.timeout = 500
                     val primarySelected = profile.cardType !in setOf("YCT", "CU", "SZT") ||
@@ -211,7 +233,7 @@ class TransitCardReader internal constructor(
                 log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
             }
             return ReadResult(profile, info, balance, tu.info, tu.balance, yct?.payMonth,
-                rawRecs, log, appReads, readError)
+                rawRecs, log, applicationReads.values.toList(), readError)
         }
         return null
     }
@@ -237,7 +259,7 @@ class TransitCardReader internal constructor(
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
                 if (data.size < 22) break
-                collector.add(RawRecord(profile.stationSfi, recordNo, "TU", ApduUtil.bytesToHex(data)))
+                collector.add(rawRecord(profile.stationSfi, recordNo, "TU", ApduUtil.bytesToHex(data)))
                 if (data.all { it.toInt() == 0 }) continue  // 空槽
                 val balance = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
                 val ts = if (data.size >= 32) ApduUtil.bcdToString(data.copyOfRange(25, 32)) else ""
@@ -279,15 +301,15 @@ class TransitCardReader internal constructor(
         return TuWalletResult(
             info, balance,
             selectedAid,
-            ApduUtil.bytesToHex(ApduUtil.dataOnly(selectTu)),
             bc.respHex
         )
     }
 
     private fun selectApplication(aid: String, log: MutableList<String>): ByteArray? = try {
+        attemptedAids.add(aid)
         val response = transceive(ApduUtil.buildSelectByName(aid))
         log.add("SELECT AID $aid -> ${ApduUtil.bytesToHex(response)}")
-        response.takeIf(ApduUtil::isSuccess)
+        response.takeIf(ApduUtil::isSuccess)?.also { rememberApplication(aid, it) }
     } catch (error: Exception) {
         log.add("选择应用异常: ${error.message}")
         null
@@ -304,7 +326,7 @@ class TransitCardReader internal constructor(
             if (ApduUtil.isSuccess(binary)) {
                 val data = ApduUtil.dataOnly(binary)
                 if (data.any { it.toInt() != 0 }) {
-                    collector.add(RawRecord(sfi, 0, protocol, ApduUtil.bytesToHex(data)))
+                    collector.add(rawRecord(sfi, 0, protocol, ApduUtil.bytesToHex(data)))
                 }
                 return
             }
@@ -315,7 +337,7 @@ class TransitCardReader internal constructor(
                 if (!ApduUtil.isSuccess(response)) break
                 val data = ApduUtil.dataOnly(response)
                 if (data.any { it.toInt() != 0 }) {
-                    collector.add(RawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
+                    collector.add(rawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
                 }
             }
         } catch (error: Exception) {
@@ -323,56 +345,92 @@ class TransitCardReader internal constructor(
         }
     }
 
-    /** PSE/PPSE 枚举结果：目录响应 + 提取出的可用应用 AID */
-    private data class PseResult(val respHex: String, val aids: List<String>)
-
-    /**
-     * SELECT PSE（2PAY.SYS.DDF01）枚举卡内可用应用。
-     * 返回 null 表示 PSE 不支持（回退顺序识别）。AID 列表从响应 TLV 的 4F 标签提取。
-     */
-    private fun trySelectPse(log: MutableList<String>): PseResult? {
-        return try {
-            val resp = transceive(ApduUtil.buildSelectByName(CardProfiles.PSE_AID))
-            log.add("SELECT AID ${CardProfiles.PSE_AID} (PSE) -> ${ApduUtil.bytesToHex(resp)}")
-            if (!ApduUtil.isSuccess(resp)) return null
-            val data = ApduUtil.dataOnly(resp)
-            if (data.isEmpty()) return null
-            PseResult(ApduUtil.bytesToHex(data), extractAids(data))
-        } catch (e: Exception) {
-            log.add("PSE 探测异常: ${e.message}")
-            null
+    /** 核心读取后枚举应用，先探测已知 AID，再读取 PPSE/PSE，保留目录列出的未知应用。 */
+    private fun discoverApplications(log: MutableList<String>) {
+        for (aid in CardProfiles.known.flatMap { it.aidCandidates }.distinct()) {
+            if (connectionError != null) return
+            if (aid !in attemptedAids) selectApplication(aid, log)
         }
+        val listedAids = linkedSetOf<String>()
+        for (directoryAid in listOf(CardProfiles.PSE_AID, "315041592E5359532E4444463031")) {
+            if (connectionError != null) break
+            val response = selectApplication(directoryAid, log) ?: continue
+            val directory = parseApplicationDirectory(ApduUtil.dataOnly(response))
+            fun rememberEntries(entries: DirectoryEntries) {
+                for (aid in entries.aids) {
+                    listedAids.add(aid)
+                    applicationReads.putIfAbsent(aid, AppRead(aid, "", null, null))
+                }
+            }
+            rememberEntries(directory)
+            // PSE 可能在 FCI 中只给出目录 SFI，应用列表在该文件的记录中。
+            val sfi = directory.sfi ?: continue
+            for (recordNo in 1..30) {
+                if (connectionError != null) break
+                try {
+                    val record = transceive(ApduUtil.buildReadRecord(sfi, recordNo, 0))
+                    log.add("READ DIRECTORY SFI=${sfi.toString(16).uppercase()} rec=$recordNo -> ${ApduUtil.bytesToHex(record)}")
+                    if (!ApduUtil.isSuccess(record)) break
+                    val data = ApduUtil.dataOnly(record)
+                    if (data.isEmpty()) break
+                    rememberEntries(parseApplicationDirectory(data))
+                } catch (error: Exception) {
+                    log.add("应用目录读取异常: ${error.message}")
+                    break
+                }
+            }
+        }
+        for (aid in listedAids) {
+            if (connectionError != null) break
+            if (aid !in selectedAids) selectApplication(aid, log)
+        }
+        log.add("应用枚举完成: ${applicationReads.size} 个应用/目录")
     }
 
-    /** 从 PSE/PPSE 目录响应（BER-TLV）提取所有应用 AID（标签 0x4F） */
-    private fun extractAids(data: ByteArray): List<String> {
-        val aids = mutableListOf<String>()
-        var i = 0
-        while (i < data.size) {
-            val tag = data[i].toInt() and 0xFF
-            if (i + 1 >= data.size) break
-            var j = i + 1
-            val firstLen = data[j].toInt() and 0xFF
-            var len: Int
-            var lenBytes: Int
-            if (firstLen and 0x80 != 0) {
-                val numBytes = firstLen and 0x7F
-                if (j + 1 + numBytes > data.size) break
-                len = 0
-                for (k in 0 until numBytes) len = (len shl 8) or (data[j + 1 + k].toInt() and 0xFF)
-                lenBytes = 1 + numBytes
-            } else {
-                len = firstLen
-                lenBytes = 1
+    private data class DirectoryEntries(val aids: List<String>, val sfi: Int?)
+
+    /** 递归解析 6F/A5/BF0C/61/70 等嵌套 BER-TLV，原实现会整块跳过构造标签。 */
+    private fun parseApplicationDirectory(data: ByteArray): DirectoryEntries {
+        val aids = linkedSetOf<String>()
+        var directorySfi: Int? = null
+        fun visit(start: Int, end: Int, depth: Int) {
+            if (depth > 16) return
+            var offset = start
+            while (offset < end) {
+                val firstTag = data[offset++].toInt() and 0xFF
+                if (firstTag == 0 || firstTag == 0xFF) continue
+                var tag = firstTag
+                if (firstTag and 0x1F == 0x1F) {
+                    var count = 0
+                    do {
+                        if (offset >= end || ++count > 3) return
+                        val next = data[offset++].toInt() and 0xFF
+                        tag = (tag shl 8) or next
+                    } while (next and 0x80 != 0)
+                }
+                if (offset >= end) return
+                var length = data[offset++].toInt() and 0xFF
+                if (length and 0x80 != 0) {
+                    val bytes = length and 0x7F
+                    if (bytes !in 1..3 || offset + bytes > end) return
+                    length = 0
+                    repeat(bytes) { length = (length shl 8) or (data[offset++].toInt() and 0xFF) }
+                }
+                if (length > end - offset) return
+                val valueEnd = offset + length
+                when {
+                    tag == 0x4F && length in 5..16 -> aids.add(ApduUtil.bytesToHex(data.copyOfRange(offset, valueEnd)))
+                    tag == 0x88 && length == 1 -> {
+                        val sfi = data[offset].toInt() and 0xFF
+                        if (sfi in 1..30) directorySfi = sfi
+                    }
+                    firstTag and 0x20 != 0 -> visit(offset, valueEnd, depth + 1)
+                }
+                offset = valueEnd
             }
-            val valueStart = j + lenBytes
-            if (valueStart + len > data.size) break
-            if (tag == 0x4F && len > 0) {
-                aids.add(ApduUtil.bytesToHex(data.copyOfRange(valueStart, valueStart + len)))
-            }
-            i = valueStart + len
         }
-        return aids
+        visit(0, data.size, 0)
+        return DirectoryEntries(aids.toList(), directorySfi)
     }
 
     /**
@@ -422,7 +480,7 @@ class TransitCardReader internal constructor(
                 if (!ApduUtil.isSuccess(resp)) break
                 val data = ApduUtil.dataOnly(resp)
                 if (data.size < 0x17) break
-                collector.add(RawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
+                collector.add(rawRecord(sfi, recordNo, protocol, ApduUtil.bytesToHex(data)))
             } catch (e: Exception) {
                 log.add("读取交易记录异常 rec=$recordNo: ${e.message}")
                 break
@@ -460,7 +518,7 @@ class TransitCardReader internal constructor(
             log.add("READ RECORD SFI=08 rec=1 (stats month) -> ${ApduUtil.bytesToHex(resp)}")
             val d = ApduUtil.dataOnly(resp)
             if (ApduUtil.isSuccess(resp) && d.size >= 5) {
-                statsRecord = RawRecord(0x08, 1, "LNT", ApduUtil.bytesToHex(d))
+                statsRecord = rawRecord(0x08, 1, "LNT", ApduUtil.bytesToHex(d))
                 val year = 2000 + bcdNibble(d[3])
                 val month = bcdNibble(d[4])
                 if (month in 1..12) payMonth = year * 100 + month
@@ -481,7 +539,6 @@ class TransitCardReader internal constructor(
         val balanceFen: Long? = if (balance.respHex != null) balance.fen else null
         return YctCardResult(
             info, balanceFen, payMonth,
-            ApduUtil.bytesToHex(ApduUtil.dataOnly(selectTicl)),
             balance.respHex, statsRecord, walletSelected = true
         )
     }
@@ -594,11 +651,12 @@ class TransitCardReader internal constructor(
     private fun addInfoRecord(
         collector: MutableList<RawRecord>,
         info: CardInfo?,
-        protocol: String
+        protocol: String,
+        selectedAid: String
     ) {
         if (info == null || info.rawHex.isBlank()) return
-        collector.removeAll { it.sfi == 0x15 && it.recNo == 0 && it.protocol == protocol }
-        collector.add(RawRecord(0x15, 0, protocol, info.rawHex))
+        collector.removeAll { it.sfi == 0x15 && it.recNo == 0 && it.selectedAid == selectedAid }
+        collector.add(RawRecord(0x15, 0, protocol, info.rawHex, selectedAid))
     }
 
     /**

@@ -117,7 +117,7 @@
 
 ### 技术特点
 - 🔍 **自动卡类型识别** — 根据 AID (Application Identifier) 自动判断卡类型
-- 👍 **统一智能匹配** — 通过线路/站点编码和终端号解析站点信息，连表取优：长度 → 2字符对齐 → 起始位置 → 非0字符长度
+- 👍 **统一智能匹配** — 通过线路/站点编码和终端号解析站点信息，匹配算法：筛选公交／轨道候选 → 长度 → 2字符对齐 → 起始位置 → 非0字符长度
 - 🔄 **在线数据库更新** — 支持远程更新站名映射表，无需重新安装
 - 💾 **本地数据存储** — 使用 Room 数据库安全保存卡片信息
 
@@ -174,7 +174,13 @@ CI 构建使用同名环境变量 `TENCENT_MAP_WEB_SERVICE_KEY` 和 `TENCENT_MAP
 | 数据库 | Room 版本 | 内容 | 存储位置 |
 |---|---|---|---|
 | `transit.db` | v5 (AppDatabase) | 城市/协议代码映射/线路/站点/读卡器设备 | assets/data/ → 应用私有目录 |
-| `user_data.db` | v4 (UserDatabase) | 卡片/原始记录/交易归档 | 应用私有目录 |
+| `user_data.db` | v5 (UserDatabase) | 卡片/原始记录/交易归档/应用快照 | 应用私有目录 |
+
+`card_app` 按 `(card_id, selected_aid)` 唯一定位，每张卡的每个应用仅保存最新读取快照。v4→v5 升级自动合并重复项，保留 `read_at` 最大的一行（时间相同保留 `row_id` 最大的一行）；读卡、数据库导入和重复卡片合并均使用相同的去重键，旧快照不会覆盖新快照。
+
+卡信息中的应用列表记录所有成功 SELECT 的应用（包括 PAY.APPY），并在核心读取结束后探测尚未尝试的已知 AID、递归解析 PPSE/PSE 目录及目录 SFI 记录。目录列出的应用即使 SELECT 失败也保留 AID，未读到的 SELECT/余额响应留空；重复 SELECT 保留同一应用已读到的余额。未被目录公布且未知的 AID 无法穷举，旧版本漏记的应用会在重新贴卡后补齐。
+
+`raw_records` 使用 `selected_aid` 替代 `protocol`，按 `(card_id, selected_aid, sfi, rec_no)` 定位当前槽位。新读卡保存文件读取时实际选中的 AID（岭南通信息/统计文件归 PAY.APPY、交易归 PAY.TICL，TU 保留实际命中的候选 AID）；解码协议由 AID 在运行时解析。v4→v5 根据卡型及已有应用快照补全旧记录 AID，无法确定 TU 候选时使用默认 `A000000632010105`；转换后撞键的槽位保留最新内容和最早首次读取时间。
 
 **重要约束**：`AppDatabase` 服务端数据库必须与应用 schema 的 identity_hash 一致。当前 Room v5 identity hash 为 `6faef85bfabe32fba63ee2cb3c1a496e`。匹配直接使用设备编号，实际城市使用 `city_id`。
 

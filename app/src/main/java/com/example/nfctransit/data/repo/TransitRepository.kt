@@ -44,28 +44,10 @@ data class ImportSummary(
     val merged: Int = 0
 )
 
-private data class CardAppImportKey(
-    val cardId: String,
-    val readAt: Long,
-    val selectedAid: String,
-    val selectResp: String,
-    val balanceFen: Long?,
-    val balanceResp: String?
-)
-
 private data class ArchiveKey(
     val contentHash: String,
     val protocol: String,
     val sfi: String
-)
-
-private fun CardAppEntity.cardAppImportKey(cardId: String) = CardAppImportKey(
-    cardId = cardId,
-    readAt = readAt,
-    selectedAid = selectedAid,
-    selectResp = selectResp,
-    balanceFen = balanceFen,
-    balanceResp = balanceResp
 )
 
 /** 卡号由协议字段产生，导入时忽略意外的首尾空白；空值不参与身份比较。 */
@@ -183,15 +165,15 @@ class TransitRepository(private val context: Context) {
 
     suspend fun syncRawRecords(cardId: String, records: List<RawRecord>) {
         val now = System.currentTimeMillis()
-        fun key(protocol: String, sfi: String, recNo: Int) = Triple(protocol, sfi, recNo)
-        val existingSlots = dao.getRawRecords(cardId).associateBy { key(it.protocol, it.sfi, it.recNo) }
-        val rows = records.associateBy { key(it.protocol, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
+        fun key(selectedAid: String, sfi: String, recNo: Int) = Triple(selectedAid, sfi, recNo)
+        val existingSlots = dao.getRawRecords(cardId).associateBy { key(it.selectedAid, it.sfi, it.recNo) }
+        val rows = records.associateBy { key(it.selectedAid, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
             val hash = RecordDecoder.contentHash(rec.hex)
-            val existing = existingSlots[key(rec.protocol, rec.sfi.toSfiHex(), rec.recNo)]
+            val existing = existingSlots[key(rec.selectedAid, rec.sfi.toSfiHex(), rec.recNo)]
             RawRecordEntity(
                 rowId = existing?.rowId ?: 0,
                 cardId = cardId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
-                protocol = rec.protocol, hex = rec.hex, contentHash = hash,
+                selectedAid = rec.selectedAid, hex = rec.hex, contentHash = hash,
                 firstSeenAt = existing?.firstSeenAt ?: now, lastSeenAt = now
             )
         }
@@ -298,7 +280,7 @@ class TransitRepository(private val context: Context) {
 
     suspend fun maxArchiveRowId(cardId: String): Long? = dao.maxArchiveRowId(cardId)
 
-    // ── card_app（卡上应用 SELECT/BALANCE 记录，追加历史）──
+    // ── card_app（按卡片与应用合并，保留最新 SELECT/BALANCE 快照）──
 
     suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {
         dao.insertCardApps(apps.filter { it.selectedAid.isNotBlank() }.map { it.copy(cardId = cardId) })
@@ -343,8 +325,8 @@ class TransitRepository(private val context: Context) {
     /**
      * 导入另一份用户库：卡片按 card_number（空号按 last_four）匹配现有卡，已存在则复用其 card_id
      * 并合并记录（不覆盖卡片元数据）；新卡分配新 UUID 并追加到卡序。
-     * 交易按 (card_id, content_hash, protocol, sfi)、原始记录按 (card_id, protocol, sfi, rec_no) 去重，
-     * 只插入现有库中没有的行。
+     * 交易按 (card_id, content_hash, protocol, sfi)、原始记录按 (card_id, selected_aid, sfi, rec_no) 去重，
+     * 只插入现有库中没有的行；应用按 (card_id, selected_aid) 合并并保留最新快照。
      */
     suspend fun importDatabase(importFile: File): ImportSummary {
         val src = Room.databaseBuilder(
@@ -396,7 +378,7 @@ class TransitRepository(private val context: Context) {
         var newRaw = 0
         for (raw in importedRaws) {
             val targetId = idMap[raw.cardId] ?: continue
-            if (dao.getRawSlot(targetId, raw.protocol, raw.sfi, raw.recNo) == null) {
+            if (dao.getRawSlot(targetId, raw.selectedAid, raw.sfi, raw.recNo) == null) {
                 dao.insertRawRecord(
                     raw.copy(cardId = targetId, rowId = 0, firstSeenAt = now, lastSeenAt = now)
                 )
@@ -404,13 +386,9 @@ class TransitRepository(private val context: Context) {
             }
         }
 
-        val existingAppKeys = dao.getAllCardApps()
-            .mapTo(mutableSetOf()) { it.cardAppImportKey(it.cardId) }
         for (app in importedApps) {
             val targetId = idMap[app.cardId] ?: continue
-            if (existingAppKeys.add(app.cardAppImportKey(targetId))) {
-                dao.insertCardApp(app.copy(cardId = targetId, rowId = 0))
-            }
+            dao.insertCardApp(app.copy(cardId = targetId, rowId = 0))
         }
 
         var newArchive = 0
@@ -580,7 +558,7 @@ class TransitRepository(private val context: Context) {
                         card.cardId,
                         card.cardType,
                         dao.getRawRecords(card.cardId).map {
-                            RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+                            it.toRawRecord()
                         },
                         Calendar.getInstance().get(Calendar.YEAR)
                     )
@@ -611,12 +589,12 @@ class TransitRepository(private val context: Context) {
     /** 合并归档及应用记录，并保留最新原始槽位，再由调用方删除冗余卡。 */
     private suspend fun mergeDuplicateCardRows(targetCardId: String, duplicateCardId: String) {
         for (raw in dao.getRawRecords(duplicateCardId)) {
-            val existing = dao.getRawSlot(targetCardId, raw.protocol, raw.sfi, raw.recNo)
+            val existing = dao.getRawSlot(targetCardId, raw.selectedAid, raw.sfi, raw.recNo)
             if (existing == null) {
                 dao.insertRawRecord(raw.copy(cardId = targetCardId, rowId = 0))
             } else if (raw.lastSeenAt > existing.lastSeenAt) {
                 dao.overwriteRawSlot(
-                    targetCardId, raw.protocol, raw.sfi, raw.recNo,
+                    targetCardId, raw.selectedAid, raw.sfi, raw.recNo,
                     raw.hex, raw.contentHash, raw.lastSeenAt
                 )
             }
@@ -626,12 +604,8 @@ class TransitRepository(private val context: Context) {
                 dao.insertArchiveRow(archive.copy(cardId = targetCardId, rowId = 0))
             }
         }
-        val targetAppKeys = dao.getCardApps(targetCardId)
-            .mapTo(mutableSetOf()) { it.cardAppImportKey(targetCardId) }
         for (app in dao.getCardApps(duplicateCardId)) {
-            if (targetAppKeys.add(app.cardAppImportKey(targetCardId))) {
-                dao.insertCardApp(app.copy(cardId = targetCardId, rowId = 0))
-            }
+            dao.insertCardApp(app.copy(cardId = targetCardId, rowId = 0))
         }
     }
 

@@ -445,7 +445,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val ctx = getApplication<Application>()
         val cardId = card.cardId
         val rawRecs = repo.loadRawRecords(cardId).map {
-            RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+            it.toRawRecord()
         }
         repo.backfillArchiveFromRaw(
             cardId = cardId,
@@ -604,7 +604,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val buildStartedAt = SystemClock.elapsedRealtime()
             val state = withContext(Dispatchers.IO) {
                 val rawRecs = repo.loadRawRecords(cardId).map {
-                    RawRecord(it.sfi.toSfiInt(), it.recNo, it.protocol, it.hex)
+                    it.toRawRecord()
                 }
                 val appRecs = repo.loadLatestCardApps(cardId)
                 val canReuse = !archiveChanged && existing?.cardType == effectiveCardType &&
