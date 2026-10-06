@@ -351,6 +351,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _playbackHaptics.value = repo.isPlaybackHaptics()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
             repo.migrateCuCardNumbers()
+            repo.repairImportedCuArchives()
             // 修复旧版本启动抢读留下的重复 UUID，保留全部交易和用户自定义元数据。
             if (repo.coalesceDuplicateCards() > 0) {
                 withContext(Dispatchers.IO) { UiCache.clearAll(app) }

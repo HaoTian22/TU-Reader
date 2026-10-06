@@ -3,6 +3,9 @@ package com.example.nfctransit.data
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.db.StationResolution
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
+import com.example.nfctransit.data.repo.TripReaderCard
+import com.example.nfctransit.data.repo.TripReaderTransaction
+import com.example.nfctransit.data.repo.tripReaderFareProtocol
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.ui.RawHexFormatter
@@ -14,6 +17,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecordDecoderTest {
+    @Test
+    fun importedShanghaiCuFareResolvesLineAndStationWithCuProtocol() {
+        val hex = "00540006A4000000000920001109311120260823150028"
+        val sourceTx = TripReaderTransaction(0, hex, "", false)
+        val sourceCard = TripReaderCard("test", "", 0, "", false, true, false, false,
+            false, listOf(sourceTx))
+        val mapping = lntMapping("地铁").copy(
+            cityCode = "2900", cityName = "上海", standard = "CU", deviceCode = "2000110931",
+            lineName = "9号线", stationName = "漕河泾开发区"
+        )
+        withDeviceMappings(listOf(mapping), prefix = "2000") {
+            val protocol = tripReaderFareProtocol(sourceCard, sourceTx)
+            val record = RecordDecoder.ZoneRecord(0x18, 1, protocol, hex)
+            val fresh = RecordDecoder.decodeCard("CU", listOf(record), null, 2026).display.single()
+            val saved = ArchivedTransactionEntity(
+                cardId = "test", sfi = "0x18", protocol = protocol, hex = hex,
+                contentHash = RecordDecoder.contentHash(hex), resolvedDate = fresh.date,
+                firstSeenAt = 0, lastSeenAt = 0
+            )
+            for (tx in listOf(fresh, RecordDecoder.decodeArchive("CU", listOf(saved)).single())) {
+                assertEquals("CU", tx.protocol)
+                assertEquals("2900", tx.cityCode)
+                assertEquals("9号线", tx.lineName)
+                assertEquals("漕河泾开发区", tx.stationName)
+                assertEquals("2000110931", tx.deviceCode)
+            }
+        }
+    }
+
 
     @Test
     fun lntNonZeroFifthTerminalDigitWithoutMetroMappingUsesSeconds() {
@@ -449,26 +481,26 @@ class RecordDecoderTest {
         return RecordDecoder.ZoneRecord(0x1E, 1, "TU", ApduUtil.bytesToHex(data))
     }
 
-    private fun withDeviceMappings(mappings: List<StationResolution>, block: () -> Unit) {
+    private fun withDeviceMappings(mappings: List<StationResolution>, prefix: String = "9900", block: () -> Unit) {
         val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
         val candidates = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")
         val index = candidates.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
-        val key = "9900" to null
+        val key = prefix to null
         val previous = index[key]
         val rawBuckets = TransitData::class.java.getDeclaredField("resolutionsByCity").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")
         val rawIndex = rawBuckets.get(TransitData) as MutableMap<String, MutableList<StationResolution>>
-        val previousRaw = rawIndex["9900"]
+        val previousRaw = rawIndex[prefix]
         val wasLoaded = loaded.getBoolean(TransitData)
         try {
             loaded.setBoolean(TransitData, true)
             index[key] = mappings
-            rawIndex["9900"] = mappings.toMutableList()
+            rawIndex[prefix] = mappings.toMutableList()
             block()
         } finally {
             if (previous == null) index.remove(key) else index[key] = previous
-            if (previousRaw == null) rawIndex.remove("9900") else rawIndex["9900"] = previousRaw
+            if (previousRaw == null) rawIndex.remove(prefix) else rawIndex[prefix] = previousRaw
             loaded.setBoolean(TransitData, wasLoaded)
         }
     }

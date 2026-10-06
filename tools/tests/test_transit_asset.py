@@ -32,6 +32,16 @@ def test_release_asset_matches_room_schema_and_city_catalog():
     assert f'private const val SCHEMA_HASH = "{schema["identityHash"]}"' in source
 
 
+def test_dalian_bus_codes_match_corrected_csv_without_stale_padding():
+    with sqlite3.connect(f"file:{ASSETS / 'transit.db'}?mode=ro", uri=True) as db:
+        result = db.execute("SELECT r.device_code,l.line_name,c.city_code FROM reader_device r "
+                            "JOIN line l ON l.line_id=r.line_id JOIN city c ON c.city_id=r.city_id "
+                            "WHERE r.device_code='2220002800' AND r.transit_type='公交'").fetchone()
+        assert result == ("2220002800", "40", "2220")
+        assert not db.execute("SELECT 1 FROM reader_device WHERE device_code IN "
+                              "('22200028000','22200010000') AND transit_type='公交'").fetchall()
+
+
 @pytest.mark.parametrize("protocol,code,city", [
     ("TU", "3140", "镇江"), ("CU", "3140", "嘉兴"),
     ("TU", "3120", "扬州"), ("CU", "3120", "绍兴"),

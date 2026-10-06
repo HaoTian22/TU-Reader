@@ -1,10 +1,27 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.data.db.StationResolution
+import com.example.nfctransit.ApduUtil
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TransitDataMatchingTest {
+    @Test
+    fun correctedDalianCsvCodesResolveProvidedJourneyTo40() {
+        val hex = "040000413101519063020028000100000000000064000002BC20250720152720222000002220FFFFFFFF000000000000"
+        val body = ApduUtil.bytesToHex(ApduUtil.hexToBytes(hex).copyOfRange(10, 17))
+        val candidates = listOf("002800" to "40", "001000" to "17", "000100" to "1").map { (code, line) ->
+            resolution(code, "公交", line, null).copy(cityCode = "2220", cityName = "大连",
+                deviceCode = "2220$code")
+        }
+        for (rows in listOf(candidates, candidates.reversed())) {
+            val result = TransitData.longestTuMatch("2220", body, TransitData.TuTransitFamily.BUS,
+                null, candidates = rows)?.resolution
+            assertEquals("2220002800", result?.deviceCode)
+            assertEquals("40", result?.lineName)
+        }
+    }
+
     @Test
     fun shenzhenTuAndSztShareCuTerminalMappingsWithCanonicalCity() {
         val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }

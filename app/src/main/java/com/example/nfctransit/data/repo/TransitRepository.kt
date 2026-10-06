@@ -12,6 +12,7 @@ import com.example.nfctransit.parseCuCardNumber
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.TransitData
+import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
@@ -74,6 +75,36 @@ internal fun cardIdentityNumbers(vararg values: String?): Set<String> =
 internal fun sharesCardIdentity(first: Set<String>, second: Set<String>): Boolean =
     first.any(second::contains)
 
+/** cuHex 是通用 0x18 字段；完整年份不能区分 CU 与 TU，应先使用来源卡型。 */
+internal fun tripReaderFareProtocol(card: TripReaderCard, transaction: TripReaderTransaction): String {
+    if (card.isSZT) return "SZT"
+    if (card.isCU) return "CU"
+    val sourceIsLnt = transaction.isLNT
+        ?: card.isLNT?.takeIf { !card.isTU }
+        ?: card.isYCT.takeIf { !card.isTU }
+    return when (sourceIsLnt) {
+        true -> "LNT"
+        false -> "TU"
+        null -> {
+            val data = ApduUtil.hexToBytes(transaction.cuHex)
+            val fullYear = data.size >= 20 &&
+                ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
+            if (fullYear) "TU" else "LNT"
+        }
+    }
+}
+
+/** TripReader 导入不保存 NFC 原始槽位或应用快照；有这些证据的双钱包卡不改写协议。 */
+internal fun importedCuArchiveRepairs(
+    cardType: String,
+    hasRawRecords: Boolean,
+    hasAppRecords: Boolean,
+    archive: List<ArchivedTransactionEntity>
+): List<ArchivedTransactionEntity> =
+    if (cardType == "CU" && !hasRawRecords && !hasAppRecords) {
+        archive.filter { it.protocol == "TU" && it.sfi.toSfiInt() == 0x18 }
+    } else emptyList()
+
 /**
  * 用户数据仓库：协调 Room 用户库（cards/raw_records/transactions_archive）、
  * DataStore（轻量设置）与日志文件（SessionLogStore）。
@@ -87,6 +118,26 @@ class TransitRepository(private val context: Context) {
     // ── cards ──
 
     suspend fun loadCards(): List<CardEntity> = dao.getAllCards()
+
+    /** 修复旧导入把 CU 主交易标为 TU 的错误；保留原始内容、日期和余额。 */
+    suspend fun repairImportedCuArchives() {
+        val repairedCards = database.withTransaction {
+            val repaired = mutableListOf<String>()
+            for (card in dao.getAllCards().filter { it.cardType == "CU" }) {
+                val rows = importedCuArchiveRepairs(
+                    card.cardType, dao.getRawRecords(card.cardId).isNotEmpty(),
+                    dao.getCardApps(card.cardId).isNotEmpty(), dao.getArchive(card.cardId)
+                )
+                for (row in rows) {
+                    dao.insertArchiveRow(row.copy(rowId = 0, protocol = "CU"))
+                    dao.deleteArchiveRow(row.rowId)
+                }
+                if (rows.isNotEmpty()) repaired.add(card.cardId)
+            }
+            repaired
+        }
+        repairedCards.forEach { UiCache.delete(context, it) }
+    }
 
     suspend fun migrateCuCardNumbers(): List<CardEntity> = database.withTransaction {
         val cards = dao.getAllCards()
@@ -396,30 +447,16 @@ class TransitRepository(private val context: Context) {
         for (src in source.cards) {
             val tuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
             val sztRecords = mutableListOf<RecordDecoder.ZoneRecord>()
+            val cuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
             val lntRows = mutableListOf<Pair<String, Long>>()  // (0x18 hex, 源库 txDate 毫秒)
             var recNo = 0
             for (tx in src.transactions) {
                 if (tx.cuHex.isNotEmpty()) {
-                    if (src.isSZT) {
-                        sztRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "SZT", tx.cuHex))
-                    } else {
-                        val sourceIsLnt = tx.isLNT
-                            ?: src.isLNT?.takeIf { !src.isTU }
-                            ?: src.isYCT.takeIf { !src.isTU }
-                        when (sourceIsLnt) {
-                            true -> lntRows.add(tx.cuHex to tx.dateMs)
-                            false -> tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
-                            null -> {
-                                val data = ApduUtil.hexToBytes(tx.cuHex)
-                                val fullYear = data.size >= 20 &&
-                                    ApduUtil.bcdToString(data.copyOfRange(16, 20)).startsWith("20")
-                                if (fullYear) {
-                                    tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
-                                } else {
-                                    lntRows.add(tx.cuHex to tx.dateMs)
-                                }
-                            }
-                        }
+                    when (tripReaderFareProtocol(src, tx)) {
+                        "SZT" -> sztRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "SZT", tx.cuHex))
+                        "CU" -> cuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "CU", tx.cuHex))
+                        "LNT" -> lntRows.add(tx.cuHex to tx.dateMs)
+                        else -> tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
                     }
                 }
                 if (tx.tuHex.isNotEmpty()) {
@@ -464,9 +501,13 @@ class TransitRepository(private val context: Context) {
                 id
             }
 
-            // SZT+TU 或单 TU：沿用读卡解码路径，归档按协议保存 SZT/TU
-            val transactionRecords = if (src.isSZT) sztRecords + tuRecords else tuRecords
-            val transactionCardType = if (src.isSZT) "SZT" else "TU"
+            // CU/SZT 的 0x18 与 TU 的 0x1E 分开解码、归档，沿用读卡时的双协议路径。
+            val transactionRecords = cuRecords + sztRecords + tuRecords
+            val transactionCardType = when {
+                src.isSZT -> "SZT"
+                src.isCU -> "CU"
+                else -> "TU"
+            }
             if (transactionRecords.isNotEmpty()) {
                 val decoded = RecordDecoder.decodeCard(transactionCardType, transactionRecords, null, currentYear)
                 for (t in decoded.archive) {
@@ -504,6 +545,7 @@ class TransitRepository(private val context: Context) {
             val order = AppPreferences.getCardOrder(context)
             AppPreferences.setCardOrder(context, order + newCardIds)
         }
+        repairImportedCuArchives()
         return ImportSummary(newCardIds.size, 0, newArchive)
     }
 

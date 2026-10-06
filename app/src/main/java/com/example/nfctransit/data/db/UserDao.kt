@@ -90,6 +90,9 @@ interface UserDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArchiveRows(rows: List<ArchivedTransactionEntity>): List<Long>
 
+    @Query("DELETE FROM transactions_archive WHERE row_id = :rowId")
+    suspend fun deleteArchiveRow(rowId: Long)
+
     @Query("UPDATE transactions_archive SET last_seen_at = :lastSeenAt WHERE card_id = :cardId AND protocol = :protocol AND sfi = :sfi AND content_hash IN (:hashes)")
     suspend fun touchArchives(cardId: String, protocol: String, sfi: String, hashes: List<String>, lastSeenAt: Long)
 
