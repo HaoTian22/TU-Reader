@@ -475,7 +475,7 @@ object RecordDecoder {
         storedBalance: Map<String, Long?>? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
-        val hasSubtype18 = cardType == "CU" || (cardType == "YCT" && isLnt)
+        val hasSubtype18 = cardType == "YCT" && isLnt
         val today = todayDate()
         val todayMonth = today.substring(4, 6).toInt()
         var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) ?: currentYear else null
@@ -498,9 +498,10 @@ object RecordDecoder {
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
             val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
 
-            // 日期：归档优先用已解析日期；否则 LNT 用年份推断，其余直接用记录内日期
+            // CU 有完整日期，直接重读 hex，修复旧解码器错误推断年份留下的归档日期。
+            // LNT 仍优先使用归档中保存的推断年份。
             val hash = contentHash(rec.hex)
-            val date = storedDateByHash?.get(hash) ?: run {
+            val date = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" } ?: run {
                 if (isLnt || isSubtype18) {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
                     val thisMonth = mmdd.take(2).toIntOrNull()

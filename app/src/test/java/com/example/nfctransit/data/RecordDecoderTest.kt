@@ -38,6 +38,8 @@ class RecordDecoderTest {
             )
             for (tx in listOf(fresh, RecordDecoder.decodeArchive("CU", listOf(saved)).single())) {
                 assertEquals("CU", tx.protocol)
+                assertEquals("20260823", tx.date)
+                assertEquals("150028", tx.time)
                 assertEquals("2900", tx.cityCode)
                 assertEquals("9号线", tx.lineName)
                 assertEquals("漕河泾开发区", tx.stationName)
