@@ -223,7 +223,6 @@ object AppDialogs {
         station: String,
         type: String,
         actualCityCode: String?,
-        actualCityName: String,
         title: String = context.getString(R.string.feedback_title),
         showPublish: Boolean = true,
         hasRawRecord: Boolean = false,
@@ -422,11 +421,6 @@ object AppDialogs {
             selectedCity = cityOptions.firstOrNull { it.pickerLabel == label }
             citySource = FeedbackLocationSource.MANUAL
         }
-        if (selectedCity == null && actualCityName.isNotBlank()) {
-            applyingCity = true
-            cityInput.setText(actualCityName, false)
-            applyingCity = false
-        }
 
         prefixInput.setText(prefix)
         codeInput.setText(code)
@@ -450,17 +444,27 @@ object AppDialogs {
                     typeCustomInput.requestFocus()
                     return@setOnClickListener
                 }
-                // 城市仅作补充信息：未从列表选中时把输入的文字原样作为城市名带给开发者
+                // 城市决定 reader_device.city_id 及线路/站点归属，必须是 city 表中的城市：
+                // 未从下拉选中时，仅接受与候选完全一致的输入（显示名/中文名/城市码）
                 val typedCity = cityInput.text.toString().trim()
-                    .takeIf { it.length <= 128 }.orEmpty()
+                val city = selectedCity ?: cityOptions.firstOrNull {
+                    typedCity == it.pickerLabel || typedCity == it.name || typedCity == it.code
+                }
+                if (city == null) {
+                    android.widget.Toast.makeText(
+                        context, R.string.override_err_city, android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    cityInput.requestFocus()
+                    return@setOnClickListener
+                }
                 val accepted = onConfirm(
                     prefixInput.text.toString(),
                     codeInput.text.toString(),
                     selectedType,
                     lineInput.text.toString(),
                     stationInput.text.toString(),
-                    selectedCity?.code.orEmpty(),
-                    selectedCity?.name ?: typedCity,
+                    city.code,
+                    city.name,
                     citySource,
                     publishInput.isChecked,
                     publishInput.isChecked && moreInfoInput.isEnabled && moreInfoInput.isChecked
@@ -500,9 +504,10 @@ object AppDialogs {
             publish: Boolean
         ) -> Boolean
     ): Dialog {
-        val city = row.locationCityCode?.let { code ->
-            TransitData.cityOptions().firstOrNull { it.code == code }
-        } ?: TransitData.cityOptions().firstOrNull { it.code == row.prefix }
+        // 导入后设备行已按纠错城市落库，旧 sidecar 无城市或存的是协议代码时以库中设备城市为准
+        val cityCode = row.locationCityCode
+            ?.takeIf { code -> TransitData.cityOptions().any { it.code == code } }
+            ?: TransitData.overrideCityCode(null, row.prefix, row.code, row.type)
         return feedback(
             context = context,
             prefix = row.prefix,
@@ -510,8 +515,7 @@ object AppDialogs {
             line = row.line,
             station = row.station,
             type = row.type,
-            actualCityCode = city?.code,
-            actualCityName = city?.name.orEmpty(),
+            actualCityCode = cityCode,
             title = context.getString(R.string.override_edit_title),
             showPublish = true,
             accentColor = accentColor,

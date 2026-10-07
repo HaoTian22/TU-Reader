@@ -86,6 +86,19 @@ class MainActivity : AppCompatActivity() {
         }
         observeCardRead(navHost)
         trackCardPerBackStackEntry(navHost)
+        // 进程回收后 Navigation 会直接还原到任意页面，而这些页面在 restore() 完成前没有数据（空白或占位）；
+        // 统一用全局加载态遮住，恢复完成后淡出
+        val restoreOverlay = findViewById<View>(R.id.restoreOverlay)
+        viewModel.isRestoring.observe(this) { restoring ->
+            if (restoring) {
+                restoreOverlay.animate().cancel()
+                restoreOverlay.alpha = 1f
+                restoreOverlay.visibility = View.VISIBLE
+            } else if (restoreOverlay.visibility == View.VISIBLE) {
+                restoreOverlay.animate().alpha(0f).setDuration(150)
+                    .withEndAction { restoreOverlay.visibility = View.GONE }
+            }
+        }
         viewModel.nfcReadMessage.observe(this) { message ->
             if (message != null) {
                 nfcToast?.cancel()

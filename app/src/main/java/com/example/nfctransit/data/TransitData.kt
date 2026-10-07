@@ -148,6 +148,19 @@ object TransitData {
             .sortedBy { it.displayName }
     }
 
+    /**
+     * 纠错表单的默认城市，与 TransitOverrideImporter 未指定城市时的回退顺序一致：
+     * 已有设备行 (device_code, transit_type) 的 city → 协议城市码 → 标准城市码。不在 city 表中时返回 null。
+     */
+    fun overrideCityCode(standard: String?, prefix: String, code: String, type: String): String? {
+        ensureLoaded()
+        byDeviceCode[prefix + code].orEmpty()
+            .firstOrNull { it.transitType == type }
+            ?.let { return it.cityCode }
+        val canonical = standard?.let { canonicalCityCode(prefix, it) } ?: prefix
+        return canonical.takeIf { it in cityInfos } ?: prefix.takeIf { it in cityInfos }
+    }
+
     fun locationDataVersion(): String {
         ensureLoaded()
         return boundaryVersion

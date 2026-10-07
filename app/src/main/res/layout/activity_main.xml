@@ -1,15 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.example.nfctransit.ui.PredictiveBackLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/predictive_back_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/nav_host_fragment"
-        android:name="androidx.navigation.fragment.NavHostFragment"
+    <com.example.nfctransit.ui.PredictiveBackLayout
+        android:id="@+id/predictive_back_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/nav_host_fragment"
+            android:name="androidx.navigation.fragment.NavHostFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:defaultNavHost="true"
+            app:navGraph="@navigation/nav_graph" />
+    </com.example.nfctransit.ui.PredictiveBackLayout>
+
+    <!-- 全局加载态：进程回收后 Navigation 会直接还原任意页面，restore() 完成前统一遮住未就绪的页面 -->
+    <LinearLayout
+        android:id="@+id/restoreOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:defaultNavHost="true"
-        app:navGraph="@navigation/nav_graph" />
-</com.example.nfctransit.ui.PredictiveBackLayout>
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@color/paper"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminateTint="@color/accent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/loading_data"
+            android:textColor="@color/ink_3"
+            android:textSize="14sp"
+            android:layout_marginTop="16dp" />
+    </LinearLayout>
+</FrameLayout>
