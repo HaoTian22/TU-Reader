@@ -12,6 +12,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import com.example.nfctransit.data.ApplicationMetadata
 import com.example.nfctransit.CardProfile
 import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.ApduUtil
@@ -55,6 +56,7 @@ import com.example.nfctransit.model.StationStat
 import com.example.nfctransit.model.StatsSummary
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiCardMetadata
+import com.example.nfctransit.model.UiApplicationInfo
 import com.example.nfctransit.model.UiTransaction
 import java.io.File
 import java.io.FileOutputStream
@@ -504,11 +506,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 解码（读卡展示与归档共用同一条解析路径）。
         // 只把交易 SFI（0x18/0x1E + 各卡附加区）交给解码器；raw_records 里的信息/统计扇区
         // （0x15/0x19/0x08…）只存库不参与交易解析，否则会被 parseFareRecords 当交易误解析。
-        val records = result.rawRecords
-            .filter { it.sfi in profile.transactionSfis }
-            .map {
-                RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex)
-            }
+        val records = RecordDecoder.transactionRecords(profile.cardType, result.rawRecords)
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val decodeStartedAt = SystemClock.elapsedRealtime()
         val decoded = withContext(Dispatchers.Default) {
@@ -1350,84 +1348,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "TU" -> "TU"
             else -> cardType
         }
-        val primaryInfo = findInfoBytes(records, primaryProtocol)
-        val secondInfo = if (cardType in setOf("YCT", "SZT", "CU")) {
-            findInfoBytes(records, "TU", allowBlankFallback = false)
+        val apps = cardAppsByCard[cardId].orEmpty()
+        val ecSelect = apps.firstOrNull { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) }?.selectResp
+        val primary = com.example.nfctransit.data.CardMetadataParser.parse(primaryProtocol, records, ecSelect)
+        val second = if (cardType in setOf("YCT", "SZT", "CU") && records.any { it.protocol == "TU" }) {
+            com.example.nfctransit.data.CardMetadataParser.parse("TU", records, ecSelect, allowBlankFallback = false)
         } else null
-        val primary = primaryInfo?.let { parseInfoMetadata(it, cardType == "YCT") }
-        val second = secondInfo?.let { parseInfoMetadata(it, false) }
-        val tuIssuerCode = sequenceOf(
-            card.secondCardNumber,
-            card.cardNumber
-        ).filterNotNull()
-            .mapNotNull(TransitData::cardIssuerCode)
-            .firstOrNull()
-        val issuerCode = tuIssuerCode ?: primary?.issuerCode
-        val issuerProtocol = if (tuIssuerCode != null) "TU" else primaryProtocol
-        val issuerCityCode = issuerCode?.takeLast(4)
-            ?.takeIf { it.length == 4 && TransitData.cityZh(it, issuerProtocol) != it }
-        val issuer = issuerCode ?: primary?.issuerCode
+        // TU 卡号：单协议 TU 为主卡号，双协议卡（YCT/SZT/CU）为第二卡号；其 IIN 可定位发卡机构。
+        val tuCardNumber = (if (primaryProtocol == "TU") card.cardNumber else card.secondCardNumber)
+            ?.takeIf { it.isNotBlank() }
+        val tuIssuer = tuCardNumber?.let(TransitData::cardIssuerCode)
+
+        /** 城市码候选按可靠性排列，只取映射库能识别的城市。 */
+        fun cityOf(vararg candidates: Pair<String, String>?): String? = candidates.filterNotNull()
+            .firstOrNull { (code, protocol) -> code.length == 4 && TransitData.cityZh(code, protocol) != code }
+            ?.let { (code, protocol) -> TransitLabels.city(TransitData.cityZh(code, protocol)) }
+
+        fun appInfo(protocol: String, metadata: ApplicationMetadata, cardNumber: String?): UiApplicationInfo {
+            val issuer = metadata.issuer ?: tuIssuer.takeIf { protocol == "TU" }
+            return UiApplicationInfo(
+                protocol = protocol,
+                name = applicationName(protocol),
+                cardNumber = cardNumber?.takeIf { it.isNotBlank() },
+                issuerCity = cityOf(
+                    metadata.cityCode?.let { it to protocol },
+                    tuIssuer?.takeIf { protocol == "TU" }?.takeLast(4)?.let { it to "TU" },
+                    metadata.issuer?.takeIf { protocol == "LNT" }?.takeLast(4)?.let { it to "LNT" }
+                ),
+                metadata = metadata.copy(issuer = issuer)
+            )
+        }
+
+        val applications = listOfNotNull(
+            appInfo(primaryProtocol, primary, card.cardNumber),
+            second?.let { appInfo("TU", it, tuCardNumber) }
+        )
+        // 卡上全部可用应用：主应用在前，其余按应用快照/原始记录出现顺序；PSE 等目录不计入。
+        val appProtocols = (listOf(primaryProtocol) +
+            apps.map { CardProfiles.protocolForAid(it.selectedAid) } +
+            records.map { it.protocol })
+            .filter { it.isNotBlank() }
+            .distinct()
         return UiCardMetadata(
-            issuerCity = issuerCityCode?.let { TransitLabels.city(TransitData.cityZh(it, issuerProtocol)) },
-            issuer = issuer,
-            issueDate = primary?.issueDate,
-            validUntil = primary?.validUntil,
-            secondStandard = second?.let {
-                when (cardType) {
-                    "YCT", "SZT", "CU" -> L10n.str(R.string.standard_tunion)
-                    else -> L10n.str(R.string.standard_second)
-                }
-            },
-            secondIssueDate = second?.issueDate,
-            secondValidUntil = second?.validUntil
+            issuerCity = applications.firstNotNullOfOrNull { it.issuerCity },
+            appProtocols = appProtocols,
+            applications = applications
         )
     }
 
-    private data class CardInfoMetadata(
-        val issueDate: String?,
-        val validUntil: String?,
-        val issuerCode: String?
-    )
-
-    private fun findInfoBytes(
-        records: List<RawRecord>,
-        protocol: String,
-        allowBlankFallback: Boolean = true
-    ): ByteArray? {
-        val candidates = records.filter { it.sfi == 0x15 && it.protocol == protocol }
-            .let { exact ->
-                if (exact.isNotEmpty() || !allowBlankFallback || protocol == "") {
-                    exact
-                } else {
-                    records.filter { it.sfi == 0x15 && it.protocol.isBlank() }
-                }
-            }
-        val record = candidates.maxByOrNull { it.hex.length } ?: return null
-        return runCatching { ApduUtil.hexToBytes(record.hex) }.getOrNull()
-    }
-
-    private fun parseInfoMetadata(data: ByteArray, isYct: Boolean): CardInfoMetadata {
-        val dateOffset = if (isYct) 23 else 20
-        val issuerCode = if (isYct && data.size >= 52) {
-            ApduUtil.bytesToHex(data.copyOfRange(48, 52))
-                .takeIf { it.any { ch -> ch != '0' } }
-        } else null
-        return CardInfoMetadata(
-            issueDate = parseCardDate(data, dateOffset),
-            validUntil = parseCardDate(data, dateOffset + 4),
-            issuerCode = issuerCode
-        )
-    }
-
-    private fun parseCardDate(data: ByteArray, start: Int): String? {
-        if (start < 0 || start + 4 > data.size) return null
-        val value = ApduUtil.bcdToString(data.copyOfRange(start, start + 4))
-        if (!value.matches(Regex("\\d{8}"))) return null
-        val year = value.substring(0, 4).toIntOrNull() ?: return null
-        val month = value.substring(4, 6).toIntOrNull() ?: return null
-        val day = value.substring(6, 8).toIntOrNull() ?: return null
-        if (year !in 1900..2200 || month !in 1..12 || day !in 1..31) return null
-        return "${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}"
+    /** 应用分区标题：卡名不翻译；TU 为标准名，随界面语言。 */
+    private fun applicationName(protocol: String): String? = when (protocol) {
+        "LNT" -> "岭南通"
+        "SZT" -> "深圳通"
+        "CU" -> "数字城市一卡通"
+        "TU" -> L10n.str(R.string.standard_tunion)
+        else -> null
     }
 
     private fun emitCardData(cardId: String) {

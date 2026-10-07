@@ -80,11 +80,9 @@
     <string name="card_info_change_color_cd">Change card color</string>
     <string name="card_info_color">Card color</string>
     <string name="card_info_number">Card number</string>
-    <string name="card_info_second_number">Second card number</string>
     <string name="card_info_type">Card type</string>
     <string name="card_info_issuer_city">Issuing city</string>
     <string name="card_info_issuer">Issuer</string>
-    <string name="card_info_validity">Validity</string>
     <string name="card_info_issue_date">Issue date</string>
     <string name="card_info_valid_until">Valid until</string>
     <string name="card_info_copy_raw_cd">Copy raw card data</string>
@@ -326,7 +324,6 @@
     <string name="cache_cleared_kept">✓ Cache cleared</string>
     <string name="cache_clear_failed">Clearing failed: %s</string>
     <string name="standard_tunion">T-Union</string>
-    <string name="standard_second">Second standard</string>
     <string name="stats_day_of_month">%d</string>
 
     <!-- Transaction detail (code) -->
@@ -403,8 +400,6 @@
 
     <!-- Card info (code) -->
     <string name="card_raw_copied">Raw card data copied</string>
-    <string name="card_info_std_issue_date">%s issue date</string>
-    <string name="card_info_std_valid_until">%s valid until</string>
     <string name="card_color_title">Choose card color</string>
     <string name="card_rename_title">Rename card</string>
     <string name="card_rename_hint">Enter a card name</string>
@@ -482,4 +477,22 @@
         <item quantity="one">%d</item>
         <item quantity="other">%d</item>
     </plurals>
+
+    <string name="card_info_application">Application information</string>
+    <string name="card_info_application_named">%1$s application</string>
+    <string name="card_info_card_kind">Card category</string>
+    <string name="card_info_interoperability">Interoperability</string>
+    <string name="card_info_interoperability_code">Interoperability code</string>
+    <string name="card_info_application_version">Application version</string>
+    <string name="card_info_country_code">Country code</string>
+    <string name="card_info_province_code">Province code</string>
+    <string name="card_info_industry_code">Industry code</string>
+    <string name="card_info_algorithm_support">Algorithm support</string>
+    <string name="card_info_enabled">Enabled</string>
+    <string name="card_info_disabled">Disabled</string>
+    <string name="card_kind_normal">Regular</string>
+    <string name="card_kind_student">Student</string>
+    <string name="card_kind_senior">Senior</string>
+    <string name="card_kind_test">Test</string>
+    <string name="card_kind_military">Military</string>
 </resources>

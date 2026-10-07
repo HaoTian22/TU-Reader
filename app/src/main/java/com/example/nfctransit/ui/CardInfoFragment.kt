@@ -20,6 +20,9 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentCardInfoBinding
+import com.example.nfctransit.databinding.ItemDetailRowBinding
+import com.example.nfctransit.databinding.ItemDetailSectionBinding
+import com.example.nfctransit.model.UiApplicationInfo
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiCardMetadata
 import java.text.SimpleDateFormat
@@ -93,24 +96,79 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     }
 
     private var issuerCity: String? = null
+    private var appProtocols: List<String> = emptyList()
 
     private fun bindMetadata(metadata: UiCardMetadata) {
         issuerCity = metadata.issuerCity
-        binding.tvIssuerCity.text = metadata.issuerCity ?: "—"
-        binding.tvIssuer.text = metadata.issuer ?: "—"
-        binding.tvIssueDate.text = displayValue(metadata.issueDate)
-        binding.tvValidUntil.text = displayValue(metadata.validUntil)
-        val secondStandard = metadata.secondStandard
-        val hasSecondStandard = secondStandard != null
-        binding.secondStandardIssueRow.visibility = if (hasSecondStandard) View.VISIBLE else View.GONE
-        binding.secondStandardValidRow.visibility = if (hasSecondStandard) View.VISIBLE else View.GONE
-        val standardName = secondStandard ?: getString(R.string.standard_second)
-        binding.tvSecondIssueLabel.text = getString(R.string.card_info_std_issue_date, standardName)
-        binding.tvSecondValidLabel.text = getString(R.string.card_info_std_valid_until, standardName)
-        binding.tvSecondIssueDate.text = displayValue(metadata.secondIssueDate)
-        binding.tvSecondValidUntil.text = displayValue(metadata.secondValidUntil)
-        viewModel.selectedCard.value?.let { updateHeroSubtitle(it) }
-        refreshRowDividers(binding.sectionValidity)
+        appProtocols = metadata.appProtocols
+        bindApplicationMetadata(metadata)
+        viewModel.selectedCard.value?.let {
+            updateHeroSubtitle(it)
+            bindCardType(it)
+        }
+    }
+
+    /** 卡片类型：列出卡上全部可用应用（如 LNT / TU）；元数据未就绪时退回内部卡型。 */
+    private fun bindCardType(card: UiCard) {
+        binding.tvCardType.text = appProtocols.joinToString(" / ")
+            .ifEmpty { card.protocolType.ifBlank { card.cardType } }
+    }
+
+    /** 每个应用单独一个分区（如岭南通 / 交通联合）：卡号、发卡城市/机构、有效期及应用字段；无可展示字段的应用不显示。 */
+    private fun bindApplicationMetadata(metadata: UiCardMetadata) {
+        val container = binding.applicationMetadataContainer
+        container.removeAllViews()
+        metadata.applications.forEach { addApplicationSection(container, it) }
+        container.visibility = if (container.childCount == 0) View.GONE else View.VISIBLE
+    }
+
+    private fun addApplicationSection(container: LinearLayout, info: UiApplicationInfo) {
+        val app = info.metadata
+        val section = ItemDetailSectionBinding.inflate(layoutInflater, container, false)
+        section.sectionTitle.text = (info.name ?: info.protocol.takeIf { it.isNotBlank() })
+            ?.let { getString(R.string.card_info_application_named, it) }
+            ?: getString(R.string.card_info_application)
+        val panel = section.sectionRows
+        fun add(label: String, value: String?, monospace: Boolean = false) {
+            if (value == null) return
+            val row = ItemDetailRowBinding.inflate(layoutInflater, panel, false)
+            row.detailLabel.text = label
+            row.detailValue.text = value
+            if (monospace) {
+                row.detailValue.typeface = Typeface.MONOSPACE
+                row.detailValue.setTextIsSelectable(true)
+            }
+            panel.addView(row.root)
+        }
+        add(getString(R.string.card_info_number), info.cardNumber, monospace = true)
+        add(getString(R.string.card_info_issuer_city), info.issuerCity)
+        add(getString(R.string.card_info_issuer), app.issuer)
+        add(getString(R.string.card_info_issue_date), app.issueDate)
+        add(getString(R.string.card_info_valid_until), app.validUntil)
+        run {
+            fun yesNo(value: Boolean?) = value?.let { getString(if (it) R.string.card_info_enabled else R.string.card_info_disabled) }
+            add(getString(R.string.card_info_card_kind), app.cardKind?.let {
+                val label = when (it) {
+                    1 -> R.string.card_kind_normal
+                    2 -> R.string.card_kind_student
+                    3 -> R.string.card_kind_senior
+                    4 -> R.string.card_kind_test
+                    5 -> R.string.card_kind_military
+                    else -> null
+                }
+                label?.let(::getString) ?: "0x%02X".format(it)
+            })
+            add(getString(R.string.card_info_interoperability), yesNo(app.interoperabilityEnabled))
+            add(getString(R.string.card_info_interoperability_code), app.interoperabilityCode)
+            add(getString(R.string.card_info_application_version), app.applicationVersion)
+            add(getString(R.string.card_info_country_code), app.countryCode)
+            add(getString(R.string.card_info_province_code), app.provinceCode)
+            add(getString(R.string.card_info_industry_code), app.industryCode)
+            add(getString(R.string.card_info_algorithm_support), app.algorithmSupport)
+        }
+        if (panel.childCount == 0) return
+        refreshRowDividers(panel)
+        container.addView(section.root)
     }
 
     /** 摘要副标题：卡片类型 · 发卡城市 */
@@ -137,12 +195,8 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         binding.tvNameValue.text = card.name
         updateHeroSubtitle(card)
         binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
-        binding.tvCardType.text = card.protocolType.ifBlank { card.cardType }
-        binding.tvCardNumber.text = card.cardNumber.ifBlank { "•••• ${card.lastFour}" }
-        binding.secondCardNumberRow.visibility =
-            if (card.secondCardNumber.isNullOrBlank()) View.GONE else View.VISIBLE
-        binding.tvSecondCardNumber.text = card.secondCardNumber.orEmpty()
-        binding.tvBalance.text = "¥${String.format(Locale.getDefault(), "%.2f", card.balanceYuan)}"
+        bindCardType(card)
+        binding.tvBalance.text = card.balanceFen?.let { "¥${String.format(Locale.getDefault(), "%.2f", it / 100.0)}" } ?: "—"
         binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))
         binding.heroCardFace.background = cardGradient(card, dpToPx(6))
         binding.cardColorPreview.background = cardGradient(card, dpToPx(4))
@@ -198,7 +252,13 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                 val fieldVariants = linkedSetOf<List<RawHexFormatter.FieldSpec>>()
                 records.forEach { record ->
                     val data = runCatching { com.example.nfctransit.ApduUtil.hexToBytes(record.hex) }.getOrNull()
-                    val fields = RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex)
+                    val isEc = record.selectedAid.equals(com.example.nfctransit.CardProfiles.TU_EC_AID, true)
+                    val format = visibleRecords.firstOrNull {
+                        isEc && it.selectedAid.equals(record.selectedAid, true) && it.sfi == sfi && it.recNo == 0
+                    }?.hex
+                    val fields = if (isEc && (record.recNo == 0 || sfi in setOf(1, 2, 3, 4, 8))) {
+                        RawHexFormatter.fieldsForSelectResponse(record.hex)
+                    } else RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex, format)
                     if (fields.isNotEmpty()) fieldVariants.add(fields)
                     appendRawBlock(
                         panel,
@@ -380,13 +440,6 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
         }
-    }
-
-    /** 读卡解析在字段缺失时写入 "未知"（数据键），显示时按界面语言替换 */
-    private fun displayValue(value: String?): String = when (value) {
-        null -> "—"
-        "未知" -> getString(R.string.unknown)
-        else -> value
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()

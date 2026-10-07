@@ -76,11 +76,9 @@
     <string name="card_info_change_color_cd">更换卡面颜色</string>
     <string name="card_info_color">卡面颜色</string>
     <string name="card_info_number">卡号</string>
-    <string name="card_info_second_number">第二卡号</string>
     <string name="card_info_type">卡片类型</string>
     <string name="card_info_issuer_city">发卡城市</string>
     <string name="card_info_issuer">发卡机构</string>
-    <string name="card_info_validity">有效期</string>
     <string name="card_info_issue_date">发行日期</string>
     <string name="card_info_valid_until">有效期至</string>
     <string name="card_info_copy_raw_cd">复制卡片原始数据</string>
@@ -315,7 +313,6 @@
     <string name="cache_cleared_kept">✓ 已清理缓存</string>
     <string name="cache_clear_failed">清理失败: %s</string>
     <string name="standard_tunion">交通联合</string>
-    <string name="standard_second">第二标准</string>
     <string name="stats_day_of_month">%d号</string>
 
     <!-- Transaction detail (code) -->
@@ -389,8 +386,6 @@
 
     <!-- Card info (code) -->
     <string name="card_raw_copied">已复制卡片原始数据</string>
-    <string name="card_info_std_issue_date">%s发行日期</string>
-    <string name="card_info_std_valid_until">%s有效期至</string>
     <string name="card_color_title">选择卡面颜色</string>
     <string name="card_rename_title">自定义卡片名称</string>
     <string name="card_rename_hint">请输入卡片名称</string>
@@ -467,4 +462,22 @@
     <plurals name="home_card_count">
         <item quantity="other">%d 张</item>
     </plurals>
+
+    <string name="card_info_application">应用信息</string>
+    <string name="card_info_application_named">%1$s应用信息</string>
+    <string name="card_info_card_kind">卡种类型</string>
+    <string name="card_info_interoperability">互联互通</string>
+    <string name="card_info_interoperability_code">互通标识</string>
+    <string name="card_info_application_version">应用版本</string>
+    <string name="card_info_country_code">国际代码</string>
+    <string name="card_info_province_code">省级代码</string>
+    <string name="card_info_industry_code">行业代码</string>
+    <string name="card_info_algorithm_support">多算法支持</string>
+    <string name="card_info_enabled">已启用</string>
+    <string name="card_info_disabled">未启用</string>
+    <string name="card_kind_normal">普通卡</string>
+    <string name="card_kind_student">学生卡</string>
+    <string name="card_kind_senior">老人卡</string>
+    <string name="card_kind_test">测试卡</string>
+    <string name="card_kind_military">军人卡</string>
 </resources>

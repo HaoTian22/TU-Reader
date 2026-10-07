@@ -1,6 +1,8 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.BerTlv
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.MonthAccumSpec
 import com.example.nfctransit.model.RawHexBlock
@@ -24,8 +26,26 @@ object RecordDecoder {
         val sfi: Int,
         val recNo: Int,
         val protocol: String,  // "LNT"/"SZT"/"TU"/"" — 双协议卡区分钱包
-        val hex: String
+        val hex: String,
+        val logFormat: String? = null
     )
+
+    /** EC recNo=0 retains GET DATA log format, rather than a transaction. */
+    fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
+        val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
+        val formats = records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
+            .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
+        return records.mapNotNull { raw ->
+            if (raw.selectedAid.equals(CardProfiles.TU_EC_AID, true)) {
+                if (raw.recNo == 0) return@mapNotNull null
+                if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex)
+                val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
+                ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format)
+            } else if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
+                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex)
+            } else null
+        }
+    }
 
     /** 站点解析条目（站点/线路/方向/ID/命中设备码）。 */
     private data class StationRef(
@@ -82,10 +102,9 @@ object RecordDecoder {
         terminal.length > 4 && terminal[4] != '0' && mappingTransitType != "地铁" &&
             lastByte != 0x17 && lastByte != 0x31
 
-    /** TU 1E 建表结果；balanceMap 值为 null = 该记录无余额数据 */
+    /** TU 1E 终端映射及旅程；余额只保留在旅程自身。 */
     private class TuMap(
         val stationMap: Map<String, StationRef>,
-        val balanceMap: Map<String, Long?>,
         val journey: List<CanonicalTransaction>,
         /** 卡所在城市码（取时间戳最新的一条 0x1E 记录 [32..34)）；TU 0x18 记录城市码无效（其 [10..12) 是终端号前缀） */
         val cardCityCode: String? = null
@@ -128,7 +147,7 @@ object RecordDecoder {
 
                 // LNT 交易（无年份，年份用统计月份/连续性推断）
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyMap(), emptyList()),
+                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()),
                     currentYear, statsMonth
                 )
 
@@ -148,7 +167,7 @@ object RecordDecoder {
                 val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null
+                    cardType, cuRecords, "", TuMap(emptyMap(), emptyList()), currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
@@ -167,7 +186,7 @@ object RecordDecoder {
                 }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val szt = parseFareRecords(
-                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyMap(), emptyList()),
+                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()),
                     currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
@@ -182,7 +201,7 @@ object RecordDecoder {
             }
             else -> {
                 // 通用（CU/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
-                val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), currentYear, null)
+                val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyList()), currentYear, null)
                 val display = mergeForDisplay(fare).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
@@ -193,30 +212,29 @@ object RecordDecoder {
 
     /**
      * 启动渲染：从交易归档重建交易。
-     * resolved_date（含 LNT 推断年份）与 balance_after_fen 随行存储，此处直接用；
-     * 其余字段（金额/类型/终端/城市/站点）从 hex 解析。
+     * resolved_date 保留 LNT 推断年份；余额只取原始记录中实际存在的字段，
+     * 不沿用旧版本归档时填充的余额。其余字段从 hex 解析。
      */
     fun decodeArchive(cardType: String, rows: List<ArchivedTransactionEntity>): List<CanonicalTransaction> {
         if (rows.isEmpty()) return emptyList()
-        val records = rows.map { ZoneRecord(it.sfi.toSfiInt(), 0, it.protocol, it.hex) }
+        val records = rows.map { ZoneRecord(it.sfi.toSfiInt(), 0, it.protocol, it.hex, it.logFormat) }
         val storedDate = rows.associate { it.contentHash to it.resolvedDate }      // 归档：contentHash → 日期
-        val storedBalance = rows.associate { it.contentHash to it.balanceAfterFen }  // 归档：contentHash → 余额（null = 该记录无余额数据）
 
         val base = when (cardType) {
             "TU" -> {
                 val tu = buildTuMap(records)
-                val fare = parseFareRecords(cardType, records, "TU", tu, 0, null, storedDate, storedBalance)
+                val fare = parseFareRecords(cardType, records, "TU", tu, 0, null, storedDate)
                 mergeJourneyAndFare(tu.journey, fare)
             }
             "YCT" -> {
                 val lntRecords = records.filter { it.protocol == "LNT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
+                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()), 0, null, storedDate
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
+                    cardType, tuRecords, "TU", tu, 0, null, storedDate
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
             }
@@ -224,12 +242,12 @@ object RecordDecoder {
                 val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null,
-                    storedDate, storedBalance
+                    cardType, cuRecords, "", TuMap(emptyMap(), emptyList()), 0, null,
+                    storedDate
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    "TU", tuRecords, "TU", tu, 0, null, storedDate, storedBalance
+                    "TU", tuRecords, "TU", tu, 0, null, storedDate
                 )
                 cu + mergeJourneyAndFare(tu.journey, tuFare)
             }
@@ -240,17 +258,17 @@ object RecordDecoder {
                 }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val szt = parseFareRecords(
-                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null,
-                    storedDate, storedBalance
+                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()), 0, null,
+                    storedDate
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, 0, null, storedDate, storedBalance
+                    cardType, tuRecords, "TU", tu, 0, null, storedDate
                 )
                 szt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             else -> parseFareRecords(
-                cardType, records, "", TuMap(emptyMap(), emptyMap(), emptyList()), 0, null, storedDate, storedBalance
+                cardType, records, "", TuMap(emptyMap(), emptyList()), 0, null, storedDate
             )
         }
         return mergeForDisplay(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
@@ -277,7 +295,7 @@ object RecordDecoder {
         if (byId.size == list.size) return list
         return byId.values.map { group ->
             if (group.size == 1) group[0]
-            else group[0].copy(protocols = unionProtocols(*group.toTypedArray()))
+            else group.reduce(::mergeDisplayVariants)
         }
     }
 
@@ -293,20 +311,7 @@ object RecordDecoder {
                 continue
             }
 
-            // 跨应用 0x18 可能把末字节按不同格式解析；其他字段相同且界面时间同分钟时合并。
-            val crossAppKey = byKey.entries.firstOrNull { (key, existing) ->
-                key.date == transaction.date &&
-                    key.time.take(4) == transaction.time.take(4) &&
-                    key.amountFen == transaction.amountFen &&
-                    key.terminal == transaction.terminal &&
-                    key.typeHex == transaction.typeHex &&
-                    transactionProtocols(existing) != transactionProtocols(transaction)
-            }?.key
-            if (crossAppKey != null) {
-                byKey[crossAppKey] = mergeDisplayVariants(byKey.getValue(crossAppKey), transaction)
-            } else {
-                byKey[exactKey] = transaction
-            }
+            byKey[exactKey] = transaction
         }
         return byKey.values.toList()
     }
@@ -318,9 +323,6 @@ object RecordDecoder {
         terminal = transaction.terminal,
         typeHex = transaction.typeHex
     )
-
-    private fun transactionProtocols(transaction: CanonicalTransaction): Set<String> =
-        unionProtocols(transaction)
 
     private fun mergeDisplayVariants(
         first: CanonicalTransaction,
@@ -355,23 +357,22 @@ object RecordDecoder {
     )
 
     internal fun tuDirectionForType(typeByte: Int, transitType: String? = null): TransitDirection? = when (typeByte) {
-        0x03 -> TransitDirection.ENTRY
-        0x04 -> TransitDirection.EXIT
+        0x01, 0x03 -> TransitDirection.ENTRY
+        0x02, 0x04 -> TransitDirection.EXIT
         0x06 -> TransitDirection.ENTRY.takeIf { transitType == "地铁" }
         else -> null
     }
 
     /**
-     * 从 SFI 0x1E 循环记录建立 终端→站点 映射表 + 余额映射表 + 旅程交易（进站/出站事件）。
+     * 从 SFI 0x1E 循环记录建立终端→站点映射表及旅程交易（进站/出站事件）。
      * 空槽（整条全 0）跳过。返回按物理 recNo 顺序处理后的结果。
      */
     private fun buildTuMap(records: List<ZoneRecord>): TuMap {
         val stationMap = mutableMapOf<String, StationRef>()
-        val balanceMap = mutableMapOf<String, Long?>()
         val journey = mutableListOf<CanonicalTransaction>()
         var latestTs = ""
         var latestCity = ""
-        for (rec in records.filter { it.sfi == 0x1E }.sortedBy { it.recNo }) {
+        for (rec in records.filter { it.sfi == 0x1E && it.logFormat == null }.distinctBy { it.hex }.sortedBy { it.recNo }) {
             val data = ApduUtil.hexToBytes(rec.hex)
             if (data.size < 22) continue
             if (data.all { it.toInt() == 0 }) continue  // 空槽
@@ -423,7 +424,7 @@ object RecordDecoder {
                 spRule = mappedRef?.spRule
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
-            val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(19, 21)) else 0L
+            val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(17, 21)) else 0L
             val timestamp = if (data.size >= 32) ApduUtil.bcdToString(data.copyOfRange(25, 32)) else ""
 
             stationMap[terminal] = ref
@@ -431,9 +432,6 @@ object RecordDecoder {
             if (timestamp > latestTs) {
                 latestTs = timestamp
                 if (cityCode.isNotEmpty()) latestCity = cityCode
-            }
-            if (terminal.isNotEmpty() && timestamp.isNotEmpty()) {
-                balanceMap["$terminal|$timestamp"] = balanceFen
             }
             if (timestamp.length >= 14) {
                 journey.add(
@@ -455,14 +453,13 @@ object RecordDecoder {
                 )
             }
         }
-        return TuMap(stationMap, balanceMap, journey, latestCity.ifEmpty { null })
+        return TuMap(stationMap, journey, latestCity.ifEmpty { null })
     }
 
     /**
      * 解析 18（+附加区）主交易记录。
      * @param lntStatsMonth  LNT 统计月份锚点（年份推断起点）
      * @param storedDateByHash 归档：contentHash → 已解析日期（yyyyMMdd），覆盖 hex 内日期（decodeArchive 用）
-     * @param storedBalance    归档：contentHash → 已解析余额（null = 无余额数据，decodeArchive 用）
      */
     private fun parseFareRecords(
         cardType: String,
@@ -471,8 +468,7 @@ object RecordDecoder {
         tu: TuMap,
         currentYear: Int,
         lntStatsMonth: Int?,
-        storedDateByHash: Map<String, String>? = null,
-        storedBalance: Map<String, Long?>? = null
+        storedDateByHash: Map<String, String>? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
         val hasSubtype18 = cardType == "YCT" && isLnt
@@ -485,13 +481,18 @@ object RecordDecoder {
         val results = mutableListOf<CanonicalTransaction>()
 
         for (rec in orderedRecords) {
+            if (rec.logFormat != null) {
+                parseEcLog(rec, tu)?.let(results::add)
+                continue
+            }
             if (rec.sfi == 0x1E) continue  // 旅程记录由 buildTuMap 处理
+            if (rec.sfi in setOf(0x0B, 0x0C)) continue
             val data = ApduUtil.hexToBytes(rec.hex)
             if (data.size < 0x17) continue
             if (data.all { it.toInt() == 0 }) continue  // 空槽
 
             val seq = ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt()
-            val amountFen = ApduUtil.hexToLong(data.copyOfRange(6, 9))
+            val amountFen = ApduUtil.hexToLong(data.copyOfRange(if (rec.protocol == "TU" || protocol == "TU") 5 else 6, 9))
             val typeHex = ApduUtil.bytesToHex(byteArrayOf(data[9]))
             val typeByte = data[9].toInt() and 0xFF
             val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
@@ -550,7 +551,6 @@ object RecordDecoder {
             } else {
                 ApduUtil.bcdToString(data.copyOfRange(20, 23))
             }
-            val timestamp = date + time
             val lntType = if (isLnt && isSubtype18) {
                 resolveLntType(typeByte, subtype, ref.mappingTransitType.takeIf { mappingMatched })
             } else null
@@ -579,15 +579,9 @@ object RecordDecoder {
                 else -> cityCode18
             }
 
-            // 无余额数据 = null（区别于真实的 ¥0.00）：
-            // LNT 记录本身不含余额字段（旧实现把钱包级快照套到每条历史交易上，属捏造），一律 null；
-            // 归档优先用已解析值（含 null，不重新推导）；TU 用 1E 嵌入余额匹配，匹配不到为 null
-            val balanceAfterFen = when {
-                isLnt -> null
-                storedBalance != null && storedBalance.containsKey(hash) -> storedBalance[hash]
-                else -> tu.balanceMap["$terminal|$timestamp"]
-                    ?: findBalanceByTerminal(terminal, tu.balanceMap)
-            }
+            // EP fare records contain no balance. Only a matching journey may supply it during merge.
+            // Ignore old archive balance values too: earlier versions filled these from other events.
+            val balanceAfterFen: Long? = null
 
             results.add(
                 buildTransaction(
@@ -609,6 +603,42 @@ object RecordDecoder {
         }
         return results
     }
+
+    private fun parseEcLog(rec: ZoneRecord, tu: TuMap): CanonicalTransaction? {
+        val formatHex = rec.logFormat ?: return null
+        val formatTags = BerTlv.values(ApduUtil.hexToBytes(formatHex))
+        val format = formatTags[0x9F4F] ?: formatTags[0xDF4F] ?: return null
+        val fields = BerTlv.dol(format) ?: return null
+        val data = ApduUtil.hexToBytes(rec.hex)
+        if (data.all { it.toInt() == 0 } || fields.sumOf { it.length } != data.size) return null
+        val values = fields.associate { it.tag to data.copyOfRange(it.offset, it.offset + it.length) }
+        val shortDate = values[0x9A]?.takeIf { it.size == 3 }?.let(BerTlv::bcd) ?: return null
+        val date = "20$shortDate"
+        val time = values[0x9F21]?.takeIf { it.size == 3 }?.let(BerTlv::bcd) ?: return null
+        if (runCatching { java.time.LocalDate.of(date.take(4).toInt(), date.substring(4, 6).toInt(), date.takeLast(2).toInt()) }.isFailure) return null
+        if (time.take(2).toInt() > 23 || time.substring(2, 4).toInt() > 59 || time.takeLast(2).toInt() > 59) return null
+        val amount = values[0x9F02]?.takeIf { it.size == 6 }?.let(BerTlv::bcd)?.toLongOrNull() ?: return null
+        // Amounts are displayable in yuan only for CNY. Unrecognized currencies remain in raw data.
+        if (values[0x5F2A]?.let(ApduUtil::bytesToHex)?.let { it != "0156" } == true) return null
+        val rawTerminal = values[0x9F1C]
+        val terminal = rawTerminal?.let { bytes ->
+            val ascii = bytes.toString(Charsets.US_ASCII).trimEnd('\u0000', ' ')
+            if (ascii.isNotEmpty() && ascii.all { it.code in 32..126 }) ascii else BerTlv.bcd(bytes).orEmpty()
+        }.orEmpty()
+        val recharge = formatTags.containsKey(0xDF4F) || values[0x9C]?.singleOrNull()?.toInt() == 0x60
+        val ref = if (recharge || terminal.isEmpty()) UNMATCHED_STATION
+            else resolveStation("TU", "", terminal, terminal, tu)
+        val balance = values[0x9F79]?.takeIf { it.size == 6 }?.let(BerTlv::bcd)?.toLongOrNull()
+        return buildTransaction(
+            rec.sfi, "TU", rec.hex, values[0x9F36]?.let(ApduUtil::hexToLong)?.toInt() ?: 0,
+            amount, if (recharge) "02" else "06", terminal,
+            if (recharge) "" else ref.station, null, ref.line, ref.lineColor, ref.lineId, ref.stationId,
+            if (recharge) "充值" else ref.transitType, if (recharge) null else ref.cityCode,
+            date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule
+        ).copy(identity = recordContentHash(rec), logFormat = formatHex)
+    }
+
+    fun recordContentHash(record: ZoneRecord): String = contentHash(record.hex + record.logFormat.orEmpty())
 
     private fun buildTransaction(
         sfi: Int,
@@ -660,8 +690,9 @@ object RecordDecoder {
     }
 
     /**
-     * 1E（旅程）与 18（主交易）按时间戳去重合并：
-     *  - 同一时间戳两条都有 → 取 18 的金额/类型/序号 + 1E 的站点/线路/方向/余额
+     * TU 1E（旅程）与主交易按完整时间戳一对一合并；同终端候选优先。
+     * 两区可能记录不同终端编号，因此终端号不是合并的必要条件。
+     *  - 同一时间戳两条都有 → 取主交易金额/类型/序号 + 1E 的站点/线路/方向/余额
      *  - 只有 18 → 原样
      *  - 只有 1E → 保留为旅程交易（金额可能为 0）
      */
@@ -670,51 +701,30 @@ object RecordDecoder {
         fare: List<CanonicalTransaction>
     ): List<CanonicalTransaction> {
         if (journey.isEmpty()) return fare
-        val fareByTs = fare.groupBy { it.date + it.time }
-        // 1E 旅程是 TU 站点权威来源：0x18 终端号是卡发行前缀（如广州卡 4131…），在外地（如深圳）时
-        // 无法定位站，必须用同时间戳的 1E 记录取站点/线路/方向/余额。journeyHex 也取 1E 的原始记录。
-        val journeyByTs = journey.groupBy { it.date + it.time }
+        val usedJourney = mutableSetOf<Int>()
         val out = mutableListOf<CanonicalTransaction>()
         for (f in fare) {
-            val ts = f.date + f.time
-            val journeyAtTs = journeyByTs[ts]
-            // 城市/原始数据独立于站名解析：只要有 1E 就用它的城市码与 hex（公交/异地行程的 18 城市码是卡归属城市，不可靠）
-            val journeyCity = journeyAtTs?.firstOrNull()?.cityCode
-            val journeyRawCity = journeyAtTs?.firstOrNull()?.rawCityCode
-            val journeyHex = journeyAtTs?.firstOrNull()?.hex
-            val city = journeyCity ?: f.cityCode
-            val rawCity = journeyRawCity ?: f.rawCityCode
-            // 站名解析单独处理：只取解析成功的旅程覆盖站名；城市与 hex 已在上方独立决定
-            val j = journeyAtTs?.firstOrNull {
-                it.stationName.isNotEmpty() && it.stationName != "未知"
+            val candidates = journey.indices.filter { index ->
+                index !in usedJourney && journey[index].date == f.date && journey[index].time == f.time
             }
-            if (j != null) {
-                out.add(f.copy(
-                    stationName = j.stationName,
-                    direction = j.direction,
-                    lineName = j.lineName,
-                    lineColor = j.lineColor,
-                    lineId = j.lineId,
-                    stationId = j.stationId,
-                    // 站名取自 1E 时，交通类型也必须跟 1E：0x18 用卡发行前缀终端号解析，
-                    // 与 1E 解析结果可能不同（如深圳地铁 1E 命中前海湾，0x18 兜底到公交），
-                    // 否则会出现「地铁站名 + 公交类型」的矛盾展示
-                    transitType = j.transitType,
-                    cityCode = city,
-                    rawCityCode = rawCity,
-                    balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                    journeyHex = journeyHex ?: j.hex,
-                    deviceCode = j.deviceCode,
-                    spRule = j.spRule
-                ))
-            } else {
-                out.add(f.copy(journeyHex = journeyHex, cityCode = city, rawCityCode = rawCity))
+            val matchedIndex = candidates.firstOrNull { f.terminal.isNotEmpty() && journey[it].terminal == f.terminal }
+                ?: candidates.firstOrNull()
+            if (matchedIndex == null) {
+                out.add(f)
+                continue
             }
+            usedJourney.add(matchedIndex)
+            val j = journey[matchedIndex]
+            out.add(f.copy(
+                stationName = j.stationName, direction = j.direction, lineName = j.lineName,
+                lineColor = j.lineColor, lineId = j.lineId, stationId = j.stationId,
+                transitType = j.transitType, cityCode = j.cityCode ?: f.cityCode,
+                rawCityCode = j.rawCityCode ?: f.rawCityCode,
+                balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
+                journeyHex = j.hex, deviceCode = j.deviceCode, spRule = j.spRule
+            ))
         }
-        for (j in journey) {
-            val ts = j.date + j.time
-            if (ts !in fareByTs) out.add(j)
-        }
+        journey.forEachIndexed { index, j -> if (index !in usedJourney) out.add(j) }
         return out
     }
 
@@ -756,24 +766,6 @@ object RecordDecoder {
             deviceCode = code,
             spRule = spRule
         )
-    }
-
-    /** 按终端号模糊匹配余额（1E 与 18 终端号长度不一致时的兜底）；匹配不到返回 null（该记录无余额数据） */
-    private fun findBalanceByTerminal(terminal: String, balanceMap: Map<String, Long?>): Long? {
-        var best: Long? = null
-        var bestTs = ""
-        for ((key, value) in balanceMap) {
-            if (value == null) continue
-            val keyTerminal = key.substringBefore("|")
-            if (keyTerminal == terminal || keyTerminal.endsWith(terminal) || terminal.endsWith(keyTerminal)) {
-                val ts = key.substringAfter("|")
-                if (ts > bestTs) {
-                    bestTs = ts
-                    best = value
-                }
-            }
-        }
-        return best
     }
 
     private fun todayDate(): String {

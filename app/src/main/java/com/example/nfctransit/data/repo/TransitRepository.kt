@@ -57,6 +57,14 @@ internal fun cardIdentityNumbers(vararg values: String?): Set<String> =
 internal fun sharesCardIdentity(first: Set<String>, second: Set<String>): Boolean =
     first.any(second::contains)
 
+internal fun cuCardNumberFromRaw(records: List<RawRecordEntity>): String? {
+    val info = records.firstOrNull {
+        it.sfi.toSfiInt() == 0x15 && it.recNo == 0 && it.selectedAid.equals(CardProfiles.CU_AID, true)
+    } ?: return null
+    val data = runCatching { ApduUtil.hexToBytes(info.hex) }.getOrNull() ?: return null
+    return data.takeIf { it.size >= 20 }?.let(::parseCuCardNumber)
+}
+
 /** cuHex 是通用 0x18 字段；完整年份不能区分 CU 与 TU，应先使用来源卡型。 */
 internal fun tripReaderFareProtocol(card: TripReaderCard, transaction: TripReaderTransaction): String {
     if (card.isSZT) return "SZT"
@@ -126,12 +134,7 @@ class TransitRepository(private val context: Context) {
         val rawByCard = dao.getAllRawRecords().groupBy { it.cardId }
         val migrated = cards.map { card ->
             if (card.cardType != "CU") return@map card
-            val info = rawByCard[card.cardId].orEmpty().firstOrNull {
-                it.sfi == "0x15" && it.recNo == 0
-            } ?: return@map card
-            val data = ApduUtil.hexToBytes(info.hex)
-            if (data.size < 20) return@map card
-            val cardNumber = parseCuCardNumber(data)
+            val cardNumber = cuCardNumberFromRaw(rawByCard[card.cardId].orEmpty()) ?: return@map card
             if (cardNumber.isEmpty() || cardNumber == card.cardNumber) {
                 card
             } else {
@@ -198,6 +201,7 @@ class TransitRepository(private val context: Context) {
                     contentHash = t.identity,
                     resolvedDate = t.date,
                     balanceAfterFen = t.balanceAfterFen,
+                    logFormat = t.logFormat,
                     firstSeenAt = now,
                     lastSeenAt = now
                 )
@@ -219,11 +223,7 @@ class TransitRepository(private val context: Context) {
         rawRecords: List<RawRecord>,
         currentYear: Int
     ): Boolean {
-        val profile = CardProfiles.known.firstOrNull { it.cardType == cardType }
-        val transactionSfis = profile?.transactionSfis ?: setOf(0x18)
-        val records = rawRecords
-            .filter { it.sfi in transactionSfis }
-            .map { RecordDecoder.ZoneRecord(it.sfi, it.recNo, it.protocol, it.hex) }
+        val records = RecordDecoder.transactionRecords(cardType, rawRecords)
         if (records.isEmpty()) return false
 
         fun archiveKey(contentHash: String, protocol: String, sfi: String) =
@@ -232,7 +232,7 @@ class TransitRepository(private val context: Context) {
         val existingKeys = dao.getArchive(cardId).mapTo(mutableSetOf()) {
             archiveKey(it.contentHash, it.protocol, it.sfi)
         }
-        if (records.none { archiveKey(RecordDecoder.contentHash(it.hex), it.protocol, it.sfi.toSfiHex()) !in existingKeys }) {
+        if (records.none { archiveKey(RecordDecoder.recordContentHash(it), it.protocol, it.sfi.toSfiHex()) !in existingKeys }) {
             return false
         }
 
@@ -496,6 +496,7 @@ class TransitRepository(private val context: Context) {
                                 cardId = cardId, sfi = sfiHex, protocol = t.protocol, hex = t.hex,
                                 contentHash = t.identity, resolvedDate = t.date,
                                 balanceAfterFen = t.balanceAfterFen,
+                                logFormat = t.logFormat,
                                 firstSeenAt = now, lastSeenAt = now
                             )
                         )

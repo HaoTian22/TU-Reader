@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
- * 版本迁移见 MIGRATIONS：当前 v5，应用快照及原始槽位均使用 selected_aid 定位应用。
+ * 版本迁移见 MIGRATIONS：当前 v6，应用快照及原始槽位均使用 selected_aid 定位应用。
  */
 @Database(
     entities = [
@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedTransactionEntity::class,
         CardAppEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -216,8 +216,15 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /** v5→v6：EC 交易日志保存读取时的 DOL 格式。 */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transactions_archive` ADD COLUMN `log_format` TEXT")
+            }
+        }
+
         /** 全部迁移：主库打开与导入旧库共用 */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         @Volatile
         private var instance: UserDatabase? = null

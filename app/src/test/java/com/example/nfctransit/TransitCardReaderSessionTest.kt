@@ -188,15 +188,19 @@ class TransitCardReaderSessionTest {
                 ApduUtil.bytesToHex(ApduUtil.buildSelectByName(cuAid)),
                 ApduUtil.bytesToHex(ApduUtil.buildSelectByName(alternate)) -> success()
                 "00B0950000" -> info()
+                "00B2011400" -> success(ApduUtil.hexToBytes(tlv("70", tlv("5A", "6211223344556677889F"))))
+                "80CA9F7900" -> success(ApduUtil.hexToBytes("9F7906000000001234"))
                 ApduUtil.bytesToHex(ApduUtil.buildReadRecord(0x18, 1, 0x17)) -> record()
                 else -> missing()
             }
         }
         val result = TransitCardReader(channel).read()
         assertNotNull(result.secondCardInfo)
-        assertEquals(alternate, result.rawRecords.single { it.sfi == 0x15 && it.protocol == "TU" }.selectedAid)
+        assertEquals(alternate, result.rawRecords.single { it.sfi == 2 && it.protocol == "TU" }.selectedAid)
+        assertEquals("6211223344556677889", result.secondCardInfo?.cardNumber)
+        assertEquals(1234L, result.secondBalanceFen)
         assertEquals(cuAid, result.rawRecords.single { it.sfi == 0x15 && it.protocol == "CU" }.selectedAid)
-        assertEquals(setOf(cuAid, alternate), result.rawRecords.filter { it.sfi == 0x18 }.map { it.selectedAid }.toSet())
+        assertEquals(setOf(cuAid), result.rawRecords.filter { it.sfi == 0x18 }.map { it.selectedAid }.toSet())
         assertTrue(result.appReads.any { it.selectedAid == alternate })
         assertNull(result.readError)
     }

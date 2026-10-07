@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 动态分区：标题 + 卡片（卡片信息页按应用分别展示应用信息） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/sectionTitle"
+        style="@style/DetailSectionTitle" />
+
+    <LinearLayout
+        android:id="@+id/sectionRows"
+        style="@style/DetailSectionCard" />
+</LinearLayout>

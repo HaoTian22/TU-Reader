@@ -397,7 +397,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val blocks = mutableListOf<RawBlock>()
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
-            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol)
+            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol, txn.logFormat)
             blocks.add(RawBlock(txn.sfi, txn.protocol, mainHex))
             sb.append(mainHex)
         }
@@ -422,7 +422,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         addDivider(binding.hexPanel)
         for (block in blocks) {
             val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex,
+                txn.logFormat.takeIf { block.hex == txn.hex }
             )
             if (fields.isEmpty()) continue
             addMonospaceLine(binding.hexPanel, "SFI ${block.sfi.toSfiHex()} fields", dim = true)
@@ -450,7 +451,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         out.append("\n\n")
         for (block in blocks) {
             val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex,
+                txn.logFormat.takeIf { block.hex == txn.hex }
             )
             if (fields.isEmpty()) continue
             out.append("SFI ${block.sfi.toSfiHex()}\n")
@@ -478,9 +480,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         container: LinearLayout,
         sfi: Int,
         hex: String,
-        protocol: String
+        protocol: String,
+        logFormat: String? = null
     ) {
-        val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol, hex)
+        val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol, hex, logFormat)
         addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
         addColoredHexLine(container, RawHexFormatter.colorizeHex(hex, fields))
     }

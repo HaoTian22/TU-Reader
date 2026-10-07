@@ -1,4 +1,4 @@
-"""Exercise the actual v4→v5 migration SQL against exported Room schemas."""
+"""Exercise the actual v1→v6 migrations SQL against exported Room schemas."""
 
 import json
 from pathlib import Path
@@ -24,7 +24,7 @@ def create_schema(db, version):
 def migrate(db, start_version=4):
     source = (ROOT / "app/src/main/java/com/example/nfctransit/data/db/UserDatabase.kt").read_text(encoding="utf-8")
     literal = r'(?:""".*?"""|"[^"\n]*")'
-    for version in range(start_version, 5):
+    for version in range(start_version, 6):
         migration = source.split(f"private val MIGRATION_{version}_{version + 1} =", 1)[1]
         migration = migration.split("private val MIGRATION_", 1)[0].split("/** 全部迁移", 1)[0]
         statements = re.findall(r'db\.execSQL\(\s*(' + literal + r'(?:\s*\+\s*' + literal + r')*)\s*\)',
@@ -66,6 +66,8 @@ class UserDatabaseMigrationTest(unittest.TestCase):
         migrate(self.db)
         self.assertEqual(self.db.execute("SELECT * FROM card_app ORDER BY row_id").fetchall(), self.rows[2:6])
         for table, rows in untouched.items():
+            if table == "transactions_archive":
+                rows = [row + (None,) for row in rows]
             self.assertEqual(self.db.execute(f"SELECT * FROM {table}").fetchall(), rows)
         self.assertEqual(self.db.execute("SELECT * FROM raw_records").fetchall(),
                          [(1, "card-a", "0x18", 1, "A000000632010105", "raw", "hash", 1, 2)])
@@ -75,7 +77,7 @@ class UserDatabaseMigrationTest(unittest.TestCase):
     def test_migrated_schema_matches_room_and_enforces_unique_key(self):
         migrate(self.db)
         with sqlite3.connect(":memory:") as expected:
-            schema = create_schema(expected, 5)
+            schema = create_schema(expected, 6)
             for entity in schema["entities"]:
                 table = entity["tableName"]
                 self.assertEqual(self.db.execute(f"PRAGMA table_info({table})").fetchall(),
@@ -141,8 +143,8 @@ class UserDatabaseMigrationTest(unittest.TestCase):
 
     def test_all_old_schema_versions_can_reach_current_schema(self):
         with sqlite3.connect(":memory:") as expected:
-            schema = create_schema(expected, 5)
-            for version in range(1, 5):
+            schema = create_schema(expected, 6)
+            for version in range(1, 6):
                 with self.subTest(version=version), sqlite3.connect(":memory:") as db:
                     create_schema(db, version)
                     migrate(db, version)

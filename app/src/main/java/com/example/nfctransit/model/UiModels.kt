@@ -23,13 +23,21 @@ data class UiCard(
 }
 
 data class UiCardMetadata(
+    /** 主应用（无则首个有城市的应用）的发卡城市，仅首页/头部摘要使用 */
     val issuerCity: String? = null,
-    val issuer: String? = null,
-    val issueDate: String? = null,
-    val validUntil: String? = null,
-    val secondStandard: String? = null,
-    val secondIssueDate: String? = null,
-    val secondValidUntil: String? = null
+    /** 卡上全部可用应用的协议（主应用在前），如 LNT / TU */
+    val appProtocols: List<String> = emptyList(),
+    val applications: List<UiApplicationInfo> = emptyList()
+)
+
+/** 单个应用的展示信息：发卡城市/机构等均归属该应用。 */
+data class UiApplicationInfo(
+    val protocol: String,
+    /** 分区标题名称；null = 无专用名称 */
+    val name: String?,
+    val cardNumber: String?,
+    val issuerCity: String?,
+    val metadata: com.example.nfctransit.data.ApplicationMetadata
 )
 
 data class UiTransaction(
@@ -66,7 +74,8 @@ data class UiTransaction(
     val deviceCode: String? = null,  // 站名解析命中的 device_code（如 581000140019）；null=未命中
     val spRule: String? = null,      // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行附加展示；null=普通命中
     val actualCityCode: String? = null,
-    val locationSource: LocationSource = LocationSource.DECLARED_CITY_FALLBACK
+    val locationSource: LocationSource = LocationSource.DECLARED_CITY_FALLBACK,
+    val logFormat: String? = null
 )
 
 data class StationStat(

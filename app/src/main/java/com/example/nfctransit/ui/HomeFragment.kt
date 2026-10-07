@@ -305,7 +305,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         })
         titleRow.addView(titleCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         titleRow.addView(TextView(ctx).apply {
-            text = balanceText(card.balanceYuan)
+            text = if (card.balanceFen == null) "—" else balanceText(card.balanceYuan)
             setTextColor(onCard)
             typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false

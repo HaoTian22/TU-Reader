@@ -169,6 +169,12 @@ class TransitCardReader internal constructor(
             if (!ApduUtil.isSuccess(selectResp)) continue
             rememberApplication(aid, selectResp)
 
+            if (profile.cardType == "TU" && aid == CardProfiles.TU_EC_AID) {
+                val records = mutableListOf<RawRecord>()
+                val ec = collectElectronicCash(selectResp, log, records)
+                return ReadResult(profile, ec.info, ec.balance, rawRecords = records, rawLog = log)
+            }
+
             val coreStartedAt = nowMs()
             val protocol = when (profile.cardType) {
                 "YCT" -> "LNT"
@@ -196,7 +202,8 @@ class TransitCardReader internal constructor(
             // 已有解析器依赖的统计文件属于必读数据，不受额外探测预算限制。
             val statsSfis = when (profile.cardType) {
                 "CU" -> setOf(0x17)
-                "TU", "SZT" -> setOf(0x19)
+                "TU" -> setOf(0x17, 0x19)
+                "SZT" -> setOf(0x19)
                 else -> emptySet()
             }
             for (sfi in statsSfis) collectAuxiliaryFile(sfi, protocol, log, rawRecs)
@@ -211,6 +218,11 @@ class TransitCardReader internal constructor(
             if (tu.selectedAid.isNotEmpty()) {
                 rememberBalance(tu.selectedAid, tu.balance, tu.balanceResp)
             }
+            if (profile.cardType == "TU" && connectionError == null) {
+                selectApplication(CardProfiles.TU_EC_AID, log)?.let {
+                    collectElectronicCash(it, log, rawRecs)
+                }
+            }
             log.add("核心读取耗时: ${nowMs() - coreStartedAt} ms")
 
             // 先完成全部钱包的核心读取，再限时保留未知文件；断卡不会丢弃核心结果。
@@ -219,8 +231,7 @@ class TransitCardReader internal constructor(
                 val optionalStartedAt = nowMs()
                 try {
                     channel.timeout = 500
-                    val primarySelected = profile.cardType !in setOf("YCT", "CU", "SZT") ||
-                        selectApplication(primaryAid, log) != null
+                    val primarySelected = activeAid == primaryAid || selectApplication(primaryAid, log) != null
                     if (primarySelected && connectionError == null) {
                         probeAllFiles(log, rawRecs, protocol,
                             profile.transactionSfis + profile.infoSfi + statsSfis +
@@ -293,16 +304,91 @@ class TransitCardReader internal constructor(
             log.add("双协议卡 TU 协议选择失败")
             return TuWalletResult(null, null)
         }
+        if (selectedAid == CardProfiles.TU_EC_AID) {
+            return collectElectronicCash(selectTu, log, collector)
+        }
         val info = readCuInfo(tuProfile, log)
         val bc = readBalance(tuProfile, log)
         val lntBalance = collectTuWallet(tuProfile, log, collector)
         collectAuxiliaryFile(0x19, "TU", log, collector)
+        collectAuxiliaryFile(0x17, "TU", log, collector)
         val balance = if (bc.respHex != null) bc.fen else lntBalance
+        selectApplication(CardProfiles.TU_EC_AID, log)?.let {
+            collectElectronicCash(it, log, collector)
+        }
         return TuWalletResult(
             info, balance,
             selectedAid,
             bc.respHex
         )
+    }
+
+    /** EC uses TLV application data and card-declared DOL logs, never the EP 0x15/0x18 layout. */
+    private fun collectElectronicCash(
+        select: ByteArray, log: MutableList<String>, collector: MutableList<RawRecord>
+    ): TuWalletResult {
+        val aid = activeAid
+        val tags = BerTlv.values(ApduUtil.dataOnly(select)).toMutableMap()
+        for ((sfi, recNo) in listOf(2 to 1, 3 to 1, 8 to 1)) {
+            if (connectionError != null) break
+            try {
+                val response = transceive(ApduUtil.buildReadRecord(sfi, recNo))
+                log.add("READ EC SFI=${sfi.toString(16)} rec=$recNo -> ${ApduUtil.bytesToHex(response)}")
+                if (!ApduUtil.isSuccess(response)) continue
+                val data = ApduUtil.dataOnly(response)
+                collector.add(rawRecord(sfi, recNo, "TU", ApduUtil.bytesToHex(data)))
+                BerTlv.values(data).forEach { (tag, value) -> tags.putIfAbsent(tag, value) }
+            } catch (error: Exception) { log.add("读取 EC 信息异常: ${error.message}") }
+        }
+        val df11 = tags[0xDF11]
+        val pan = tags[0x5A]?.let(BerTlv::pan)
+            ?: df11?.takeIf { it.size >= 19 }?.copyOfRange(9, 19)?.let(BerTlv::pan).orEmpty()
+        fun date(tag: Int, managementTag: Int): String {
+            val management = tags[managementTag]?.takeIf { it.size == 4 }?.let(BerTlv::bcd)
+            return management ?: tags[tag]?.takeIf { it.size == 3 }?.let(BerTlv::bcd)?.let { "20$it" } ?: "未知"
+        }
+        val info = CardInfo("交通联合卡 (T-Union)", date(0x5F25, 0xDF25), date(0x5F24, 0xDF24), pan, "")
+        val balanceResponse = readEcData(0x9F79, log)
+        val balance = balanceResponse?.let { BerTlv.values(it)[0x9F79] }
+            ?.takeIf { it.size == 6 }?.let(BerTlv::bcd)?.toLongOrNull()
+        val balanceHex = balanceResponse?.takeIf { balance != null }?.let(ApduUtil::bytesToHex)
+        rememberBalance(aid, balance, balanceHex)
+        for ((entryTag, formatTag, defaultSfi) in listOf(Triple(0x9F4D, 0x9F4F, 0x0B), Triple(0xDF4D, 0xDF4F, 0x0C))) {
+            if (connectionError != null) break
+            val entry = tags[entryTag]?.takeIf { it.size == 2 }
+            val sfi = entry?.get(0)?.toInt()?.and(255) ?: defaultSfi
+            if (sfi !in 1..30) continue
+            val formatResponse = readEcData(formatTag, log)
+            val format = formatResponse?.let { BerTlv.values(it)[formatTag] }
+            // No guessed fixed offsets: retain an unreadable log as raw data when the DOL is unavailable.
+            if (format != null && BerTlv.dol(format) != null) {
+                collector.add(rawRecord(sfi, 0, "TU", ApduUtil.bytesToHex(formatResponse!!)))
+            }
+            val count = entry?.get(1)?.toInt()?.and(255) ?: 10
+            for (recNo in 1..count) {
+                if (connectionError != null) break
+                try {
+                    val response = transceive(ApduUtil.buildReadRecord(sfi, recNo))
+                    log.add("READ EC LOG SFI=${sfi.toString(16)} rec=$recNo -> ${ApduUtil.bytesToHex(response)}")
+                    if (!ApduUtil.isSuccess(response)) break
+                    val data = ApduUtil.dataOnly(response)
+                    if (data.isEmpty()) break
+                    collector.add(rawRecord(sfi, recNo, "TU", ApduUtil.bytesToHex(data)))
+                } catch (error: Exception) { log.add("读取 EC 日志异常: ${error.message}"); break }
+            }
+        }
+        collectAuxiliaryFile(0x1E, "TU", log, collector)
+        return TuWalletResult(info, balance, aid, balanceHex)
+    }
+
+    private fun readEcData(tag: Int, log: MutableList<String>): ByteArray? {
+        if (connectionError != null) return null
+        return try {
+            val command = byteArrayOf(0x80.toByte(), 0xCA.toByte(), (tag shr 8).toByte(), tag.toByte(), 0)
+            val response = transceive(command)
+            log.add("GET DATA ${tag.toString(16).uppercase()} -> ${ApduUtil.bytesToHex(response)}")
+            response.takeIf(ApduUtil::isSuccess)?.let(ApduUtil::dataOnly)
+        } catch (error: Exception) { log.add("GET DATA 异常: ${error.message}"); null }
     }
 
     private fun selectApplication(aid: String, log: MutableList<String>): ByteArray? = try {
@@ -662,7 +748,7 @@ class TransitCardReader internal constructor(
     /**
      * BALANCE CHECK（PBOC 电子钱包）查余额：
      *   `80 5C 00 02 04`，响应体内联余额。
-     * 实际响应（如岭南通 `00 00 0F 00`）：首字节 0x00 为状态字节，[1..] 为大端 HEX 余额（分）
+     * 响应（如岭南通 `00 00 0F 00`）全部四字节为大端 HEX 余额（分）
      *   → 0x0F00 = 3840 分 = ¥38.40。失败/无余额时返回 BalanceResult(0, null)（读卡链路降级，不中断交易读取）。
      */
     private fun readBalance(profile: CardProfile, log: MutableList<String>): BalanceResult {
@@ -672,9 +758,8 @@ class TransitCardReader internal constructor(
             log.add("BALANCE CHECK -> ${ApduUtil.bytesToHex(resp)}")
             if (!ApduUtil.isSuccess(resp)) return BalanceResult(0L, null)
             val data = ApduUtil.dataOnly(resp)
-            if (data.size < 2) return BalanceResult(0L, ApduUtil.bytesToHex(data))
-            // 跳过状态字节 [0]（0x00），[1..] 为大端 hex 余额（分）
-            val fen = ApduUtil.hexToLong(data.copyOfRange(1, data.size))
+            if (data.size != 4) return BalanceResult(0L, null)
+            val fen = ApduUtil.hexToLong(data)
             BalanceResult(fen, ApduUtil.bytesToHex(data))
         } catch (e: Exception) {
             log.add("BALANCE CHECK 异常: ${e.message}")

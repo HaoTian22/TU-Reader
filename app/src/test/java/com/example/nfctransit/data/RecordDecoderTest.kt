@@ -398,14 +398,43 @@ class RecordDecoderTest {
         )
         val decoded = RecordDecoder.decodeCard("CU", records, null, 2026)
 
+        // The complete timestamp associates the journey even when its terminal differs.
         assertEquals(1, decoded.display.size)
-        assertEquals("194202", decoded.display.single().time)
-        assertEquals(setOf("CU", "TU"), decoded.display.single().protocols)
+        val fare = decoded.display.single { it.sfi == 0x18 }
+        assertEquals("194202", fare.time)
+        assertEquals(setOf("CU", "TU"), fare.protocols)
         assertEquals(
             listOf("00070000C8000001900941310088943720260606194202"),
-            decoded.display.single().rawVariants.map { it.hex }
+            fare.rawVariants.map { it.hex }
         )
         assertEquals(3, decoded.archive.size)
+    }
+
+    @Test
+    fun identicalCuTuFareCopiesKeepTheMatchedJourney() {
+        val fareHex = "00070000C8000001900941310088943720260606194202"
+        val journeyHex = "040000000263033114010000000000001600000190000000C820260606194202584012215840FFFF"
+        val records = listOf(
+            RecordDecoder.ZoneRecord(0x18, 1, "CU", fareHex),
+            RecordDecoder.ZoneRecord(0x18, 1, "TU", fareHex),
+            RecordDecoder.ZoneRecord(0x1E, 1, "TU", journeyHex)
+        )
+        val decoded = RecordDecoder.decodeCard("CU", records, null, 2026)
+        val merged = decoded.display.single()
+        assertEquals(journeyHex, merged.journeyHex)
+        assertEquals(200L, merged.balanceAfterFen)
+        assertEquals(setOf("CU", "TU"), merged.protocols)
+        assertEquals(3, decoded.archive.size)
+        val archived = decoded.archive.map { t ->
+            com.example.nfctransit.data.db.ArchivedTransactionEntity(
+                cardId = "card", sfi = t.sfi.toSfiHex(), protocol = t.protocol,
+                hex = t.hex, contentHash = t.identity, resolvedDate = t.date,
+                balanceAfterFen = t.balanceAfterFen, firstSeenAt = 1, lastSeenAt = 1
+            )
+        }
+        val restored = RecordDecoder.decodeArchive("CU", archived).single()
+        assertEquals(journeyHex, restored.journeyHex)
+        assertEquals(200L, restored.balanceAfterFen)
     }
 
     @Test

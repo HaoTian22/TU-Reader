@@ -40,6 +40,9 @@ data class CardProfile(
 }
 
 object CardProfiles {
+    const val TU_EP_AID = "A000000632010105"
+    const val TU_EC_AID = "A000000632010106"
+    const val CU_AID = "A00000000386980701"
 
     /** 仅用于运行时解码，raw_records 使用实际 AID 定位应用。 */
     fun protocolForAid(aid: String): String = known.firstOrNull { profile ->

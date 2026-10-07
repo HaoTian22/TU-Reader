@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey
  *
  * resolved_date / balance_after_fen 在读卡时解析并随行落库：
  * LNT 记录本身无年份字段（年份靠统计月份锚点 + 记录连续性推断），纯 hex 无法复得；
- * LNT 余额是钱包级快照，也须读卡时固化。其余字段渲染时从 hex 重新解析。
+ * 余额仅来自旅程/EC 日志的自身字段，不填充钱包快照；EC 的 DOL 随归档保存。
  */
 @Entity(
     tableName = "transactions_archive",
@@ -42,5 +42,6 @@ data class ArchivedTransactionEntity(
     @ColumnInfo(name = "resolved_date") val resolvedDate: String,  // "yyyyMMdd"，含推断年份
     @ColumnInfo(name = "balance_after_fen") val balanceAfterFen: Long? = null,
     @ColumnInfo(name = "first_seen_at") val firstSeenAt: Long,
-    @ColumnInfo(name = "last_seen_at") val lastSeenAt: Long
+    @ColumnInfo(name = "last_seen_at") val lastSeenAt: Long,
+    @ColumnInfo(name = "log_format") val logFormat: String? = null
 )

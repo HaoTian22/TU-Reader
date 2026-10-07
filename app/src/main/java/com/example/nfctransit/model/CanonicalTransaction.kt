@@ -44,5 +44,7 @@ data class CanonicalTransaction(
     /** 合并展示交易的其他原始记录（如跨应用的另一份 0x18）；仅内存，不落库 */
     val rawVariants: List<RawHexBlock> = emptyList(),
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
-    val protocols: Set<String> = emptySet()
+    val protocols: Set<String> = emptySet(),
+    /** EC 日志为 DOL 指定布局；随归档保存，历史日志不依赖卡片当前格式。 */
+    val logFormat: String? = null
 )

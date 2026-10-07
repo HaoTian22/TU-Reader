@@ -254,34 +254,6 @@
 
                     <TextView
                         style="@style/DetailRowLabel"
-                        android:text="@string/card_info_number" />
-
-                    <TextView
-                        android:id="@+id/tvCardNumber"
-                        style="@style/DetailRowValue"
-                        android:fontFamily="monospace"
-                        android:textIsSelectable="true" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/secondCardNumberRow"
-                    style="@style/DetailRow">
-
-                    <TextView
-                        style="@style/DetailRowLabel"
-                        android:text="@string/card_info_second_number" />
-
-                    <TextView
-                        android:id="@+id/tvSecondCardNumber"
-                        style="@style/DetailRowValue"
-                        android:fontFamily="monospace"
-                        android:textIsSelectable="true" />
-                </LinearLayout>
-
-                <LinearLayout style="@style/DetailRow">
-
-                    <TextView
-                        style="@style/DetailRowLabel"
                         android:text="@string/card_info_type" />
 
                     <TextView
@@ -289,90 +261,17 @@
                         style="@style/DetailRowValue" />
                 </LinearLayout>
 
-                <LinearLayout style="@style/DetailRow">
 
-                    <TextView
-                        style="@style/DetailRowLabel"
-                        android:text="@string/card_info_issuer_city" />
-
-                    <TextView
-                        android:id="@+id/tvIssuerCity"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
-
-                <LinearLayout style="@style/DetailRow">
-
-                    <TextView
-                        style="@style/DetailRowLabel"
-                        android:text="@string/card_info_issuer" />
-
-                    <TextView
-                        android:id="@+id/tvIssuer"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
             </LinearLayout>
 
-            <!-- 有效期 -->
-            <TextView
-                style="@style/DetailSectionTitle"
-                android:text="@string/card_info_validity" />
-
+            <!-- 应用信息：每个应用一个分区，由 CardInfoFragment 动态生成 -->
             <LinearLayout
-                android:id="@+id/sectionValidity"
-                style="@style/DetailSectionCard">
+                android:id="@+id/applicationMetadataContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
 
-                <LinearLayout style="@style/DetailRow">
-
-                    <TextView
-                        style="@style/DetailRowLabel"
-                        android:text="@string/card_info_issue_date" />
-
-                    <TextView
-                        android:id="@+id/tvIssueDate"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
-
-                <LinearLayout style="@style/DetailRow">
-
-                    <TextView
-                        style="@style/DetailRowLabel"
-                        android:text="@string/card_info_valid_until" />
-
-                    <TextView
-                        android:id="@+id/tvValidUntil"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/secondStandardIssueRow"
-                    style="@style/DetailRow"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tvSecondIssueLabel"
-                        style="@style/DetailRowLabel"
-                        tools:text="第二标准发行日期" />
-
-                    <TextView
-                        android:id="@+id/tvSecondIssueDate"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/secondStandardValidRow"
-                    style="@style/DetailRow"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tvSecondValidLabel"
-                        style="@style/DetailRowLabel"
-                        tools:text="第二标准有效期至" />
-
-                    <TextView
-                        android:id="@+id/tvSecondValidUntil"
-                        style="@style/DetailRowValue" />
-                </LinearLayout>
-            </LinearLayout>
 
             <!-- 原始数据 -->
             <LinearLayout

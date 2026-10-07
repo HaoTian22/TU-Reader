@@ -21,7 +21,7 @@
         <item name="android:background">@drawable/bg_card_plain</item>
         <item name="android:orientation">vertical</item>
     </style>
-    <!-- 分区卡片内的「标签 / 值」行（卡片信息页静态行；交易详情页由 item_detail_row 动态生成） -->
+    <!-- 分区卡片内的「标签 / 值」行：卡片信息页和交易详情页共用；动态行使用 item_detail_row。 -->
     <style name="DetailRow">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

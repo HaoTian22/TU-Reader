@@ -147,7 +147,25 @@ object RawHexFormatter {
         val color: Int
     )
 
-    fun fieldsFor(sfi: Int, size: Int, protocol: String, hex: String = ""): List<FieldSpec> {
+    fun fieldsFor(sfi: Int, size: Int, protocol: String, hex: String = "", logFormat: String? = null): List<FieldSpec> {
+        if (logFormat != null) {
+            val tags = com.example.nfctransit.BerTlv.values(ApduUtil.hexToBytes(logFormat))
+            val dol = tags[0x9F4F] ?: tags[0xDF4F] ?: return emptyList()
+            return com.example.nfctransit.BerTlv.dol(dol).orEmpty().map { field ->
+                val (label, method, color) = when (field.tag) {
+                    0x9A -> Triple("Date", "BCD", TIMESTAMP)
+                    0x9F21 -> Triple("Time", "BCD", TIMESTAMP)
+                    0x9F02 -> Triple("Amount", "BCD", AMOUNT)
+                    0x9F79 -> Triple("Balance", "BCD", BALANCE)
+                    0x9F1C -> Triple("Terminal", "ASCII", TERMINAL)
+                    0x9F36 -> Triple("ATC", "hex", RECORD)
+                    0x9C -> Triple("Type", "hex", TYPE)
+                    0x5F2A -> Triple("Currency", "BCD", AREA)
+                    else -> Triple("Tag ${field.tag.toString(16).uppercase()}", "", RAW)
+                }
+                FieldSpec(label, field.offset, field.offset + field.length, method, color)
+            }.filter { it.end <= size }
+        }
         if (sfi == 0x15 && protocol == "LNT" && size >= 32) {
             return listOf(
                 FieldSpec("Card Number", 11, 16, "BCD", CARD_NUMBER),
@@ -192,7 +210,7 @@ object RawHexFormatter {
                 FieldSpec("Terminal", 1, 9, "BCD", TERMINAL),
                 FieldSpec("Subtype", 9, 10, "hex", SUBTYPE),
                 FieldSpec("Line & Station", 10, 17, "", LINE),
-                FieldSpec("Amount", 19, 21, "hex", AMOUNT),
+                FieldSpec("Amount", 17, 21, "hex", AMOUNT),
                 FieldSpec("Balance", 21, 25, "hex", BALANCE),
                 FieldSpec("Timestamp", 25, 32, "BCD", TIMESTAMP),
                 FieldSpec("Area", 32, 34, "BCD", AREA),
@@ -215,7 +233,7 @@ object RawHexFormatter {
             return listOf(
                 FieldSpec("Record No.", 0, 2, "dec", RECORD),
                 FieldSpec("Reserved", 2, 5, "hex", SELECT_UNKNOWN),
-                FieldSpec("Amount", 5, 9, "hex", AMOUNT),
+                FieldSpec("Amount", 6, 9, "hex", AMOUNT),
                 FieldSpec(typeLabel, 9, 10, "hex", TYPE),
                 FieldSpec("Terminal", 10, 16, "BCD", TERMINAL),
                 FieldSpec("Date", 16, 20, "BCD", TIMESTAMP),
@@ -246,7 +264,7 @@ object RawHexFormatter {
         if (sfi == 0x18 && size >= 23) {
             return listOf(
                 FieldSpec("Record No.", 0, 2, "dec", RECORD),
-                FieldSpec("Amount", 6, 9, "hex", AMOUNT),
+                FieldSpec("Amount", if (protocol == "TU") 5 else 6, 9, "hex", AMOUNT),
                 FieldSpec("Type", 9, 10, "hex", TYPE),
                 FieldSpec("Terminal", 10, 16, "BCD", TERMINAL),
                 FieldSpec("Timestamp", 16, 23, "BCD", TIMESTAMP)

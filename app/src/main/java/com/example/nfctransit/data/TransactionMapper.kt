@@ -130,7 +130,8 @@ object TransactionMapper {
             deviceCode = deviceCode,
             spRule = spRule,
             actualCityCode = actualLocation.cityCode,
-            locationSource = actualLocation.source
+            locationSource = actualLocation.source,
+            logFormat = logFormat
         )
     }
 
