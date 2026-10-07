@@ -12,7 +12,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
-import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -223,6 +222,8 @@ object AppDialogs {
         station: String,
         type: String,
         actualCityCode: String?,
+        /** 设备编号候选（Terminal / Line & Station 的编号）；为空时不显示下拉箭头 */
+        codeOptions: List<String> = emptyList(),
         title: String = context.getString(R.string.feedback_title),
         showPublish: Boolean = true,
         hasRawRecord: Boolean = false,
@@ -276,7 +277,7 @@ object AppDialogs {
         }
         dialog.setCancelable(true)
         val prefixInput = view.findViewById<EditText>(R.id.feedbackPrefix)
-        val codeInput = view.findViewById<EditText>(R.id.feedbackCode)
+        val codeInput = view.findViewById<AutoCompleteTextView>(R.id.feedbackCode)
         val lineInput = view.findViewById<EditText>(R.id.feedbackLine)
         val stationInput = view.findViewById<EditText>(R.id.feedbackStation)
         val cityInput = view.findViewById<AutoCompleteTextView>(R.id.feedbackCity)
@@ -380,15 +381,19 @@ object AppDialogs {
         }
         styleTypeChips()
         val cityOptions = TransitData.cityOptions()
-        val cityLabels = cityOptions.map(CityOption::pickerLabel)
+        // 中文名、英文名（不区分大小写）、城市码任一包含输入即列为候选
         cityInput.setAdapter(
-            ArrayAdapter(context, R.layout.item_dropdown_option, cityLabels)
+            DropdownChoiceAdapter(
+                context, cityOptions,
+                label = CityOption::pickerLabel,
+                keys = { listOfNotNull(it.name, it.nameEn, it.code) }
+            )
         )
         cityInput.dropDownHeight = (dm.heightPixels * 0.35f).toInt()
         // 下拉框外观像选择器：点按（含箭头）即展开候选，输入时按文字筛选
         // 已选城市时文字会把候选筛到只剩一项，点按展开时先清除筛选显示全部城市
         val showAllCities = {
-            (cityInput.adapter as ArrayAdapter<*>).filter.filter(null) { cityInput.showDropDown() }
+            (cityInput.adapter as DropdownChoiceAdapter<*>).filter.filter(null) { cityInput.showDropDown() }
         }
         cityInput.setOnClickListener { showAllCities() }
         view.findViewById<TextView>(R.id.feedbackCityChevron).apply {
@@ -417,13 +422,31 @@ object AppDialogs {
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
         cityInput.setOnItemClickListener { parent, _, position, _ ->
-            val label = parent.getItemAtPosition(position) as? String
-            selectedCity = cityOptions.firstOrNull { it.pickerLabel == label }
+            selectedCity = parent.getItemAtPosition(position) as? CityOption
             citySource = FeedbackLocationSource.MANUAL
         }
 
+        // 设备编号候选：输入时按编号筛选，点按箭头展开全部，选中后填入该编号
+        if (codeOptions.isNotEmpty()) {
+            val codeAdapter = DropdownChoiceAdapter(context, codeOptions, label = { it })
+            codeInput.setAdapter(codeAdapter)
+            codeInput.threshold = 1
+            codeInput.dropDownAnchor = R.id.feedbackReaderRow
+            codeInput.setPaddingRelative(
+                codeInput.paddingStart, codeInput.paddingTop, (30 * density).toInt(), codeInput.paddingBottom
+            )
+            view.findViewById<TextView>(R.id.feedbackCodeChevron).apply {
+                visibility = View.VISIBLE
+                typeface = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
+                setOnClickListener {
+                    codeInput.requestFocus()
+                    codeAdapter.filter.filter(null) { codeInput.showDropDown() }
+                }
+            }
+        }
+
         prefixInput.setText(prefix)
-        codeInput.setText(code)
+        codeInput.setText(code, false)
         lineInput.setText(line)
         stationInput.setText(station)
         listOf(prefixInput, codeInput, lineInput, stationInput).forEach { input ->
@@ -445,10 +468,11 @@ object AppDialogs {
                     return@setOnClickListener
                 }
                 // 城市决定 reader_device.city_id 及线路/站点归属，必须是 city 表中的城市：
-                // 未从下拉选中时，仅接受与候选完全一致的输入（显示名/中文名/城市码）
+                // 未从下拉选中时，仅接受与候选完全一致的输入（显示名/中文名/英文名/城市码）
                 val typedCity = cityInput.text.toString().trim()
                 val city = selectedCity ?: cityOptions.firstOrNull {
-                    typedCity == it.pickerLabel || typedCity == it.name || typedCity == it.code
+                    typedCity == it.pickerLabel || typedCity == it.name || typedCity == it.code ||
+                        it.nameEn?.equals(typedCity, ignoreCase = true) == true
                 }
                 if (city == null) {
                     android.widget.Toast.makeText(

@@ -164,6 +164,24 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 ?: ""
         }
         val code = if (isLnt) rawCode.removePrefix(prefix) else rawCode
+        // 设备编号候选：Line & Station（1E）与各原始记录的 Terminal；0x18 与 0x1E 的终端号可能不同，两者都列出
+        val rawBlocks = listOf(txn.sfi to txn.hex) +
+            listOfNotNull(txn.journeyHex?.let { 0x1E to it }) +
+            txn.rawVariants.map { it.sfi to it.hex }
+        val journeyHexes = rawBlocks.filter { it.first == 0x1E }.map { it.second }
+        val terminals = rawBlocks.mapNotNull { (sfi, hex) ->
+            when {
+                hex.isBlank() -> null
+                sfi == 0x1E -> hexRange(hex, 1, 9)
+                sfi in setOf(0x18, 0x10, 0x06, 0x1A) -> hexRange(hex, 10, 16)
+                else -> null
+            }
+        } + txn.terminal
+        val codeOptions = (
+            (if (isTu) journeyHexes.map { hexRange(it, 10, 17) } else emptyList()) +
+                terminals.map { if (isLnt) it.trim().removePrefix(prefix) else it.trim() }
+            ).filter { it.isNotBlank() }
+            .distinct()
         val hasTuJourney = isTu && (txn.sfi == 0x1E || !txn.journeyHex.isNullOrBlank())
         val line = txn.lineName
             .takeIf {
@@ -190,6 +208,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             station = station,
             type = txn.transitType,
             // 默认城市与导入时一致（库中设备行城市 → 前缀对应城市）；卡内声明城市只是推测，不预填
+            codeOptions = codeOptions,
             actualCityCode = TransitData.overrideCityCode(
                 txn.cardType.ifBlank { txn.protocol }, prefix, code, txn.transitType
             ) ?: txn.actualCityCode.takeIf { txn.locationSource != LocationSource.DECLARED_CITY_FALLBACK },

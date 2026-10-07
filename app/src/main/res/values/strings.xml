@@ -141,12 +141,12 @@
     <string name="feedback_section_reader">Card reader</string>
     <string name="feedback_city_prefix">City prefix</string>
     <string name="feedback_device_code">Device code</string>
+    <string name="feedback_code_pick">Pick device code</string>
     <string name="feedback_transit_type">Transit type</string>
     <string name="feedback_transit_type_hint">Enter a transit type, e.g. 轮渡 (ferry), 单轨 (monorail)</string>
     <string name="feedback_section_location">Actual location</string>
-    <string name="feedback_section_extra">Additional info</string>
-    <string name="feedback_city">City (helps the developer investigate)</string>
-    <string name="feedback_city_hint">Select or enter a city</string>
+    <string name="feedback_city">City (required)</string>
+    <string name="feedback_city_hint">Type a Chinese/English name or code</string>
     <string name="feedback_public_upload">Upload correction publicly</string>
     <string name="feedback_public_upload_desc">Helps improve station data</string>
     <string name="feedback_more_info">Include more details</string>
@@ -436,7 +436,7 @@
     <string name="reorder_drag_cd">Drag to reorder</string>
     <string name="reorder_move_up">Move up</string>
     <string name="reorder_move_down">Move down</string>
-    <string name="feedback_help_text">• <b>City prefix:</b> from the record\'s CITY field. Usually keep the prefilled value.\n\n• <b>Device code:</b> the reader\'s Terminal ID or Line &amp; Station. Corrections are keyed on it.\n\n• <b>Transit type:</b> same code + different type = different reader. Not listed? Pick “Other”.\n\n• <b>Line / Station:</b> optional. Leave blank if unsure.\n\n• <b>City:</b> not used for mapping. Only sent with uploads to help the developer.\n\n• <b>Upload publicly:</b> on = improves built-in data; off = this device only.\n\n• <b>More details:</b> off by default. Adds raw data (balance, time, amount) to the upload.</string>
+    <string name="feedback_help_text">• <b>City prefix:</b> from the record\'s CITY field. Usually keep the prefilled value.\n\n• <b>Device code:</b> the reader\'s Terminal ID or Line &amp; Station. Tap the arrow to pick either value from this record. Corrections are keyed on it.\n\n• <b>Transit type:</b> same code + different type = different reader. Not listed? Pick “Other”.\n\n• <b>Line / Station:</b> optional. Leave blank if unsure.\n\n• <b>City:</b> required. Sets which city the reader belongs to; the line/station are saved under it. Search by Chinese or English name.\n\n• <b>Upload publicly:</b> on = improves built-in data; off = this device only.\n\n• <b>More details:</b> off by default. Adds raw data (balance, time, amount) to the upload.</string>
 
     <!-- Map trace (code) -->
     <string name="map_no_trips">No trips yet</string>

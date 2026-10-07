@@ -137,12 +137,12 @@
     <string name="feedback_section_reader">读卡器</string>
     <string name="feedback_city_prefix">城市前缀</string>
     <string name="feedback_device_code">设备编号</string>
+    <string name="feedback_code_pick">选择设备编号</string>
     <string name="feedback_transit_type">交通类型</string>
     <string name="feedback_transit_type_hint">输入交通类型，如 轮渡、单轨</string>
     <string name="feedback_section_location">实际位置</string>
-    <string name="feedback_section_extra">补充信息</string>
-    <string name="feedback_city">所在城市（供开发者排查）</string>
-    <string name="feedback_city_hint">选择或输入城市</string>
+    <string name="feedback_city">所在城市（必填）</string>
+    <string name="feedback_city_hint">输入中文/英文名或城市码</string>
     <string name="feedback_public_upload">公开上传纠错</string>
     <string name="feedback_public_upload_desc">帮助改进站名数据</string>
     <string name="feedback_more_info">提供更多信息</string>
@@ -422,7 +422,7 @@
     <string name="reorder_drag_cd">拖动排序</string>
     <string name="reorder_move_up">上移</string>
     <string name="reorder_move_down">下移</string>
-    <string name="feedback_help_text">• <b>城市前缀：</b>取自记录的 CITY 字段，一般保持预填。\n\n• <b>设备编号：</b>读卡器 Terminal 编号或 Line &amp; Station，纠错按它匹配。\n\n• <b>交通类型：</b>同编号不同类型视为不同读卡器；列表没有就选「其他」。\n\n• <b>线路 / 站名：</b>不确定/没有时可留空\n\n• <b>所在城市：</b>不参与匹配，仅随上传供开发者排查。\n\n• <b>公开上传：</b>开启用于改进内置数据；关闭仅存本机。\n\n• <b>提供更多信息：</b>默认关闭，开启后附带原始数据（余额、时间、金额）。</string>
+    <string name="feedback_help_text">• <b>城市前缀：</b>取自记录的 CITY 字段，一般保持预填。\n\n• <b>设备编号：</b>读卡器 Terminal 编号或 Line &amp; Station，可点箭头从本条记录中选择，纠错按它匹配。\n\n• <b>交通类型：</b>同编号不同类型视为不同读卡器；列表没有就选「其他」。\n\n• <b>线路 / 站名：</b>不确定/没有时可留空\n\n• <b>所在城市：</b>必填，决定读卡器所属城市，线路/站名记入该城市；可按中文或英文名搜索。\n\n• <b>公开上传：</b>开启用于改进内置数据；关闭仅存本机。\n\n• <b>提供更多信息：</b>默认关闭，开启后附带原始数据（余额、时间、金额）。</string>
 
     <!-- Map trace (code) -->
     <string name="map_no_trips">暂无行程数据</string>

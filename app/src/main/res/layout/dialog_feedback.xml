@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   站名纠错 / 编辑本地映射表。与其它弹窗同一套版式：24dp 内边距、20sp 标题、胶囊输入框、底部文字按钮。
-  结构：标题(+帮助) + 说明 → 读卡器（前缀/编号同行、类型胶囊单选+其他）→ 实际位置（线路/站名）→ 补充信息（城市，选填）→ 公开上传开关
+  结构：标题(+帮助) + 说明 → 读卡器（前缀/编号同行、类型胶囊单选+其他）→ 实际位置（城市必填、线路/站名）→ 公开上传开关
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="312dp"
@@ -84,15 +84,16 @@
                 android:text="@string/feedback_section_reader" />
 
             <LinearLayout
+                android:id="@+id/feedbackReaderRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
+                <!-- 前缀固定窄宽（通常 4 位），其余宽度留给较长的设备编号（最长 16 位） -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="76dp"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
-                    android:layout_weight="2"
                     android:orientation="vertical">
 
                     <TextView
@@ -103,24 +104,53 @@
                         android:id="@+id/feedbackPrefix"
                         style="@style/FeedbackField"
                         android:fontFamily="monospace"
+                        android:gravity="center"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
                         android:inputType="textCapCharacters|textNoSuggestions" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="3"
+                    android:layout_weight="1"
                     android:orientation="vertical">
 
                     <TextView
                         style="@style/FeedbackLabel"
                         android:text="@string/feedback_device_code" />
 
-                    <EditText
-                        android:id="@+id/feedbackCode"
-                        style="@style/FeedbackField"
-                        android:fontFamily="monospace"
-                        android:inputType="textCapCharacters|textNoSuggestions" />
+                    <!-- 设备编号：可手填；有候选（Terminal / Line & Station）时随输入筛选，箭头展开全部 -->
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/feedbackCode"
+                            style="@style/FeedbackField"
+                            android:dropDownVerticalOffset="6dp"
+                            android:fontFamily="monospace"
+                            android:inputType="textCapCharacters|textNoSuggestions"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:textSize="14sp"
+                            android:popupBackground="@drawable/bg_dropdown_popup" />
+
+                        <TextView
+                            android:id="@+id/feedbackCodeChevron"
+                            android:layout_width="30dp"
+                            android:layout_height="44dp"
+                            android:layout_gravity="end|center_vertical"
+                            android:background="@drawable/bg_back_button"
+                            android:clickable="true"
+                            android:contentDescription="@string/feedback_code_pick"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:text="&#xf078;"
+                            android:textColor="@color/ink_3"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </FrameLayout>
                 </LinearLayout>
             </LinearLayout>
 
@@ -150,31 +180,7 @@
                 android:layout_marginTop="20dp"
                 android:text="@string/feedback_section_location" />
 
-            <TextView
-                style="@style/FeedbackLabel"
-                android:text="@string/label_line" />
-
-            <EditText
-                android:id="@+id/feedbackLine"
-                style="@style/FeedbackField"
-                android:hint="@string/hint_optional" />
-
-            <TextView
-                style="@style/FeedbackLabel"
-                android:layout_marginTop="12dp"
-                android:text="@string/label_station" />
-
-            <EditText
-                android:id="@+id/feedbackStation"
-                style="@style/FeedbackField"
-                android:hint="@string/hint_optional" />
-
-            <!-- 补充信息：城市不参与映射，仅随公开上传提供给开发者排查 -->
-            <TextView
-                style="@style/FeedbackSection"
-                android:layout_marginTop="20dp"
-                android:text="@string/feedback_section_extra" />
-
+            <!-- 城市：必填，决定读卡器（reader_device.city_id）及线路/站点归属；放在线路之前 -->
             <TextView
                 style="@style/FeedbackLabel"
                 android:text="@string/feedback_city" />
@@ -206,6 +212,26 @@
                     android:textColor="@color/ink_3"
                     android:textSize="12sp" />
             </FrameLayout>
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:layout_marginTop="12dp"
+                android:text="@string/label_line" />
+
+            <EditText
+                android:id="@+id/feedbackLine"
+                style="@style/FeedbackField"
+                android:hint="@string/hint_optional" />
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:layout_marginTop="12dp"
+                android:text="@string/label_station" />
+
+            <EditText
+                android:id="@+id/feedbackStation"
+                style="@style/FeedbackField"
+                android:hint="@string/hint_optional" />
 
             <!-- 公开上传：与设置页一致的「说明 + 开关」行 -->
             <LinearLayout
