@@ -265,6 +265,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 轨迹回放触感反馈（默认开）
     private val _playbackHaptics = MutableLiveData(true)
     val playbackHaptics: LiveData<Boolean> = _playbackHaptics
+    private val _playbackSound = MutableLiveData(true)
+    val playbackSound: LiveData<Boolean> = _playbackSound
 
     /** 地图页顶部当前行程是否展开完整换乘过程 */
     private val _currentTripRouteDisplayMode =
@@ -351,6 +353,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Default) { TransitData.warmup() }
             _keepDebugLogs.value = repo.isKeepDebugLogs()
             _playbackHaptics.value = repo.isPlaybackHaptics()
+            _playbackSound.value = repo.isPlaybackSound()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
             repo.migrateCuCardNumbers()
             repo.repairImportedCuArchives()
@@ -805,6 +808,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.setPlaybackHaptics(enabled) }
     }
 
+    fun setPlaybackSound(enabled: Boolean) {
+        _playbackSound.value = enabled
+        viewModelScope.launch(Dispatchers.IO) { repo.setPlaybackSound(enabled) }
+    }
+
     fun setKeepDebugLogs(keep: Boolean) {
         _keepDebugLogs.value = keep
         viewModelScope.launch(Dispatchers.IO) { repo.setKeepDebugLogs(keep) }
@@ -1149,6 +1157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
         _playbackHaptics.value = true
+        _playbackSound.value = true
         _currentTripRouteDisplayMode.value = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY
         cachedTxnsByCard.clear()
         viewModelScope.launch(Dispatchers.IO) {

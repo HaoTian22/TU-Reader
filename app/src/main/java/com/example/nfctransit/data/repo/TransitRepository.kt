@@ -728,6 +728,8 @@ class TransitRepository(private val context: Context) {
     suspend fun setKeepDebugLogs(keep: Boolean) = AppPreferences.setKeepDebugLogs(context, keep)
     suspend fun isPlaybackHaptics(): Boolean = AppPreferences.isPlaybackHaptics(context)
     suspend fun setPlaybackHaptics(enabled: Boolean) = AppPreferences.setPlaybackHaptics(context, enabled)
+    suspend fun isPlaybackSound(): Boolean = AppPreferences.isPlaybackSound(context)
+    suspend fun setPlaybackSound(enabled: Boolean) = AppPreferences.setPlaybackSound(context, enabled)
     suspend fun getCurrentTripRouteDisplayMode(): CurrentTripRouteDisplayMode =
         AppPreferences.getCurrentTripRouteDisplayMode(context)
     suspend fun setCurrentTripRouteDisplayMode(mode: CurrentTripRouteDisplayMode) =

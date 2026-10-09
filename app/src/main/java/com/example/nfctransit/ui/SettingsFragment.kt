@@ -179,7 +179,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache,
             R.id.iconDarkMode, R.id.iconCurrentTripRoute,
-            R.id.iconMapSpeed, R.id.iconPlaybackHaptics, R.id.iconLanguage,
+            R.id.iconMapSpeed, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconCheckUpdate,
             R.id.iconOpenSource, R.id.iconFeedback

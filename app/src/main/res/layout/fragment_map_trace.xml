@@ -198,22 +198,27 @@
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
+            <!-- 音效 / 振动开关（与设置页「轨迹回放震动」同一偏好） -->
             <TextView
-                android:id="@+id/chip05x"
-                style="@style/MapSpeedChip"
+                android:id="@+id/btnSound"
+                style="@style/MapToggleButton"
                 android:layout_marginEnd="6dp"
-                android:text="0.5x" />
+                android:contentDescription="@string/playback_sound" />
 
+            <ImageView
+                android:id="@+id/btnVibration"
+                style="@style/MapToggleButton"
+                android:layout_marginEnd="8dp"
+                android:padding="7dp"
+                android:src="@drawable/ic_vibration_on"
+                android:contentDescription="@string/playback_haptics" />
+
+            <!-- 速度下拉 -->
             <TextView
-                android:id="@+id/chip1x"
+                android:id="@+id/speedDropdown"
                 style="@style/MapSpeedChip"
-                android:layout_marginEnd="6dp"
+                android:contentDescription="@string/map_animation_speed"
                 android:text="1x" />
-
-            <TextView
-                android:id="@+id/chip2x"
-                style="@style/MapSpeedChip"
-                android:text="2x" />
         </LinearLayout>
     </LinearLayout>
 

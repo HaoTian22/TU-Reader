@@ -173,6 +173,11 @@
     <string name="current_trip_route">Current trip route</string>
     <string name="map_animation_speed">Map animation speed</string>
     <string name="playback_haptics">Playback haptics</string>
+    <string name="playback_sound">Playback sound</string>
+    <string name="playback_sound_on">Sound on</string>
+    <string name="playback_sound_off">Sound off</string>
+    <string name="playback_haptics_on">Vibration on</string>
+    <string name="playback_haptics_off">Vibration off</string>
     <string name="language_switch">Language</string>
     <string name="about">About</string>
     <string name="version_number">Version</string>

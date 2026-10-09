@@ -59,25 +59,13 @@ class PlaybackHaptics(context: Context) {
     fun highlightSweep(sweepMs: Long) {
         val v = vibrator ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !v.hasAmplitudeControl()) return
-        val total = (sweepMs * SWEEP_SPAN).toLong()
         val timings = ArrayList<Long>()
         val amplitudes = ArrayList<Int>()
-        var t = 0L
-        var pendingGap = 0L
-        while (t < total) {
-            val p = t.toFloat() / total
-            val half = if (p < 0.5f) p * 2f else (1f - p) * 2f  // 0→1→0
-            val e = BEZIER.getInterpolation(half)
-            val amp = (TICK_MAX * e).roundToInt()
-            val gap = (TICK_GAP_MAX + (TICK_GAP_MIN - TICK_GAP_MAX) * e).toLong()
-            if (amp >= TICK_MIN) {
-                if (pendingGap > 0) { timings += pendingGap; amplitudes += 0 }
-                timings += TICK_MS; amplitudes += amp
-                pendingGap = gap - TICK_MS
-            } else {
-                pendingGap += gap
-            }
-            t += gap
+        var end = 0L
+        for ((t, e) in sweepTicks(sweepMs)) {
+            if (t > end) { timings += t - end; amplitudes += 0 }
+            timings += TICK_MS; amplitudes += (TICK_MAX * e).roundToInt()
+            end = t + TICK_MS
         }
         if (timings.isEmpty()) return
         vibrate(VibrationEffect.createWaveform(timings.toLongArray(), amplitudes.toIntArray(), -1))
@@ -111,16 +99,34 @@ class PlaybackHaptics(context: Context) {
         }
     }
 
-    private companion object {
-        const val PULSE_MS = 28L      // 起飞脉冲
-        const val PULSE_LEVEL = 255
-        const val TICK_MS = 12L       // 每个轻触的时长
-        const val TICK_MAX = 120      // 峰值处轻触振幅（1..255）
-        const val TICK_MIN = 12       // 低于此振幅的轻触省略（两端自然淡入淡出）
-        const val TICK_GAP_MAX = 110f // 两端轻触间隔（ms）
-        const val TICK_GAP_MIN = 45f  // 峰值处轻触间隔（ms）
+    companion object {
+        /**
+         * 流光一趟内的轻触时刻（ms）与强度（0..1）。
+         * 强度低于 [TICK_MIN]/[TICK_MAX] 的轻触省略。
+         */
+        fun sweepTicks(sweepMs: Long): List<Pair<Long, Float>> {
+            val total = (sweepMs * SWEEP_SPAN).toLong()
+            val ticks = ArrayList<Pair<Long, Float>>()
+            var t = 0L
+            while (t < total) {
+                val p = t.toFloat() / total
+                val half = if (p < 0.5f) p * 2f else (1f - p) * 2f  // 0→1→0
+                val e = BEZIER.getInterpolation(half)
+                if ((TICK_MAX * e).roundToInt() >= TICK_MIN) ticks += t to e
+                t += (TICK_GAP_MAX + (TICK_GAP_MIN - TICK_GAP_MAX) * e).toLong()
+            }
+            return ticks
+        }
+
+        private const val PULSE_MS = 28L      // 起飞脉冲
+        private const val PULSE_LEVEL = 255
+        private const val TICK_MS = 12L       // 每个轻触的时长
+        private const val TICK_MAX = 120      // 峰值处轻触振幅（1..255）
+        private const val TICK_MIN = 12       // 低于此振幅的轻触省略（两端自然淡入淡出）
+        private const val TICK_GAP_MAX = 110f // 两端轻触间隔（ms）
+        private const val TICK_GAP_MIN = 45f  // 峰值处轻触间隔（ms）
         /** 升/降曲线：cubic-bezier(0.42, 0, 0.58, 1)（ease-in-out），起止与峰值处都平滑 */
-        val BEZIER = PathInterpolator(0.42f, 0f, 0.58f, 1f)
-        const val SWEEP_SPAN = 0.89   // 流光头部到达终点处：中心 (1+HALF)/(1+2·HALF) ≈ 0.89
+        private val BEZIER = PathInterpolator(0.42f, 0f, 0.58f, 1f)
+        private const val SWEEP_SPAN = 0.89   // 流光头部到达终点处：中心 (1+HALF)/(1+2·HALF) ≈ 0.89
     }
 }

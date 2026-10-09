@@ -78,4 +78,17 @@ object ApduUtil {
         }
         return value
     }
+
+    /**
+     * BALANCE CHECK 4 字节大端余额（分）。最高位可能是状态标志（深圳通 `80 00 06 E0` = ¥17.60），
+     * 剩余 31 位处于合理余额范围时去掉该标志；否则按 32 位补码视为负余额（透支）。
+     */
+    fun parseEpBalance(data: ByteArray): Long {
+        val raw = hexToLong(data)
+        if (raw and 0x80000000L == 0L) return raw
+        val low = raw and 0x7FFFFFFFL
+        return if (low <= MAX_FLAGGED_BALANCE_FEN) low else raw - 0x1_0000_0000L
+    }
+
+    private const val MAX_FLAGGED_BALANCE_FEN = 1_000_000L
 }

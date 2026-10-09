@@ -169,6 +169,11 @@
     <string name="current_trip_route">当前行程路线</string>
     <string name="map_animation_speed">地图动画播放速度</string>
     <string name="playback_haptics">轨迹回放震动</string>
+    <string name="playback_sound">轨迹回放音效</string>
+    <string name="playback_sound_on">音效已开启</string>
+    <string name="playback_sound_off">音效已关闭</string>
+    <string name="playback_haptics_on">振动已开启</string>
+    <string name="playback_haptics_off">振动已关闭</string>
     <string name="language_switch">语言切换</string>
     <string name="about">关于</string>
     <string name="version_number">版本号</string>

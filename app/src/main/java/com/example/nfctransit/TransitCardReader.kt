@@ -748,8 +748,9 @@ class TransitCardReader internal constructor(
     /**
      * BALANCE CHECK（PBOC 电子钱包）查余额：
      *   `80 5C 00 02 04`，响应体内联余额。
-     * 响应（如岭南通 `00 00 0F 00`）全部四字节为大端 HEX 余额（分）
-     *   → 0x0F00 = 3840 分 = ¥38.40。失败/无余额时返回 BalanceResult(0, null)（读卡链路降级，不中断交易读取）。
+     * 响应（如岭南通 `00 00 0F 00`）四字节为大端 HEX 余额（分）
+     *   → 0x0F00 = 3840 分 = ¥38.40。最高位可能是标志位（深圳通 `80 00 06 E0` → 0x6E0 = ¥17.60），
+     *   见 [ApduUtil.parseEpBalance]。失败/无余额时返回 BalanceResult(0, null)（读卡链路降级，不中断交易读取）。
      */
     private fun readBalance(profile: CardProfile, log: MutableList<String>): BalanceResult {
         return try {
@@ -759,7 +760,7 @@ class TransitCardReader internal constructor(
             if (!ApduUtil.isSuccess(resp)) return BalanceResult(0L, null)
             val data = ApduUtil.dataOnly(resp)
             if (data.size != 4) return BalanceResult(0L, null)
-            val fen = ApduUtil.hexToLong(data)
+            val fen = ApduUtil.parseEpBalance(data)
             BalanceResult(fen, ApduUtil.bytesToHex(data))
         } catch (e: Exception) {
             log.add("BALANCE CHECK 异常: ${e.message}")

@@ -9,10 +9,18 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.SystemClock
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.style.MetricAffectingSpan
+import android.text.style.RelativeSizeSpan
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -20,7 +28,11 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.widget.LinearLayout
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -150,6 +162,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     private var departing = false                        // 播放中镜头已起飞前往下一段：地图上当前段先恢复为非激活
     private var playRing: PlaybackRingDrawable? = null
     private var haptics: PlaybackHaptics? = null
+    private var sound: PlaybackSound? = null
+    private var speedPopup: PopupWindow? = null
+    private val faTypeface by lazy { Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf") }
     private var renderedEventIndex = -1                  // 播放卡片当前展示的事件（切换时做入场动画）
     private var renderedSegment: MapSegment? = null      // 播放卡片当前展示的行程（同一行程进/出站切换只淡入时间）
     // 流光：自外向内逐层变短变亮；每层按所经过的腿切成多段纯色折线（各段取下面线路的颜色）
@@ -197,6 +212,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
             }
             binding.btnPlay.backgroundTintList = ColorStateList.valueOf(mainAccent)
             setSpeed(speed)
+            updateFeedbackToggles()
             if (!model.isEmpty) updateHighlight(scrollList = false)
         }
 
@@ -260,7 +276,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun wireControls() {
         // 播放控件图标用 FontAwesome（fa-play/fa-pause/fa-step-backward/fa-step-forward）
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
+        val fa = faTypeface
         binding.btnPrev.typeface = fa
         binding.btnPlay.typeface = fa
         binding.btnNext.typeface = fa
@@ -270,13 +286,24 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
         playRing = PlaybackRingDrawable(resources.displayMetrics.density).also { binding.btnPlay.foreground = it }
         haptics = PlaybackHaptics(requireContext())
-        viewModel.playbackHaptics.observe(viewLifecycleOwner) { haptics?.enabled = it }
+        sound = PlaybackSound()
+        viewModel.playbackHaptics.observe(viewLifecycleOwner) { haptics?.enabled = it; updateFeedbackToggles() }
+        viewModel.playbackSound.observe(viewLifecycleOwner) { sound?.enabled = it; updateFeedbackToggles() }
+        binding.btnSound.typeface = fa
+        binding.btnSound.setOnClickListener {
+            val on = viewModel.playbackSound.value != true
+            viewModel.setPlaybackSound(on)
+            if (on) sound?.routeShown()   // 试听
+        }
+        binding.btnVibration.setOnClickListener {
+            val on = viewModel.playbackHaptics.value != true
+            viewModel.setPlaybackHaptics(on)
+            if (on) haptics?.routeShown()   // 试振
+        }
         binding.btnPlay.setOnClickListener { togglePlay() }
         binding.btnPrev.setOnClickListener { if (model.events.isNotEmpty()) { pause(); jumpTo(currentEventIndex - 1) } }
         binding.btnNext.setOnClickListener { if (model.events.isNotEmpty()) { pause(); jumpTo(currentEventIndex + 1) } }
-        binding.chip05x.setOnClickListener { setSpeed(0.5f) }
-        binding.chip1x.setOnClickListener { setSpeed(1f) }
-        binding.chip2x.setOnClickListener { setSpeed(2f) }
+        binding.speedDropdown.setOnClickListener { showSpeedPopup(it) }
 
         // 列表：触摸即暂停，滑动调整当前时间（像歌词那样跟随视口中线）
         binding.tripScroll.setOnTouchListener { _, event ->
@@ -298,26 +325,130 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun setSpeed(v: Float) {
         speed = v
-        fun style(chip: TextView, isSel: Boolean) {
-            if (isSel) {
-                chip.background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(999f)
-                    setColor(mainAccent)
-                }
-                chip.setTextColor(Color.WHITE)
-            } else {
-                chip.setBackgroundResource(R.drawable.bg_speed_chip)
-                chip.setTextColor(Palette.INK_3)
-            }
+        binding.speedDropdown.text = SpannableStringBuilder(speedLabel(v)).apply {
+            append("  ")
+            val start = length
+            append("")   // fa-chevron-down
+            setSpan(FaSpan(faTypeface), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        style(binding.chip05x, v == 0.5f)
-        style(binding.chip1x, v == 1f)
-        style(binding.chip2x, v == 2f)
+        binding.speedDropdown.background = GradientDrawable().apply {
+            cornerRadius = dpToPx(999f)
+            setColor(ColorUtils.blendARGB(Palette.SURFACE, mainAccent, 0.12f))
+        }
+        binding.speedDropdown.setTextColor(mainAccent)
         // 流光速度随播放速度变化：重启当前段流光
         if (shimmerAnimator != null) {
             stopShimmer()
             segmentOverlays.firstOrNull { it.segment === lastActiveSegment }?.let(::startShimmer)
         }
+    }
+
+    /**
+     * 速度下拉：与卡片同风格的圆角浮层（白底 + 柔和阴影），自速度 chip 向上展开、右对齐；
+     * 选项为与原速度 chip 相同的药丸，当前速度以主题色填充。
+     */
+    private fun showSpeedPopup(anchor: View) {
+        val ctx = requireContext()
+        val shadowPad = dpToPx(10f).toInt()
+        val column = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            val p = dpToPx(5f).toInt()
+            setPadding(p, p, p, p)
+            background = GradientDrawable().apply {
+                cornerRadius = dpToPx(16f)
+                setColor(ContextCompat.getColor(ctx, R.color.surface))
+            }
+            elevation = dpToPx(6f)
+        }
+        val root = FrameLayout(ctx).apply {
+            setPadding(shadowPad, shadowPad, shadowPad, shadowPad)
+            clipToPadding = false
+            addView(column)
+        }
+        val popup = PopupWindow(root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            isOutsideTouchable = true
+            animationStyle = 0
+        }
+        // 自上而下由快到慢：浮层向上展开，越往上越快
+        SPEEDS.asReversed().forEachIndexed { i, v ->
+            val selected = v == speed
+            column.addView(TextView(ctx).apply {
+                text = speedLabel(v)
+                gravity = Gravity.CENTER
+                minWidth = dpToPx(64f).toInt()
+                textSize = 13f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                val px = dpToPx(14f).toInt(); val py = dpToPx(7f).toInt()
+                setPadding(px, py, px, py)
+                if (selected) {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dpToPx(999f)
+                        setColor(mainAccent)
+                    }
+                    setTextColor(Color.WHITE)
+                } else {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dpToPx(999f)
+                        setColor(Color.TRANSPARENT)
+                    }
+                    setTextColor(ContextCompat.getColor(ctx, R.color.ink_2))
+                }
+                isClickable = true
+                setOnClickListener {
+                    if (v != speed) setSpeed(v)
+                    popup.dismiss()
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                if (i > 0) topMargin = dpToPx(2f).toInt()
+            })
+        }
+        root.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val w = root.measuredWidth
+        val h = root.measuredHeight
+        val gap = dpToPx(4f).toInt()
+        popup.showAsDropDown(anchor, anchor.width - w + shadowPad, -(anchor.height + h - shadowPad + gap))
+        speedPopup = popup
+        // 入场：自 chip 处轻微放大淡入
+        column.alpha = 0f
+        column.pivotX = (w - 2 * shadowPad).toFloat()
+        column.pivotY = (h - 2 * shadowPad).toFloat()
+        column.scaleX = 0.92f
+        column.scaleY = 0.92f
+        column.animate().alpha(1f).scaleX(1f).scaleY(1f)
+            .setDuration(160).setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun speedLabel(v: Float): String =
+        (if (v % 1f == 0f) v.toInt().toString() else v.toString()) + "x"
+
+    /** 音效/振动开关：开启时主题色淡底 + 主题色图标，关闭时灰底灰图标 */
+    private fun updateFeedbackToggles() {
+        val b = _binding ?: return
+        val soundOn = viewModel.playbackSound.value != false
+        val hapticsOn = viewModel.playbackHaptics.value != false
+        b.btnSound.text = if (soundOn) "" else ""   // fa-volume-high / fa-volume-xmark
+        b.btnVibration.setImageResource(if (hapticsOn) R.drawable.ic_vibration_on else R.drawable.ic_vibration_off)
+        b.btnSound.contentDescription = getString(if (soundOn) R.string.playback_sound_on else R.string.playback_sound_off)
+        b.btnVibration.contentDescription = getString(if (hapticsOn) R.string.playback_haptics_on else R.string.playback_haptics_off)
+        fun style(view: View, on: Boolean) {
+            val tint = if (on) mainAccent else Palette.INK_3
+            if (on) {
+                view.background = GradientDrawable().apply {
+                    cornerRadius = dpToPx(999f)
+                    setColor(ColorUtils.blendARGB(Palette.SURFACE, mainAccent, 0.12f))
+                }
+            } else {
+                view.setBackgroundResource(R.drawable.bg_speed_chip)
+            }
+            when (view) {
+                is TextView -> view.setTextColor(tint)
+                is ImageView -> view.imageTintList = ColorStateList.valueOf(tint)
+            }
+        }
+        style(b.btnSound, soundOn)
+        style(b.btnVibration, hapticsOn)
     }
 
     /** 流光走完一趟的时长（随播放速度缩放，保证总览停留与流光趟数同步） */
@@ -633,6 +764,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun stopPlayback() {
         haptics?.cancel()
+        sound?.cancel()
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
         stopRouteClock()
@@ -643,6 +775,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 
     private fun pause() {
         haptics?.cancel()
+        sound?.cancel()
         playbackJob?.cancel(); playbackJob = null
         cameraJob?.cancel(); cameraJob = null
         stopRouteClock()
@@ -710,6 +843,9 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         departing = true
         updateHighlight(scrollList = false)
         haptics?.depart()   // 触感：起飞一下脉冲
+        sound?.stopSweep()   // 当前线路已不再激活：流光音效随之停止
+        // 飞行等待音：时长按镜头当前位置到目标的实际飞行时长
+        sound?.depart(tencentMap?.cameraPosition?.let { flyDurationMs(it.target, it.zoom, center, zoom) } ?: flyMs)
         flyCameraNow(center, zoom)
         // 镜头到达：下一段的静止倒计时 = 飞后停 + 下一段总览停留 + 下一段飞前停
         startRingClock(postFlyMs + overviewHoldMs(exitIndexFor(nextIdx)) + preFlyMs)
@@ -719,6 +855,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         if (nextIdx <= curIdx) setProgressWidth(0)   // 循环回到开头
         updateHighlight()
         haptics?.routeShown()   // 新行程高亮出现
+        sound?.routeShown()
     }
 
     /** 事件是某整段的进站端时，返回该段出站端的事件下标 */
@@ -1546,6 +1683,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 val fraction = va.animatedFraction
                 if ((lastFraction < 0f || fraction < lastFraction) && playing && !departing) {
                     haptics?.highlightSweep(va.duration)
+                    sound?.highlightSweep(va.duration)
                 }
                 lastFraction = fraction
                 val center = va.animatedValue as Float
@@ -1593,6 +1731,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     private fun stopShimmer() {
+        sound?.stopSweep()
         shimmerAnimator?.cancel()
         shimmerAnimator = null
         for (lines in shimmerLayers) {
@@ -1862,12 +2001,22 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     // ── 生命周期 ──
 
     override fun onStart() { super.onStart(); mapView?.onStart() }
-    override fun onResume() { super.onResume(); mapView?.onResume() }
-    override fun onPause() { super.onPause(); mapView?.onPause() }
+    override fun onResume() {
+        super.onResume()
+        mapView?.onResume()
+        requireActivity().volumeControlStream = AudioManager.STREAM_MUSIC   // 音量键调节回放音效
+    }
+    override fun onPause() {
+        super.onPause()
+        mapView?.onPause()
+        activity?.volumeControlStream = AudioManager.USE_DEFAULT_STREAM_TYPE
+    }
     override fun onStop() { super.onStop(); mapView?.onStop() }
 
     override fun onDestroyView() {
         haptics?.cancel(); haptics = null
+        sound?.release(); sound = null
+        speedPopup?.dismiss(); speedPopup = null
         stopShimmer()
         scrollAnimator?.cancel()
         progressAnimator?.cancel()
@@ -1886,6 +2035,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     }
 
     private companion object {
+        val SPEEDS = listOf(0.5f, 1f, 1.5f, 2f, 3f)
         const val GHOST_WIDTH_DP = 1.5f     // 非当前段示意线宽
         const val FLY_SCREENS_PER_SEC = 1.2  // MapLibre flyTo 默认速度（每秒飞过的"屏"数）
         const val FLY_MIN_MS = 900L
@@ -1926,4 +2076,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         const val LABEL_TIME_GAP_DP = 5f    // 站名与时间间距
         const val LABEL_GAP_DP = 2f         // 圆点与标签间距
     }
+}
+
+/** 在普通文字中嵌入 FontAwesome 图标（TypefaceSpan(Typeface) 需 API 28） */
+private class FaSpan(private val face: Typeface) : MetricAffectingSpan() {
+    override fun updateDrawState(tp: TextPaint) { tp.typeface = face }
+    override fun updateMeasureState(tp: TextPaint) { tp.typeface = face }
 }
