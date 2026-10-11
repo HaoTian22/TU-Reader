@@ -500,4 +500,5 @@
     <string name="card_kind_senior">Senior</string>
     <string name="card_kind_test">Test</string>
     <string name="card_kind_military">Military</string>
+    <string name="card_unknown_name">Unknown Card</string>
 </resources>

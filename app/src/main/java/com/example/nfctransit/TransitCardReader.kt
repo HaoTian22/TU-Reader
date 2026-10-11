@@ -135,17 +135,24 @@ class TransitCardReader internal constructor(
             for (profile in CardProfiles.known) {
                 val result = readProfile(profile, log)
                 if (result != null) {
-                    optionalReading = true
-                    if (connectionError == null) {
-                        try {
-                            channel.timeout = 500
-                            discoverApplications(log)
-                        } catch (error: Exception) {
-                            log.add("应用枚举异常: ${error.message}")
-                        }
-                    }
+                    val discovered = discoverSafely(log)
                     log.add("读取总耗时: ${nowMs() - startedAt} ms")
-                    return result.copy(appReads = applicationReads.values.toList(), rawLog = log.toList(), readError = readError)
+                    return result.copy(rawRecords = result.rawRecords + discovered,
+                        appReads = applicationReads.values.toList(), rawLog = log.toList(), readError = readError)
+                }
+            }
+            // 无已知应用：仍枚举并探测卡上全部应用/文件，作为「未知卡」只保存原始数据，供发现新应用与调试。
+            if (connectionError == null) {
+                val discovered = discoverSafely(log)
+                if (discovered.isNotEmpty() || applicationReads.isNotEmpty()) {
+                    val uid = channel.uid?.let(ApduUtil::bytesToHex).orEmpty()
+                    log.add("未知卡: UID=$uid, ${applicationReads.size} 个应用/目录, ${discovered.size} 条原始记录")
+                    log.add("读取总耗时: ${nowMs() - startedAt} ms")
+                    return ReadResult(
+                        CardProfiles.UNKNOWN, CardInfo(CardProfiles.UNKNOWN.name, "未知", "未知", uid, ""),
+                        rawRecords = discovered, rawLog = log.toList(),
+                        appReads = applicationReads.values.toList(), readError = readError
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -435,8 +442,42 @@ class TransitCardReader internal constructor(
         }
     }
 
-    /** 核心读取后枚举应用，先探测已知 AID，再读取 PPSE/PSE，保留目录列出的未知应用。 */
-    private fun discoverApplications(log: MutableList<String>) {
+    /** 核心读取后的可选阶段：应用枚举 + 未知应用文件探测；任何异常都不影响已读核心数据。 */
+    private fun discoverSafely(log: MutableList<String>): List<RawRecord> {
+        if (connectionError != null) return emptyList()
+        optionalReading = true
+        val collector = mutableListOf<RawRecord>()
+        try {
+            channel.timeout = 500
+            discoverApplications(log, collector)
+        } catch (error: Exception) {
+            log.add("应用枚举异常: ${error.message}")
+        }
+        return collector
+    }
+
+    /**
+     * 未知应用（含 MF）探测：BALANCE CHECK + 全部 SFI 的 READ BINARY / READ RECORD。
+     * 记录带该应用 AID、空协议标签，解析器按 [CardProfiles.isUnknownApp] 忽略，只在原始数据块展示。
+     */
+    private fun probeUnknownApplication(aid: String, log: MutableList<String>, collector: MutableList<RawRecord>, deadlineMs: Long) {
+        val balance = try {
+            transceive(ApduUtil.hexToBytes("805C000204")).also { log.add("PROBE $aid BALANCE -> ${ApduUtil.bytesToHex(it)}") }
+        } catch (error: Exception) { log.add("PROBE $aid BALANCE 异常: ${error.message}"); null }
+        if (balance != null && ApduUtil.isSuccess(balance)) {
+            rememberBalance(aid, null, ApduUtil.bytesToHex(ApduUtil.dataOnly(balance)))
+        }
+        val appDeadline = minOf(deadlineMs, nowMs() + UNKNOWN_APP_BUDGET_MS)
+        for (sfi in 0x01..0x1F) {
+            if (connectionError != null || nowMs() >= appDeadline) break
+            collectAuxiliaryFile(sfi, "", log, collector, appDeadline)
+        }
+        log.add("PROBE $aid 结束: ${collector.count { it.selectedAid == aid }} 条记录")
+    }
+
+    /** 核心读取后枚举应用：先探测已知 AID，再读取 PPSE/PSE 与 MF，并探测所有未知应用的文件。 */
+    private fun discoverApplications(log: MutableList<String>, collector: MutableList<RawRecord>) {
+        val deadline = nowMs() + DISCOVERY_BUDGET_MS
         for (aid in CardProfiles.known.flatMap { it.aidCandidates }.distinct()) {
             if (connectionError != null) return
             if (aid !in attemptedAids) selectApplication(aid, log)
@@ -472,7 +513,24 @@ class TransitCardReader internal constructor(
         }
         for (aid in listedAids) {
             if (connectionError != null) break
-            if (aid !in selectedAids) selectApplication(aid, log)
+            if (aid in selectedAids) continue
+            selectApplication(aid, log) ?: continue
+            if (CardProfiles.isUnknownApp(aid) && nowMs() < deadline) {
+                probeUnknownApplication(aid, log, collector, deadline)
+            }
+        }
+        // MF（3F00）：部分卡的公共文件/目录只挂在 MF 下，且未在 PSE 中列出。
+        if (connectionError == null && nowMs() < deadline) {
+            try {
+                val response = transceive(ApduUtil.hexToBytes("00A40000023F00"))
+                log.add("SELECT MF 3F00 -> ${ApduUtil.bytesToHex(response)}")
+                if (ApduUtil.isSuccess(response)) {
+                    rememberApplication(MF_ID, response)
+                    probeUnknownApplication(MF_ID, log, collector, deadline)
+                }
+            } catch (error: Exception) {
+                log.add("SELECT MF 异常: ${error.message}")
+            }
         }
         log.add("应用枚举完成: ${applicationReads.size} 个应用/目录")
     }
@@ -771,6 +829,12 @@ class TransitCardReader internal constructor(
             log.add("BALANCE CHECK 异常: ${e.message}")
             BalanceResult(0L, null)
         }
+    }
+
+    private companion object {
+        const val MF_ID = "3F00"
+        const val DISCOVERY_BUDGET_MS = 4000L
+        const val UNKNOWN_APP_BUDGET_MS = 1500L
     }
 
     /** BCD 半字节 → 十进制数（0x12 → 12） */

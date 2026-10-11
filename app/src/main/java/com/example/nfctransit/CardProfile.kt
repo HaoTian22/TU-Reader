@@ -65,6 +65,21 @@ object CardProfiles {
     val PSE_AID = "325041592E5359532E4444463031" // 2PAY.SYS.DDF01，PSE 目录
 
     /**
+     * 无任何已知应用的卡：仍保存其应用枚举与文件探测结果，只在原始数据块展示，不做任何解析。
+     * 不在 [known] 中，不参与卡型识别。
+     */
+    val UNKNOWN = CardProfile(
+        name = "Unknown",
+        aidCandidates = emptyList(),
+        infoSfi = 0x15,
+        tradeSfi = 0x18,
+        cardType = "UNKNOWN"
+    )
+
+    /** 非空且不属于任何已知卡型的 AID：其文件只作原始数据保存，解析器一律忽略。 */
+    fun isUnknownApp(aid: String): Boolean = aid.isNotBlank() && protocolForAid(aid).isEmpty()
+
+    /**
      * 卡型识别顺序（tripreader-technical.md §1.2）：
      * YCT1(APPY) → YCT2(TICL) → SZT → SUXIN → SZTK → TFT → CU → MPASS → 通用 TU。
      * 除 TU 用 SFI 0x1E 终端映射表外，其余卡种共享 PBOC 电子钱包结构

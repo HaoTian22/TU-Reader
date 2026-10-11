@@ -25,6 +25,8 @@ object CardMetadataParser {
         protocol: String, records: List<RawRecord>, ecSelectHex: String? = null,
         allowBlankFallback: Boolean = true
     ): ApplicationMetadata {
+        @Suppress("NAME_SHADOWING")
+        val records = records.filterNot { CardProfiles.isUnknownApp(it.selectedAid) }
         fun bytes(sfi: Int, aid: String? = null): ByteArray? {
             val exact = records.filter {
                 it.sfi == sfi && it.protocol == protocol && (aid == null || it.selectedAid.equals(aid, true))

@@ -1575,6 +1575,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cardNumber: String,
         secondCardNumber: String
     ): String {
+        if (profile.cardType == CardProfiles.UNKNOWN.cardType) return L10n.str(R.string.card_unknown_name)
         sequenceOf(cardNumber, secondCardNumber)
             .filter { it.isNotEmpty() }
             .mapNotNull(TransitData::cardName)

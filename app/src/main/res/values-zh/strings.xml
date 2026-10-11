@@ -485,4 +485,5 @@
     <string name="card_kind_senior">老人卡</string>
     <string name="card_kind_test">测试卡</string>
     <string name="card_kind_military">军人卡</string>
+    <string name="card_unknown_name">未知卡片</string>
 </resources>

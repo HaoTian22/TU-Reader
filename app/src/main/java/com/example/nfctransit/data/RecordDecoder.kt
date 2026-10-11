@@ -32,11 +32,14 @@ object RecordDecoder {
 
     /** EC recNo=0 retains GET DATA log format, rather than a transaction. */
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
+        if (cardType == CardProfiles.UNKNOWN.cardType) return emptyList()
         val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
         val formats = records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
             .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
         return records.mapNotNull { raw ->
-            if (raw.selectedAid.equals(CardProfiles.TU_EC_AID, true)) {
+            if (CardProfiles.isUnknownApp(raw.selectedAid)) {
+                null  // 未知应用的文件只在原始数据块展示
+            } else if (raw.selectedAid.equals(CardProfiles.TU_EC_AID, true)) {
                 if (raw.recNo == 0) return@mapNotNull null
                 if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex)
                 val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
@@ -814,9 +817,10 @@ object RecordDecoder {
      *  - Anchored 锚点扫描式：扫描匹配 Source 的全部记录字节流找锚点条目，取刷新日期最新
      */
     fun parseMonthAccumulation(records: List<RawRecord>, spec: MonthAccumSpec): MonthlyAccumulation? {
+        val known = records.filterNot { CardProfiles.isUnknownApp(it.selectedAid) }
         return when (spec) {
-            is MonthAccumSpec.Fixed -> parseFixedAccumulation(records, spec)
-            is MonthAccumSpec.Anchored -> parseAnchoredAccumulation(records, spec)
+            is MonthAccumSpec.Fixed -> parseFixedAccumulation(known, spec)
+            is MonthAccumSpec.Anchored -> parseAnchoredAccumulation(known, spec)
         }
     }
 

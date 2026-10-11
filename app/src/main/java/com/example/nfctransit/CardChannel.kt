@@ -8,6 +8,8 @@ internal interface CardChannel {
     fun connect()
     fun transceive(command: ByteArray): ByteArray
     fun close()
+    /** 卡片 UID（未知卡以此作身份）；测试通道可不提供。 */
+    val uid: ByteArray? get() = null
 }
 
 internal class IsoDepCardChannel(private val isoDep: IsoDep) : CardChannel {
@@ -17,4 +19,5 @@ internal class IsoDepCardChannel(private val isoDep: IsoDep) : CardChannel {
     override fun connect() = isoDep.connect()
     override fun transceive(command: ByteArray): ByteArray = isoDep.transceive(command)
     override fun close() = isoDep.close()
+    override val uid: ByteArray? get() = isoDep.tag?.id
 }

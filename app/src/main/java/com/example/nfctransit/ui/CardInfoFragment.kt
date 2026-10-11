@@ -246,7 +246,10 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             }
         }
 
-        ordered.groupBy { it.protocol.ifBlank { "GEN" } }.forEach { (protocol, appRecords) ->
+        // 未知应用（含 MF/未知卡）按 AID 分组，只展示原始 hex，不套用任何字段猜测
+        ordered.groupBy {
+            it.protocol.ifBlank { it.selectedAid.takeIf(CardProfiles::isUnknownApp) ?: "GEN" }
+        }.forEach { (protocol, appRecords) ->
             val groups = appRecords.groupBy { it.sfi }.toSortedMap()
             var previousSfi: Int? = null
             groups.forEach { (sfi, records) ->
@@ -257,7 +260,9 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                     val format = visibleRecords.firstOrNull {
                         isEc && it.selectedAid.equals(record.selectedAid, true) && it.sfi == sfi && it.recNo == 0
                     }?.hex
-                    val fields = if (isEc && (record.recNo == 0 || sfi in setOf(1, 2, 3, 4, 8))) {
+                    val fields = if (CardProfiles.isUnknownApp(record.selectedAid)) {
+                        emptyList()
+                    } else if (isEc && (record.recNo == 0 || sfi in setOf(1, 2, 3, 4, 8))) {
                         RawHexFormatter.fieldsForSelectResponse(record.hex)
                     } else RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex, format)
                     if (fields.isNotEmpty()) fieldVariants.add(fields)

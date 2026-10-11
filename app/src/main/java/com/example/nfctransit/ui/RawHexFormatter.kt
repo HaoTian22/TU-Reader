@@ -324,7 +324,9 @@ object RawHexFormatter {
     }
 
     fun header(record: RawRecord): String {
-        val protocol = record.protocol.ifBlank { "GEN" }
+        val protocol = record.protocol.ifBlank {
+            record.selectedAid.takeIf { com.example.nfctransit.CardProfiles.isUnknownApp(it) } ?: "GEN"
+        }
         return "SFI ${record.sfi.toSfiHex()} · $protocol · Rec ${record.recNo}"
     }
 
