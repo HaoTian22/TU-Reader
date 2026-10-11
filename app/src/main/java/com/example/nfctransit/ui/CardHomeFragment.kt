@@ -20,6 +20,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.databinding.FragmentCardHomeBinding
 import com.example.nfctransit.model.CityDiscountUi
 import com.example.nfctransit.model.DailySpending
@@ -169,9 +170,11 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         }
         binding.tvBalanceLabel.setText(R.string.label_current_balance)
         binding.tvBalanceLabel.setTextColor(onCardAlpha(0xCC))
-        binding.tvBalance.text = SpannableStringBuilder(card.balanceFen?.let { "¥${String.format("%.2f", it / 100.0)}" } ?: "—").apply {
-            setSpan(AbsoluteSizeSpan(24, true), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            setSpan(ForegroundColorSpan(onCardAlpha(0xB3)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        val currency = CardProfiles.currencySymbol(card.protocolType)
+        val symbolLength = if (card.balanceFen == null) 1 else currency.length
+        binding.tvBalance.text = SpannableStringBuilder(card.balanceFen?.let { "$currency${String.format("%.2f", it / 100.0)}" } ?: "—").apply {
+            setSpan(AbsoluteSizeSpan(24, true), 0, symbolLength, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(ForegroundColorSpan(onCardAlpha(0xB3)), 0, symbolLength, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         binding.tvBalance.setTextColor(onCard)
         binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))

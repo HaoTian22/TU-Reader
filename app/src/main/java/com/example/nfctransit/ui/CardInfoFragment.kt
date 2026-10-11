@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.model.CardPalette
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.db.CardAppEntity
@@ -196,7 +197,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         updateHeroSubtitle(card)
         binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
         bindCardType(card)
-        binding.tvBalance.text = card.balanceFen?.let { "¥${String.format(Locale.getDefault(), "%.2f", it / 100.0)}" } ?: "—"
+        binding.tvBalance.text = card.balanceFen?.let { "${CardProfiles.currencySymbol(card.protocolType)}${String.format(Locale.getDefault(), "%.2f", it / 100.0)}" } ?: "—"
         binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))
         binding.heroCardFace.background = cardGradient(card, dpToPx(6))
         binding.cardColorPreview.background = cardGradient(card, dpToPx(4))

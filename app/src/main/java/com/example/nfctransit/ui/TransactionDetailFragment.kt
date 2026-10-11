@@ -22,6 +22,7 @@ import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
@@ -356,10 +357,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                     icon.setTextColor(Palette.INK_3)
                 }
             },
-            DetailRow(getString(R.string.txn_row_amount), if (txn.amountYuan == 0.0) "¥0.00" else txn.amountText) { _, value, _ ->
+            DetailRow(getString(R.string.txn_row_amount), if (txn.amountYuan == 0.0) "${CardProfiles.currencySymbol(txn.protocol)}0.00" else txn.amountText) { _, value, _ ->
                 if (txn.amountText.startsWith("+")) value.setTextColor(Palette.AMOUNT_IN)
             },
-            DetailRow(getString(R.string.txn_row_balance), txn.balanceAfterYuan?.let { "¥${String.format("%.2f", it)}" } ?: "-")
+            DetailRow(getString(R.string.txn_row_balance), txn.balanceAfterYuan?.let { "${CardProfiles.currencySymbol(txn.protocol)}${String.format("%.2f", it)}" } ?: "-")
         ))
 
         // ── 第三层：行程（全部未知时整块隐藏） ──

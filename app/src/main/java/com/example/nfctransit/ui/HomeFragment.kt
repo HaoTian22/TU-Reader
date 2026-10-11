@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.UiCard
 import kotlinx.coroutines.launch
@@ -227,7 +228,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var walletRendered = false
 
     private fun renderWallet(cards: List<UiCard>) {
-        val totalFen = cards.sumOf { it.balanceFen ?: 0L }
+        // 总余额只合计人民币钱包；澳门通等外币卡余额仅在各自卡面显示
+        val totalFen = cards.filter { CardProfiles.currencySymbol(it.protocolType) == "¥" }.sumOf { it.balanceFen ?: 0L }
         binding.tvTotalBalance.text = "¥${String.format("%.2f", totalFen / 100.0)}"
         binding.tvCardCount.text = resources.getQuantityString(R.plurals.home_card_count, cards.size, cards.size)
 
@@ -305,7 +307,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         })
         titleRow.addView(titleCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         titleRow.addView(TextView(ctx).apply {
-            text = if (card.balanceFen == null) "—" else balanceText(card.balanceYuan)
+            text = if (card.balanceFen == null) "—" else balanceText(card.balanceYuan, CardProfiles.currencySymbol(card.protocolType))
             setTextColor(onCard)
             typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false
@@ -395,12 +397,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
-    /** 余额：「¥」小一号，金额大字 */
-    private fun balanceText(yuan: Double): CharSequence {
+    /** 余额：币种符号小一号，金额大字 */
+    private fun balanceText(yuan: Double, currency: String): CharSequence {
         val amount = String.format("%.2f", yuan)
-        return SpannableStringBuilder("¥$amount").apply {
-            setSpan(AbsoluteSizeSpan(15, true), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            setSpan(AbsoluteSizeSpan(30, true), 1, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return SpannableStringBuilder("$currency$amount").apply {
+            setSpan(AbsoluteSizeSpan(15, true), 0, currency.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(AbsoluteSizeSpan(30, true), currency.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 

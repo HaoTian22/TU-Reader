@@ -8,6 +8,7 @@ import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
 import kotlin.math.abs
 import com.example.nfctransit.R
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.util.L10n
 
 /**
@@ -73,16 +74,17 @@ object TransactionMapper {
         val formattedDate = formatBcdDate(date)
         val formattedTime = formatBcdTime(time)
         val balanceAfterYuan = balanceAfterFen?.div(100.0)   // 无余额数据为 null（区别于真实的 ¥0.00）
+        val currency = CardProfiles.currencySymbol(protocol)
         val amountText = when {
             // 原生充值（02）才按入账显示 "+"；映射类充值/退款保持 "-"，红色计入消费
-            isRecharge -> "+¥${String.format("%.2f", amountAbs)}"
+            isRecharge -> "+$currency${String.format("%.2f", amountAbs)}"
             isTicketProcessing && amountYuan == 0.0 -> L10n.str(R.string.amount_ticket_processing)
             amountYuan == 0.0 && transitType != "消费" && transitType != "便利店" -> when (direction) {
                 TransitDirection.ENTRY -> L10n.str(R.string.amount_entry)
                 TransitDirection.EXIT -> L10n.str(R.string.amount_exit)
                 null -> L10n.str(R.string.amount_ride)
             }
-            else -> "-¥${String.format("%.2f", amountAbs)}"
+            else -> "-$currency${String.format("%.2f", amountAbs)}"
         }
 
         val declaredCityCode = rawCityCode ?: cityCode

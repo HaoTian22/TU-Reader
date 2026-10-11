@@ -47,6 +47,11 @@ object CardMetadataParser {
             interoperabilityCode = hex(info, 10, 2), interoperabilityEnabled = byte(info, 8)?.let { it != 0 },
             applicationVersion = hex(info, 9, 1), industryCode = hex(info, 5, 1), algorithmSupport = hex(info, 4, 1)
         )
+        if (protocol == "MPASS") return ApplicationMetadata(
+            issuer = code(info, 0, 8), cityCode = "0446",
+            issueDate = date(info, 20), validUntil = date(info, 24),
+            applicationVersion = hex(info, 9, 1)
+        )
         if (protocol != "TU") return ApplicationMetadata(
             issuer = if (protocol == "LNT") code(info, 48, 4) else null,
             issueDate = date(info, if (protocol == "LNT") 23 else 20),

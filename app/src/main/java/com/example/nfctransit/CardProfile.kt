@@ -4,7 +4,7 @@ package com.example.nfctransit
  * 交通卡卡种档案：AID / 关键 SFI / 交易记录字段布局
  * 数据来源：NFC Wiki 智能卡手册 (wiki.nfc.im) 交通卡章节
  * 覆盖：岭南通(YCT1/PAY.APPY、YCT2/PAY.TICL)、深圳通(SZT)、苏州(SUXIN/SZTK)、
- *       天津(TFT)、数字城市一卡通(CU)、交通联合卡(TU)
+ *       天津(TFT)、数字城市一卡通(CU)、澳门通(MPASS)、交通联合卡(TU)
  * 识别顺序（首个 SELECT 成功即判定卡型）见 CardProfiles.known 的排列顺序。
  */
 data class CardProfile(
@@ -14,7 +14,7 @@ data class CardProfile(
     val tradeSfi: Int,         // 电子钱包交易明细记录文件 SFI
     val tradeRecordLen: Int = 0x17,
     val stationSfi: Int? = null,  // 线路+站点信息文件 SFI (TU 卡用 0x1E)
-    val cardType: String = "YCT"  // "TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"
+    val cardType: String = "YCT"  // "TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"/"MPASS"
 ) {
     /** 各卡附加交易区 SFI（CU/TFT 专有），与主交易区一样参与交易解析 */
     val extraTradeSfis: List<Int>
@@ -33,7 +33,7 @@ data class CardProfile(
             val set = mutableSetOf(tradeSfi)
             stationSfi?.let { set.add(it) }
             // 0x1E 是 TU 旅程区：单协议 TU 与双协议 YCT/CU/SZT 的 TU 钱包都参与交易解析
-            if (cardType in setOf("TU", "YCT", "CU", "SZT")) set.add(0x1E)
+            if (cardType in setOf("TU", "YCT", "CU", "SZT", "MPASS")) set.add(0x1E)
             set.addAll(extraTradeSfis)
             return set
         }
@@ -43,6 +43,19 @@ object CardProfiles {
     const val TU_EP_AID = "A000000632010105"
     const val TU_EC_AID = "A000000632010106"
     const val CU_AID = "A00000000386980701"
+    const val MPASS_AID = "B0C4C3C5CDA8C7AEB0FC" // GBK「澳门通钱包」
+
+    /** 双协议卡：主钱包之外还带 TU 钱包的卡型（TU 钱包另行读取/解码）。 */
+    val DUAL_TU_TYPES = setOf("YCT", "CU", "SZT", "MPASS")
+
+    /**
+     * 卡内金额单位 → 应用内部「分」（1/100 主币种单位）的倍率。
+     * 澳门通余额/交易金额以 0.1 MOP 为单位（0x1E = MOP 3.0 巴士车费），其余卡种卡内即为分。
+     */
+    fun centsPerUnit(protocol: String): Long = if (protocol == "MPASS") 10L else 1L
+
+    /** 金额币种符号：澳门通钱包为澳门元，其余（含澳门通联名卡上的 TU 钱包）为人民币。 */
+    fun currencySymbol(protocol: String?): String = if (protocol == "MPASS") "MOP " else "¥"
 
     /** 仅用于运行时解码，raw_records 使用实际 AID 定位应用。 */
     fun protocolForAid(aid: String): String = known.firstOrNull { profile ->
@@ -53,7 +66,7 @@ object CardProfiles {
 
     /**
      * 卡型识别顺序（tripreader-technical.md §1.2）：
-     * YCT1(APPY) → YCT2(TICL) → SZT → SUXIN → SZTK → TFT → CU → 通用 TU。
+     * YCT1(APPY) → YCT2(TICL) → SZT → SUXIN → SZTK → TFT → CU → MPASS → 通用 TU。
      * 除 TU 用 SFI 0x1E 终端映射表外，其余卡种共享 PBOC 电子钱包结构
      * （信息文件 SFI 0x15 / BALANCE CHECK / 交易明细 SFI 0x18）。
      */
@@ -106,6 +119,15 @@ object CardProfiles {
             infoSfi = 0x15,
             tradeSfi = 0x18,
             cardType = "CU"
+        ),
+        // 澳门通（Macau Pass）：PBOC 电子钱包结构，金额单位 0.1 MOP；联名卡另带空/有余额的 TU 钱包。
+        // 必须排在 TU 之前：澳门通联名卡同样能 SELECT 成功 TU AID。
+        CardProfile(
+            name = "澳门通 (Macau Pass)",
+            aidCandidates = listOf(MPASS_AID),
+            infoSfi = 0x15,
+            tradeSfi = 0x18,
+            cardType = "MPASS"
         ),
         // 交通联合卡（TU）：站点数据来自 transit.db standard='TU' 行，配合 SFI 0x1E 终端映射表
         CardProfile(

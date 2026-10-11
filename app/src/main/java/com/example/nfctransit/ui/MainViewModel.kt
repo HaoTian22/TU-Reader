@@ -565,7 +565,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .takeIf { it.isNotEmpty() && it != primaryCardNumber }
             ?: existing?.secondCardNumber?.takeIf { it != primaryCardNumber }
         val effectiveCardType = if (
-            profile.cardType == "TU" && existing?.cardType in setOf("YCT", "SZT", "CU") &&
+            profile.cardType == "TU" && existing?.cardType in CardProfiles.DUAL_TU_TYPES &&
             mergedSecondCardNumber != null
         ) existing?.cardType ?: profile.cardType else profile.cardType
 
@@ -1354,13 +1354,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "YCT" -> "LNT"
             "SZT" -> "SZT"
             "CU" -> "CU"
+            "MPASS" -> "MPASS"
             "TU" -> "TU"
             else -> cardType
         }
         val apps = cardAppsByCard[cardId].orEmpty()
         val ecSelect = apps.firstOrNull { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) }?.selectResp
         val primary = com.example.nfctransit.data.CardMetadataParser.parse(primaryProtocol, records, ecSelect)
-        val second = if (cardType in setOf("YCT", "SZT", "CU") && records.any { it.protocol == "TU" }) {
+        val second = if (cardType in CardProfiles.DUAL_TU_TYPES && records.any { it.protocol == "TU" }) {
             com.example.nfctransit.data.CardMetadataParser.parse("TU", records, ecSelect, allowBlankFallback = false)
         } else null
         // TU 卡号：单协议 TU 为主卡号，双协议卡（YCT/SZT/CU）为第二卡号；其 IIN 可定位发卡机构。
@@ -1410,6 +1411,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "LNT" -> "岭南通"
         "SZT" -> "深圳通"
         "CU" -> "数字城市一卡通"
+        "MPASS" -> "澳门通"
         "TU" -> L10n.str(R.string.standard_tunion)
         else -> null
     }
@@ -1580,6 +1582,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?.let { return it }
 
         return when {
+            profile.cardType == "MPASS" -> "澳门通"
             profile.name.contains("深圳通") -> "深圳通"
             profile.name.contains("岭南通") || profile.name.contains("羊城通") -> "岭南通"
             profile.name.contains("苏州") -> "苏州通"

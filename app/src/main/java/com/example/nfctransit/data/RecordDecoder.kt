@@ -163,11 +163,13 @@ object RecordDecoder {
                 )
                 DecodeResult(display, lnt + tu.journey + tuFare)
             }
-            "CU" -> {
-                val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
+            "CU", "MPASS" -> {
+                // CU 历史归档用空协议标签；MPASS 主钱包始终带协议标签（金额单位/城市按协议区分）
+                val cuRecords = records.filter { it.protocol == cardType || (cardType == "CU" && it.protocol.isBlank()) }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, "", TuMap(emptyMap(), emptyList()), currentYear, null
+                    cardType, cuRecords, if (cardType == "MPASS") "MPASS" else "",
+                    TuMap(emptyMap(), emptyList()), currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
@@ -238,12 +240,12 @@ object RecordDecoder {
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
             }
-            "CU" -> {
-                val cuRecords = records.filter { it.protocol == "CU" || it.protocol.isBlank() }
+            "CU", "MPASS" -> {
+                val cuRecords = records.filter { it.protocol == cardType || (cardType == "CU" && it.protocol.isBlank()) }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, "", TuMap(emptyMap(), emptyList()), 0, null,
-                    storedDate
+                    cardType, cuRecords, if (cardType == "MPASS") "MPASS" else "",
+                    TuMap(emptyMap(), emptyList()), 0, null, storedDate
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
@@ -492,7 +494,8 @@ object RecordDecoder {
             if (data.all { it.toInt() == 0 }) continue  // 空槽
 
             val seq = ApduUtil.hexToLong(data.copyOfRange(0, 2)).toInt()
-            val amountFen = ApduUtil.hexToLong(data.copyOfRange(if (rec.protocol == "TU" || protocol == "TU") 5 else 6, 9))
+            val amountFen = ApduUtil.hexToLong(data.copyOfRange(if (rec.protocol == "TU" || protocol == "TU") 5 else 6, 9)) *
+                CardProfiles.centsPerUnit(protocol)
             val typeHex = ApduUtil.bytesToHex(byteArrayOf(data[9]))
             val typeByte = data[9].toInt() and 0xFF
             val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
@@ -502,7 +505,7 @@ object RecordDecoder {
             // CU 有完整日期，直接重读 hex，修复旧解码器错误推断年份留下的归档日期。
             // LNT 仍优先使用归档中保存的推断年份。
             val hash = contentHash(rec.hex)
-            val date = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" } ?: run {
+            val date = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" || cardType == "MPASS" } ?: run {
                 if (isLnt || isSubtype18) {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
                     val thisMonth = mmdd.take(2).toIntOrNull()
@@ -522,7 +525,9 @@ object RecordDecoder {
 
             // 0x18 记录城市码：其 [10..12) 实为终端号前缀（如 4131…），对 TU 卡无效；
             // 站点解析兜底仍用它（与旧实现一致），但展示用 1E 卡所在城市码
-            val cityCode18 = String.format("%04d", bcdNibble(data[11]) + bcdNibble(data[10]) * 100)
+            // 澳门通终端号不含城市前缀（如 000000020228），交易城市固定为澳门 0446。
+            val cityCode18 = if (protocol == "MPASS") MACAU_CITY_CODE
+                else String.format("%04d", bcdNibble(data[11]) + bcdNibble(data[10]) * 100)
             val displayCityCode = if (protocol == "TU") (tu.cardCityCode ?: cityCode18) else cityCode18
 
             val posIsRecharge = posHex == "20151031095400" || posHex == "00000000000000"
@@ -749,6 +754,8 @@ object RecordDecoder {
         if (entry != null) return entry.toStationRef()
         return UNMATCHED_STATION
     }
+
+    private const val MACAU_CITY_CODE = "0446"
 
     /** 映射表与其他规则均未命中：统一按公共交通兜底（站名位与类型一致） */
     private val UNMATCHED_STATION = StationRef("公共交通", "", "公共交通")

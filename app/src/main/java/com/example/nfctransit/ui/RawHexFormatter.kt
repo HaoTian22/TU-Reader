@@ -190,6 +190,16 @@ object RawHexFormatter {
                 FieldSpec("Reserved", 28, 30, "hex", SELECT_UNKNOWN)
             )
         }
+        if (sfi == 0x15 && protocol == "MPASS" && size >= 28) {
+            return listOf(
+                FieldSpec("Issuer Code", 0, 8, "hex", INSTITUTION),
+                FieldSpec("Application Type", 8, 9, "hex", SELECT_LABEL),
+                FieldSpec("Application Version", 9, 10, "hex", SELECT_LABEL),
+                FieldSpec("Card Number", 16, 20, "hex", CARD_NUMBER),
+                FieldSpec("Issue Date", 20, 24, "BCD", ISSUE_DATE),
+                FieldSpec("Valid Until", 24, 28, "BCD", VALID_UNTIL)
+            )
+        }
         if (sfi == 0x15 && protocol == "SZT" && size >= 28) {
             return listOf(
                 FieldSpec("Card Number", 16, 20, "HEX reverse→dec", CARD_NUMBER),
@@ -224,6 +234,17 @@ object RawHexFormatter {
                 FieldSpec("Composite Lock Flag", 2, 3, "hex", SELECT_SFI),
                 FieldSpec("Application Custom Data", 3, minOf(48, size), "custom", RAW)
             ).filter { it.start < it.end }
+        }
+        if (protocol == "MPASS" && sfi == 0x18 && size >= 23) {
+            return listOf(
+                FieldSpec("Record No.", 0, 2, "dec", RECORD),
+                FieldSpec("Overdraft Limit", 2, 5, "hex", SELECT_UNKNOWN),
+                FieldSpec("Amount (0.1 MOP)", 5, 9, "hex", AMOUNT),
+                FieldSpec("Transaction Type", 9, 10, "hex", TYPE),
+                FieldSpec("Terminal", 10, 16, "BCD", TERMINAL),
+                FieldSpec("Date", 16, 20, "BCD", TIMESTAMP),
+                FieldSpec("Time", 20, 23, "BCD", TIMESTAMP)
+            )
         }
         if (protocol == "CU" && sfi in setOf(0x18, 0x10, 0x06, 0x1A) && size >= 23) {
             val typeLabel = when (sfi) {

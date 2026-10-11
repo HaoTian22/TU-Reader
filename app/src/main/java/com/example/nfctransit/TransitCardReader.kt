@@ -28,6 +28,10 @@ internal fun parseCuCardNumber(data: ByteArray): String {
     return BigInteger(1, data.copyOfRange(12, 20)).toString()
 }
 
+/** 澳门通应用序列号 [10..20) 实测为 `0000 F6305140 F6305140`（同一 4 字节重复两次），取末 4 字节 HEX。 */
+internal fun parseMpassCardNumber(data: ByteArray): String =
+    ApduUtil.bytesToHex(data.copyOfRange(16, 20))
+
 class TransitCardReader internal constructor(
     private val channel: CardChannel,
     private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 }
@@ -178,7 +182,7 @@ class TransitCardReader internal constructor(
             val coreStartedAt = nowMs()
             val protocol = when (profile.cardType) {
                 "YCT" -> "LNT"
-                "TU", "CU", "SZT" -> profile.cardType
+                "TU", "CU", "SZT", "MPASS" -> profile.cardType
                 else -> ""
             }
             val rawRecs = mutableListOf<RawRecord>()
@@ -211,7 +215,7 @@ class TransitCardReader internal constructor(
             if (yct == null || yct.walletSelected) {
                 rememberBalance(primaryAid, balance, yct?.balanceResp ?: bc?.respHex)
             }
-            val tu = if (profile.cardType in setOf("YCT", "CU", "SZT") && connectionError == null) {
+            val tu = if (profile.cardType in CardProfiles.DUAL_TU_TYPES && connectionError == null) {
                 readTuWallet(log, rawRecs)
             } else TuWalletResult(null, null)
             addInfoRecord(rawRecs, tu.info, "TU", tu.selectedAid)
@@ -724,6 +728,7 @@ class TransitCardReader internal constructor(
                 when (profile.cardType) {
                     "SZT" -> parseSztCardNumber(data)
                     "CU" -> parseCuCardNumber(data)
+                    "MPASS" -> parseMpassCardNumber(data)
                     else -> ApduUtil.bcdToString(data.copyOfRange(10, 20)).trimStart('0')
                 }
             } else ""
@@ -760,7 +765,7 @@ class TransitCardReader internal constructor(
             if (!ApduUtil.isSuccess(resp)) return BalanceResult(0L, null)
             val data = ApduUtil.dataOnly(resp)
             if (data.size != 4) return BalanceResult(0L, null)
-            val fen = ApduUtil.parseEpBalance(data)
+            val fen = ApduUtil.parseEpBalance(data) * CardProfiles.centsPerUnit(profile.cardType)
             BalanceResult(fen, ApduUtil.bytesToHex(data))
         } catch (e: Exception) {
             log.add("BALANCE CHECK 异常: ${e.message}")
