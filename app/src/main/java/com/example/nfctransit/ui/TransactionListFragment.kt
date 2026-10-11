@@ -19,6 +19,8 @@ import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentTransactionListBinding
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.formatCurrencyTotals
+import com.example.nfctransit.model.spendingByCurrency
 import com.example.nfctransit.model.TransitDirection
 
 class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
@@ -353,10 +355,11 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 var j = i
                 while (j < list.size && list[j].date == date) j++
                 val day = list.subList(i, j)
-                val spend = day.filter { it.amountText.startsWith("-") }.sumOf { it.amountYuan }
+                // 多币种卡（澳门通/八达通 + TU）按币种分别合计
+                val spend = day.filter { it.amountText.startsWith("-") }.spendingByCurrency().formatCurrencyTotals()
                 val summary = buildString {
                     append(resources.getQuantityString(R.plurals.txn_day_count, day.size, day.size))
-                    if (spend > 0) append(" · ").append(getString(R.string.txn_day_spend, String.format("%.2f", spend)))
+                    if (spend.isNotEmpty()) append(" · ").append(getString(R.string.txn_day_spend, spend))
                 }
                 out += Entry.Header(dayTitle(date), summary)
                 day.forEachIndexed { k, txn -> out += Entry.Row(txn, first = k == 0, last = k == day.lastIndex) }

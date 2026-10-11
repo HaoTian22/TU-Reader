@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.nfc.tech.NfcF
+import android.nfc.tech.TagTechnology
 import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -17,6 +19,7 @@ import com.example.nfctransit.CardProfile
 import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.parseLegacyCuCardNumber
+import com.example.nfctransit.OctopusReader
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.R
 import com.example.nfctransit.data.CardUiCache
@@ -58,6 +61,9 @@ import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiCardMetadata
 import com.example.nfctransit.model.UiApplicationInfo
 import com.example.nfctransit.model.UiTransaction
+import com.example.nfctransit.model.WalletBalance
+import com.example.nfctransit.model.currency
+import com.example.nfctransit.model.spendingByCurrency
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -68,6 +74,8 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.example.nfctransit.util.AppLanguage
@@ -78,34 +86,82 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = TransitRepository(application)
     private val cardStateCoordinator = CardStateCoordinator()
     private val nfcReadGate = NfcReadGate()
-    @Volatile private var activeIsoDep: IsoDep? = null
+    @Volatile private var activeIsoDep: TagTechnology? = null
     private val _nfcReadMessage = MutableLiveData<String?>()
     val nfcReadMessage: LiveData<String?> = _nfcReadMessage
 
     fun consumeNfcReadMessage() { _nfcReadMessage.value = null }
 
+    /** ReaderMode 轮询的射频技术；联名卡第二阶段只轮询另一种技术。 */
+    enum class ReaderTech { ALL, ISO_ONLY, FELICA_ONLY }
+    private val _readerTech = MutableLiveData(ReaderTech.ALL)
+    val readerTech: LiveData<ReaderTech> = _readerTech
+
+    /**
+     * 八达通联名卡两阶段读取：Android 一次只激活卡的一种接口（ISO-DEP 或 FeliCa）。
+     * 第一阶段读完后短暂只轮询另一种技术，卡仍贴着时会以另一接口再次被发现，两次结果合并为一张卡保存；
+     * 超时未发现则按第一阶段结果保存。仅主线程访问。
+     */
+    private class ComboPending(
+        val result: TransitCardReader.ReadResult,
+        val fromIso: Boolean,
+        val tagId: String,
+        val startedAt: Long,
+        val timeout: Job
+    )
+    private var comboPending: ComboPending? = null
+    @Volatile private var comboProbing = false
+
+    private fun wantsComboProbe(result: TransitCardReader.ReadResult, fromIso: Boolean): Boolean {
+        val type = result.matchedProfile?.cardType ?: return false
+        return if (fromIso) type in OCTOPUS_COMBO_ISO_TYPES else type == CardProfiles.OCTOPUS.cardType
+    }
+
+    private fun endComboPolling(vararg tagIds: String) {
+        comboProbing = false
+        // 恢复全技术轮询时仍贴着的卡会被重新发现，短时屏蔽本次已读的标签，避免重复读取/循环切换
+        nfcReadGate.suppress(tagIds.toSet(), SystemClock.elapsedRealtime() + COMBO_SUPPRESS_MS)
+        _readerTech.value = ReaderTech.ALL
+    }
+
     /** ReaderMode 回调可来自 Binder 线程，先同步准入，再在 ViewModel 生命周期中完成整条链路。 */
     fun onNfcTagDiscovered(tag: Tag) {
         val tagId = ApduUtil.bytesToHex(tag.id)
-        if (!nfcReadGate.tryBegin(tagId, SystemClock.elapsedRealtime())) {
+        if (!nfcReadGate.tryBegin(tagId, SystemClock.elapsedRealtime(), ignoreCooldown = comboProbing)) {
             Log.d("TransitReader", "NFC callback ignored: busy or cooldown")
             return
         }
         viewModelScope.launch {
             try {
                 val isoDep = IsoDep.get(tag)
-                if (isoDep == null) {
+                // 八达通等 FeliCa 卡没有 IsoDep，走 NfcF
+                val nfcF = if (isoDep == null) NfcF.get(tag) else null
+                if (isoDep == null && nfcF == null) {
                     _nfcReadMessage.value = L10n.str(R.string.nfc_no_isodep)
                     return@launch
                 }
-                activeIsoDep = isoDep
+                activeIsoDep = isoDep ?: nfcF
                 _nfcReadMessage.value = L10n.str(R.string.nfc_detecting)
                 val startedAt = SystemClock.elapsedRealtime()
-                val result = withContext(Dispatchers.IO) { TransitCardReader(isoDep).read() }
+                val result = withContext(Dispatchers.IO) {
+                    if (isoDep != null) TransitCardReader(isoDep).read() else OctopusReader(nfcF!!).read()
+                }
                 activeIsoDep = null
                 Log.d("TransitReader", "NFC disconnected after ${SystemClock.elapsedRealtime() - startedAt} ms; raw=${result.rawRecords.size}; interrupted=${result.readError != null}")
                 if (result.readError != null) Log.w("TransitReader", "NFC core interrupted: ${result.readError}")
                 if (_keepDebugLogs.value == true) Log.d("TransitReader", result.rawLog.joinToString("\n"))
+                val fromIso = isoDep != null
+                val pending = comboPending
+                if (pending != null) {
+                    // 第二阶段：同一张联名卡的另一接口
+                    pending.timeout.cancel()
+                    comboPending = null
+                    endComboPolling(pending.tagId, tagId)
+                    val merged = if (pending.fromIso) OctopusReader.merge(pending.result, result)
+                        else OctopusReader.merge(result, pending.result)
+                    saveNfcResult(merged ?: pending.result, pending.startedAt)
+                    return@launch
+                }
                 currentSessionNfcLog = result.rawLog
                 _nfcLog.value = result.rawLog
                 if (result.matchedProfile == null) {
@@ -113,20 +169,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         else L10n.str(R.string.nfc_unsupported_card)
                     return@launch
                 }
-                _nfcReadMessage.value = L10n.str(R.string.nfc_saving)
-                val saved = cardStateCoordinator.withRestoredState { applyNfcData(result) }
-                _nfcReadMessage.value = when {
-                    !saved -> L10n.str(R.string.nfc_nothing_saved)
-                    result.readError != null -> L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount)
-                    lastReadCount == 0 -> L10n.str(R.string.nfc_saved_no_txns)
-                    else -> L10n.plural(R.plurals.nfc_saved, lastReadCount, result.matchedProfile.name, lastReadCount)
+                if (result.readError == null && wantsComboProbe(result, fromIso)) {
+                    comboProbing = true
+                    comboPending = ComboPending(result, fromIso, tagId, startedAt, viewModelScope.launch {
+                        delay(COMBO_WINDOW_MS)
+                        val timedOut = comboPending ?: return@launch
+                        comboPending = null
+                        endComboPolling(timedOut.tagId)
+                        saveNfcResult(timedOut.result, timedOut.startedAt)
+                    })
+                    _readerTech.value = if (fromIso) ReaderTech.FELICA_ONLY else ReaderTech.ISO_ONLY
+                    _nfcReadMessage.value = L10n.str(R.string.nfc_combo_probing)
+                    return@launch
                 }
-                Log.d("TransitReader", "NFC task finished after ${SystemClock.elapsedRealtime() - startedAt} ms; saved=$saved")
+                saveNfcResult(result, startedAt)
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: NfcDataSavedException) {
-                Log.e("TransitReader", "数据已保存，界面重建失败", error)
-                _nfcReadMessage.value = L10n.str(R.string.nfc_saved_ui_failed)
             } catch (error: Exception) {
                 Log.e("TransitReader", "读取或保存卡片失败", error)
                 _nfcReadMessage.value = L10n.str(R.string.nfc_read_failed)
@@ -135,6 +193,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 activeIsoDep = null
                 nfcReadGate.finish(SystemClock.elapsedRealtime())
             }
+        }
+    }
+
+    private suspend fun saveNfcResult(result: TransitCardReader.ReadResult, startedAt: Long) {
+        val profile = result.matchedProfile ?: return
+        currentSessionNfcLog = result.rawLog
+        _nfcLog.value = result.rawLog
+        try {
+            _nfcReadMessage.value = L10n.str(R.string.nfc_saving)
+            val saved = cardStateCoordinator.withRestoredState { applyNfcData(result) }
+            _nfcReadMessage.value = when {
+                !saved -> L10n.str(R.string.nfc_nothing_saved)
+                result.readError != null -> L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount)
+                lastReadCount == 0 -> L10n.str(R.string.nfc_saved_no_txns)
+                else -> L10n.plural(R.plurals.nfc_saved, lastReadCount, profile.name, lastReadCount)
+            }
+            Log.d("TransitReader", "NFC task finished after ${SystemClock.elapsedRealtime() - startedAt} ms; saved=$saved")
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: NfcDataSavedException) {
+            Log.e("TransitReader", "数据已保存，界面重建失败", error)
+            _nfcReadMessage.value = L10n.str(R.string.nfc_saved_ui_failed)
+        } catch (error: Exception) {
+            Log.e("TransitReader", "读取或保存卡片失败", error)
+            _nfcReadMessage.value = L10n.str(R.string.nfc_read_failed)
         }
     }
 
@@ -251,6 +334,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val homeWeeklySpending: LiveData<List<DailySpending>> = _homeWeeklySpending
 
+    /** 首页本周消费合计（按币种分别合计，多币种卡显示 "MOP 13.00 · ¥5.00"） */
+    private val _homeWeekTotals = MutableLiveData<Map<String, Double>>(emptyMap())
+    val homeWeekTotals: LiveData<Map<String, Double>> = _homeWeekTotals
+
+    /**
+     * 统计币种：不同币种金额不能相加/同轴比较，金额类统计（柱图/分类/城市/合计）只统计所选币种。
+     * statsCurrencies 为当前卡有消费的币种（>1 时统计页显示切换）；选择按卡记忆。
+     */
+    private val _statsCurrencies = MutableLiveData<List<String>>(emptyList())
+    val statsCurrencies: LiveData<List<String>> = _statsCurrencies
+    private val _statsCurrency = MutableLiveData("¥")
+    val statsCurrency: LiveData<String> = _statsCurrency
+    private val statsCurrencyByCard = mutableMapOf<String, String>()
+
+    fun setStatsCurrency(currency: String) {
+        val index = _selectedIndex.value ?: return
+        val cardId = cardEntities.getOrNull(index)?.cardId ?: return
+        statsCurrencyByCard[cardId] = currency
+        _statsCurrency.value = currency
+        emitStatsForSelected()
+        emitHomeWeekly(_allTransactions.value.orEmpty())
+    }
+
+    /** 选中卡的统计币种：沿用该卡上次选择，否则主钱包币种，再否则消费最多的币种。 */
+    private fun resolveStatsCurrency(cardId: String, cardType: String, txns: List<UiTransaction>) {
+        val totals = txns.spendingByCurrency()
+        val primary = CardProfiles.currencySymbol(primaryProtocolOf(cardType))
+        val currencies = (listOf(primary).filter { it in totals } + totals.keys).distinct()
+        _statsCurrencies.value = currencies
+        _statsCurrency.value = statsCurrencyByCard[cardId]?.takeIf { it in currencies }
+            ?: primary.takeIf { it in totals || totals.isEmpty() }
+            ?: totals.maxByOrNull { it.value }!!.key
+    }
+
+    /** 首页迷你图：本周窗口，柱图按统计币种，合计按币种分别列出。 */
+    private fun emitHomeWeekly(txns: List<UiTransaction>) {
+        // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致。
+        // 先按本周窗口过滤交易，柱高归一化到本周最大值（与统计页周视图一致）；
+        // 若直接用全量交易，历史最高消费日会拉大分母，本周柱整体偏矮
+        val (weekStart, weekEnd) = periodWindow("本周", 0)
+        val week = txns.filter { it.date in weekStart..weekEnd }
+        val currency = _statsCurrency.value ?: "¥"
+        // 合计先于柱图发布：迷你图在柱图数据变化时重绘并读取合计
+        _homeWeekTotals.value = week.spendingByCurrency()
+        _homeWeeklySpending.value = computeDailySpending(week.filter { it.currency == currency }, "本周", weekStart, weekEnd)
+            .map { it.copy(currency = currency) }
+    }
+
     private val _statsSummary = MutableLiveData(StatsSummary(0.0, 0, 0.0))
     val statsSummary: LiveData<StatsSummary> = _statsSummary
 
@@ -320,8 +451,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     private val autoGeneratedCardNames = setOf(
-        "深圳通", "岭南通", "苏州通", "天津通", "数字城市一卡通", "交通联合卡"
-    ) + CardProfiles.known.map { it.name }
+        "深圳通", "岭南通", "苏州通", "天津通", "数字城市一卡通", "交通联合卡", "澳门通", "八达通"
+    ) + CardProfiles.known.map { it.name } + CardProfiles.OCTOPUS.name
 
     init {
         viewModelScope.launch {
@@ -552,19 +683,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        // 八达通联名卡：八达通 IDm 只记在 card_app（select_resp 为 Polling 响应）。单接口读取时按 IDm 归到已有卡：
+        // 仅读到八达通 → 归入之前读到的联名卡；联名读取 → 归入之前单独保存的八达通卡。
+        val octopusIdms = result.appReads.filter { it.selectedAid == OctopusReader.SYSTEM_CODE }
+            .mapNotNull { OctopusReader.idmFromPolling(it.selectResp) }.toSet()
+        if (existing == null && octopusIdms.isNotEmpty()) {
+            existing = cardEntities.firstOrNull { card ->
+                card.cardNumber in octopusIdms || cardAppsByCard[card.cardId].orEmpty().any {
+                    it.selectedAid == OctopusReader.SYSTEM_CODE && OctopusReader.idmFromPolling(it.selectResp) in octopusIdms
+                }
+            }
+        }
         if (existing == null && cardNumber.isEmpty() && secondCardNumber.isEmpty()) {
             existing = cardEntities.firstOrNull { it.lastFour == lastFour }
+        }
+        // 已是联名卡（主卡型为 ISO 侧）却只读到八达通：只追加八达通应用/原始数据，不改卡型、卡号、名称与主余额
+        val octopusOnly = existing?.takeIf {
+            profile.cardType == CardProfiles.OCTOPUS.cardType && it.cardType != CardProfiles.OCTOPUS.cardType
         }
         val cardId = existing?.cardId ?: UUID.randomUUID().toString()
         val (gradStart, gradEnd) = existing?.let {
             it.gradientStartColor to it.gradientEndColor
         } ?: nextCardColor()
 
-        val primaryCardNumber = cardNumber.ifEmpty { existing?.cardNumber.orEmpty() }
-        val mergedSecondCardNumber = secondCardNumber
+        val primaryCardNumber = octopusOnly?.cardNumber ?: cardNumber.ifEmpty { existing?.cardNumber.orEmpty() }
+        val mergedSecondCardNumber = if (octopusOnly != null) octopusOnly.secondCardNumber else secondCardNumber
             .takeIf { it.isNotEmpty() && it != primaryCardNumber }
             ?: existing?.secondCardNumber?.takeIf { it != primaryCardNumber }
-        val effectiveCardType = if (
+        val effectiveCardType = octopusOnly?.cardType ?: if (
             profile.cardType == "TU" && existing?.cardType in CardProfiles.DUAL_TU_TYPES &&
             mergedSecondCardNumber != null
         ) existing?.cardType ?: profile.cardType else profile.cardType
@@ -584,12 +730,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             cardId = cardId,
             cardNumber = primaryCardNumber,
             secondCardNumber = mergedSecondCardNumber,
-            name = existing?.name?.takeUnless { it in autoGeneratedCardNames } ?: displayName,
+            name = octopusOnly?.name ?: existing?.name?.takeUnless { it in autoGeneratedCardNames } ?: displayName,
             cardType = effectiveCardType,
-            lastFour = lastFour,
+            lastFour = octopusOnly?.lastFour ?: lastFour,
             gradientStartColor = gradStart,
             gradientEndColor = gradEnd,
-            latestBalanceFen = balanceFen ?: existing?.latestBalanceFen,
+            latestBalanceFen = if (octopusOnly != null) octopusOnly.latestBalanceFen else balanceFen ?: existing?.latestBalanceFen,
             createdAt = existing?.createdAt ?: now,
             lastReadAt = now
         )
@@ -1154,6 +1300,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _categorySpending.value = emptyList()
         _citySpending.value = emptyList()
         _homeWeeklySpending.value = emptyList()
+        _homeWeekTotals.value = emptyMap()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
         _playbackHaptics.value = true
@@ -1348,16 +1495,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return buildCardMetadata(cardId, entity.cardType, entity.toUiCard()).issuerCity
     }
 
+    private fun primaryProtocolOf(cardType: String): String = if (cardType == "YCT") "LNT" else cardType
+
+    /**
+     * 需要单独展示的钱包余额（主钱包在前，主钱包余额取卡片最新余额）。
+     * 只收与已列钱包币种不同的钱包（每币种一个）：同币种双钱包（岭南通+TU 等）只显示主钱包；
+     * 多币种联名卡（澳门通/八达通 + TU）返回多项，界面并排等同展示。
+     */
+    fun walletBalances(cardId: String): List<WalletBalance> {
+        val entity = cardEntities.firstOrNull { it.cardId == cardId } ?: return emptyList()
+        val primary = primaryProtocolOf(entity.cardType)
+        val byProtocol = linkedMapOf<String, Long>()
+        entity.latestBalanceFen?.let { byProtocol[primary] = it }
+        for (app in cardAppsByCard[cardId].orEmpty()) {
+            val protocol = CardProfiles.protocolForAid(app.selectedAid)
+            val fen = app.balanceFen ?: continue
+            if (protocol.isEmpty() || protocol in byProtocol) continue
+            val currency = CardProfiles.currencySymbol(protocol)
+            if (byProtocol.keys.any { CardProfiles.currencySymbol(it) == currency }) continue
+            byProtocol[protocol] = fen
+        }
+        return byProtocol.map { (protocol, fen) ->
+            WalletBalance(protocol, applicationName(protocol) ?: protocol, fen)
+        }
+    }
+
     private fun buildCardMetadata(cardId: String, cardType: String, card: UiCard): UiCardMetadata {
         val records = rawRecordsByCard[cardId].orEmpty()
-        val primaryProtocol = when (cardType) {
-            "YCT" -> "LNT"
-            "SZT" -> "SZT"
-            "CU" -> "CU"
-            "MPASS" -> "MPASS"
-            "TU" -> "TU"
-            else -> cardType
-        }
+        val primaryProtocol = primaryProtocolOf(cardType)
         val apps = cardAppsByCard[cardId].orEmpty()
         val ecSelect = apps.firstOrNull { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) }?.selectResp
         val primary = com.example.nfctransit.data.CardMetadataParser.parse(primaryProtocol, records, ecSelect)
@@ -1385,13 +1550,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     tuIssuer?.takeIf { protocol == "TU" }?.takeLast(4)?.let { it to "TU" },
                     metadata.issuer?.takeIf { protocol == "LNT" }?.takeLast(4)?.let { it to "LNT" }
                 ),
-                metadata = metadata.copy(issuer = issuer)
+                metadata = metadata.copy(issuer = issuer),
+                balance = apps.firstOrNull {
+                    it.balanceFen != null && CardProfiles.protocolForAid(it.selectedAid) == protocol
+                }?.balanceFen?.let { "${CardProfiles.currencySymbol(protocol)}${String.format(Locale.getDefault(), "%.2f", it / 100.0)}" }
             )
         }
 
+        // 联名卡上的八达通（主卡型为 ISO 侧时作附加应用；卡号 = IDm）
+        val octopus = apps.firstOrNull { it.selectedAid == OctopusReader.SYSTEM_CODE }
+            ?.takeIf { primaryProtocol != CardProfiles.OCTOPUS.cardType }
+            ?.let { appInfo(CardProfiles.OCTOPUS.cardType, ApplicationMetadata(), OctopusReader.idmFromPolling(it.selectResp)) }
         val applications = listOfNotNull(
             appInfo(primaryProtocol, primary, card.cardNumber),
-            second?.let { appInfo("TU", it, tuCardNumber) }
+            second?.let { appInfo("TU", it, tuCardNumber) },
+            octopus
         )
         // 卡上全部可用应用：主应用在前，其余按应用快照/原始记录出现顺序；PSE 等目录不计入。
         val appProtocols = (listOf(primaryProtocol) +
@@ -1412,6 +1585,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "SZT" -> "深圳通"
         "CU" -> "数字城市一卡通"
         "MPASS" -> "澳门通"
+        "OCTOPUS" -> "八达通"
         "TU" -> L10n.str(R.string.standard_tunion)
         else -> null
     }
@@ -1434,13 +1608,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCityDiscounts.value = buildCityDiscountUis(cardId, txns)
         _filteredTransactions.value = filterTransactions(txns, _currentFilter.value ?: emptySet(), _searchQuery.value ?: "")
         _nfcLog.value = currentSessionNfcLog
+        resolveStatsCurrency(cardId, cardType, txns)
         emitStats(txns)
-        // 首页迷你图固定用"本周"视图（周一~周日），与统计页默认周期保持一致。
-        // 先按本周窗口过滤交易，柱高归一化到本周最大值（与统计页周视图一致）；
-        // 若直接用全量交易，历史最高消费日会拉大分母，本周柱整体偏矮
-        val (weekStart, weekEnd) = periodWindow("本周", 0)
-        _homeWeeklySpending.value =
-            computeDailySpending(txns.filter { it.date in weekStart..weekEnd }, "本周", weekStart, weekEnd)
+        emitHomeWeekly(txns)
     }
 
     /**
@@ -1493,10 +1663,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         _topStations.value = computeTopStations(periodTxns)
         _topLines.value = computeTopLines(periodTxns)
-        _dailySpending.value = computeDailySpending(periodTxns, currentPeriod, start, end)
-        _categorySpending.value = computeCategorySpending(periodTxns)
-        _citySpending.value = computeCitySpending(periodTxns)
-        _statsSummary.value = computeStatsSummary(periodTxns, start, end)
+        // 金额类统计只统计所选币种；次数/排行不涉及金额，仍用全部交易
+        val currency = _statsCurrency.value ?: "¥"
+        val moneyTxns = periodTxns.filter { it.currency == currency }
+        _dailySpending.value = computeDailySpending(moneyTxns, currentPeriod, start, end).map { it.copy(currency = currency) }
+        _categorySpending.value = computeCategorySpending(moneyTxns).map { it.copy(currency = currency) }
+        _citySpending.value = computeCitySpending(moneyTxns).map { it.copy(currency = currency) }
+        _statsSummary.value = computeStatsSummary(moneyTxns, start, end).copy(
+            rideCount = periodTxns.count { (it.transitType == "地铁" || it.transitType == "公交") && it.amountYuan > 0 },
+            currency = currency
+        )
     }
 
     /** 展示层合并（identity + 时间/金额/终端号/类型），内容不同但同一笔跨应用交易也只显示一条。 */
@@ -1576,6 +1752,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         secondCardNumber: String
     ): String {
         if (profile.cardType == CardProfiles.UNKNOWN.cardType) return L10n.str(R.string.card_unknown_name)
+        // 八达通卡号为 IDm，不能按 IIN 前缀匹配卡名
+        if (profile.cardType == CardProfiles.OCTOPUS.cardType) return "八达通"
         sequenceOf(cardNumber, secondCardNumber)
             .filter { it.isNotEmpty() }
             .mapNotNull(TransitData::cardName)
@@ -1637,6 +1815,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _categorySpending.value = emptyList()
             _citySpending.value = emptyList()
             _homeWeeklySpending.value = emptyList()
+            _homeWeekTotals.value = emptyMap()
             _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         } else {
             selectCardByIndex(index.coerceAtMost(updated.size - 1))
@@ -1930,3 +2109,10 @@ internal fun computeTopStationsForStats(uiTxns: List<UiTransaction>): List<Stati
         .take(5)
         .map { StationStat(it.key.second, it.value, it.value.toFloat() / max, it.key.first) }
 }
+
+/** 可能与八达通同卡（联名卡）的 ISO 侧卡型：读完后再短暂轮询 FeliCa。 */
+private val OCTOPUS_COMBO_ISO_TYPES = setOf("TU", "SZT")
+/** 联名卡第二阶段只轮询另一种技术的时长；普通 TU/深圳通卡读完后最多多等这么久才保存。 */
+private const val COMBO_WINDOW_MS = 1200L
+/** 恢复全技术轮询后屏蔽本次已读标签的时长。 */
+private const val COMBO_SUPPRESS_MS = 3000L

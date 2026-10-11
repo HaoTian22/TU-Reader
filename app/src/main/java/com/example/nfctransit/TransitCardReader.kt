@@ -823,7 +823,8 @@ class TransitCardReader internal constructor(
             if (!ApduUtil.isSuccess(resp)) return BalanceResult(0L, null)
             val data = ApduUtil.dataOnly(resp)
             if (data.size != 4) return BalanceResult(0L, null)
-            val fen = ApduUtil.parseEpBalance(data) * CardProfiles.centsPerUnit(profile.cardType)
+            val fen = ApduUtil.parseEpBalance(data) * CardProfiles.centsPerUnit(profile.cardType) -
+                CardProfiles.balanceReserveCents(profile.cardType)
             BalanceResult(fen, ApduUtil.bytesToHex(data))
         } catch (e: Exception) {
             log.add("BALANCE CHECK 异常: ${e.message}")

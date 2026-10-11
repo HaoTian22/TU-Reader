@@ -142,6 +142,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             panel.addView(row.root)
         }
         add(getString(R.string.card_info_number), info.cardNumber, monospace = true)
+        add(getString(R.string.label_current_balance), info.balance)
         add(getString(R.string.card_info_issuer_city), info.issuerCity)
         add(getString(R.string.card_info_issuer), app.issuer)
         add(getString(R.string.card_info_issue_date), app.issueDate)
@@ -197,6 +198,16 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         updateHeroSubtitle(card)
         binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
         bindCardType(card)
+        val wallets = viewModel.walletBalances(card.id)
+        val multi = wallets.size > 1
+        binding.tvBalance.visibility = if (multi) View.GONE else View.VISIBLE
+        binding.balanceRow.visibility = if (multi) View.VISIBLE else View.GONE
+        if (multi) WalletBalanceViews.fillColumns(
+            binding.balanceRow, wallets,
+            labelColor = binding.tvBalanceLabel.currentTextColor, amountColor = binding.tvBalance.currentTextColor,
+            symbolColor = binding.tvBalanceLabel.currentTextColor,
+            dividerColor = androidx.core.graphics.ColorUtils.setAlphaComponent(binding.tvBalanceLabel.currentTextColor, 0x40)
+        )
         binding.tvBalance.text = card.balanceFen?.let { "${CardProfiles.currencySymbol(card.protocolType)}${String.format(Locale.getDefault(), "%.2f", it / 100.0)}" } ?: "—"
         binding.tvLastRead.text = getString(R.string.last_read_format, TimeLabels.absolute(card.lastReadAt))
         binding.heroCardFace.background = cardGradient(card, dpToPx(6))

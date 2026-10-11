@@ -278,7 +278,7 @@
     <string name="db_err_read_only">Only read-only queries are allowed</string>
 
     <!-- Card reading -->
-    <string name="nfc_no_isodep">This card doesn\'t support ISO-DEP</string>
+    <string name="nfc_no_isodep">This card supports neither ISO-DEP nor FeliCa</string>
     <string name="nfc_interrupted">Read interrupted. Remove the card and retry.</string>
     <string name="nfc_unsupported_card">Card type not supported</string>
     <string name="nfc_saving">Read done. Remove the card, saving…</string>
@@ -358,7 +358,7 @@
         <item quantity="one">%d transaction</item>
         <item quantity="other">%d transactions</item>
     </plurals>
-    <string name="txn_day_spend">Spent ¥%s</string>
+    <string name="txn_day_spend">Spent %s</string>
     <string name="time_today">Today</string>
     <string name="time_yesterday">Yesterday</string>
     <string name="time_today_at">today %s</string>
@@ -385,7 +385,7 @@
     <string name="discount_threshold_first">Spend ¥%1$d this month for %2$s off · ¥%3$s to go</string>
     <string name="discount_threshold_next">%1$s off now · %3$s off above ¥%2$d, ¥%4$s to go</string>
     <string name="discount_threshold_max">Over ¥%1$d: %2$s off the excess</string>
-    <string name="week_total">Total ¥%s</string>
+    <string name="week_total">Total %s</string>
     <string name="delete_card">Delete card</string>
     <string name="delete_card_message"><b>Deletes:</b> this card and its transactions\n\n<b>This can\'t be undone.</b></string>
 
@@ -501,4 +501,5 @@
     <string name="card_kind_test">Test</string>
     <string name="card_kind_military">Military</string>
     <string name="card_unknown_name">Unknown Card</string>
+    <string name="nfc_combo_probing">Checking for Octopus / other wallets on this card… keep it in place</string>
 </resources>

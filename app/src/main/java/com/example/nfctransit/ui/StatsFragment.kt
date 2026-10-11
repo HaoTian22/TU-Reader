@@ -112,11 +112,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         viewModel.statsSummary.observe(viewLifecycleOwner) { summary ->
             binding.cardSummary.sumTotalSpending.text =
-                "¥${String.format("%.2f", summary.totalSpendingYuan)}"
+                "${summary.currency}${String.format("%.2f", summary.totalSpendingYuan)}"
             binding.cardSummary.sumRideCount.text =
                 resources.getQuantityString(R.plurals.rides_count, summary.rideCount, summary.rideCount)
             binding.cardSummary.sumAvgDaily.text =
-                "¥${String.format("%.2f", summary.avgDailyYuan)}"
+                "${summary.currency}${String.format("%.2f", summary.avgDailyYuan)}"
         }
 
         viewModel.topStations.observe(viewLifecycleOwner) { stations ->
@@ -131,12 +131,44 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             bindBarChart(daily)
         }
 
+        // 多币种卡：币种切换胶囊（金额类统计只统计所选币种）
+        viewModel.statsCurrencies.observe(viewLifecycleOwner) { bindCurrencyChips() }
+        viewModel.statsCurrency.observe(viewLifecycleOwner) { bindCurrencyChips() }
+
         viewModel.categorySpending.observe(viewLifecycleOwner) { items ->
             bindDonutChart(binding.cardCategories.donutChart, binding.cardCategories.categoryLegend, items, TransitLabels::type)
         }
 
         viewModel.citySpending.observe(viewLifecycleOwner) { items ->
             bindDonutChart(binding.cardCities.donutChart, binding.cardCities.cityLegend, items, TransitLabels::city)
+        }
+    }
+
+    private fun bindCurrencyChips() {
+        val row = binding.currencyRow
+        val currencies = viewModel.statsCurrencies.value.orEmpty()
+        row.removeAllViews()
+        row.visibility = if (currencies.size > 1) View.VISIBLE else View.GONE
+        if (currencies.size <= 1) return
+        val selected = viewModel.statsCurrency.value
+        currencies.forEachIndexed { i, currency ->
+            row.addView(TextView(requireContext(), null, 0, R.style.StatsPeriodChip).apply {
+                text = currency.trim()
+                if (currency == selected) {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dpToPx(999).toFloat()
+                        setColor(accentColor)
+                    }
+                    setTextColor(0xFFFFFFFF.toInt())
+                    typeface = Typeface.DEFAULT_BOLD
+                } else {
+                    setBackgroundResource(R.drawable.bg_chip_default)
+                    setTextColor(Palette.INK_2)
+                }
+                setOnClickListener { viewModel.setStatsCurrency(currency) }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                if (i > 0) marginStart = dpToPx(8)
+            })
         }
     }
 
@@ -397,7 +429,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         label: (String) -> String
     ) {
         val total = items.sumOf { it.amountYuan }
-        donut.setSegments(items, "¥${String.format("%.2f", total)}")
+        donut.setSegments(items, "${items.firstOrNull()?.currency ?: viewModel.statsCurrency.value ?: "¥"}${String.format("%.2f", total)}")
         bindSpendingLegend(legend, items, label)
     }
 
@@ -442,7 +474,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
 
             val amount = TextView(requireContext()).apply {
-                text = "¥${String.format("%.2f", item.amountYuan)}"
+                text = "${item.currency}${String.format("%.2f", item.amountYuan)}"
                 textSize = 13f
                 setTextColor(Palette.INK)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)

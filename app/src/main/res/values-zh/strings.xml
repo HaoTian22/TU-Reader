@@ -273,7 +273,7 @@
     <string name="db_err_read_only">只允许执行只读查询</string>
 
     <!-- Card reading -->
-    <string name="nfc_no_isodep">该卡不支持 ISO-DEP</string>
+    <string name="nfc_no_isodep">该卡既不支持 ISO-DEP 也不是 FeliCa</string>
     <string name="nfc_interrupted">读取中断，请移开卡片重试</string>
     <string name="nfc_unsupported_card">不支持的卡种</string>
     <string name="nfc_saving">读取完成，可移开卡片，保存中…</string>
@@ -346,7 +346,7 @@
     <plurals name="txn_day_count">
         <item quantity="other">%d 笔</item>
     </plurals>
-    <string name="txn_day_spend">支出 ¥%s</string>
+    <string name="txn_day_spend">支出 %s</string>
     <string name="time_today">今天</string>
     <string name="time_yesterday">昨天</string>
     <string name="time_today_at">今天 %s</string>
@@ -371,7 +371,7 @@
     <string name="discount_threshold_first">当月消费满 ¥%1$d 享 %2$s 折 · 还差 ¥%3$s</string>
     <string name="discount_threshold_next">已享 %1$s 折 · 超 ¥%2$d 部分享 %3$s 折，还差 ¥%4$s</string>
     <string name="discount_threshold_max">已超 ¥%1$d，超出部分享 %2$s 折</string>
-    <string name="week_total">合计 ¥%s</string>
+    <string name="week_total">合计 %s</string>
     <string name="delete_card">删除卡片</string>
     <string name="delete_card_message"><b>删除：</b>此卡及其全部交易\n\n<b>此操作无法撤销。</b></string>
 
@@ -486,4 +486,5 @@
     <string name="card_kind_test">测试卡</string>
     <string name="card_kind_military">军人卡</string>
     <string name="card_unknown_name">未知卡片</string>
+    <string name="nfc_combo_probing">正在检测联名卡的其他钱包，请保持贴卡…</string>
 </resources>

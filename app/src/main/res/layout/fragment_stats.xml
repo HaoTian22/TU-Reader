@@ -98,6 +98,18 @@
                 android:text="@string/period_custom" />
         </LinearLayout>
 
+        <!-- 多币种卡的统计币种切换（澳门通/八达通 + TU）：胶囊由代码生成，单币种时隐藏 -->
+        <LinearLayout
+            android:id="@+id/currencyRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/paper"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="12dp"
+            android:visibility="gone" />
+
         <!-- 周期导航（固定在顶部，作用于下方全部统计）：上一期 | 日期范围（+ 回到当前） | 下一期；自定义周期下隐藏 -->
         <LinearLayout
             android:id="@+id/periodNavRow"

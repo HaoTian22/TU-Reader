@@ -52,13 +52,32 @@ object CardProfiles {
      * 卡内金额单位 → 应用内部「分」（1/100 主币种单位）的倍率。
      * 澳门通余额/交易金额以 0.1 MOP 为单位（0x1E = MOP 3.0 巴士车费），其余卡种卡内即为分。
      */
-    fun centsPerUnit(protocol: String): Long = if (protocol == "MPASS") 10L else 1L
+    /** 卡内余额中不可用的预留部分（分）：澳门通含 MOP 10.0 备用金，显示余额需扣除。 */
+    fun balanceReserveCents(protocol: String): Long = if (protocol == "MPASS") 1000L else 0L
 
-    /** 金额币种符号：澳门通钱包为澳门元，其余（含澳门通联名卡上的 TU 钱包）为人民币。 */
-    fun currencySymbol(protocol: String?): String = if (protocol == "MPASS") "MOP " else "¥"
+    fun centsPerUnit(protocol: String): Long = if (protocol == "MPASS" || protocol == "OCTOPUS") 10L else 1L
+
+    /** 金额币种符号：澳门通为澳门元、八达通为港元，其余（含澳门通联名卡上的 TU 钱包）为人民币。 */
+    fun currencySymbol(protocol: String?): String = when (protocol) {
+        "MPASS" -> "MOP "
+        "OCTOPUS" -> "HK$"
+        else -> "¥"
+    }
+
+    /**
+     * 八达通（FeliCa，非 ISO-DEP）：由 [OctopusReader] 经 NfcF 读取，不在 [known] 中参与 AID 识别。
+     * aidCandidates 存 FeliCa 系统码，仅用于 raw_records/card_app 的 selected_aid 定位应用。
+     */
+    val OCTOPUS = CardProfile(
+        name = "八达通 (Octopus)",
+        aidCandidates = listOf("8008"),
+        infoSfi = 0x15,
+        tradeSfi = 0x18,
+        cardType = "OCTOPUS"
+    )
 
     /** 仅用于运行时解码，raw_records 使用实际 AID 定位应用。 */
-    fun protocolForAid(aid: String): String = known.firstOrNull { profile ->
+    fun protocolForAid(aid: String): String = (known + OCTOPUS).firstOrNull { profile ->
         profile.aidCandidates.any { it.equals(aid, ignoreCase = true) }
     }?.cardType?.let { if (it == "YCT") "LNT" else it }.orEmpty()
 

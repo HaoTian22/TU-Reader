@@ -190,6 +190,9 @@ object RawHexFormatter {
                 FieldSpec("Reserved", 28, 30, "hex", SELECT_UNKNOWN)
             )
         }
+        if (sfi == 0x0117 && protocol == "OCTOPUS" && size >= 4) {
+            return listOf(FieldSpec("Balance + 500 (0.1 HKD)", 0, 4, "hex", BALANCE))
+        }
         if (sfi == 0x15 && protocol == "MPASS" && size >= 28) {
             return listOf(
                 FieldSpec("Issuer Code", 0, 8, "hex", INSTITUTION),

@@ -29,6 +29,7 @@ import com.example.nfctransit.model.TransitDirection
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.amountLabel
+import com.example.nfctransit.model.formatCurrencyTotals
 import com.example.nfctransit.util.AppLanguage
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -170,6 +171,16 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         }
         binding.tvBalanceLabel.setText(R.string.label_current_balance)
         binding.tvBalanceLabel.setTextColor(onCardAlpha(0xCC))
+        // 多币种联名卡：各钱包并排等同展示，替代单个大余额
+        val wallets = viewModel.walletBalances(card.id)
+        val multi = wallets.size > 1
+        binding.tvBalance.visibility = if (multi) View.GONE else View.VISIBLE
+        binding.balanceRow.visibility = if (multi) View.VISIBLE else View.GONE
+        if (multi) WalletBalanceViews.fillColumns(
+            binding.balanceRow, wallets,
+            labelColor = onCardAlpha(0xCC), amountColor = onCard,
+            symbolColor = onCardAlpha(0xB3), dividerColor = onCardAlpha(0x40)
+        )
         val currency = CardProfiles.currencySymbol(card.protocolType)
         val symbolLength = if (card.balanceFen == null) 1 else currency.length
         binding.tvBalance.text = SpannableStringBuilder(card.balanceFen?.let { "$currency${String.format("%.2f", it / 100.0)}" } ?: "—").apply {
@@ -356,8 +367,9 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         val week = data.take(7)
         if (week.isEmpty()) return
 
-        val total = week.sumOf { it.amountYuan }
-        binding.tvWeekTotal.text = getString(R.string.week_total, String.format("%.2f", total))
+        binding.tvWeekTotal.text = getString(R.string.week_total,
+            viewModel.homeWeekTotals.value.orEmpty().formatCurrencyTotals()
+                .ifEmpty { "${week.first().currency}0.00" })
 
         val maxBar = 84f.dpToPx()
         val lightAccent = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.45f)

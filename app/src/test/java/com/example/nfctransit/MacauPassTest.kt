@@ -41,7 +41,7 @@ class MacauPassTest {
         assertEquals("MPASS", result.matchedProfile?.cardType)
         assertEquals("F6305140", result.cardInfo?.cardNumber)
         assertEquals("20460722", result.cardInfo?.validTo)
-        assertEquals(1800L, result.balanceFen)  // 0xB4 = 180 × 0.1 MOP = MOP 18.00
+        assertEquals(800L, result.balanceFen)  // 0xB4 = 180 × 0.1 MOP = MOP 18.00，扣 MOP 10.0 备用金 = MOP 8.00
 
         val records = RecordDecoder.transactionRecords("MPASS", result.rawRecords)
         assertTrue(records.all { it.protocol == "MPASS" })

@@ -143,6 +143,9 @@ class MainActivity : AppCompatActivity() {
      * （首页 → 卡A → 交易A → 卡B），返回按栈逐级回到原来的页面。
      */
     private fun observeCardRead(navHost: NavHostFragment) {
+        viewModel.readerTech.observe(this) { tech ->
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) enableReaderMode(tech)
+        }
         viewModel.cardAdded.observe(this) { event ->
             if (event == null) return@observe
             val nav = navHost.navController
@@ -196,15 +199,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        enableReaderMode(viewModel.readerTech.value ?: MainViewModel.ReaderTech.ALL)
+    }
+
+    /** 联名卡两阶段读取时只轮询另一种技术（见 MainViewModel.ReaderTech）。 */
+    private fun enableReaderMode(tech: MainViewModel.ReaderTech) {
         nfcAdapter?.let { adapter ->
+            val techFlags = when (tech) {
+                MainViewModel.ReaderTech.ALL ->
+                    NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or NfcAdapter.FLAG_READER_NFC_F
+                MainViewModel.ReaderTech.ISO_ONLY -> NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B
+                MainViewModel.ReaderTech.FELICA_ONLY -> NfcAdapter.FLAG_READER_NFC_F
+            }
             adapter.enableReaderMode(
                 this,
                 { tag -> viewModel.onNfcTagDiscovered(tag) },
-                NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
-                    NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                techFlags or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
                 Bundle().apply { putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250) }
             )
-            android.util.Log.d("TransitReader", "Reader mode enabled")
+            android.util.Log.d("TransitReader", "Reader mode enabled: $tech")
         }
     }
 

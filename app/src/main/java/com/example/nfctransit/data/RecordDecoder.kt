@@ -32,7 +32,8 @@ object RecordDecoder {
 
     /** EC recNo=0 retains GET DATA log format, rather than a transaction. */
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
-        if (cardType == CardProfiles.UNKNOWN.cardType) return emptyList()
+        // 未知卡只有原始数据；八达通交易记录加密不可读，卡内仅余额块
+        if (cardType == CardProfiles.UNKNOWN.cardType || cardType == CardProfiles.OCTOPUS.cardType) return emptyList()
         val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
         val formats = records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
             .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }

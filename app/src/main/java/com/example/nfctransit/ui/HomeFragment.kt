@@ -228,8 +228,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var walletRendered = false
 
     private fun renderWallet(cards: List<UiCard>) {
-        // 总余额只合计人民币钱包；澳门通等外币卡余额仅在各自卡面显示
-        val totalFen = cards.filter { CardProfiles.currencySymbol(it.protocolType) == "¥" }.sumOf { it.balanceFen ?: 0L }
+        // 总余额合计各卡上的人民币钱包（含澳门通/八达通联名卡上的 TU 钱包）；外币余额只在各自卡面显示
+        val totalFen = cards.sumOf { card ->
+            viewModel.walletBalances(card.id).filter { CardProfiles.currencySymbol(it.protocol) == "¥" }.sumOf { it.balanceFen }
+        }
         binding.tvTotalBalance.text = "¥${String.format("%.2f", totalFen / 100.0)}"
         binding.tvCardCount.text = resources.getQuantityString(R.plurals.home_card_count, cards.size, cards.size)
 
@@ -306,11 +308,24 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             setPadding(0, 3.dpToPx(), 0, 0)
         })
         titleRow.addView(titleCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        // 多币种联名卡：各钱包余额上下等大并列（币种符号区分），不分主次
+        val wallets = viewModel.walletBalances(card.id)
         titleRow.addView(TextView(ctx).apply {
-            text = if (card.balanceFen == null) "—" else balanceText(card.balanceYuan, CardProfiles.currencySymbol(card.protocolType))
+            text = when {
+                wallets.size > 1 -> SpannableStringBuilder().apply {
+                    wallets.forEachIndexed { i, wallet ->
+                        if (i > 0) append("\n")
+                        append(WalletBalanceViews.amountText(wallet, amountSp = 20, symbolSp = 12))
+                    }
+                }
+                card.balanceFen == null -> "—"
+                else -> balanceText(card.balanceYuan, CardProfiles.currencySymbol(card.protocolType))
+            }
+            gravity = Gravity.END
             setTextColor(onCard)
             typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false
+            if (wallets.size > 1) setLineSpacing(3f * resources.displayMetrics.density, 1f)
         })
         face.addView(titleRow, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP

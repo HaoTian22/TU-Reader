@@ -22,6 +22,12 @@ data class UiCard(
     val balanceYuan: Double get() = (balanceFen ?: 0L) / 100.0
 }
 
+/** 卡上一个钱包的余额（多钱包卡：澳门通/八达通 + TU 等）；label 为应用名，不翻译卡名 */
+data class WalletBalance(val protocol: String, val label: String, val balanceFen: Long) {
+    val text: String get() = com.example.nfctransit.CardProfiles.currencySymbol(protocol) +
+        String.format(java.util.Locale.getDefault(), "%.2f", balanceFen / 100.0)
+}
+
 data class UiCardMetadata(
     /** 主应用（无则首个有城市的应用）的发卡城市，仅首页/头部摘要使用 */
     val issuerCity: String? = null,
@@ -37,7 +43,9 @@ data class UiApplicationInfo(
     val name: String?,
     val cardNumber: String?,
     val issuerCity: String?,
-    val metadata: com.example.nfctransit.data.ApplicationMetadata
+    val metadata: com.example.nfctransit.data.ApplicationMetadata,
+    /** 该应用最近一次读到的余额（含币种），如联名卡的八达通 / TU 钱包 */
+    val balance: String? = null
 )
 
 data class UiTransaction(
@@ -100,22 +108,42 @@ data class DailySpending(
     val isToday: Boolean = false,
     val date: String = "",         // "yyyy-MM-dd"，用于柱点击弹窗与日期范围显示
     val isMonth: Boolean = false,  // 柱代表整月（年视图 / 长自定义范围）
-    val compactLabel: String = dayLabel  // 稠密视图（整月 30+ 列）用的短标签
+    val compactLabel: String = dayLabel,  // 稠密视图（整月 30+ 列）用的短标签
+    val currency: String = "¥"     // 统计币种符号（多币种卡按所选币种统计）
 )
 
 data class CategorySpending(
     val name: String,          // "地铁" / "公交" / "消费" ...
     val amountYuan: Double,
     val percent: Float,        // 占总支出的比例 (0..1)
-    val color: Int
+    val color: Int,
+    val currency: String = "¥"
 )
 
 /** 柱状图金额标签：3.0 -> ¥3，5.50 -> ¥5.5，5.55 -> ¥5.55（去掉多余的 ".00"） */
 fun DailySpending.amountLabel(): String =
-    "¥" + String.format("%.2f", amountYuan).trimEnd('0').trimEnd('.')
+    currency + String.format("%.2f", amountYuan).trimEnd('0').trimEnd('.')
 
 data class StatsSummary(
     val totalSpendingYuan: Double,
     val rideCount: Int,
-    val avgDailyYuan: Double
+    val avgDailyYuan: Double,
+    val currency: String = "¥"
 )
+
+/** 交易金额币种（按来源钱包协议：澳门通 MOP、八达通 HK$，其余 ¥）。 */
+val UiTransaction.currency: String get() = com.example.nfctransit.CardProfiles.currencySymbol(protocol)
+
+/** 计入消费的交易（与统计口径一致：原生充值 "+" 不计）。 */
+val UiTransaction.isSpending: Boolean get() = !amountText.startsWith("+") && amountYuan > 0
+
+/** 按币种分别合计消费（不同币种不能相加），保持首次出现顺序。 */
+fun List<UiTransaction>.spendingByCurrency(): Map<String, Double> {
+    val out = linkedMapOf<String, Double>()
+    for (t in this) if (t.isSpending) out[t.currency] = (out[t.currency] ?: 0.0) + t.amountYuan
+    return out
+}
+
+/** "MOP 13.00 · ¥5.00"；无消费返回空串。 */
+fun Map<String, Double>.formatCurrencyTotals(): String =
+    entries.joinToString(" · ") { (currency, amount) -> currency + String.format("%.2f", amount) }

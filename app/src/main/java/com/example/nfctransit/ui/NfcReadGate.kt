@@ -6,11 +6,23 @@ internal class NfcReadGate {
     private var lastTag: String? = null
     private var finishedAt: Long? = null
 
+    private var suppressedTags: Set<String> = emptySet()
+    private var suppressedUntil = 0L
+
+    /** 在 [untilMs] 之前忽略这些标签（联名卡读完后恢复全技术轮询时的重复发现）。 */
     @Synchronized
-    fun tryBegin(tagId: String, nowMs: Long): Boolean {
+    fun suppress(tagIds: Set<String>, untilMs: Long) {
+        suppressedTags = tagIds
+        suppressedUntil = untilMs
+    }
+
+    /** @param ignoreCooldown 联名卡第二阶段：另一接口的发现紧随第一阶段，不受冷却限制 */
+    @Synchronized
+    fun tryBegin(tagId: String, nowMs: Long, ignoreCooldown: Boolean = false): Boolean {
         if (activeTag != null) return false
+        if (tagId in suppressedTags && nowMs < suppressedUntil) return false
         val elapsed = finishedAt?.let { nowMs - it }
-        if (elapsed != null && (elapsed < 300 || (lastTag == tagId && elapsed < 1500))) {
+        if (!ignoreCooldown && elapsed != null && (elapsed < 300 || (lastTag == tagId && elapsed < 1500))) {
             return false
         }
         activeTag = tagId
