@@ -85,9 +85,12 @@
 
     <!-- Database query -->
     <string name="db_query_title">查看数据库</string>
-    <string name="db_query_instructions">请复制以下 prompt 给 AI，并在最后写出你的需求</string>
-    <string name="db_query_no_sql">尚未粘贴 SQL</string>
+    <string name="db_query_instructions">复制给 AI，并在末尾写出你的需求</string>
+    <string name="db_query_no_sql">点按粘贴 SQL</string>
     <string name="db_query_results_placeholder">运行 SQL 后在此显示结果</string>
+    <string name="db_section_prompt">AI 提示词</string>
+    <string name="db_section_sql">SQL</string>
+    <string name="db_section_results">查询结果</string>
     <string name="sql_input_title">粘贴 SQL 查询</string>
     <string name="sql_input_hint">在这里粘贴 AI 生成的 SELECT SQL</string>
 
@@ -254,7 +257,7 @@
     <string name="db_user_data">用户数据数据库</string>
     <string name="db_transit">站名映射数据库</string>
     <string name="db_prompt_copied">Prompt 已复制</string>
-    <string name="db_paste_first">请先点击“粘贴”输入 SQL</string>
+    <string name="db_paste_first">请先点按 SQL 框粘贴查询</string>
     <string name="db_querying">正在查询…</string>
     <string name="db_result_truncated">（结果较大，仅显示部分内容）</string>
     <plurals name="db_query_done">

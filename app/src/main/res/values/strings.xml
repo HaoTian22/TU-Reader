@@ -89,9 +89,12 @@
 
     <!-- Database query -->
     <string name="db_query_title">Browse database</string>
-    <string name="db_query_instructions">Copy the prompt below to an AI assistant and describe what you need at the end</string>
-    <string name="db_query_no_sql">No SQL pasted yet</string>
+    <string name="db_query_instructions">Copy to an AI assistant, then add what you need</string>
+    <string name="db_query_no_sql">Tap to paste SQL</string>
     <string name="db_query_results_placeholder">Results appear here after you run SQL</string>
+    <string name="db_section_prompt">AI prompt</string>
+    <string name="db_section_sql">SQL</string>
+    <string name="db_section_results">Results</string>
     <string name="sql_input_title">Paste SQL query</string>
     <string name="sql_input_hint">Paste the AI-generated SELECT SQL here</string>
 
@@ -258,7 +261,7 @@
     <string name="db_user_data">User data database</string>
     <string name="db_transit">Station mapping database</string>
     <string name="db_prompt_copied">Prompt copied</string>
-    <string name="db_paste_first">Tap “Paste” to enter SQL first</string>
+    <string name="db_paste_first">Tap the SQL box to paste a query first</string>
     <string name="db_querying">Running query…</string>
     <string name="db_result_truncated">" (large result, partially shown)"</string>
     <plurals name="db_query_done">

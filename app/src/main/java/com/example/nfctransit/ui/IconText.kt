@@ -21,7 +21,7 @@ fun TextView.setIconLabel(iconFont: Typeface, glyph: String, label: CharSequence
     typeface = Typeface.DEFAULT_BOLD
 }
 
-private class IconFontSpan(private val font: Typeface) : MetricAffectingSpan() {
+internal class IconFontSpan(private val font: Typeface) : MetricAffectingSpan() {
     override fun updateDrawState(paint: TextPaint) = apply(paint)
     override fun updateMeasureState(paint: TextPaint) = apply(paint)
     private fun apply(paint: Paint) {

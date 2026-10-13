@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 数据库查询页顶部卡片行间分隔线（两侧各缩进 12dp） -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="12dp"
+    android:insetRight="12dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/line" />
+        <size android:height="1px" />
+    </shape>
+</inset>

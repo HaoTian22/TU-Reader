@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 弹窗内多行输入框：浅灰 12dp 圆角块（胶囊形在多行时会变成椭圆） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/fill" />
+    <corners android:radius="12dp" />
+</shape>

@@ -7,9 +7,13 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -18,6 +22,7 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.TableRow
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -51,6 +56,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
     private lateinit var databaseSpec: DatabaseQuerySpec
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
     private var accentColor = Palette.ACCENT
+    private var faTypeface: Typeface? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -70,18 +76,32 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         }
         databaseSpec = spec
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
-        // 主题色跟随卡片：返回、复制/粘贴、运行按钮、SQL 弹窗确认与结果表头
+        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
+        faTypeface = fa
+        binding.btnCopyPrompt.setIconLabel(fa, "\uF0C5", getString(R.string.action_copy)) // fa-copy
+        binding.btnRunSql.setIconLabel(fa, "\uF04B", getString(R.string.action_run))      // fa-play
+        binding.iconPrompt.typeface = fa
+        binding.iconPrompt.text = "\uF544" // fa-robot
+        binding.tvResultsEmptyIcon.typeface = fa
+        // 圆角卡片裁切结果表格，表头底色不越过圆角
+        binding.resultsCard.clipToOutline = true
+        // 主题色跟随卡片：返回、提示词图标、复制、运行按钮、SQL 弹窗确认
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
             binding.btnBack.setTextColor(accentColor)
+            binding.iconPrompt.setTextColor(accentColor)
             binding.btnCopyPrompt.setTextColor(accentColor)
-            binding.btnPasteSql.setTextColor(accentColor)
             binding.btnRunSql.backgroundTintList = ColorStateList.valueOf(accentColor)
         }
         binding.tvDatabaseTitle.setText(spec.displayNameRes)
         binding.tvPrompt.text = spec.prompt
+        // 完整提示词默认收起，点提示词行展开，把屏幕留给结果表格
+        updatePromptExpanded(false)
+        binding.rowPrompt.setOnClickListener {
+            updatePromptExpanded(binding.promptPanel.visibility != View.VISIBLE)
+        }
         binding.btnCopyPrompt.setOnClickListener { copyPrompt(spec.prompt) }
-        binding.btnPasteSql.setOnClickListener { showSqlDialog() }
+        binding.tvSqlPreview.setOnClickListener { showSqlDialog() }
         binding.btnRunSql.setOnClickListener { runQuery() }
         showEmptyResult(getString(R.string.db_query_results_placeholder))
 
@@ -112,7 +132,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE)
             as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("prompt", prompt))
-        showStatus(getString(R.string.db_prompt_copied))
+        Toast.makeText(requireContext(), R.string.db_prompt_copied, Toast.LENGTH_SHORT).show()
     }
 
     private fun showSqlDialog() {
@@ -139,7 +159,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             }
             queryRevision++
             queryJob?.cancel()
-            _binding?.btnRunSql?.isEnabled = true
+            setRunning(false)
             savedSql = dialogBinding.dialogSqlInput.text?.toString().orEmpty()
             sqlRevision++
             updateSqlPreview()
@@ -181,7 +201,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val preview = savedSql.trim().replace(Regex("\\s+"), " ")
         binding.tvSqlPreview.text = if (preview.isEmpty()) getString(R.string.db_query_no_sql) else preview
         binding.tvSqlPreview.setTextColor(
-            if (preview.isEmpty()) Palette.INK_3 else Palette.INK_2
+            if (preview.isEmpty()) Palette.INK_3 else Palette.INK
         )
     }
 
@@ -196,8 +216,8 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         queryJob?.cancel()
         val appContext = requireContext().applicationContext
         val spec = databaseSpec
-        binding.btnRunSql.isEnabled = false
-        binding.tvResultsEmpty.visibility = View.GONE
+        setRunning(true)
+        binding.resultsEmpty.visibility = View.GONE
         showStatus(getString(R.string.db_querying))
         queryJob = viewLifecycleOwner.lifecycleScope.launch {
             val cancellationSignal = CancellationSignal()
@@ -220,15 +240,23 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
                 showStatus(resources.getQuantityString(R.plurals.db_query_done, result.rows.size, result.rows.size) + suffix)
             } catch (e: CancellationException) {
                 if (timedOut && generation == queryRevision && _binding != null) {
-                    showEmptyResult(getString(R.string.db_query_timeout))
-                    showStatus(getString(R.string.db_query_timeout_detail), error = true)
+                    showEmptyResult(
+                        getString(R.string.db_query_timeout),
+                        getString(R.string.db_query_timeout_detail),
+                        error = true
+                    )
+                    showStatus(getString(R.string.db_query_timeout), error = true)
                 } else {
                     throw e
                 }
             } catch (e: Exception) {
                 if (timedOut && generation == queryRevision && _binding != null) {
-                    showEmptyResult(getString(R.string.db_query_timeout))
-                    showStatus(getString(R.string.db_query_timeout_detail), error = true)
+                    showEmptyResult(
+                        getString(R.string.db_query_timeout),
+                        getString(R.string.db_query_timeout_detail),
+                        error = true
+                    )
+                    showStatus(getString(R.string.db_query_timeout), error = true)
                     return@launch
                 }
                 if (coroutineContext[Job]?.isActive != true ||
@@ -236,14 +264,12 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
                 ) {
                     return@launch
                 }
-                showEmptyResult(getString(R.string.db_query_failed))
-                showStatus(e.message ?: getString(R.string.db_query_failed), error = true)
+                showEmptyResult(getString(R.string.db_query_failed), e.message, error = true)
+                showStatus(getString(R.string.db_query_failed), error = true)
             } finally {
                 timeoutJob.cancel()
                 cancellationHandle?.dispose()
-                if (generation == queryRevision) {
-                    _binding?.btnRunSql?.isEnabled = true
-                }
+                if (generation == queryRevision) setRunning(false)
             }
         }
     }
@@ -255,57 +281,86 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
             showEmptyResult(getString(R.string.db_no_columns))
             return
         }
-        table.addView(buildTableRow(result.columns, header = true, rowIndex = 0))
-        result.rows.forEachIndexed { index, row ->
-            table.addView(buildTableRow(row, header = false, rowIndex = index + 1))
+        table.addView(buildTableRow(result.columns, header = true))
+        result.rows.forEach { row ->
+            table.addView(buildTableRow(row, header = false))
         }
-        binding.tvResultsEmpty.visibility = if (result.rows.isEmpty()) View.VISIBLE else View.GONE
-        if (result.rows.isEmpty()) binding.tvResultsEmpty.setText(R.string.db_result_empty)
+        if (result.rows.isEmpty()) {
+            showEmptyState(getString(R.string.db_result_empty), null, error = false)
+        } else {
+            binding.resultsEmpty.visibility = View.GONE
+        }
     }
 
-    private fun buildTableRow(
-        values: List<String>,
-        header: Boolean,
-        rowIndex: Int
-    ): TableRow {
+    private fun buildTableRow(values: List<String>, header: Boolean): TableRow {
         return TableRow(requireContext()).apply {
             gravity = Gravity.TOP
-            values.forEach { value -> addView(buildTableCell(value, header, rowIndex)) }
+            values.forEach { value -> addView(buildTableCell(value, header)) }
         }
     }
 
-    private fun buildTableCell(value: String, header: Boolean, rowIndex: Int): TextView {
+    private fun buildTableCell(value: String, header: Boolean): TextView {
         val density = resources.displayMetrics.density
         return TextView(requireContext()).apply {
             text = value
-            textSize = if (header) 12f else 11f
-            typeface = if (header) Typeface.DEFAULT_BOLD else Typeface.MONOSPACE
-            setTextColor(if (header) Color.WHITE else Palette.INK_2)
+            textSize = 12f
+            typeface = if (header) Typeface.create("sans-serif-medium", Typeface.NORMAL) else Typeface.MONOSPACE
+            setTextColor(if (header) Palette.INK_3 else Palette.INK)
             gravity = Gravity.TOP or Gravity.START
-            setPadding((10 * density).toInt(), (8 * density).toInt(), (10 * density).toInt(), (8 * density).toInt())
-            minWidth = (96 * density).toInt()
+            setPadding((12 * density).toInt(), (10 * density).toInt(), (12 * density).toInt(), (10 * density).toInt())
+            minWidth = (88 * density).toInt()
+            maxWidth = (280 * density).toInt()
             setTextIsSelectable(true)
-            background = GradientDrawable().apply {
-                setColor(
-                    when {
-                        header -> accentColor
-                        rowIndex % 2 == 0 -> Color.WHITE
-                        else -> Palette.PAPER
-                    }
+            // 表头浅灰底、数据行白底；只画行底细分隔线，与设置/详情卡片的行分隔一致
+            background = LayerDrawable(
+                arrayOf(
+                    ColorDrawable(if (header) Palette.FILL else Palette.SURFACE),
+                    ColorDrawable(Palette.LINE)
                 )
-                setStroke((0.5f * density).toInt().coerceAtLeast(1), Palette.LINE)
+            ).apply {
+                setLayerGravity(1, Gravity.BOTTOM)
+                setLayerHeight(1, (0.5f * density).toInt().coerceAtLeast(1))
             }
             layoutParams = TableRow.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
     }
 
-    private fun showEmptyResult(message: String) {
+    private fun showEmptyResult(message: String, detail: String? = null, error: Boolean = false) {
         binding.resultsTable.removeAllViews()
+        showEmptyState(message, detail, error)
+    }
+
+    private fun showEmptyState(message: String, detail: String?, error: Boolean) {
+        val color = if (error) Palette.DANGER else Palette.INK_3
+        binding.resultsEmpty.visibility = View.VISIBLE
         binding.tvResultsEmpty.text = message
-        binding.tvResultsEmpty.visibility = View.VISIBLE
+        binding.tvResultsEmptyIcon.text = if (error) "\uF071" else "\uF0CE" // fa-triangle-exclamation / fa-table
+        binding.tvResultsEmptyIcon.setTextColor(color)
+        binding.tvResultsEmptyDetail.text = detail
+        binding.tvResultsEmptyDetail.setTextColor(color)
+        binding.tvResultsEmptyDetail.visibility = if (detail.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    private fun updatePromptExpanded(expanded: Boolean) {
+        binding.promptPanel.visibility = if (expanded) View.VISIBLE else View.GONE
+        val chevron = if (expanded) "" else "" // fa-chevron-up / fa-chevron-down
+        val title = getString(R.string.db_section_prompt)
+        binding.tvPromptTitle.text = SpannableString("$title  $chevron").apply {
+            val start = length - chevron.length
+            faTypeface?.let { setSpan(IconFontSpan(it), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            setSpan(RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(ForegroundColorSpan(Palette.INK_3), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun setRunning(running: Boolean) {
+        _binding?.btnRunSql?.apply {
+            isEnabled = !running
+            alpha = if (running) 0.5f else 1f
+        }
     }
 
     private fun showStatus(message: String, error: Boolean = false) {
