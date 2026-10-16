@@ -125,11 +125,33 @@
     <string name="txn_detail_info">交易信息</string>
     <string name="txn_detail_trip">行程</string>
     <string name="txn_detail_device">设备与协议</string>
-    <string name="txn_list_search_hint">搜索 时间/站点/类型/城市/金额/协议…</string>
+    <string name="txn_list_search_hint">搜索交易记录</string>
 
     <!-- Local mapping overrides -->
     <string name="overrides_title">本地映射表管理</string>
     <string name="overrides_empty">暂无本地映射数据</string>
+    <string name="overrides_intro">你保存的纠错在本机优先于站名映射表生效。</string>
+    <string name="overrides_search_hint">搜索编号、站名或线路</string>
+    <string name="overrides_empty_hint">在交易详情中保存的纠错会显示在这里。</string>
+    <string name="overrides_no_match">没有匹配的映射</string>
+    <string name="overrides_no_match_hint">换个编号、站名或线路试试。</string>
+    <string name="overrides_group_header">%1$s · %2$d</string>
+    <plurals name="overrides_duplicates_title">
+        <item quantity="other">%d 条映射已收录于站名映射表</item>
+    </plurals>
+    <string name="overrides_duplicates_detail">%1$d 条完全一致 · %2$d 条相近</string>
+    <string name="overrides_duplicates_deleted">已删除 %d 条重复映射</string>
+    <string name="overrides_tag_identical">与映射表完全一致</string>
+    <string name="overrides_tag_similar">映射表中相近：%s</string>
+    <string name="overrides_review_action">查看</string>
+    <string name="overrides_review_title">重复映射</string>
+    <string name="overrides_review_message">勾选要删除的映射，删除后这些设备改用站名映射表中的条目。完全一致的已默认勾选；相近的请核对后再勾选。</string>
+    <string name="overrides_review_select_all">全选</string>
+    <string name="overrides_review_delete">删除（%d）</string>
+    <string name="overrides_kind_identical">完全一致</string>
+    <string name="overrides_kind_similar">相近</string>
+    <string name="overrides_review_mine">本地：%s</string>
+    <string name="overrides_review_db">映射表：%s</string>
     <string name="override_edit_title">编辑本地映射表</string>
     <string name="override_edit_subtitle">保存后立即在本机生效</string>
 
@@ -316,6 +338,7 @@
     </plurals>
     <string name="err_read_selected_file">无法读取所选文件</string>
     <string name="station_db_updated">✓ 站名映射表已更新</string>
+    <string name="station_db_updated_with_duplicates">✓ 站名映射表已更新 · %d 条本地映射已重复</string>
     <string name="station_db_update_failed">更新失败: %s</string>
     <string name="cache_cleared_reset">✓ 已清理缓存，站名库已重置</string>
     <string name="cache_cleared_kept">✓ 已清理缓存</string>

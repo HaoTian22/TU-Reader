@@ -4,7 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/paper">
+    android:background="@color/paper"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
 
     <!-- Status Bar Spacer -->
     <View
@@ -19,8 +21,8 @@
         android:orientation="horizontal"
         android:paddingStart="11dp"
         android:paddingEnd="20dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="12dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="8dp"
         android:gravity="center_vertical">
 
         <TextView
@@ -64,64 +66,93 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 搜索 + 漏斗多选筛选（等高） -->
+    <!-- M3 Search bar（原地搜索）：前置放大镜聚焦时旋转渐变为返回箭头；尾部清除 / 漏斗筛选 -->
     <LinearLayout
+        android:id="@+id/searchBox"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="12dp">
+        android:background="@drawable/bg_search_bar"
+        android:theme="@style/ThemeOverlay.TransitU.Search"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
 
-        <!-- 搜索框：放大镜图标 + 输入，与漏斗等高 42dp -->
-        <LinearLayout
-            android:id="@+id/searchBox"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_chip_default"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:layout_marginEnd="10dp">
-
-            <TextView
-                android:id="@+id/searchIcon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="&#xf002;"
-                android:textColor="@color/ink_3"
-                android:textSize="13sp"
-                android:tag="fa"
-                android:layout_marginEnd="8dp" />
-
-            <EditText
-                android:id="@+id/searchInput"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:hint="@string/txn_list_search_hint"
-                android:inputType="text"
-                android:maxLines="1"
-                android:imeOptions="actionSearch"
-                android:textSize="13sp"
-                android:background="@null" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/filterButton"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:gravity="center"
-            android:text="&#xf0b0;"
-            android:textColor="@color/accent"
-            android:textSize="16sp"
-            android:tag="fa"
-            android:background="@drawable/bg_chip_default"
+        <FrameLayout
+            android:id="@+id/searchLeading"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
-            android:focusable="true" />
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/searchIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_search_24"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/searchBackIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_arrow_back_24"
+                android:alpha="0"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:hint="@string/txn_list_search_hint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:imeOptions="actionSearch"
+            android:focusableInTouchMode="false"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_3"
+            android:textSize="16sp"
+            android:background="@null" />
+
+        <ImageView
+            android:id="@+id/clearButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_close_24"
+            android:contentDescription="@string/action_clear"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:alpha="0"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/filterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:contentDescription="@string/filter_title"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/filterIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_filter_24"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
     </LinearLayout>
 
     <!-- Transaction List：RecyclerView 虚拟化，只渲染可见行（大记录量不再全量建 View） -->

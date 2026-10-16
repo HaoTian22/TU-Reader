@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 重复映射预览：逐条对比「本地映射 / 映射库」，勾选要删除的项；完全一致默认勾选，相近默认不勾 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="312dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/reviewTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:paddingStart="24dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="24dp"
+        android:text="@string/overrides_review_title"
+        android:textColor="@color/ink"
+        android:textSize="20sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:lineSpacingExtra="2dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:text="@string/overrides_review_message"
+        android:textColor="@color/ink_2"
+        android:textSize="13sp" />
+
+    <!-- 全选 -->
+    <LinearLayout
+        android:id="@+id/reviewSelectAll"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_dialog_row"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="12dp">
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/reviewSelectAllCheck"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="false"
+            android:focusable="false" />
+
+        <TextView
+            android:id="@+id/reviewSelectAllLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/overrides_review_select_all"
+            android:textColor="@color/ink"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="@color/line" />
+
+    <!-- 高度上限在 AppDialogs.duplicateReview 里按屏高设置 -->
+    <ScrollView
+        android:id="@+id/reviewScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fadeScrollbars="false"
+        android:scrollbarStyle="outsideOverlay">
+
+        <LinearLayout
+            android:id="@+id/reviewList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="@color/line" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end|center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:id="@+id/reviewCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_text_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="@string/action_cancel"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/reviewDelete"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_text_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColor="@color/danger"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

@@ -9,7 +9,7 @@
         android:id="@+id/sectionTitle"
         style="@style/DetailSectionTitle" />
 
-    <LinearLayout
+    <com.example.nfctransit.ui.SegmentedListLayout
         android:id="@+id/sectionRows"
         style="@style/DetailSectionCard" />
 </LinearLayout>

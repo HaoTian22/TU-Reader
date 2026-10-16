@@ -299,9 +299,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             typeface = Typeface.DEFAULT_BOLD
             maxLines = 1
         })
-        val city = viewModel.issuerCityFor(card.id)
         titleCol.addView(TextView(ctx).apply {
-            text = listOfNotNull(city, getString(R.string.read_at, TimeLabels.relative(card.lastReadAt))).joinToString(" · ")
+            text = getString(R.string.read_at, TimeLabels.relative(card.lastReadAt))
             setTextColor(onCardAlpha(0xBF))
             textSize = 12f
             maxLines = 1

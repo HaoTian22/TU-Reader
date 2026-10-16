@@ -6,6 +6,7 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -19,6 +20,8 @@ import android.widget.TextView
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.StyleSpan
+import androidx.core.graphics.ColorUtils
+import com.google.android.material.checkbox.MaterialCheckBox
 import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -28,6 +31,8 @@ import com.example.nfctransit.data.CityOption
 import com.example.nfctransit.data.AppRelease
 import com.example.nfctransit.data.AppReleaseNotes
 import com.example.nfctransit.data.FeedbackLocationSource
+import com.example.nfctransit.data.OverrideDuplicate
+import com.example.nfctransit.data.OverrideDuplicateKind
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideRow
 import com.example.nfctransit.model.UiCard
@@ -549,6 +554,12 @@ object AppDialogs {
         }
     }
 
+    /**
+     * 选择弹窗。两种形态：
+     * - 单选（[choice]，默认在有选中项时开启）：每行前置单选圈，选中行浅强调色底；点按后短暂显示新选中态再关闭并回调。
+     * - 操作菜单：纯文字行，点按即关闭并回调；[dangerIndices] 中的行（如删除）用危险色。
+     * 行内缩 12dp、16dp 圆角，无分隔线；文字与标题左对齐。列表过长时限高滚动，底部「取消」常驻。
+     */
     fun options(
         context: Context,
         title: String,
@@ -557,6 +568,8 @@ object AppDialogs {
         accentColor: Int = Palette.ACCENT,
         maxHeightDp: Int? = null,
         cancelLabel: String = context.getString(R.string.action_cancel),
+        choice: Boolean = selectedIndex >= 0,
+        dangerIndices: Set<Int> = emptySet(),
         onSelect: (Int) -> Unit
     ) {
         val dialog = Dialog(context)
@@ -570,68 +583,41 @@ object AppDialogs {
         dialog.setCancelable(true)
 
         view.findViewById<TextView>(R.id.dialogOptionsTitle)?.text = title
-        val container = view.findViewById<LinearLayout>(R.id.dialogOptionsContainer)
-            ?: return
-        val density = context.resources.displayMetrics.density
-        view.findViewById<android.widget.ScrollView>(R.id.dialogOptionsScroll)?.let { scroll ->
-            val params = scroll.layoutParams
-            params.height = maxHeightDp?.let { (it * density).toInt() }
-                ?: ViewGroup.LayoutParams.WRAP_CONTENT
-            scroll.layoutParams = params
-        }
+        val container = view.findViewById<LinearLayout>(R.id.dialogOptionsContainer) ?: return
+        limitScrollHeight(context, view.findViewById(R.id.dialogOptionsScroll), maxHeightDp)
 
+        var picked = selectedIndex
+        val radios = mutableListOf<android.widget.RadioButton>()
+        val rows = mutableListOf<LinearLayout>()
+        var done = false
         options.forEachIndexed { i, label ->
-            val selected = i == selectedIndex
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    (48 * density).toInt()
-                )
-                setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
+            val radio = if (choice) selectionRadio(context, accentColor).also { radios += it } else null
+            val row = selectionRow(
+                context = context,
+                label = label,
+                leading = radio,
+                labelColor = if (i in dangerIndices) Palette.DANGER else Palette.INK
+            ) {
+                if (done) return@selectionRow
+                done = true
+                if (!choice) {
                     dialog.dismiss()
                     onSelect(i)
+                    return@selectionRow
                 }
+                picked = i
+                rows.forEachIndexed { j, r -> styleSelectionRow(context, r, j == picked, accentColor) }
+                radios.forEachIndexed { j, r -> r.isChecked = j == picked }
+                // 让新选中态显示一瞬再关闭，避免「点了没反应就消失」
+                container.postDelayed({
+                    dialog.dismiss()
+                    onSelect(i)
+                }, SELECT_DISMISS_DELAY_MS)
             }
-            row.addView(
-                TextView(context).apply {
-                    text = label
-                    setTextColor(if (selected) accentColor else Palette.INK)
-                    textSize = 15f
-                    typeface =
-                        if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
-                    )
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-            )
-            if (selected) {
-                row.addView(
-                    TextView(context).apply {
-                        text = "✓"
-                        setTextColor(accentColor)
-                        textSize = 16f
-                        typeface = Typeface.DEFAULT_BOLD
-                    }
-                )
-            }
+            rows += row
+            radio?.isChecked = i == picked
+            styleSelectionRow(context, row, choice && i == picked, accentColor)
             container.addView(row)
-            if (i < options.lastIndex) {
-                container.addView(
-                    View(context).apply {
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            (0.5 * density).toInt()
-                        )
-                        setBackgroundColor(Palette.LINE)
-                    }
-                )
-            }
         }
 
         view.findViewById<TextView>(R.id.dialogOptionsCancel)?.apply {
@@ -642,7 +628,7 @@ object AppDialogs {
         dialog.show()
     }
 
-    /** 与应用风格一致的多选弹窗：每项一行 + 勾选标记，底部「清除 / 确定」 */
+    /** 多选弹窗：每行前置 M3 复选框（勾选 = 强调色实心框 + 白勾），行本身不着色；底部左侧「清除」，右侧「取消 / 确定」 */
     fun multiSelect(
         context: Context,
         title: String,
@@ -665,69 +651,202 @@ object AppDialogs {
 
         view.findViewById<TextView>(R.id.dialogFilterTitle)?.text = title
         val container = view.findViewById<LinearLayout>(R.id.dialogFilterContainer) ?: return
-        val density = context.resources.displayMetrics.density
+        limitScrollHeight(context, view.findViewById(R.id.dialogFilterScroll), null)
         val current = selected.toMutableSet()
 
-        fun renderRow(row: LinearLayout, check: TextView, checked: Boolean) {
-            check.text = if (checked) "✓" else "○"
-            check.setTextColor(if (checked) accentColor else Palette.INK_DISABLED)
-            check.typeface = if (checked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-        }
-
-        options.forEachIndexed { i, label ->
-            val check = TextView(context).apply {
-                textSize = 18f
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams((28 * density).toInt(), (28 * density).toInt())
+        options.forEach { option ->
+            val box = selectionCheckBox(context, accentColor).apply { isChecked = option in current }
+            val row = selectionRow(context, optionLabel(option), box) {
+                if (!current.remove(option)) current.add(option)
+                box.isChecked = option in current
             }
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, (48 * density).toInt()
-                )
-                setPadding((20 * density).toInt(), 0, (20 * density).toInt(), 0)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    if (!current.remove(label)) current.add(label)
-                    renderRow(this, check, label in current)
-                }
-            }
-            row.addView(
-                TextView(context).apply {
-                    text = optionLabel(label)
-                    setTextColor(Palette.INK)
-                    textSize = 15f
-                    gravity = Gravity.CENTER_VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
-                    )
-                }
-            )
-            row.addView(check)
-            renderRow(row, check, label in current)
+            // 多选行不随勾选着色：相邻勾选行的底色会连成一片，状态只由复选框表达
+            styleSelectionRow(context, row, false, accentColor)
             container.addView(row)
-            if (i < options.lastIndex) {
-                container.addView(
-                    View(context).apply {
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT, (0.5 * density).toInt()
-                        )
-                        setBackgroundColor(Palette.LINE)
-                    }
-                )
-            }
         }
 
         view.findViewById<TextView>(R.id.dialogFilterClear)?.setOnClickListener {
             dialog.dismiss()
             onClear()
         }
-        view.findViewById<TextView>(R.id.dialogFilterConfirm)?.setOnClickListener {
-            dialog.dismiss()
-            onDone(current.toSet())
+        view.findViewById<TextView>(R.id.dialogFilterCancel)?.setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.dialogFilterConfirm)?.apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                dialog.dismiss()
+                onDone(current.toSet())
+            }
         }
+        view.applyTouchFeedback()
+        dialog.show()
+    }
+
+    private const val SELECT_DISMISS_DELAY_MS = 160L
+    private const val ROW_RADIUS_DP = 16
+    private const val SELECTED_TINT_ALPHA = 0x1F
+
+    /** 选择行：外侧内缩 12dp，内部左右 12dp（文字与标题的 24dp 边距对齐），高 52dp；可带前置单选圈/复选框 */
+    private fun selectionRow(
+        context: Context,
+        label: String,
+        leading: View?,
+        labelColor: Int = Palette.INK,
+        onClick: () -> Unit
+    ): LinearLayout {
+        val density = context.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(52)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(12), 0, dp(12), 0) }
+            // 带前置控件时左内边距收窄：系统单选圈/复选框自带约 6dp 留白
+            setPadding(if (leading != null) dp(4) else dp(12), dp(4), dp(12), dp(4))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { onClick() }
+            leading?.let { addView(it) }
+            addView(TextView(context).apply {
+                text = label
+                setTextColor(labelColor)
+                textSize = 15f
+                setPadding(if (leading != null) dp(8) else 0, dp(8), 0, dp(8))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+        }
+    }
+
+    /** 行底色：圆角 GradientDrawable（未选中透明）。全局水波纹按背景形状取蒙版，按压高亮也是圆角 */
+    private fun styleSelectionRow(context: Context, row: LinearLayout, selected: Boolean, accentColor: Int) {
+        val radius = ROW_RADIUS_DP * context.resources.displayMetrics.density
+        val bg = (row.background as? GradientDrawable) ?: GradientDrawable().also {
+            it.cornerRadius = radius
+            row.background = it
+        }
+        bg.setColor(if (selected) ColorUtils.setAlphaComponent(accentColor, SELECTED_TINT_ALPHA) else Color.TRANSPARENT)
+        (row.getChildAt(row.childCount - 1) as? TextView)?.apply {
+            if (currentTextColor != Palette.DANGER) setTextColor(if (selected) accentColor else Palette.INK)
+            typeface = if (selected) Typeface.create("sans-serif-medium", Typeface.NORMAL) else Typeface.DEFAULT
+        }
+    }
+
+    /** M3 复选框（显式 MaterialCheckBox：代码 new 出来的平台 CheckBox 不走 M3 样式）；勾选 = 强调色实心框 + 白勾，未勾 = 灰色描边 */
+    private fun selectionCheckBox(context: Context, accentColor: Int) =
+        MaterialCheckBox(context).apply {
+            isClickable = false
+            isFocusable = false
+            styleCheckBox(this, accentColor)
+        }
+
+    private fun styleCheckBox(box: MaterialCheckBox, accentColor: Int) {
+        box.buttonTintList = selectionTint(accentColor)
+        box.buttonIconTintList = ColorStateList.valueOf(Color.WHITE)
+    }
+
+    private fun selectionRadio(context: Context, accentColor: Int) =
+        android.widget.RadioButton(context).apply {
+            isClickable = false
+            isFocusable = false
+            buttonTintList = selectionTint(accentColor)
+        }
+
+    /** 选中 = 强调色，未选中 = 中性灰圈 */
+    private fun selectionTint(accentColor: Int) = ColorStateList(
+        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+        intArrayOf(accentColor, Palette.INK_3)
+    )
+
+    /** 列表区限高：显式 dp 优先，否则屏高 55%；按钮始终可见 */
+    private fun limitScrollHeight(context: Context, scroll: View?, maxHeightDp: Int?) {
+        scroll ?: return
+        val maxHeight = maxHeightDp?.let { (it * context.resources.displayMetrics.density).toInt() }
+            ?: (context.resources.displayMetrics.heightPixels * 0.55f).toInt()
+        scroll.post {
+            if (scroll.height > maxHeight) {
+                scroll.layoutParams = scroll.layoutParams.apply { height = maxHeight }
+            }
+        }
+    }
+
+    /**
+     * 重复映射预览：逐条对照本地映射与映射库条目，勾选后删除。
+     * 完全一致的默认勾选；相近的默认不勾，需用户确认后再勾。回调参数为勾选项的 mappingKey。
+     */
+    fun duplicateReview(
+        context: Context,
+        items: List<OverrideDuplicate>,
+        accentColor: Int = Palette.ACCENT,
+        onDelete: (Set<String>) -> Unit
+    ) {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_duplicate_review, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+
+        val selected = items.filter { it.kind == OverrideDuplicateKind.SAME }
+            .mapTo(LinkedHashSet()) { it.row.mappingKey }
+        val checks = mutableMapOf<String, MaterialCheckBox>()
+        val selectAllCheck = view.findViewById<MaterialCheckBox>(R.id.reviewSelectAllCheck)
+        val deleteButton = view.findViewById<TextView>(R.id.reviewDelete)
+        styleCheckBox(selectAllCheck, accentColor)
+        limitScrollHeight(context, view.findViewById(R.id.reviewScroll), null)
+
+        // 行不随勾选着色（相邻勾选行底色会连成一片），状态只由复选框表达
+        fun refresh() {
+            checks.forEach { (key, box) -> box.isChecked = key in selected }
+            selectAllCheck.isChecked = selected.size == items.size
+            deleteButton.text = context.getString(R.string.overrides_review_delete, selected.size)
+            deleteButton.isEnabled = selected.isNotEmpty()
+            deleteButton.setTextColor(if (selected.isEmpty()) Palette.INK_DISABLED else Palette.DANGER)
+        }
+
+        fun describe(line: String, station: String): String =
+            listOf(line, station).filter { it.isNotBlank() }.distinct().joinToString(" · ")
+                .ifBlank { "—" }
+
+        val list = view.findViewById<LinearLayout>(R.id.reviewList)
+        // 完全一致在前，其次相近；同类按编号排列
+        items.sortedWith(compareBy({ it.kind.ordinal }, { it.row.deviceCode })).forEach { dup ->
+            val row = LayoutInflater.from(context).inflate(R.layout.item_duplicate_review, list, false)
+            val key = dup.row.mappingKey
+            checks[key] = row.findViewById<MaterialCheckBox>(R.id.reviewCheck).also { styleCheckBox(it, accentColor) }
+            row.findViewById<TextView>(R.id.reviewCode).text =
+                "${dup.row.prefix} ${dup.row.code} · ${TransitLabels.type(dup.row.type)}"
+            row.findViewById<TextView>(R.id.reviewKind).apply {
+                val same = dup.kind == OverrideDuplicateKind.SAME
+                setText(if (same) R.string.overrides_kind_identical else R.string.overrides_kind_similar)
+                setTextColor(if (same) Palette.SUCCESS else Palette.WARNING)
+            }
+            row.findViewById<TextView>(R.id.reviewMine).text =
+                context.getString(R.string.overrides_review_mine, describe(dup.row.line, dup.row.station))
+            row.findViewById<TextView>(R.id.reviewDb).text =
+                context.getString(R.string.overrides_review_db, describe(dup.dbLine, dup.dbStation))
+            row.setOnClickListener {
+                if (!selected.remove(key)) selected.add(key)
+                refresh()
+            }
+            list.addView(row)
+        }
+
+        view.findViewById<View>(R.id.reviewSelectAll).setOnClickListener {
+            if (selected.size == items.size) selected.clear()
+            else items.forEach { selected.add(it.row.mappingKey) }
+            refresh()
+        }
+        view.findViewById<TextView>(R.id.reviewCancel).setOnClickListener { dialog.dismiss() }
+        deleteButton.setOnClickListener {
+            if (selected.isEmpty()) return@setOnClickListener
+            dialog.dismiss()
+            onDelete(selected.toSet())
+        }
+        refresh()
         view.applyTouchFeedback()
         dialog.show()
     }

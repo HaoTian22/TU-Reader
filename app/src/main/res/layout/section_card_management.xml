@@ -11,7 +11,7 @@
         android:layout_marginTop="8dp"
         android:text="@string/card_management" />
 
-    <LinearLayout style="@style/SettingsSectionCard">
+    <com.example.nfctransit.ui.SegmentedListLayout style="@style/SettingsSectionCard">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -163,5 +163,5 @@
                 android:textSize="14sp"
                 android:tag="fa" />
         </LinearLayout>
-    </LinearLayout>
+    </com.example.nfctransit.ui.SegmentedListLayout>
 </LinearLayout>

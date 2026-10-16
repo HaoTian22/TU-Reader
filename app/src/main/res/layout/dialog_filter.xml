@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 多选弹窗：行由 AppDialogs.multiSelect 生成（复选框 + 内缩圆角行）；底部左「清除」、右「取消 / 确定」 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="312dp"
     android:layout_height="wrap_content"
@@ -14,20 +15,29 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:paddingTop="24dp"
-        android:paddingBottom="16dp"
+        android:paddingBottom="12dp"
         android:fontFamily="sans-serif-medium" />
 
-    <LinearLayout
-        android:id="@+id/dialogFilterContainer"
+    <ScrollView
+        android:id="@+id/dialogFilterScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical" />
+        android:fadeScrollbars="true"
+        android:scrollbarStyle="outsideOverlay">
+
+        <LinearLayout
+            android:id="@+id/dialogFilterContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal"
-        android:gravity="end|center_vertical"
+        android:gravity="center_vertical"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
         android:paddingBottom="12dp">
@@ -37,7 +47,28 @@
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="@string/action_clear"
-            android:textColor="@color/danger"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/dialogFilterCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/action_cancel"
+            android:textColor="@color/ink_2"
             android:textSize="14sp"
             android:gravity="center"
             android:clickable="true"

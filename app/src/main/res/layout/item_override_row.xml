@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 本地映射行：类型图标 / 站名 + 线路·城市 + 设备编号（等宽）/ 删除按钮；整行点按编辑 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="72dp"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="10dp">
+
+    <TextView
+        android:id="@+id/overrideIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/bg_icon_circle"
+        android:gravity="center"
+        android:importantForAccessibility="no"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/overrideStation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:textColor="@color/ink"
+            android:textSize="15sp"
+            tools:text="车公庙" />
+
+        <TextView
+            android:id="@+id/overrideMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/ink_2"
+            android:textSize="12sp"
+            tools:text="1号线 · 深圳" />
+
+        <TextView
+            android:id="@+id/overrideCode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="middle"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:textColor="@color/ink_3"
+            android:textSize="12sp"
+            tools:text="2680 0112" />
+
+        <!-- 与映射库重复标记：完全一致 / 相近（附库中写法），无重复时隐藏 -->
+        <TextView
+            android:id="@+id/overrideDuplicateTag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/warning"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Similar in database: 1号线 · 车公庙站"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/overrideDelete"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="4dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:contentDescription="@string/action_delete"
+        android:focusable="true"
+        android:gravity="center"
+        android:textColor="@color/ink_3"
+        android:textSize="16sp" />
+</LinearLayout>

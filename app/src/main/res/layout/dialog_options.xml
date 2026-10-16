@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 选择 / 操作菜单弹窗：行由 AppDialogs.options 生成（内缩圆角行，无分隔线）；列表区限高滚动 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="312dp"
     android:layout_height="wrap_content"
@@ -14,17 +15,15 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:paddingTop="24dp"
-        android:paddingBottom="16dp"
+        android:paddingBottom="12dp"
         android:fontFamily="sans-serif-medium" />
 
     <ScrollView
         android:id="@+id/dialogOptionsScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="false"
-        android:scrollbars="vertical"
-        android:fadeScrollbars="false"
-        android:scrollbarStyle="insideOverlay">
+        android:fadeScrollbars="true"
+        android:scrollbarStyle="outsideOverlay">
 
         <LinearLayout
             android:id="@+id/dialogOptionsContainer"
@@ -37,17 +36,18 @@
         android:id="@+id/dialogOptionsCancel"
         android:layout_width="wrap_content"
         android:layout_height="40dp"
-        android:textColor="@color/ink_2"
-        android:textSize="14sp"
-        android:gravity="center"
+        android:layout_gravity="end"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_text_button"
         android:clickable="true"
         android:focusable="true"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
         android:minWidth="64dp"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:fontFamily="sans-serif-medium"
-        android:background="@drawable/bg_text_button"
-        android:layout_gravity="end"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="12dp" />
+        android:textColor="@color/ink_2"
+        android:textSize="14sp" />
 </LinearLayout>

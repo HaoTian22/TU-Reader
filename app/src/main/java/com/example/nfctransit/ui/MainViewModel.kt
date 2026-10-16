@@ -29,6 +29,8 @@ import com.example.nfctransit.data.StationDbUpdater
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.TransitOverrideImporter
 import com.example.nfctransit.data.TransitOverrideStore
+import com.example.nfctransit.data.OverrideDuplicate
+import com.example.nfctransit.data.TransitOverrideDuplicates
 import com.example.nfctransit.data.FeedbackUploader
 import com.example.nfctransit.data.FeedbackLocationSource
 import com.example.nfctransit.data.FeedbackOverride
@@ -424,6 +426,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _overrideRows = MutableLiveData<List<TransitOverrideRow>>(emptyList())
     val overrideRows: LiveData<List<TransitOverrideRow>> = _overrideRows
+
+    /** 与映射库重复（完全一致 / 写法相近）的本地映射；null = 尚未检查 */
+    private val _overrideDuplicates = MutableLiveData<List<OverrideDuplicate>?>(null)
+    val overrideDuplicates: LiveData<List<OverrideDuplicate>?> = _overrideDuplicates
 
     private val _overrideStatus = MutableLiveData<String?>(null)
     val overrideStatus: LiveData<String?> = _overrideStatus
@@ -1099,6 +1105,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { TransitOverrideStore.list(getApplication()) }
                 .onSuccess { _overrideRows.postValue(it) }
+            runCatching { TransitOverrideDuplicates.find(getApplication()) }
+                .onSuccess { _overrideDuplicates.postValue(it) }
         }
     }
 
@@ -1152,6 +1160,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val result = TransitOverrideImporter.import(context)
                     TransitData.reload()
                     _overrideRows.postValue(TransitOverrideStore.list(context))
+                    _overrideDuplicates.postValue(TransitOverrideDuplicates.find(context))
                     Triple(result, standard, locationCity)
                 }
                 rebuildAllCardsAndRefresh()
@@ -1190,9 +1199,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     TransitOverrideImporter.import(context)
                     TransitData.reload()
                     _overrideRows.postValue(TransitOverrideStore.list(context))
+                    _overrideDuplicates.postValue(TransitOverrideDuplicates.find(context))
                 }
                 rebuildAllCardsAndRefresh()
                 _overrideStatus.value = L10n.str(R.string.override_deleted)
+            } catch (e: Exception) {
+                _overrideStatus.value = L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error))
+            }
+        }
+    }
+
+    /** 批量删除本地映射（重复项清理）：逐条恢复覆盖前条目，最后统一重导入、重建一次 */
+    fun deleteOverrides(keys: Collection<String>) {
+        if (keys.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val removed = withContext(Dispatchers.IO) {
+                    val context = getApplication<Application>()
+                    val database = AppDatabase.get(context)
+                    var count = 0
+                    for (key in keys) {
+                        val snapshot = TransitOverrideStore.read(context)
+                        if (!snapshot.rows.containsKey(key)) continue
+                        database.withTransaction {
+                            restoreOriginal(context, database.transitDao(), key, snapshot)
+                        }
+                        TransitOverrideStore.remove(context, key)
+                        count++
+                    }
+                    TransitOverrideImporter.import(context)
+                    TransitData.reload()
+                    _overrideRows.postValue(TransitOverrideStore.list(context))
+                    _overrideDuplicates.postValue(TransitOverrideDuplicates.find(context))
+                    count
+                }
+                rebuildAllCardsAndRefresh()
+                _overrideStatus.value = L10n.str(R.string.overrides_duplicates_deleted, removed)
             } catch (e: Exception) {
                 _overrideStatus.value = L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error))
             }
@@ -1398,15 +1440,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 // 下载完成，进入校验/替换/重建阶段：进度未知
                 _stationDbProgress.value = null
-                try {
+                val duplicates = try {
                     withContext(Dispatchers.IO) {
                         AppDatabase.replaceWithDownloaded(getApplication(), downloaded.file)
+                        // 新库尚未叠加映射：先记下库本身的条目，供撤销恢复与重复检查
+                        TransitOverrideDuplicates.captureOriginals(getApplication())
                         TransitOverrideImporter.import(getApplication())
                         TransitData.reload()
+                        TransitOverrideDuplicates.find(getApplication())
                     }
                 } finally {
                     downloaded.file.delete()
                 }
+                _overrideDuplicates.value = duplicates
                 // 记录当前库版本：优先版本 sidecar，其次服务端 Last-Modified，最后本地时间
                 val otaVersion = withContext(Dispatchers.IO) {
                     StationDbUpdater.downloadVersionString(getApplication())
@@ -1416,7 +1462,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
                 rebuildAllCardsAndRefresh()
                 // 界面重建完成后再报成功，避免「提示已更新但界面还是旧站名」
-                _stationDbUpdateStatus.value = L10n.str(R.string.station_db_updated)
+                _stationDbUpdateStatus.value = if (duplicates.isEmpty()) {
+                    L10n.str(R.string.station_db_updated)
+                } else {
+                    L10n.str(R.string.station_db_updated_with_duplicates, duplicates.size)
+                }
             } catch (e: Exception) {
                 _stationDbUpdateStatus.value = L10n.str(R.string.station_db_update_failed, e.message.orEmpty())
             } finally {
@@ -1446,6 +1496,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     TransitRouteRepository.resetServiceBlock(ctx)
                     if (resetToAsset) {
                         AppDatabase.resetToAsset(ctx)
+                        TransitOverrideDuplicates.captureOriginals(ctx)
                     }
                     TransitOverrideImporter.import(ctx)
                     TransitData.reload()
@@ -1490,11 +1541,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 某张卡的发卡城市（首页卡包副标题、单卡页头部胶囊用）；解析不到返回 null */
-    fun issuerCityFor(cardId: String): String? {
-        val entity = cardEntities.firstOrNull { it.cardId == cardId } ?: return null
-        return buildCardMetadata(cardId, entity.cardType, entity.toUiCard()).issuerCity
-    }
-
     private fun primaryProtocolOf(cardType: String): String = if (cardType == "YCT") "LNT" else cardType
 
     /**

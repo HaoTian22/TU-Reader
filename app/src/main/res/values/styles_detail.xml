@@ -18,7 +18,6 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginStart">20dp</item>
         <item name="android:layout_marginEnd">20dp</item>
-        <item name="android:background">@drawable/bg_card_plain</item>
         <item name="android:orientation">vertical</item>
     </style>
     <!-- 分区卡片内的「标签 / 值」行：卡片信息页和交易详情页共用；动态行使用 item_detail_row。 -->
@@ -123,10 +122,7 @@
     <style name="SettingsSectionCard">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">@drawable/bg_card_plain</item>
-        <item name="android:divider">@drawable/bg_settings_divider</item>
         <item name="android:orientation">vertical</item>
-        <item name="android:showDividers">middle</item>
     </style>
 
     <!-- 地图轨迹页速度 chip（0.5x/1x/2x） -->

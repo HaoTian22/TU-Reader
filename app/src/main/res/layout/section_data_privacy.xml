@@ -9,7 +9,7 @@
         style="@style/SettingsSectionTitle"
         android:text="@string/data_and_privacy" />
 
-    <LinearLayout style="@style/SettingsSectionCard">
+    <com.example.nfctransit.ui.SegmentedListLayout style="@style/SettingsSectionCard">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -347,5 +347,5 @@
                 android:tag="fa" />
         </LinearLayout>
 
-    </LinearLayout>
+    </com.example.nfctransit.ui.SegmentedListLayout>
 </LinearLayout>

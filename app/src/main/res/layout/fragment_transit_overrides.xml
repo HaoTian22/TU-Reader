@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  本地映射表管理。结构：标题栏（条数徽标）→ 说明 → M3 搜索栏 → 按交通类型分组的分段列表 / 空状态。
+  行：类型图标 / 站名 + 线路·城市 + 设备编号 / 删除；点按整行编辑。
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/paper"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
     android:orientation="vertical">
 
     <View
@@ -35,31 +42,222 @@
             android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvOverrideCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card_badge"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:textColor="@color/accent"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="12"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="12dp"
+        android:text="@string/overrides_intro"
+        android:textColor="@color/ink_3"
+        android:textSize="13sp" />
+
+    <!-- M3 搜索栏：按编号 / 站名 / 线路筛选，无数据时隐藏 -->
+    <LinearLayout
+        android:id="@+id/searchBox"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/bg_search_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="4dp"
+        android:theme="@style/ThemeOverlay.TransitU.Search">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_search_24" />
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="@string/overrides_search_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_3"
+            android:textSize="16sp" />
+
+        <ImageView
+            android:id="@+id/clearButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/action_clear"
+            android:focusable="true"
+            android:scaleType="center"
+            android:src="@drawable/ic_close_24"
+            android:visibility="gone" />
     </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:scrollbars="none">
 
         <LinearLayout
-            android:id="@+id/overrideList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="24dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tvOverrideEmpty"
+            <!-- 与映射库重复提示：完全一致的可一键删除；相近的在行内标出库中写法，供逐条确认 -->
+            <LinearLayout
+                android:id="@+id/duplicateBanner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="48dp"
-                android:text="@string/overrides_empty"
-                android:textColor="@color/ink_3"
-                android:textSize="14sp" />
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/bg_duplicate_banner"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="6dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingEnd="8dp">
+
+                    <TextView
+                        android:id="@+id/duplicateIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:layout_marginEnd="12dp"
+                        android:importantForAccessibility="no"
+                        android:textColor="@color/warning"
+                        android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/duplicateTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="@color/ink"
+                            android:textSize="14sp"
+                            tools:text="3 mappings duplicate the station database" />
+
+                        <TextView
+                            android:id="@+id/duplicateDetail"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/ink_2"
+                            android:textSize="12sp"
+                            tools:text="2 identical · 1 similar" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="end"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/btnReviewDuplicates"
+                        style="@style/DbQueryHeaderAction"
+                        android:layout_height="36dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/overrides_review_action"
+                        android:textColor="@color/warning" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 分组列表：每个交通类型一个标题 + 一个 SegmentedListLayout，由代码生成 -->
+            <LinearLayout
+                android:id="@+id/overrideGroups"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="32dp" />
+
+            <!-- 空状态 / 无搜索结果 -->
+            <LinearLayout
+                android:id="@+id/emptyState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingStart="40dp"
+                android:paddingTop="72dp"
+                android:paddingEnd="40dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/emptyIcon"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@drawable/bg_icon_circle"
+                    android:gravity="center"
+                    android:importantForAccessibility="no"
+                    android:textSize="24sp" />
+
+                <TextView
+                    android:id="@+id/emptyTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="@string/overrides_empty"
+                    android:textColor="@color/ink"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/emptyHint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="@string/overrides_empty_hint"
+                    android:textColor="@color/ink_3"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

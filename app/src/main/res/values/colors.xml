@@ -8,6 +8,8 @@
     <color name="surface">#FFFFFF</color>
     <color name="fill">#ECEEF1</color>
     <color name="line">#E1E4E8</color>
+    <!-- M3 surfaceContainerHigh 对应色（搜索栏/搜索页底色） -->
+    <color name="search_container">#E7E9ED</color>
     <color name="ink">#1B1C1E</color>
     <color name="ink_2">#4A4D52</color>
     <color name="ink_3">#6B6F76</color>

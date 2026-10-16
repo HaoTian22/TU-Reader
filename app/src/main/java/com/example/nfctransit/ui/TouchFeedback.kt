@@ -26,7 +26,7 @@ import android.widget.TextView
  * 无背景时按视图矩形，但贴着圆角卡片上/下沿的行会跟随卡片圆角（见 [EdgeAwareMask]）。
  * 灰色波纹在浅色页面和深色地图页上都可见。
  */
-private const val RIPPLE_COLOR = 0x33808080
+internal const val RIPPLE_COLOR = 0x33808080
 
 /** 遍历视图树，给尚未处理过的可点击视图加水波纹 */
 fun View.applyTouchFeedback() {

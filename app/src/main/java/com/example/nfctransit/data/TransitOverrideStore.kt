@@ -121,6 +121,15 @@ object TransitOverrideStore {
         return removal
     }
 
+    /** 整库替换后用新库内容覆写全部覆盖前快照（键为 mappingKey；不在映射表里的键丢弃） */
+    @Synchronized
+    fun replaceOriginals(context: Context, originals: Map<String, ReaderDeviceEntity?>) {
+        val snapshot = read(context.filesDir)
+        snapshot.originals.clear()
+        originals.forEach { (key, value) -> if (snapshot.rows.containsKey(key)) snapshot.originals[key] = value }
+        writeOriginals(context.filesDir, snapshot.originals)
+    }
+
     fun list(context: Context): List<TransitOverrideRow> {
         val snapshot = read(context)
         return snapshot.rows.values.map { row ->

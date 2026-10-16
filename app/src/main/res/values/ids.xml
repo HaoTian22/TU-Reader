@@ -3,4 +3,6 @@
     <!-- 交易列表按日分组标题（代码构建的视图） -->
     <item name="groupTitle" type="id" />
     <item name="groupSummary" type="id" />
+    <!-- SegmentedListLayout：子行当前分段形状缓存 -->
+    <item name="segmentShape" type="id" />
 </resources>

@@ -9,7 +9,7 @@
         style="@style/SettingsSectionTitle"
         android:text="@string/display_and_experience" />
 
-    <LinearLayout style="@style/SettingsSectionCard">
+    <com.example.nfctransit.ui.SegmentedListLayout style="@style/SettingsSectionCard">
 
         <!-- 深色模式尚未实现：整行置灰（半透明）且开关不可操作 -->
         <LinearLayout
@@ -214,5 +214,5 @@
                 android:textColor="@color/ink_3"
                 android:textSize="13sp" />
         </LinearLayout>
-    </LinearLayout>
+    </com.example.nfctransit.ui.SegmentedListLayout>
 </LinearLayout>

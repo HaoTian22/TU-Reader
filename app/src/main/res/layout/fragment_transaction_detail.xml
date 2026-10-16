@@ -167,7 +167,7 @@
                 style="@style/DetailSectionTitle"
                 android:text="@string/txn_detail_info" />
 
-            <LinearLayout
+            <com.example.nfctransit.ui.SegmentedListLayout
                 android:id="@+id/sectionTxn"
                 style="@style/DetailSectionCard" />
 
@@ -181,7 +181,7 @@
                     style="@style/DetailSectionTitle"
                     android:text="@string/txn_detail_trip" />
 
-                <LinearLayout
+                <com.example.nfctransit.ui.SegmentedListLayout
                     android:id="@+id/sectionTrip"
                     style="@style/DetailSectionCard" />
             </LinearLayout>
@@ -190,7 +190,7 @@
                 style="@style/DetailSectionTitle"
                 android:text="@string/txn_detail_device" />
 
-            <LinearLayout
+            <com.example.nfctransit.ui.SegmentedListLayout
                 android:id="@+id/sectionDevice"
                 style="@style/DetailSectionCard" />
         </LinearLayout>

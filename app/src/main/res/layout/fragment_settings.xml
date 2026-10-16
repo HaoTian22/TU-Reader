@@ -78,7 +78,7 @@
                     style="@style/SettingsSectionTitle"
                     android:text="@string/settings_debug_tools" />
 
-                <LinearLayout style="@style/SettingsSectionCard">
+                <com.example.nfctransit.ui.SegmentedListLayout style="@style/SettingsSectionCard">
 
                     <LinearLayout
                         android:id="@+id/rowExportData"
@@ -204,6 +204,7 @@
 
                     <TextView
                         android:id="@+id/tvCopyStatus"
+                        android:tag="segment_exclude"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text=""
@@ -213,7 +214,7 @@
                         android:paddingTop="6dp"
                         android:paddingBottom="8dp"
                         android:visibility="gone" />
-                </LinearLayout>
+                </com.example.nfctransit.ui.SegmentedListLayout>
             </LinearLayout>
 
             <!-- Section: 关于 -->

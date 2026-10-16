@@ -10,6 +10,9 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import com.google.android.material.badge.BadgeDrawable
+import com.google.android.material.badge.BadgeUtils
+import com.google.android.material.badge.ExperimentalBadgeUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -39,6 +42,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
     private var accentColor = Palette.ACCENT
 
     private val adapter = TransactionAdapter()
+    private var filterBadge: BadgeDrawable? = null
 
     private companion object {
         const val TYPE_HEADER = 0
@@ -68,14 +72,13 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
         binding.transactionList.layoutManager = LinearLayoutManager(requireContext())
         binding.transactionList.adapter = adapter
-        binding.transactionList.addItemDecoration(GroupDividerDecoration())
+        binding.transactionList.addItemDecoration(GroupGapDecoration())
 
         // 主题色跟随卡片：返回按钮、badge、漏斗图标一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
             binding.btnBack.setTextColor(accentColor)
             binding.tvCardBadge.setTextColor(accentColor)
-            binding.filterButton.setTextColor(accentColor)
             updateCardBadgeBg()
             updateFilterButton()
         }
@@ -101,21 +104,104 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         }
     }
 
+    /** 搜索态返回：聚焦时拦截系统返回，先退出搜索态而不是离开页面 */
+    private val searchBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = exitSearchMode()
+    }
+
+    /** M3 Search bar（原地搜索）：输入即过滤（时间/站点/类型/城市/金额/协议/原始值等）；
+     *  聚焦时前置放大镜旋转渐变为返回箭头，点返回/系统返回退出搜索态（保留查询） */
     private fun setupSearchAndFilter() {
-        // 漏斗/搜索图标用 FontAwesome（fa-filter / fa-magnifying-glass）
-        val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
-        binding.filterButton.typeface = fa
-        binding.searchIcon.typeface = fa
-        // 搜索框：输入即过滤（时间/站点/类型/城市/金额/协议/原始值等）
-        binding.searchInput.addTextChangedListener(object : android.text.TextWatcher {
+        val input = binding.searchInput
+        // 返回本页（视图重建）时恢复查询；先填文本再挂监听，避免重复过滤
+        input.setText(viewModel.searchQuery.value.orEmpty())
+        updateClearButton(input.text.isNotEmpty(), animate = false)
+        input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
-            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
-                viewModel.setSearchQuery(s?.toString() ?: "")
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                viewModel.setSearchQuery(s?.toString().orEmpty())
+                updateClearButton(!s.isNullOrEmpty(), animate = true)
             }
-            override fun afterTextChanged(s: android.text.Editable?) {}
         })
+        input.setOnFocusChangeListener { _, focused ->
+            // 非搜索态时输入框不可触摸聚焦：点击落到整条搜索栏上（显示按压水波纹），再进入搜索态
+            if (!focused) input.isFocusableInTouchMode = false
+            morphLeadingIcon(toBack = focused)
+            searchBackCallback.isEnabled = focused
+        }
+        input.setOnEditorActionListener { _, _, _ -> exitSearchMode(); true }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, searchBackCallback)
+
+        binding.searchBox.foreground = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(RIPPLE_COLOR), null,
+            GradientDrawable().apply { cornerRadius = 999f; setColor(0xFFFFFFFF.toInt()) }
+        )
+        binding.searchBox.setOnClickListener { enterSearchMode() }
+        // 非搜索态：输入框上的触摸转交整条搜索栏（水波纹从按压点扩散，抬起后进入搜索态）
+        input.setOnTouchListener { v, e ->
+            if (v.hasFocus()) return@setOnTouchListener false
+            val forwarded = android.view.MotionEvent.obtain(e).apply { offsetLocation(v.left.toFloat(), v.top.toFloat()) }
+            binding.searchBox.onTouchEvent(forwarded)
+            forwarded.recycle()
+            true
+        }
+        binding.searchLeading.setOnClickListener {
+            if (input.hasFocus()) exitSearchMode() else enterSearchMode()
+        }
+        binding.clearButton.setOnClickListener { input.setText("") }
         binding.filterButton.setOnClickListener { showFilterDialog() }
-        updateFilterButton()
+        // 角标需锚定视图完成布局后再挂
+        binding.filterIcon.post { if (_binding != null) updateFilterButton() }
+    }
+
+    private fun enterSearchMode() {
+        val input = binding.searchInput
+        input.isFocusableInTouchMode = true
+        input.requestFocus()
+        input.setSelection(input.text.length)
+        imm().showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun exitSearchMode() {
+        val input = _binding?.searchInput ?: return
+        imm().hideSoftInputFromWindow(input.windowToken, 0)
+        input.clearFocus()  // 焦点落回根布局（focusableInTouchMode）
+    }
+
+    private fun imm() = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+        as android.view.inputmethod.InputMethodManager
+
+    /** 放大镜 ↔ 返回箭头：旋转 + 渐变交叉过渡（M3 搜索栏前置图标动效） */
+    private fun morphLeadingIcon(toBack: Boolean) {
+        val (out, into) = if (toBack) binding.searchIcon to binding.searchBackIcon
+            else binding.searchBackIcon to binding.searchIcon
+        val dir = if (toBack) 1f else -1f
+        val interp = androidx.interpolator.view.animation.FastOutSlowInInterpolator()
+        out.animate().cancel()
+        into.animate().cancel()
+        out.animate().rotation(90f * dir).alpha(0f).setDuration(250L).setInterpolator(interp).start()
+        into.rotation = -90f * dir
+        into.animate().rotation(0f).alpha(1f).setDuration(250L).setInterpolator(interp).start()
+    }
+
+    private fun updateClearButton(show: Boolean, animate: Boolean) {
+        val v = binding.clearButton
+        if (show == (v.visibility == View.VISIBLE && v.alpha > 0f)) return
+        v.animate().cancel()
+        if (!animate) {
+            v.visibility = if (show) View.VISIBLE else View.GONE
+            v.alpha = if (show) 1f else 0f
+            return
+        }
+        if (show) {
+            v.visibility = View.VISIBLE
+            v.scaleX = 0.6f; v.scaleY = 0.6f
+            v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(150L).start()
+        } else {
+            v.animate().alpha(0f).scaleX(0.6f).scaleY(0.6f).setDuration(150L)
+                .withEndAction { _binding?.clearButton?.visibility = View.GONE }.start()
+        }
     }
 
     /** 漏斗 → App 风格多选类别弹窗；
@@ -150,18 +236,21 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         updateFilterButton()
     }
 
-    /** 漏斗图标：有筛选时主题色实底 + 白字 */
+    /** 漏斗（搜索栏尾部动作）：有筛选时图标转主题色并挂已选数量角标 */
+    @OptIn(ExperimentalBadgeUtils::class)
     private fun updateFilterButton() {
-        if (selectedFilters.isNotEmpty()) {
-            binding.filterButton.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 21.dpToPx().toFloat()
-                setColor(accentColor)
-            }
-            binding.filterButton.setTextColor(0xFFFFFFFF.toInt())
-        } else {
-            binding.filterButton.setBackgroundResource(R.drawable.bg_chip_default)
-            binding.filterButton.setTextColor(accentColor)
+        val active = selectedFilters.isNotEmpty()
+        binding.filterIcon.imageTintList = android.content.res.ColorStateList.valueOf(
+            if (active) accentColor else requireContext().getColor(R.color.ink_2)
+        )
+        val badge = filterBadge ?: BadgeDrawable.create(requireContext()).also {
+            filterBadge = it
+            BadgeUtils.attachBadgeDrawable(it, binding.filterIcon)
         }
+        badge.backgroundColor = accentColor
+        badge.badgeTextColor = 0xFFFFFFFF.toInt()
+        badge.number = selectedFilters.size
+        badge.isVisible = active
     }
 
     /** 药丸无有效内容（空白、"-"、"—" 占位）时整个隐藏 */
@@ -213,6 +302,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         selectedFilters.clear()
         updateFilterButton()
         viewModel.setFilter(emptySet())
+        exitSearchMode()
         binding.searchInput.setText("")
         viewModel.setSearchQuery("")
         scrollToPendingContext()
@@ -234,14 +324,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         }
     }
 
-    /** 组内行背景：白底，组首行圆上角、组末行圆下角，单行四角都圆 */
-    private fun groupRowBackground(first: Boolean, last: Boolean) = GradientDrawable().apply {
-        val r = 12.dpToPx().toFloat()
-        val top = if (first) r else 0f
-        val bottom = if (last) r else 0f
-        cornerRadii = floatArrayOf(top, top, top, top, bottom, bottom, bottom, bottom)
-        setColor(Palette.SURFACE)
-    }
+    /** M3 分段列表：每行独立色块，与 SegmentedListLayout 同一形状 */
+    private fun groupRowBackground(first: Boolean, last: Boolean) =
+        SegmentedListLayout.segmentShape(requireContext(), first, last, Palette.SURFACE)
 
     /** 「今天」「昨天」「10月1日 周四」，非今年加年份 */
     private fun dayTitle(date: String): String {
@@ -251,19 +336,11 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         return TimeLabels.dayTitle(java.util.Calendar.getInstance().apply { time = parsed })
     }
 
-    /** 组内行之间的细分隔线：从图标右侧（文字起点）画到行尾 */
-    private inner class GroupDividerDecoration : RecyclerView.ItemDecoration() {
-        private val paint = android.graphics.Paint().apply { color = Palette.LINE }
-
-        override fun onDrawOver(c: android.graphics.Canvas, parent: RecyclerView, state: RecyclerView.State) {
-            val inset = 62.dpToPx()  // 行左内边距 16 + 图标 36 + 间距 10
-            for (i in 0 until parent.childCount) {
-                val child = parent.getChildAt(i)
-                val pos = parent.getChildAdapterPosition(child)
-                if (pos == RecyclerView.NO_POSITION || !adapter.needsDivider(pos)) continue
-                val top = child.top + child.translationY
-                c.drawRect(child.left + inset.toFloat(), top, child.right.toFloat(), top + 1f, paint)
-            }
+    /** 组内行之间留 2dp 间隙露出底色，形成分段色块（替代细分隔线） */
+    private inner class GroupGapDecoration : RecyclerView.ItemDecoration() {
+        override fun getItemOffsets(outRect: android.graphics.Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+            val pos = parent.getChildAdapterPosition(view)
+            if (pos != RecyclerView.NO_POSITION && adapter.isGroupContinuation(pos)) outRect.top = SegmentedListLayout.GAP_DP.dpToPx()
         }
     }
 
@@ -285,6 +362,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        filterBadge = null
         _binding = null
     }
 
@@ -320,8 +398,8 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
         fun positionOf(id: Int): Int = entries.indexOfFirst { it is Entry.Row && it.txn.id == id }
 
-        /** 该位置是组内非首行（需要在顶部画分隔线） */
-        fun needsDivider(position: Int): Boolean =
+        /** 该位置是组内非首行（顶部留分段间隙） */
+        fun isGroupContinuation(position: Int): Boolean =
             (entries.getOrNull(position) as? Entry.Row)?.first == false
 
         override fun getItemCount(): Int = entries.size

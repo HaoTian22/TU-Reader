@@ -272,7 +272,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
     // ── 最近交易 ──
 
-    /** 每行：类型图标 / 站名 + 「城市 · 类型 · 线路 · 时间」/ 金额 + 交易后余额；行间细线对齐文字起点 */
+    /** 每行：类型图标 / 站名 + 「城市 · 线路 · 时间」/ 金额 + 交易后余额；M3 分段列表（容器提供分段白底） */
     private fun bindRecentTransactions(transactions: List<UiTransaction>) {
         val container = binding.recentTxnContainer
         container.removeAllViews()
@@ -288,13 +288,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             return
         }
 
-        transactions.forEachIndexed { idx, txn ->
-            if (idx > 0) {
-                container.addView(View(requireContext()).apply { setBackgroundColor(Palette.LINE) },
-                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1).apply {
-                        marginStart = 68.dpToPx()  // 16 边距 + 40 图标 + 12 间距：与文字左对齐
-                    })
-            }
+        transactions.forEach { txn ->
             val row = LayoutInflater.from(requireContext())
                 .inflate(R.layout.item_card_txn, container, false)
 
@@ -316,11 +310,10 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 }
             }
 
-            // 城市 · 类型 · 线路（与站名不同时）· 时间；占位符（空 / - / —）不出现
+            // 城市 · 线路（与站名不同时）· 时间；占位符（空 / - / —）不出现
             val line = txn.lineName.takeUnless { isPlaceholderPill(it) || it == txn.stationName }
             row.findViewById<TextView>(R.id.txnMeta).text = listOfNotNull(
                 txn.cityName.takeUnless { isPlaceholderPill(it) }?.let(TransitLabels::city),
-                txn.transitType.takeUnless { isPlaceholderPill(it) || it == txn.stationName }?.let(TransitLabels::type),
                 line,
                 "${txn.date.drop(5)} ${txn.time.take(5)}"
             ).joinToString(" · ")
@@ -430,7 +423,8 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             context = requireContext(),
             title = card.name,
             options = listOf(getString(R.string.card_info_title), getString(R.string.delete_card)),
-            accentColor = accentColor
+            accentColor = accentColor,
+            dangerIndices = setOf(1)
         ) { which ->
             when (which) {
                 0 -> go(R.id.action_cardHome_to_cardInfo)

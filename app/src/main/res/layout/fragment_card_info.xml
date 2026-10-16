@@ -181,7 +181,7 @@
                 style="@style/DetailSectionTitle"
                 android:text="@string/card_info_personalize" />
 
-            <LinearLayout style="@style/DetailSectionCard">
+            <com.example.nfctransit.ui.SegmentedListLayout style="@style/DetailSectionCard">
 
                 <LinearLayout
                     android:id="@+id/rowEditName"
@@ -209,12 +209,6 @@
                         android:textColor="@color/accent"
                         android:textSize="14sp" />
                 </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1px"
-                    android:layout_marginStart="16dp"
-                    android:background="@color/line" />
 
                 <LinearLayout
                     android:id="@+id/rowChangeColor"
@@ -248,14 +242,14 @@
                         android:textColor="@color/ink_3"
                         android:textSize="12sp" />
                 </LinearLayout>
-            </LinearLayout>
+            </com.example.nfctransit.ui.SegmentedListLayout>
 
             <!-- 卡片信息 -->
             <TextView
                 style="@style/DetailSectionTitle"
                 android:text="@string/card_info_title" />
 
-            <LinearLayout
+            <com.example.nfctransit.ui.SegmentedListLayout
                 android:id="@+id/sectionCardInfo"
                 style="@style/DetailSectionCard">
 
@@ -271,7 +265,7 @@
                 </LinearLayout>
 
 
-            </LinearLayout>
+            </com.example.nfctransit.ui.SegmentedListLayout>
 
             <!-- 应用信息：每个应用一个分区，由 CardInfoFragment 动态生成 -->
             <LinearLayout

@@ -169,7 +169,6 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             add(getString(R.string.card_info_algorithm_support), app.algorithmSupport)
         }
         if (panel.childCount == 0) return
-        refreshRowDividers(panel)
         container.addView(section.root)
     }
 
@@ -179,17 +178,6 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             card.protocolType.ifBlank { card.cardType }.takeIf { it.isNotBlank() },
             issuerCity?.takeIf { it.isNotBlank() }
         ).joinToString(" · ")
-    }
-
-    /** 分区卡片内只在可见行之间画分隔线（第二卡号/第二标准行可能隐藏） */
-    private fun refreshRowDividers(section: LinearLayout) {
-        var first = true
-        for (i in 0 until section.childCount) {
-            val row = section.getChildAt(i)
-            if (row.visibility != View.VISIBLE) continue
-            row.setBackgroundResource(if (first) 0 else R.drawable.bg_row_divider_top)
-            first = false
-        }
     }
 
     private fun bindCard(card: UiCard) {
@@ -216,7 +204,6 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             it.first == card.gradientStartColor && it.second == card.gradientEndColor
         }
         binding.tvColorName.text = colorNames.getOrNull(colorIndex) ?: getString(R.string.period_custom)
-        refreshRowDividers(binding.sectionCardInfo)
     }
 
     private fun cardGradient(card: UiCard, radius: Int) = android.graphics.drawable.GradientDrawable(
@@ -427,6 +414,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             selectedIndex = selected,
             accentColor = accentColor,
             maxHeightDp = 320,
+            choice = true,
             onSelect = { index ->
                 colors.getOrNull(index)?.let { (start, end) ->
                     viewModel.setSelectedCardColors(start, end)

@@ -129,11 +129,34 @@
     <string name="txn_detail_info">Transaction</string>
     <string name="txn_detail_trip">Trip</string>
     <string name="txn_detail_device">Device &amp; protocol</string>
-    <string name="txn_list_search_hint">Search time/station/type/city/amount/protocol…</string>
+    <string name="txn_list_search_hint">Search transactions</string>
 
     <!-- Local mapping overrides -->
     <string name="overrides_title">Local mappings</string>
     <string name="overrides_empty">No local mapping data</string>
+    <string name="overrides_intro">Your corrections take priority over the station database on this device.</string>
+    <string name="overrides_search_hint">Search code, station or line</string>
+    <string name="overrides_empty_hint">Corrections you save from a transaction\'s details appear here.</string>
+    <string name="overrides_no_match">No matching mappings</string>
+    <string name="overrides_no_match_hint">Try a different code, station or line.</string>
+    <string name="overrides_group_header">%1$s · %2$d</string>
+    <plurals name="overrides_duplicates_title">
+        <item quantity="one">%d mapping is already in the station database</item>
+        <item quantity="other">%d mappings are already in the station database</item>
+    </plurals>
+    <string name="overrides_duplicates_detail">%1$d identical · %2$d similar</string>
+    <string name="overrides_duplicates_deleted">Deleted %d duplicate mappings</string>
+    <string name="overrides_tag_identical">Identical to database</string>
+    <string name="overrides_tag_similar">Similar in database: %s</string>
+    <string name="overrides_review_action">Review</string>
+    <string name="overrides_review_title">Duplicate mappings</string>
+    <string name="overrides_review_message">Tick the mappings to delete. Deleted devices will use the station database entry. Identical ones are pre-selected; check similar ones before ticking.</string>
+    <string name="overrides_review_select_all">Select all</string>
+    <string name="overrides_review_delete">Delete (%d)</string>
+    <string name="overrides_kind_identical">Identical</string>
+    <string name="overrides_kind_similar">Similar</string>
+    <string name="overrides_review_mine">Yours: %s</string>
+    <string name="overrides_review_db">Database: %s</string>
     <string name="override_edit_title">Edit local mapping</string>
     <string name="override_edit_subtitle">Applied to this device on save</string>
 
@@ -327,6 +350,7 @@
     </plurals>
     <string name="err_read_selected_file">Can\'t read the selected file</string>
     <string name="station_db_updated">✓ Station database updated</string>
+    <string name="station_db_updated_with_duplicates">✓ Station database updated · %d local mappings are now duplicates</string>
     <string name="station_db_update_failed">Update failed: %s</string>
     <string name="cache_cleared_reset">✓ Cache cleared, station database reset</string>
     <string name="cache_cleared_kept">✓ Cache cleared</string>

@@ -10,6 +10,15 @@
         <item name="android:textColorHighlight">@color/m3_highlighted_text</item>
     </style>
 
+    <!-- M3 Search bar 的配色：图标/文字取 App 中性色板（不走基线紫调），只作用于搜索栏 -->
+    <style name="ThemeOverlay.TransitU.Search" parent="">
+        <item name="colorSurfaceContainerHigh">@color/search_container</item>
+        <item name="colorOnSurface">@color/ink</item>
+        <item name="colorOnSurfaceVariant">@color/ink_2</item>
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOutline">@color/line</item>
+    </style>
+
     <!-- 页面标题栏的「←」返回按钮：40dp 圆形点按区（标题栏 paddingStart 相应减为 11dp，箭头仍对齐页面边距） -->
     <style name="BackButton">
         <item name="android:layout_width">40dp</item>

@@ -378,7 +378,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         ))
     }
 
-    /** 把有值的行填进分区卡片；行间插入分隔线。返回是否至少有一行 */
+    /** 把有值的行填进分区卡片（M3 分段列表）。返回是否至少有一行 */
     private fun fillSection(container: LinearLayout, fa: Typeface, rows: List<DetailRow>): Boolean {
         container.removeAllViews()
         val shown = rows.filter { it.value.isNotBlank() && it.value != "-" }
@@ -391,15 +391,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             value.text = r.value
             icon.typeface = fa
             r.style(label, value, icon)
-            // 行本身透明，白底与圆角由分区卡片背景提供；分隔线单独成视图。
-            // 不用 clipToOutline 裁圆角：返回手势的页面快照是软件绘制，不支持轮廓裁剪，会露出直角
-            row.background = null
-            if (i > 0) {
-                container.addView(View(requireContext()).apply { setBackgroundColor(Palette.LINE) },
-                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply {
-                        marginStart = dpToPx(16)
-                    })
-            }
+            // 分段白底与圆角由 SegmentedListLayout 按行位置提供
             container.addView(row)
         }
         return shown.isNotEmpty()
