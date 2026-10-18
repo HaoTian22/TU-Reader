@@ -256,7 +256,7 @@ class TransitRepository(private val context: Context) {
             if (pending.isEmpty()) {
                 false
             } else {
-                archiveTransactions(cardId, pending)
+                archiveTransactions(cardId, orderForArchive(cardId, records, pending))
                 true
             }
         }
@@ -270,9 +270,32 @@ class TransitRepository(private val context: Context) {
     ): Boolean = database.withTransaction {
         dao.upsertCard(card)
         syncRawRecords(card.cardId, rawRecords)
-        val archiveChanged = archiveTransactions(card.cardId, transactions)
+        val records = RecordDecoder.transactionRecords(card.cardType, rawRecords)
+        val archiveChanged = archiveTransactions(card.cardId, orderForArchive(card.cardId, records, transactions))
         syncCardApps(card.cardId, apps)
         archiveChanged
+    }
+
+    /**
+     * 原始记录 → 归档的落库顺序与 LNT 年份校正：
+     * 按原始槽位 recNo 倒序（越大越旧），使 row_id 递增 = 写卡先后；
+     * 未归档的 LNT 交易必晚于归档中 row_id 最大的 LNT 行，以其日期为下界校正推断年份。
+     */
+    private suspend fun orderForArchive(
+        cardId: String,
+        records: List<RecordDecoder.ZoneRecord>,
+        transactions: List<CanonicalTransaction>
+    ): List<CanonicalTransaction> {
+        fun key(t: CanonicalTransaction) = ArchiveKey(t.identity, t.protocol, t.sfi.toSfiHex())
+        val recNoByKey = records.associate {
+            ArchiveKey(RecordDecoder.recordContentHash(it), it.protocol, it.sfi.toSfiHex()) to it.recNo
+        }
+        val archive = dao.getArchive(cardId)
+        val existingKeys = archive.mapTo(mutableSetOf()) { ArchiveKey(it.contentHash, it.protocol, it.sfi) }
+        val (existing, fresh) = transactions.sortedByDescending { recNoByKey[key(it)] ?: 0 }
+            .partition { key(it) in existingKeys }
+        val latestLnt = archive.filter { it.protocol == "LNT" }.maxByOrNull { it.rowId }?.resolvedDate
+        return existing + RecordDecoder.alignLntYears(fresh, latestLnt)
     }
 
     suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =

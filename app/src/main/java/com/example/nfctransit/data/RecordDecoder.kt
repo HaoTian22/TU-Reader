@@ -789,6 +789,29 @@ object RecordDecoder {
         )
     }
 
+    /**
+     * LNT 年份按归档先后校正。chronological：尚未归档的交易，按写卡先后（旧→新）；
+     * notBefore：归档中 row_id 最大（最后落库，即已知最新）的 LNT 日期。
+     * 新记录必晚于已归档记录：取不早于前一条、不晚于今天的最早年份；无下界或矛盾时保留原推断。
+     */
+    fun alignLntYears(
+        chronological: List<CanonicalTransaction>,
+        notBefore: String?,
+        today: String = todayDate()
+    ): List<CanonicalTransaction> {
+        var prev = notBefore?.takeIf { it.length == 8 } ?: return chronological
+        return chronological.map { t ->
+            if (t.protocol != "LNT" || t.date.length != 8) return@map t
+            val mmdd = t.date.substring(4)
+            var year = prev.take(4).toInt()
+            if (year.toString().padStart(4, '0') + mmdd < prev) year++
+            val date = year.toString().padStart(4, '0') + mmdd
+            if (date > today) return@map t  // 与下界矛盾（如归档日期本身有误），保留原推断
+            prev = date
+            if (date == t.date) t else t.copy(date = date)
+        }
+    }
+
     private fun boundYearNotAfterToday(year: Int, mmdd: String, today: String): Int {
         var boundedYear = year
         while (boundedYear > 0 && "${boundedYear.toString().padStart(4, '0')}$mmdd" > today) {

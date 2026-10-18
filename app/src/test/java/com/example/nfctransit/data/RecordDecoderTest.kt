@@ -485,6 +485,23 @@ class RecordDecoderTest {
         return RecordDecoder.ZoneRecord(0x18, recNo, "LNT", ApduUtil.bytesToHex(data))
     }
 
+    @Test
+    fun lntYearsAlignAfterLatestArchivedRow() {
+        fun lnt(date: String) = CanonicalTransaction(
+            identity = date, sequence = 0, amountFen = 0, balanceAfterFen = null, typeHex = "09",
+            terminal = "", date = date, time = "120000", sfi = 0x18, protocol = "LNT", hex = ""
+        )
+        // 统计月份锚点误把一年以上空窗后的记录推成旧年份：以最后落库的 20250310 为下界逐条前推（含跨年）
+        val aligned = RecordDecoder.alignLntYears(
+            listOf(lnt("20250305"), lnt("20251220"), lnt("20250102")), "20250310", today = "20270615"
+        )
+        assertEquals(listOf("20260305", "20261220", "20270102"), aligned.map { it.date })
+        // 越过今天的候选视为矛盾，保留原推断；无下界时原样返回
+        val bounded = RecordDecoder.alignLntYears(listOf(lnt("20250305"), lnt("20250401")), "20250310", today = "20260320")
+        assertEquals(listOf("20260305", "20250401"), bounded.map { it.date })
+        assertEquals(listOf("20250305"), RecordDecoder.alignLntYears(listOf(lnt("20250305")), null).map { it.date })
+    }
+
     private fun bcd(value: String): Byte =
         ((value[0] - '0') shl 4 or (value[1] - '0')).toByte()
 
