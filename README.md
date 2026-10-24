@@ -1,4 +1,5 @@
 <div align="center">
+<p><b>简体中文</b> | <a href="README.en.md">English</a></p>
   <h1>行旅录 · TransitU</h1>
   <p><strong>读交通卡,记每一程</strong></p>
   <p>把卡里的每一次经过,整理成可回看的出行记录。</p>
