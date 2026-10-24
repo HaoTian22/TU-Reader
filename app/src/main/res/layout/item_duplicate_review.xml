@@ -46,7 +46,7 @@
                 android:maxLines="1"
                 android:textColor="@color/ink_3"
                 android:textSize="12sp"
-                tools:text="5880 3533 · 公交" />
+                tools:text="公交  5880 3533" />
 
             <TextView
                 android:id="@+id/reviewKind"

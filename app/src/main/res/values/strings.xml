@@ -55,7 +55,7 @@
     <string name="my_cards">My cards</string>
     <string name="settings">Settings</string>
     <string name="nfc_scan_hint">Hold the back of your phone against a transit card</string>
-    <string name="home_supported_cards">Supports 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通</string>
+    <string name="home_supported_cards">Supports 交通联合卡, 深圳通, 岭南通 and 城市一卡通</string>
     <string name="home_has_history">Already have data?</string>
     <string name="home_import_old">Import old data</string>
     <string name="home_import_backup">Import database backup</string>
@@ -101,7 +101,7 @@
     <!-- Map trace -->
     <string name="map_trace">Map trace</string>
     <string name="trip_info">Trip info</string>
-    <string name="map_hint_default">Pinch to zoom · Scroll the list below to change time</string>
+    <string name="map_hint_default">Pinch to zoom, scroll the list below to change time</string>
 
     <!-- Stats -->
     <string name="stats_title">Statistics</string>
@@ -139,12 +139,12 @@
     <string name="overrides_empty_hint">Corrections you save from a transaction\'s details appear here.</string>
     <string name="overrides_no_match">No matching mappings</string>
     <string name="overrides_no_match_hint">Try a different code, station or line.</string>
-    <string name="overrides_group_header">%1$s · %2$d</string>
+    <string name="overrides_group_header">%1$s (%2$d)</string>
     <plurals name="overrides_duplicates_title">
         <item quantity="one">%d mapping is already in the station database</item>
         <item quantity="other">%d mappings are already in the station database</item>
     </plurals>
-    <string name="overrides_duplicates_detail">%1$d identical · %2$d similar</string>
+    <string name="overrides_duplicates_detail">%1$d identical, %2$d similar</string>
     <string name="overrides_duplicates_deleted">Deleted %d duplicate mappings</string>
     <string name="overrides_tag_identical">Identical to database</string>
     <string name="overrides_tag_similar">Similar in database: %s</string>
@@ -315,8 +315,8 @@
     </plurals>
     <string name="nfc_saved_no_txns">Card saved. No transactions found.</string>
     <plurals name="nfc_saved">
-        <item quantity="one">%1$s · %2$d transaction saved</item>
-        <item quantity="other">%1$s · %2$d transactions saved</item>
+        <item quantity="one">%1$s: %2$d transaction saved</item>
+        <item quantity="other">%1$s: %2$d transactions saved</item>
     </plurals>
     <string name="nfc_saved_ui_failed">Saved, but the screen didn\'t refresh. Reopen the app.</string>
     <string name="nfc_read_failed">Read failed. Remove the card and retry.</string>
@@ -350,7 +350,7 @@
     </plurals>
     <string name="err_read_selected_file">Can\'t read the selected file</string>
     <string name="station_db_updated">✓ Station database updated</string>
-    <string name="station_db_updated_with_duplicates">✓ Station database updated · %d local mappings are now duplicates</string>
+    <string name="station_db_updated_with_duplicates">✓ Station database updated. %d local mappings are now duplicates</string>
     <string name="station_db_update_failed">Update failed: %s</string>
     <string name="cache_cleared_reset">✓ Cache cleared, station database reset</string>
     <string name="cache_cleared_kept">✓ Cache cleared</string>
@@ -386,6 +386,7 @@
         <item quantity="other">%d transactions</item>
     </plurals>
     <string name="txn_day_spend">Spent %s</string>
+    <string name="txn_day_summary">%1$s, %2$s</string>
     <string name="time_today">Today</string>
     <string name="time_yesterday">Yesterday</string>
     <string name="time_today_at">today %s</string>
@@ -407,10 +408,10 @@
     <string name="card_cd">%1$s, balance ¥%2$s</string>
     <string name="read_at">Read %s</string>
     <string name="discount_city_hint">%1$s: %2$s</string>
-    <string name="discount_tiered_next">%1$s off now · %3$s off from ¥%2$d, ¥%4$s to go</string>
+    <string name="discount_tiered_next">%1$s off now; %3$s off from ¥%2$d, ¥%4$s to go</string>
     <string name="discount_tiered_max">Reached ¥%1$d: %2$s off every ride</string>
-    <string name="discount_threshold_first">Spend ¥%1$d this month for %2$s off · ¥%3$s to go</string>
-    <string name="discount_threshold_next">%1$s off now · %3$s off above ¥%2$d, ¥%4$s to go</string>
+    <string name="discount_threshold_first">Spend ¥%1$d this month for %2$s off, ¥%3$s to go</string>
+    <string name="discount_threshold_next">%1$s off now; %3$s off above ¥%2$d, ¥%4$s to go</string>
     <string name="discount_threshold_max">Over ¥%1$d: %2$s off the excess</string>
     <string name="week_total">Total %s</string>
     <string name="delete_card">Delete card</string>
@@ -472,8 +473,8 @@
 
     <!-- Map trace (code) -->
     <string name="map_no_trips">No trips yet</string>
-    <string name="map_route_disabled">Route service not enabled · showing schematic lines</string>
-    <string name="map_route_quota">Today\'s Tencent route quota is used up · uncached routes use schematic lines</string>
+    <string name="map_route_disabled">Route service not enabled, showing schematic lines</string>
+    <string name="map_route_quota">Today\'s Tencent route quota is used up; uncached routes use schematic lines</string>
     <string name="map_route_loading">Loading real routes %1$d/%2$d</string>
     <string name="map_route_partial">Some routes use schematic lines</string>
     <string name="map_route_stale">Includes outdated cached routes</string>
@@ -483,7 +484,8 @@
     <string name="map_route_may_differ">May differ from your actual ride</string>
     <string name="map_transfer_to">Transfer to %s</string>
     <string name="map_transfer">Transfer</string>
-    <string name="map_trip_time">%1$s · took %2$s</string>
+    <string name="clause_separator">"; "</string>
+    <string name="map_trip_time">%1$s, took %2$s</string>
     <string name="duration_minutes">%d min</string>
     <string name="duration_hours_minutes">%1$d h %2$d min</string>
 

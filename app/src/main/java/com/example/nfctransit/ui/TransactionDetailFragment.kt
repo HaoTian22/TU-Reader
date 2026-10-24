@@ -85,7 +85,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         // Update card badge
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
-                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
+                binding.tvCardBadge.text = MetaText.cardBadge(card.name, card.lastFour)
                 binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
@@ -325,11 +325,11 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.tvAmountHeader.text = txn.amountText
         binding.tvAmountHeader.setTextColor(Palette.amountColor(txn.amountText))
         binding.tvHeroTitle.text = station ?: transactionType
-        binding.tvHeroSubtitle.text = listOfNotNull(
+        binding.tvHeroSubtitle.text = MetaText.join(listOf(
             city,
             known(txn.transitType)?.let(TransitLabels::type)?.takeIf { station != null || it != transactionType },
             line?.takeIf { it != station }
-        ).joinToString(" · ")
+        ))
         binding.tvHeroSubtitle.visibility = if (binding.tvHeroSubtitle.text.isEmpty()) View.GONE else View.VISIBLE
         binding.tvHeroTime.text = txn.displayDateTime
         binding.tvHeroDirection.apply {

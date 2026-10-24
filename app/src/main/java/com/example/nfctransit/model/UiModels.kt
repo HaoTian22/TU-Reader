@@ -144,6 +144,6 @@ fun List<UiTransaction>.spendingByCurrency(): Map<String, Double> {
     return out
 }
 
-/** "MOP 13.00 · ¥5.00"；无消费返回空串。 */
+/** "MOP 13.00 + ¥5.00"；无消费返回空串。 */
 fun Map<String, Double>.formatCurrencyTotals(): String =
-    entries.joinToString(" · ") { (currency, amount) -> currency + String.format("%.2f", amount) }
+    entries.joinToString(" + ") { (currency, amount) -> currency + String.format("%.2f", amount) }

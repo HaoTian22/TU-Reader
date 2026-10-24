@@ -808,7 +808,7 @@ object AppDialogs {
         }
 
         fun describe(line: String, station: String): String =
-            listOf(line, station).filter { it.isNotBlank() }.distinct().joinToString(" · ")
+            MetaText.join(listOf(line, station).distinct())
                 .ifBlank { "—" }
 
         val list = view.findViewById<LinearLayout>(R.id.reviewList)
@@ -818,7 +818,7 @@ object AppDialogs {
             val key = dup.row.mappingKey
             checks[key] = row.findViewById<MaterialCheckBox>(R.id.reviewCheck).also { styleCheckBox(it, accentColor) }
             row.findViewById<TextView>(R.id.reviewCode).text =
-                "${dup.row.prefix} ${dup.row.code} · ${TransitLabels.type(dup.row.type)}"
+                "${TransitLabels.type(dup.row.type)}  ${dup.row.prefix} ${dup.row.code}"
             row.findViewById<TextView>(R.id.reviewKind).apply {
                 val same = dup.kind == OverrideDuplicateKind.SAME
                 setText(if (same) R.string.overrides_kind_identical else R.string.overrides_kind_similar)

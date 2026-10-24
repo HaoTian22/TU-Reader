@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="status_bar_spacer_height">0dp</dimen>
+    <!-- 顶部导航栏：返回按钮距状态栏的距离，各页（含卡片主页）统一 -->
+    <dimen name="nav_header_padding_top">10dp</dimen>
 </resources>

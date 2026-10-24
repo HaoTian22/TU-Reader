@@ -217,7 +217,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
         }
 
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
-            if (card != null) binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
+            if (card != null) binding.tvCardBadge.text = MetaText.cardBadge(card.name, card.lastFour)
         }
 
         viewModel.currentTripRouteDisplayMode.observe(viewLifecycleOwner) { mode ->
@@ -736,7 +736,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                 if (routeHasApproximateRail) add(getString(R.string.map_route_intercity))
                 if (isEmpty()) add(getString(R.string.map_route_tencent))
                 add(getString(R.string.map_route_may_differ))
-            }.joinToString(" · ")
+            }.joinToString(getString(R.string.clause_separator))
             else -> getString(R.string.map_hint_default)
         }
     }

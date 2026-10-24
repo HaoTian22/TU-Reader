@@ -116,7 +116,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         }
     }
 
-    /** 按搜索词过滤后按交通类型分组：每组一个标题（类型 · 条数）+ 一个分段列表 */
+    /** 按搜索词过滤后按交通类型分组：每组一个标题（类型 + 条数）+ 一个分段列表 */
     private fun renderFiltered() {
         val groups = binding.overrideGroups
         groups.removeAllViews()
@@ -167,7 +167,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             setPadding(dp(4), dp(if (first) 12 else 24), dp(4), dp(8))
         }
 
-    /** 行：类型图标 / 站名 + 线路·城市 + 设备编号 / 删除；整行点按编辑。分段白底与圆角由 SegmentedListLayout 提供 */
+    /** 行：类型图标 / 站名 + 线路 城市 + 设备编号 / 删除；整行点按编辑。分段白底与圆角由 SegmentedListLayout 提供 */
     private fun buildRow(row: TransitOverrideRow, cityNames: Map<String, String>): View {
         val view = LayoutInflater.from(requireContext())
             .inflate(R.layout.item_override_row, binding.overrideGroups, false)
@@ -186,7 +186,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
                 row.line.takeIf { it.isNotBlank() && it != title },
                 row.locationCityCode?.let(cityNames::get)?.takeIf { it.isNotBlank() }
             )
-            text = parts.joinToString(" · ")
+            text = MetaText.join(parts)
             visibility = if (parts.isEmpty()) View.GONE else View.VISIBLE
         }
         view.findViewById<TextView>(R.id.overrideCode).text = "${row.prefix} ${row.code}"
@@ -197,7 +197,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
                 OverrideDuplicateKind.SAME -> getString(R.string.overrides_tag_identical)
                 OverrideDuplicateKind.SIMILAR -> getString(
                     R.string.overrides_tag_similar,
-                    listOf(dup.dbLine, dup.dbStation).filter { it.isNotBlank() }.joinToString(" · ")
+                    MetaText.join(listOf(dup.dbLine, dup.dbStation))
                 )
                 null -> ""
             }

@@ -24,7 +24,7 @@ data class CityOption(
 ) {
     val displayName: String = nameEn?.takeIf { it.isNotBlank() }?.let { "$name ($it)" } ?: name
     /** 选择器标签：名称后附城市码，区分同名/多码城市 */
-    val pickerLabel: String = "$displayName · $code"
+    val pickerLabel: String = "$displayName  $code"
 }
 
 data class CityBoundaryAsset(

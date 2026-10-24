@@ -35,7 +35,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * 单卡概览：卡面色头部（卡名·尾号 / 余额 / 上次读取）+ 浮起的快捷操作（交易记录 / 统计 / 轨迹），
+ * 单卡概览：卡面色头部（卡名 尾号 / 余额 / 上次读取）+ 浮起的快捷操作（交易记录 / 统计 / 轨迹），
  * 下方为本月优惠、最近交易、本周消费三个区块（数据与原首页一致）。「…」菜单进入卡片信息或删除卡片。
  */
 class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
@@ -162,7 +162,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
             }
         }
         binding.tvHeaderPill.apply {
-            text = "${card.name} · ${card.lastFour}"
+            text = MetaText.cardBadge(card.name, card.lastFour)
             setTextColor(onCard)
             background = GradientDrawable().apply {
                 cornerRadius = 16f.dpToPx()
@@ -272,7 +272,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
     // ── 最近交易 ──
 
-    /** 每行：类型图标 / 站名 + 「城市 · 线路 · 时间」/ 金额 + 交易后余额；M3 分段列表（容器提供分段白底） */
+    /** 每行：类型图标 / 站名 + 「城市 线路 时间」/ 金额 + 交易后余额；M3 分段列表（容器提供分段白底） */
     private fun bindRecentTransactions(transactions: List<UiTransaction>) {
         val container = binding.recentTxnContainer
         container.removeAllViews()
@@ -310,13 +310,12 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 }
             }
 
-            // 城市 · 线路（与站名不同时）· 时间；占位符（空 / - / —）不出现
+            // 城市 线路（与站名不同时），其后弱化的时间；占位符（空 / - / —）不出现
             val line = txn.lineName.takeUnless { isPlaceholderPill(it) || it == txn.stationName }
-            row.findViewById<TextView>(R.id.txnMeta).text = listOfNotNull(
-                txn.cityName.takeUnless { isPlaceholderPill(it) }?.let(TransitLabels::city),
-                line,
+            row.findViewById<TextView>(R.id.txnMeta).text = MetaText.withDim(
+                MetaText.join(listOf(txn.cityName.takeUnless { isPlaceholderPill(it) }?.let(TransitLabels::city), line)),
                 "${txn.date.drop(5)} ${txn.time.take(5)}"
-            ).joinToString(" · ")
+            )
 
             row.findViewById<TextView>(R.id.txnAmount).apply {
                 val hasAmount = txn.amountText.startsWith("+") || txn.amountText.startsWith("-")

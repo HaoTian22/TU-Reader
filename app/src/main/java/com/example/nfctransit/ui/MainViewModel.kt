@@ -336,7 +336,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val homeWeeklySpending: LiveData<List<DailySpending>> = _homeWeeklySpending
 
-    /** 首页本周消费合计（按币种分别合计，多币种卡显示 "MOP 13.00 · ¥5.00"） */
+    /** 首页本周消费合计（按币种分别合计，多币种卡显示 "MOP 13.00 + ¥5.00"） */
     private val _homeWeekTotals = MutableLiveData<Map<String, Double>>(emptyMap())
     val homeWeekTotals: LiveData<Map<String, Double>> = _homeWeekTotals
 

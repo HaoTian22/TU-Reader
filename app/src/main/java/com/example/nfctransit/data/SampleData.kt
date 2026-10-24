@@ -191,15 +191,15 @@ object SampleData {
     // Trip info for map trace page
     data class TripEntry(
         val route: String,         // "人民广场 → 科技园"
-        val timeLine: String,      // "09-15 08:23 · 2号线"
+        val timeLine: String,      // "09-15 08:23  2号线"
         val amountText: String,    // "¥3.00", "+¥50.00"
         val amountColor: Long      // 0xFF_FF6B6B or 0xFF_34C759
     )
 
     val tripEntries: List<TripEntry> = listOf(
-        TripEntry("人民广场 → 科技园", "09-15 08:23 · 2号线", "¥3.00", 0xFFFF6B6B),
-        TripEntry("科技园 → 老街", "09-14 18:05 · M373", "¥2.00", 0xFFFF6B6B),
-        TripEntry("充值", "09-14 10:30 · —", "+¥50.00", 0xFF34C759),
-        TripEntry("老街 → 深圳北", "09-13 07:55 · 1号线", "¥3.00", 0xFFFF6B6B)
+        TripEntry("人民广场 → 科技园", "09-15 08:23  2号线", "¥3.00", 0xFFFF6B6B),
+        TripEntry("科技园 → 老街", "09-14 18:05  M373", "¥2.00", 0xFFFF6B6B),
+        TripEntry("充值", "09-14 10:30  —", "+¥50.00", 0xFF34C759),
+        TripEntry("老街 → 深圳北", "09-13 07:55  1号线", "¥3.00", 0xFFFF6B6B)
     )
 }

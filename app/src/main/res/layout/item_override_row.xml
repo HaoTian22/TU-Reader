@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 本地映射行：类型图标 / 站名 + 线路·城市 + 设备编号（等宽）/ 删除按钮；整行点按编辑 -->
+<!-- 本地映射行：类型图标 / 站名 + 线路 城市 + 设备编号（等宽）/ 删除按钮；整行点按编辑 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -50,7 +50,7 @@
             android:maxLines="1"
             android:textColor="@color/ink_2"
             android:textSize="12sp"
-            tools:text="1号线 · 深圳" />
+            tools:text="1号线 深圳" />
 
         <TextView
             android:id="@+id/overrideCode"
@@ -75,7 +75,7 @@
             android:textColor="@color/warning"
             android:textSize="12sp"
             android:visibility="gone"
-            tools:text="Similar in database: 1号线 · 车公庙站"
+            tools:text="Similar in database: 1号线 车公庙站"
             tools:visibility="visible" />
     </LinearLayout>
 

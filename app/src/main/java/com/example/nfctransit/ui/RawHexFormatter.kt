@@ -330,7 +330,7 @@ object RawHexFormatter {
         val protocol = record.protocol.ifBlank {
             record.selectedAid.takeIf { com.example.nfctransit.CardProfiles.isUnknownApp(it) } ?: "GEN"
         }
-        return "SFI ${record.sfi.toSfiHex()} · $protocol · Rec ${record.recNo}"
+        return "SFI ${record.sfi.toSfiHex()}  $protocol  Rec ${record.recNo}"
     }
 
     fun rangeText(start: Int, end: Int): String =

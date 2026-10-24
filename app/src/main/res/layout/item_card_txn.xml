@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 单卡概览「最近交易」行：类型图标 / 站名 + 城市·线路·时间 / 金额 + 交易后余额 -->
+<!-- 单卡概览「最近交易」行：类型图标 / 站名 + 城市 线路 时间 / 金额 + 交易后余额 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"

@@ -86,7 +86,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         // Update card badge from ViewModel
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) {
-                binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
+                binding.tvCardBadge.text = MetaText.cardBadge(card.name, card.lastFour)
                 binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
@@ -424,7 +424,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             }
         }
 
-        /** 交易已按时间倒序：相邻同日期的归为一组，标题为「今天 / 昨天 / 10月1日 周四」+「N 笔 · 支出 ¥X」 */
+        /** 交易已按时间倒序：相邻同日期的归为一组，标题为「今天 / 昨天 / 10月1日 周四」+「N 笔，支出 ¥X」 */
         private fun groupByDay(list: List<UiTransaction>): List<Entry> {
             val out = mutableListOf<Entry>()
             var i = 0
@@ -435,10 +435,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 val day = list.subList(i, j)
                 // 多币种卡（澳门通/八达通 + TU）按币种分别合计
                 val spend = day.filter { it.amountText.startsWith("-") }.spendingByCurrency().formatCurrencyTotals()
-                val summary = buildString {
-                    append(resources.getQuantityString(R.plurals.txn_day_count, day.size, day.size))
-                    if (spend.isNotEmpty()) append(" · ").append(getString(R.string.txn_day_spend, spend))
-                }
+                val count = resources.getQuantityString(R.plurals.txn_day_count, day.size, day.size)
+                val summary = if (spend.isEmpty()) count
+                    else getString(R.string.txn_day_summary, count, getString(R.string.txn_day_spend, spend))
                 out += Entry.Header(dayTitle(date), summary)
                 day.forEachIndexed { k, txn -> out += Entry.Row(txn, first = k == 0, last = k == day.lastIndex) }
                 i = j

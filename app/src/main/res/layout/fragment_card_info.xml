@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   卡片信息页。版式与交易详情页一致：左右 20dp、分区标题在卡片外、卡片内为标签/值行。
-  结构：摘要（卡面 + 名称 + 类型·城市 + 余额 + 上次读取）→ 个性化 → 卡片信息 → 有效期 → 原始数据
+  结构：摘要（卡面 + 名称 + 类型 城市 + 余额 + 上次读取）→ 个性化 → 卡片信息 → 有效期 → 原始数据
   分区内行间分隔线由代码按可见行设置（第二标准/第二卡号行可能隐藏）。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -21,7 +21,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="11dp"
-        android:paddingTop="20dp"
+        android:paddingTop="@dimen/nav_header_padding_top"
         android:paddingEnd="20dp"
         android:paddingBottom="16dp">
 

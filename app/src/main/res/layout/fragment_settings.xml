@@ -17,7 +17,7 @@
             android:orientation="horizontal"
             android:paddingStart="11dp"
             android:paddingEnd="20dp"
-            android:paddingTop="20dp"
+            android:paddingTop="@dimen/nav_header_padding_top"
             android:paddingBottom="16dp"
             android:gravity="center_vertical">
 

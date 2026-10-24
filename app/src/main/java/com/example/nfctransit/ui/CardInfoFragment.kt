@@ -172,19 +172,16 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         container.addView(section.root)
     }
 
-    /** 摘要副标题：卡片类型 · 发卡城市 */
+    /** 摘要副标题：卡片类型 发卡城市 */
     private fun updateHeroSubtitle(card: UiCard) {
-        binding.tvHeroSubtitle.text = listOfNotNull(
-            card.protocolType.ifBlank { card.cardType }.takeIf { it.isNotBlank() },
-            issuerCity?.takeIf { it.isNotBlank() }
-        ).joinToString(" · ")
+        binding.tvHeroSubtitle.text = MetaText.join(listOf(card.protocolType.ifBlank { card.cardType }, issuerCity))
     }
 
     private fun bindCard(card: UiCard) {
         binding.tvCardName.text = card.name
         binding.tvNameValue.text = card.name
         updateHeroSubtitle(card)
-        binding.tvCardBadge.text = "${card.name} · ${card.lastFour}"
+        binding.tvCardBadge.text = MetaText.cardBadge(card.name, card.lastFour)
         bindCardType(card)
         val wallets = viewModel.walletBalances(card.id)
         val multi = wallets.size > 1
@@ -275,7 +272,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                     previousSfi = sfi
                 }
                 for (fields in fieldVariants) {
-                    addMonospaceLine(panel, "SFI ${sfi.toSfiHex()} · $protocol fields", dim = true)
+                    addMonospaceLine(panel, "SFI ${sfi.toSfiHex()}  $protocol fields", dim = true)
                     fields.forEach { addLegendRow(panel, it) }
                 }
             }

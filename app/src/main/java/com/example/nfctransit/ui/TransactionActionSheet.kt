@@ -21,7 +21,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 
 /**
- * 交易行长按后的底部抽屉：上方是这条交易的摘要（图标 / 站名 / 城市·类型·线路 / 日期时间 / 金额与余额），
+ * 交易行长按后的底部抽屉：上方是这条交易的摘要（图标 / 站名 / 城市 类型 线路 / 日期时间 / 金额与余额），
  * 下方是操作列表。[actions] 依次排成带图标的行，点击后先收起抽屉再执行。
  */
 object TransactionActionSheet {
@@ -122,7 +122,7 @@ object TransactionActionSheet {
         dialog.show()
     }
 
-    /** 摘要：图标圆 + 站名（出入站箭头）/ 城市·类型·线路 / 日期时间，右侧金额与交易后余额 */
+    /** 摘要：图标圆 + 站名（出入站箭头）/ 城市 类型 线路 / 日期时间，右侧金额与交易后余额 */
     private fun summary(context: Context, txn: UiTransaction, fa: Typeface, dp: (Int) -> Int): View {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -176,7 +176,7 @@ object TransactionActionSheet {
             .filter { it.isNotEmpty() && it != "-" && it != "—" && it != txn.stationName }
             .distinct()
             .map { TransitLabels.type(TransitLabels.city(it)) }
-            .joinToString(" · ")
+            .let(MetaText::join)
         if (meta.isNotEmpty()) col.addView(TextView(context).apply {
             text = meta
             textSize = 13f
@@ -221,7 +221,7 @@ object TransactionActionSheet {
     fun plainText(txn: UiTransaction): String = listOf(
         "${txn.date} ${txn.time}".trim(),
         listOf(TransitLabels.city(txn.cityName), TransitLabels.type(txn.transitType), txn.lineName, TransitLabels.station(txn.stationName))
-            .map { it.trim() }.filter { it.isNotEmpty() && it != "-" && it != "—" }.distinct().joinToString(" · "),
+            .map { it.trim() }.filter { it.isNotEmpty() && it != "-" && it != "—" }.distinct().joinToString(" "),
         listOfNotNull(txn.amountText, txn.balanceAfterText).joinToString("  ")
     ).filter { it.isNotBlank() }.joinToString("\n")
 }

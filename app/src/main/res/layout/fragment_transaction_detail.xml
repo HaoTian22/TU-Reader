@@ -17,7 +17,7 @@
             android:orientation="horizontal"
             android:paddingStart="11dp"
             android:paddingEnd="20dp"
-            android:paddingTop="20dp"
+            android:paddingTop="@dimen/nav_header_padding_top"
             android:paddingBottom="16dp"
             android:gravity="center_vertical">
 
@@ -73,7 +73,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-        <!-- 第一层：交易摘要（类型图标 / 金额 / 标题 / 城市·类型·线路 / 时间与进出站） -->
+        <!-- 第一层：交易摘要（类型图标 / 金额 / 标题 / 城市 类型 线路 / 时间与进出站） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

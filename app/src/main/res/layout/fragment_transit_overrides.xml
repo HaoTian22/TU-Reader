@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   本地映射表管理。结构：标题栏（条数徽标）→ 说明 → M3 搜索栏 → 按交通类型分组的分段列表 / 空状态。
-  行：类型图标 / 站名 + 线路·城市 + 设备编号 / 删除；点按整行编辑。
+  行：类型图标 / 站名 + 线路 城市 + 设备编号 / 删除；点按整行编辑。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
@@ -22,7 +22,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="11dp"
-        android:paddingTop="20dp"
+        android:paddingTop="@dimen/nav_header_padding_top"
         android:paddingEnd="20dp"
         android:paddingBottom="16dp">
 
@@ -185,7 +185,7 @@
                             android:layout_marginTop="2dp"
                             android:textColor="@color/ink_2"
                             android:textSize="12sp"
-                            tools:text="2 identical · 1 similar" />
+                            tools:text="2 identical, 1 similar" />
                     </LinearLayout>
                 </LinearLayout>
 

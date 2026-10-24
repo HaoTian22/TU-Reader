@@ -4,7 +4,7 @@
     <!-- Brand -->
     <string name="app_name">行旅录</string>
     <string name="app_slogan">读交通卡，记每一程</string>
-    <string name="brand_lockup">TransitU · 读交通卡，记每一程</string>
+    <string name="brand_lockup">读交通卡，记每一程</string>
 
     <!-- Common -->
     <string name="action_cancel">取消</string>
@@ -51,7 +51,7 @@
     <string name="my_cards">我的卡片</string>
     <string name="settings">设置</string>
     <string name="nfc_scan_hint">请将手机背面靠近交通卡</string>
-    <string name="home_supported_cards">支持 交通联合卡 · 深圳通 · 岭南通 · 城市一卡通</string>
+    <string name="home_supported_cards">支持交通联合卡、深圳通、岭南通、城市一卡通</string>
     <string name="home_has_history">已有历史数据？</string>
     <string name="home_import_old">导入旧数据</string>
     <string name="home_import_backup">导入数据库备份</string>
@@ -97,7 +97,7 @@
     <!-- Map trace -->
     <string name="map_trace">地图轨迹</string>
     <string name="trip_info">行程信息</string>
-    <string name="map_hint_default">双指缩放 · 滑动下方列表调整时间</string>
+    <string name="map_hint_default">双指缩放，滑动下方列表调整时间</string>
 
     <!-- Stats -->
     <string name="stats_title">数据统计</string>
@@ -117,8 +117,8 @@
     <string name="stats_spending_trend">消费趋势</string>
     <string name="stats_by_category">分类开销</string>
     <string name="stats_by_city">城市开销</string>
-    <string name="stats_top_stations">常去车站 · Top 5</string>
-    <string name="stats_top_lines">常坐线路 · Top 5</string>
+    <string name="stats_top_stations">常去车站 Top 5</string>
+    <string name="stats_top_lines">常坐线路 Top 5</string>
 
     <!-- Transaction detail / list -->
     <string name="txn_detail_title">交易详情</string>
@@ -135,11 +135,11 @@
     <string name="overrides_empty_hint">在交易详情中保存的纠错会显示在这里。</string>
     <string name="overrides_no_match">没有匹配的映射</string>
     <string name="overrides_no_match_hint">换个编号、站名或线路试试。</string>
-    <string name="overrides_group_header">%1$s · %2$d</string>
+    <string name="overrides_group_header">%1$s（%2$d）</string>
     <plurals name="overrides_duplicates_title">
         <item quantity="other">%d 条映射已收录于站名映射表</item>
     </plurals>
-    <string name="overrides_duplicates_detail">%1$d 条完全一致 · %2$d 条相近</string>
+    <string name="overrides_duplicates_detail">%1$d 条完全一致，%2$d 条相近</string>
     <string name="overrides_duplicates_deleted">已删除 %d 条重复映射</string>
     <string name="overrides_tag_identical">与映射表完全一致</string>
     <string name="overrides_tag_similar">映射表中相近：%s</string>
@@ -308,7 +308,7 @@
     </plurals>
     <string name="nfc_saved_no_txns">已保存卡片，无交易记录</string>
     <plurals name="nfc_saved">
-        <item quantity="other">%1$s · 已保存 %2$d 条交易</item>
+        <item quantity="other">%1$s：已保存 %2$d 条交易</item>
     </plurals>
     <string name="nfc_saved_ui_failed">已保存，但界面未刷新，请重开应用</string>
     <string name="nfc_read_failed">读取失败，请移开卡片重试</string>
@@ -338,7 +338,7 @@
     </plurals>
     <string name="err_read_selected_file">无法读取所选文件</string>
     <string name="station_db_updated">✓ 站名映射表已更新</string>
-    <string name="station_db_updated_with_duplicates">✓ 站名映射表已更新 · %d 条本地映射已重复</string>
+    <string name="station_db_updated_with_duplicates">✓ 站名映射表已更新，%d 条本地映射已重复</string>
     <string name="station_db_update_failed">更新失败: %s</string>
     <string name="cache_cleared_reset">✓ 已清理缓存，站名库已重置</string>
     <string name="cache_cleared_kept">✓ 已清理缓存</string>
@@ -373,6 +373,7 @@
         <item quantity="other">%d 笔</item>
     </plurals>
     <string name="txn_day_spend">支出 %s</string>
+    <string name="txn_day_summary">%1$s，%2$s</string>
     <string name="time_today">今天</string>
     <string name="time_yesterday">昨天</string>
     <string name="time_today_at">今天 %s</string>
@@ -392,10 +393,10 @@
     <string name="card_cd">%1$s，余额 %2$s 元</string>
     <string name="read_at">读取于 %s</string>
     <string name="discount_city_hint">%1$s：%2$s</string>
-    <string name="discount_tiered_next">已享 %1$s 折 · 满 ¥%2$d 起 %3$s 折，还差 ¥%4$s</string>
+    <string name="discount_tiered_next">已享 %1$s 折；满 ¥%2$d 起 %3$s 折，还差 ¥%4$s</string>
     <string name="discount_tiered_max">已满 ¥%1$d，每乘次享 %2$s 折</string>
-    <string name="discount_threshold_first">当月消费满 ¥%1$d 享 %2$s 折 · 还差 ¥%3$s</string>
-    <string name="discount_threshold_next">已享 %1$s 折 · 超 ¥%2$d 部分享 %3$s 折，还差 ¥%4$s</string>
+    <string name="discount_threshold_first">当月消费满 ¥%1$d 享 %2$s 折，还差 ¥%3$s</string>
+    <string name="discount_threshold_next">已享 %1$s 折；超 ¥%2$d 部分享 %3$s 折，还差 ¥%4$s</string>
     <string name="discount_threshold_max">已超 ¥%1$d，超出部分享 %2$s 折</string>
     <string name="week_total">合计 %s</string>
     <string name="delete_card">删除卡片</string>
@@ -457,8 +458,8 @@
 
     <!-- Map trace (code) -->
     <string name="map_no_trips">暂无行程数据</string>
-    <string name="map_route_disabled">路线服务未开通 · 已使用示意线</string>
-    <string name="map_route_quota">腾讯路线当日额度已用完 · 未缓存路线使用示意线</string>
+    <string name="map_route_disabled">路线服务未开通，已使用示意线</string>
+    <string name="map_route_quota">腾讯路线当日额度已用完，未缓存路线使用示意线</string>
     <string name="map_route_loading">正在加载真实路线 %1$d/%2$d</string>
     <string name="map_route_partial">部分路线使用示意线</string>
     <string name="map_route_stale">含过期路线缓存</string>
@@ -468,7 +469,8 @@
     <string name="map_route_may_differ">可能与实际乘坐不同</string>
     <string name="map_transfer_to">换乘 %s</string>
     <string name="map_transfer">换乘</string>
-    <string name="map_trip_time">%1$s · 用时 %2$s</string>
+    <string name="clause_separator">；</string>
+    <string name="map_trip_time">%1$s，用时 %2$s</string>
     <string name="duration_minutes">%d 分钟</string>
     <string name="duration_hours_minutes">%1$d 小时 %2$d 分钟</string>
 
