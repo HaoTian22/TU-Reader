@@ -22,6 +22,7 @@ import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.BuildConfig
 import com.example.nfctransit.R
+import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
@@ -349,6 +350,16 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
             progressMap.visibility = View.VISIBLE
         }
+
+        val tvDbVersion = binding.root.findViewById<TextView>(R.id.tvStationDbVersion)!!
+        viewModel.stationDbVersion.observe(viewLifecycleOwner) { version ->
+            if (version == null) return@observe
+            tvDbVersion.text = TransitDbVersion.toDisplayText(version)
+                ?.let { getString(R.string.station_db_version, it) }
+                ?: getString(R.string.station_db_version_unknown)
+            tvDbVersion.visibility = View.VISIBLE
+        }
+        viewModel.refreshStationDbVersion()
 
         binding.root.findViewById<View>(R.id.rowUpdateStationMap)?.setOnClickListener {
             pendingRevert?.let { chevronMap.removeCallbacks(it) }

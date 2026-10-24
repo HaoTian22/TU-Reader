@@ -22,7 +22,7 @@
   - 唯一键为 (device_code, transit_type)：同类型更新，不同类型新增，保留已有 ID 和增强数据。
 
 版本 sidecar：应用有变更（或 sidecar 缺失）时在 assets/data/transit.db.version 写
-14 位时间戳（%Y%m%d%H%M%S），供 App 判断内置库与网络库孰新、清缓存时是否重置。
+14 位时间戳（%Y%m%d%H%M%S，UTC+8 北京时间，与 App TransitDbVersion 一致），供 App 判断内置库与网络库孰新、清缓存时是否重置。
 """
 import argparse
 import collections
@@ -620,7 +620,7 @@ def main():
                    or (args.delete_stale and (stale_device or orphans_stn or orphans_ln)))
     if changed or not os.path.isfile(VERSION_FILE):
         with open(VERSION_FILE, "w", encoding="utf-8") as f:
-            f.write(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+            f.write(datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y%m%d%H%M%S"))
         print(f"版本 sidecar 已写入 {os.path.basename(VERSION_FILE)}")
     runtime_conflicts = conflict_msgs[conflict_preview_n:]
     if runtime_conflicts:

@@ -181,6 +181,8 @@
     <string name="card_management">卡片管理</string>
     <string name="bound_cards">已绑定卡片</string>
     <string name="station_map_update">站名映射表更新</string>
+    <string name="station_db_version">当前版本 %s</string>
+    <string name="station_db_version_unknown">当前版本未知</string>
     <string name="card_sorting">卡片排序</string>
     <string name="data_and_privacy">数据与隐私</string>
     <string name="local_data_storage">本地数据存储</string>

@@ -245,14 +245,21 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     private fun bindBarChart(data: List<DailySpending>) {
         val trendBinding = binding.cardTrend
         val container = trendBinding.chartContainer
+        val grid = trendBinding.chartGrid
         container.removeAllViews()
+        // 图表区可用高 180-20(padTop)-4(padBottom)=156，减去 value(13)+label(14)，
+        // 最高柱占 129dp 正好顶满图表区，"归一化到视图 max"才直观
+        val maxHeight = 129
+        // 满高对应的金额：由任一非零柱反推（ViewModel 的 max 可能取自窗口外日期），
+        // 网格虚线按同一比例画，基线 = 底部 padding(4) + 标签(14)
+        val scaleMax = data.firstOrNull { it.barHeightPercent > 0f }
+            ?.let { it.amountYuan / it.barHeightPercent } ?: 0.0
+        grid.setScale(scaleMax, data.firstOrNull()?.currency ?: "", dpToPx(maxHeight), dpToPx(18))
+        container.setPaddingRelative(grid.gutterWidth, container.paddingTop, 0, container.paddingBottom)
         if (data.isEmpty()) return
 
         // 柱子很多时（如整月 30+ 根）不显示每根柱子的金额文字，避免拥挤
         val showValues = data.size <= 12
-        // 图表区可用高 180-20(padTop)-4(padBottom)=156，减去 value(13)+label(14)，
-        // 最高柱占 129dp 正好顶满图表区，"归一化到视图 max"才直观
-        val maxHeight = 129
         // 弹窗放在卡片根部 overlay（不受窄列宽度约束）
         val popup = trendBinding.chartPopup
 

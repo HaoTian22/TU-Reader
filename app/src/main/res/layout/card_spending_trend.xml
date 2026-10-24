@@ -14,15 +14,26 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- Bar Chart Area：柱子由代码按周期动态生成（本周/本月/本年） -->
-    <LinearLayout
-        android:id="@+id/chartContainer"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="180dp"
-        android:orientation="horizontal"
-        android:gravity="bottom|center"
-        android:paddingTop="8dp"
-        android:paddingBottom="4dp" />
+        android:layout_height="180dp">
+
+        <!-- 背景网格：水平虚线 + 左侧金额刻度，几何与柱子对齐 -->
+        <com.example.nfctransit.ui.ChartGridView
+            android:id="@+id/chartGrid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Bar Chart Area：柱子由代码按周期动态生成（本周/本月/本年） -->
+        <LinearLayout
+            android:id="@+id/chartContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="bottom|center"
+            android:paddingTop="8dp"
+            android:paddingBottom="4dp" />
+    </FrameLayout>
 </LinearLayout>
 
     <!-- 柱点击信息弹窗：全宽 overlay，点击柱子时定位到该柱上方 -->

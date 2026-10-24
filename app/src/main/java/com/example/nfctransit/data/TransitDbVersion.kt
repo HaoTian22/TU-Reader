@@ -15,7 +15,8 @@ object TransitDbVersion {
     const val ASSET_VERSION_PATH = "data/transit.db.version"
     const val VERSION_PATTERN = "yyyyMMddHHmmss"
 
-    private val utc = TimeZone.getTimeZone("UTC")
+    /** 版本号是 UTC+8（北京时间），由 tools/update_transit_db.py 按该时区写入 */
+    private val versionZone = TimeZone.getTimeZone("GMT+08:00")
 
     /** 读取 APK 内置版本 sidecar；缺失/空白/异常返回 null（旧 APK 无 sidecar）。 */
     fun readAssetVersion(context: Context): String? {
@@ -32,7 +33,7 @@ object TransitDbVersion {
     fun toEpochMillis(version: String?): Long {
         if (version == null || version.length != VERSION_PATTERN.length) return Long.MIN_VALUE
         return try {
-            SimpleDateFormat(VERSION_PATTERN, Locale.US).apply { timeZone = utc }
+            SimpleDateFormat(VERSION_PATTERN, Locale.US).apply { timeZone = versionZone }
                 .parse(version)?.time ?: Long.MIN_VALUE
         } catch (e: Exception) {
             Long.MIN_VALUE
@@ -43,7 +44,14 @@ object TransitDbVersion {
     fun isNewer(candidate: String?, reference: String?): Boolean =
         toEpochMillis(candidate) > toEpochMillis(reference)
 
-    /** epoch 毫秒 → VERSION_PATTERN（UTC），用于 OTA 回退路径的版本发现。 */
+    /** 版本号（UTC+8）→ 手机当前本地时区 "yyyy-MM-dd HH:mm"，用于设置页显示；无效/未知版本返回 null。 */
+    fun toDisplayText(version: String?): String? {
+        val millis = toEpochMillis(version)
+        if (millis == Long.MIN_VALUE) return null
+        return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(millis))
+    }
+
+    /** epoch 毫秒 → VERSION_PATTERN（UTC+8），用于 OTA 回退路径的版本发现。 */
     fun formatTimestamp(epochMillis: Long): String =
-        SimpleDateFormat(VERSION_PATTERN, Locale.US).apply { timeZone = utc }.format(Date(epochMillis))
+        SimpleDateFormat(VERSION_PATTERN, Locale.US).apply { timeZone = versionZone }.format(Date(epochMillis))
 }

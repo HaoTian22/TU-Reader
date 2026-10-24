@@ -418,6 +418,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationDbUpdateStatus = MutableLiveData<String?>(null)
     val stationDbUpdateStatus: LiveData<String?> = _stationDbUpdateStatus
 
+    /** 当前站名映射表版本（yyyyMMddHHmmss UTC+8，显示时转手机本地时区；"0" = 未知，旧库无版本记录） */
+    private val _stationDbVersion = MutableLiveData<String?>(null)
+    val stationDbVersion: LiveData<String?> = _stationDbVersion
+
     private val _feedbackStatus = MutableLiveData<String?>(null)
     val feedbackStatus: LiveData<String?> = _feedbackStatus
 
@@ -1421,6 +1425,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 下载最新 transit.db 并替换本地站名映射表，成功后重载内存索引并刷新界面。
      * 下载或格式校验失败时原库保持不变。
      */
+    fun refreshStationDbVersion() {
+        viewModelScope.launch {
+            _stationDbVersion.value = AppPreferences.getDbVersion(getApplication())
+        }
+    }
+
     fun consumeStationDbUpdateStatus() {
         _stationDbUpdateStatus.value = null
     }
@@ -1459,6 +1469,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } ?: downloaded.lastModifiedMillis?.let { TransitDbVersion.formatTimestamp(it) }
                     ?: TransitDbVersion.formatTimestamp(System.currentTimeMillis())
                 AppPreferences.setDbVersion(getApplication(), otaVersion)
+                _stationDbVersion.value = otaVersion
                 // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
                 rebuildAllCardsAndRefresh()
                 // 界面重建完成后再报成功，避免「提示已更新但界面还是旧站名」
@@ -1501,7 +1512,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     TransitOverrideImporter.import(ctx)
                     TransitData.reload()
                 }
-                if (resetToAsset) AppPreferences.setDbVersion(ctx, assetVersion ?: "0")
+                if (resetToAsset) {
+                    AppPreferences.setDbVersion(ctx, assetVersion ?: "0")
+                    _stationDbVersion.value = assetVersion ?: "0"
+                }
                 rebuildAllCardsAndRefresh()
                 _cacheClearStatus.value = if (resetToAsset) {
                     L10n.str(R.string.cache_cleared_reset)

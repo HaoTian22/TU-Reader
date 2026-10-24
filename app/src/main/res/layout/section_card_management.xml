@@ -83,13 +83,31 @@
                     android:textSize="14sp"
                     android:tag="fa" />
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/station_map_update"
-                    android:textColor="@color/ink"
-                    android:textSize="14sp" />
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/station_map_update"
+                        android:textColor="@color/ink"
+                        android:textSize="14sp" />
+
+                    <!-- 当前库版本（内置 / 在线更新后的发布时间） -->
+                    <TextView
+                        android:id="@+id/tvStationDbVersion"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/ink_3"
+                        android:textSize="12sp"
+                        android:visibility="gone"
+                        tools:text="Current version 2026-10-25 10:42"
+                        tools:visibility="visible" />
+                </LinearLayout>
 
                 <!-- 右侧状态：箭头 / 下载进度环 / 成功 ✓ / 失败 ⚠（同一位置切换） -->
                 <!-- 槽位内右对齐：箭头与其它行的箭头对齐，进度环右沿同位置 -->

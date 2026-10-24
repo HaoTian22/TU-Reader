@@ -186,6 +186,8 @@
     <string name="card_management">Cards</string>
     <string name="bound_cards">Saved cards</string>
     <string name="station_map_update">Update station database</string>
+    <string name="station_db_version">Current version %s</string>
+    <string name="station_db_version_unknown">Current version unknown</string>
     <string name="card_sorting">Reorder cards</string>
     <string name="data_and_privacy">Data &amp; privacy</string>
     <string name="local_data_storage">Local data storage</string>
