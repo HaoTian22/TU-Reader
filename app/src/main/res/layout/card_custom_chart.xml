@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自定义图表（Google Analytics 探索报告风格）：
+  维度/指标下拉框 → 指标合计 + 图表类型切换 → 图表 → 数据表（合计行 + 各分组三指标，点表头切换指标）
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginStart="20dp"
+    android:layout_marginEnd="20dp"
+    android:background="@drawable/bg_card_plain"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:layout_marginTop="0dp"
+                android:text="@string/stats_custom_dimension" />
+
+            <!-- 与反馈表单的城市选择框一致：胶囊框 + 下拉箭头，点按展开同风格候选列表；
+                 胶囊背景放在可点击的外层上，全局水波纹蒙版才会取胶囊形状 -->
+            <FrameLayout
+                android:id="@+id/pickDimension"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_default"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tvDimension"
+                    style="@style/StatsPickerField" />
+
+                <TextView
+                    android:id="@+id/chevDimension"
+                    style="@style/StatsPickerChevron" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/FeedbackLabel"
+                android:layout_marginTop="0dp"
+                android:text="@string/stats_custom_metric" />
+
+            <!-- 与反馈表单的城市选择框一致：胶囊框 + 下拉箭头，点按展开同风格候选列表；
+                 胶囊背景放在可点击的外层上，全局水波纹蒙版才会取胶囊形状 -->
+            <FrameLayout
+                android:id="@+id/pickMetric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_default"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tvMetric"
+                    style="@style/StatsPickerField" />
+
+                <TextView
+                    android:id="@+id/chevMetric"
+                    style="@style/StatsPickerChevron" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 指标合计（GA 记分卡）+ 图表类型图标切换 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvScoreLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/ink_3"
+                android:textSize="12sp"
+                tools:text="消费金额" />
+
+            <TextView
+                android:id="@+id/tvScoreValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/ink"
+                android:textSize="24sp"
+                tools:text="¥1179.66" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/chartTypeGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_chip_default"
+            android:orientation="horizontal"
+            android:padding="3dp" />
+    </LinearLayout>
+
+    <com.example.nfctransit.ui.AxisChartView
+        android:id="@+id/axisChart"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginTop="12dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/donutRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <com.example.nfctransit.ui.DonutChartView
+            android:id="@+id/donutChart"
+            android:layout_width="160dp"
+            android:layout_height="160dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/barList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/customEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingTop="24dp"
+        android:paddingBottom="24dp"
+        android:text="@string/stats_empty"
+        android:textColor="@color/ink_3"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <!-- 数据表：表头/合计/分组行/展开行由代码生成 -->
+    <LinearLayout
+        android:id="@+id/dataTable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="vertical" />
+</LinearLayout>

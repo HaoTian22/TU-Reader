@@ -16,6 +16,7 @@ import re
 import signal
 import tempfile
 import threading
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
@@ -135,6 +136,21 @@ def _validate_raw_record(value: str | None) -> str | None:
     return value
 
 
+def _validate_submitted_at(value: str | None) -> str | None:
+    """Client-local submission time, ISO-8601 with a UTC offset (kept as sent)."""
+    if value is None:
+        return None
+    if len(value) > 40:
+        raise PayloadError("submittedAt: at most 40 characters")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise PayloadError("submittedAt: must be an ISO-8601 date-time") from None
+    if parsed.tzinfo is None:
+        raise PayloadError("submittedAt: must include a UTC offset")
+    return parsed.isoformat()
+
+
 def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | None], str]:
     """Validate one submission, returning (csv row, metadata, device_code)."""
     if not isinstance(payload, dict):
@@ -150,6 +166,7 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
         "locationCityName",
         "locationSource",
         "rawRecord",
+        "submittedAt",
     }
     if unknown:
         raise PayloadError(f"unexpected fields: {', '.join(sorted(unknown))}")
@@ -180,6 +197,9 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
     raw_record = _validate_raw_record(_optional_str(payload, "rawRecord"))
     if raw_record is not None:
         metadata["rawRecord"] = raw_record
+    submitted_at = _validate_submitted_at(_optional_str(payload, "submittedAt"))
+    if submitted_at is not None:
+        metadata["submittedAt"] = submitted_at
     return row, metadata, prefix + code
 
 
@@ -308,8 +328,8 @@ class FeedbackHandler(BaseHTTPRequestHandler):
             "line": row["Line"],
             "station": row["Station"],
         }
-        for name in ("locationCityCode", "locationCityName", "locationSource"):
-            if metadata[name] is not None:
+        for name in ("locationCityCode", "locationCityName", "locationSource", "submittedAt"):
+            if metadata.get(name) is not None:
                 content[name] = metadata[name]
         return content
 

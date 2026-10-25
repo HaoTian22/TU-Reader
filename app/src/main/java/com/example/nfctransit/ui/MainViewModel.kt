@@ -53,6 +53,8 @@ import com.example.nfctransit.data.route.TransitRouteRepository
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.CardPalette
 import com.example.nfctransit.model.CategorySpending
+import com.example.nfctransit.model.CustomChartConfig
+import com.example.nfctransit.model.CustomChartData
 import com.example.nfctransit.model.CityDiscountUi
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.DiscountRegistry
@@ -332,6 +334,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _citySpending = MutableLiveData<List<CategorySpending>>(emptyList())
     val citySpending: LiveData<List<CategorySpending>> = _citySpending
 
+    /** 统计页自定义图表：维度/指标/图表类型由用户选择并持久化，随统计周期/币种一起重算 */
+    private val _customChartConfig = MutableLiveData(CustomChartConfig())
+    val customChartConfig: LiveData<CustomChartConfig> = _customChartConfig
+    private val _customChart = MutableLiveData(CustomChartData())
+    val customChart: LiveData<CustomChartData> = _customChart
+
+    fun setCustomChartConfig(config: CustomChartConfig) {
+        if (config == _customChartConfig.value) return
+        _customChartConfig.value = config
+        emitStatsForSelected()
+        viewModelScope.launch(Dispatchers.IO) { repo.setStatsCustomChart(config.encode()) }
+    }
+
     // 首页迷你图专用：固定"本周（周一~周日）"7 根柱子，不受统计页周期切换影响
     private val _homeWeeklySpending = MutableLiveData<List<DailySpending>>(emptyList())
     val homeWeeklySpending: LiveData<List<DailySpending>> = _homeWeeklySpending
@@ -496,6 +511,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _playbackHaptics.value = repo.isPlaybackHaptics()
             _playbackSound.value = repo.isPlaybackSound()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
+            _customChartConfig.value = CustomChartConfig.decode(repo.getStatsCustomChart())
             repo.migrateCuCardNumbers()
             repo.repairImportedCuArchives()
             // 修复旧版本启动抢读留下的重复 UUID，保留全部交易和用户自定义元数据。
@@ -1345,6 +1361,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _dailySpending.value = emptyList()
         _categorySpending.value = emptyList()
         _citySpending.value = emptyList()
+        _customChart.value = CustomChartData(_customChartConfig.value ?: CustomChartConfig())
         _homeWeeklySpending.value = emptyList()
         _homeWeekTotals.value = emptyMap()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
@@ -1729,6 +1746,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _dailySpending.value = computeDailySpending(moneyTxns, currentPeriod, start, end).map { it.copy(currency = currency) }
         _categorySpending.value = computeCategorySpending(moneyTxns).map { it.copy(currency = currency) }
         _citySpending.value = computeCitySpending(moneyTxns).map { it.copy(currency = currency) }
+        _customChart.value = computeCustomChart(periodTxns, _customChartConfig.value ?: CustomChartConfig(), currency)
         _statsSummary.value = computeStatsSummary(moneyTxns, start, end).copy(
             rideCount = periodTxns.count { (it.transitType == "地铁" || it.transitType == "公交") && it.amountYuan > 0 },
             currency = currency
@@ -1874,6 +1892,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _dailySpending.value = emptyList()
             _categorySpending.value = emptyList()
             _citySpending.value = emptyList()
+            _customChart.value = CustomChartData(_customChartConfig.value ?: CustomChartConfig())
             _homeWeeklySpending.value = emptyList()
             _homeWeekTotals.value = emptyMap()
             _statsSummary.value = StatsSummary(0.0, 0, 0.0)
@@ -1963,16 +1982,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .map { (name, amt) -> CategorySpending(name, amt, (amt / total).toFloat(), categoryColor(name)) }
     }
 
-    private fun categoryColor(type: String): Int = when (type) {
-        "地铁" -> 0xFF1A73E8.toInt()
-        "公交" -> 0xFFFB8C00.toInt()
-        "BRT" -> 0xFF8E24AA.toInt()
-        "有轨电车" -> 0xFF26A69A.toInt()
-        "城际" -> 0xFF5C6BC0.toInt()
-        "消费" -> 0xFFE91E63.toInt()
-        "便利店" -> 0xFFE91E63.toInt()
-        else -> 0xFF78909C.toInt()
-    }
+    private fun categoryColor(type: String): Int = transitTypeColor(type)
 
     /** 城市开销：按城市聚合有金额的支出（排除充值 +¥ 与 0 金额旅程事件），按金额降序 */
     private fun computeCitySpending(uiTxns: List<UiTransaction>): List<CategorySpending> {
@@ -1990,18 +2000,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    private val cityPalette = listOf(
-        0xFF4CAF50.toInt(),  // 绿
-        0xFFFB8C00.toInt(),  // 橙
-        0xFF9C27B0.toInt(),  // 紫
-        0xFF00BCD4.toInt(),  // 青
-        0xFFE91E63.toInt(),  // 玫红
-        0xFF3F51B5.toInt(),  // 靛
-        0xFF8BC34A.toInt(),  // 浅绿
-        0xFF795548.toInt(),  // 棕
-        0xFFF44336.toInt(),  // 红
-        0xFF607D8B.toInt()   // 蓝灰
-    )
+    private val cityPalette = CHART_PALETTE
 
     private fun computeDailySpending(
         uiTxns: List<UiTransaction>,

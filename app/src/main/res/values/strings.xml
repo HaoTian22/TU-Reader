@@ -123,6 +123,28 @@
     <string name="stats_by_city">By city</string>
     <string name="stats_top_stations">Top 5 stations</string>
     <string name="stats_top_lines">Top 5 lines</string>
+    <string name="stats_custom_chart">Custom chart</string>
+    <string name="stats_custom_dimension">Group by</string>
+    <string name="stats_custom_metric">Metric</string>
+    <string name="stats_dim_type">Type</string>
+    <string name="stats_dim_city">City</string>
+    <string name="stats_dim_line">Line</string>
+    <string name="stats_dim_station">Station</string>
+    <string name="stats_dim_weekday">Weekday</string>
+    <string name="stats_dim_hour">Hour</string>
+    <string name="stats_dim_month">Month</string>
+    <string name="stats_dim_date">Date</string>
+    <string name="stats_metric_spending">Spending</string>
+    <string name="stats_metric_rides">Rides</string>
+    <string name="stats_metric_avg_fare">Avg fare</string>
+    <string name="stats_chart_line">Line</string>
+    <string name="stats_custom_show_all">Show all %1$d rows</string>
+    <string name="stats_custom_show_less">Show less</string>
+    <string name="stats_chart_column">Column</string>
+    <string name="stats_chart_bar">Bar</string>
+    <string name="stats_chart_donut">Donut</string>
+    <string name="stats_custom_table_total">Total</string>
+    <string name="stats_custom_other">Other</string>
 
     <!-- Transaction detail / list -->
     <string name="txn_detail_title">Details</string>

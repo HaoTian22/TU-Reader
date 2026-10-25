@@ -322,3 +322,26 @@ def test_accepts_raw_record_at_utf8_limit_even_with_json_escapes(api):
     assert len(raw_record.encode("utf-8")) == app.MAX_RAW_RECORD_BYTES
     assert api("POST", "/v1/overrides", {**raw_record_payload(), "rawRecord": raw_record})[0] == 201
     assert stored_entries()["33200120|公交"]["rawRecord"] == raw_record
+
+
+def test_stores_submitted_at_with_client_offset(api):
+    payload = {**raw_record_payload(), "submittedAt": "2026-10-25T10:42:00+08:00"}
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    assert stored_entries()["33200120|公交"]["submittedAt"] == "2026-10-25T10:42:00+08:00"
+    row, metadata, _ = app.parse_override(payload)
+    assert app.FeedbackHandler._log_content(row, metadata)["submittedAt"] == "2026-10-25T10:42:00+08:00"
+
+
+@pytest.mark.parametrize("optional", [{}, {"submittedAt": None}])
+def test_submitted_at_is_optional_for_old_clients(api, optional):
+    assert api("POST", "/v1/overrides", {**raw_record_payload(), **optional})[0] == 201
+    assert "submittedAt" not in stored_entries()["33200120|公交"]
+
+
+@pytest.mark.parametrize("submitted_at", [
+    "", "yesterday", "2026-10-25T10:42:00", "2026-13-01T00:00:00+08:00", 1, "9" * 41,
+], ids=["empty", "text", "no-offset", "bad-month", "number", "oversize"])
+def test_rejects_invalid_submitted_at(api, submitted_at):
+    status, response = api("POST", "/v1/overrides", {**raw_record_payload(), "submittedAt": submitted_at})
+    assert status == 422
+    assert "submittedAt" in response["detail"]

@@ -5,6 +5,9 @@ import com.example.nfctransit.BuildConfig
 import com.google.gson.Gson
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.nfctransit.R
 import com.example.nfctransit.util.L10n
 
@@ -21,7 +24,9 @@ object FeedbackUploader {
         val locationCityCode: String? = null,
         val locationCityName: String? = null,
         val locationSource: FeedbackLocationSource,
-        val rawRecord: String? = null
+        val rawRecord: String? = null,
+        /** 提交时间：手机本地时间 + 时区偏移（ISO-8601，如 2026-10-25T10:42:00+08:00） */
+        val submittedAt: String
     )
 
     fun upload(
@@ -56,7 +61,8 @@ object FeedbackUploader {
                     locationCityCode,
                     locationCityName,
                     locationSource,
-                    rawRecord
+                    rawRecord,
+                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
                 )
             )
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }

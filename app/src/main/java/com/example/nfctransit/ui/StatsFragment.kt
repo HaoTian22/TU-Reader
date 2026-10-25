@@ -1,13 +1,17 @@
 package com.example.nfctransit.ui
 
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ListPopupWindow
 import android.widget.TextView
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -19,6 +23,15 @@ import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentStatsBinding
 import com.example.nfctransit.model.CategorySpending
+import com.example.nfctransit.model.CustomChartConfig
+import com.example.nfctransit.model.CustomChartData
+import com.example.nfctransit.model.CustomChartItem
+import com.example.nfctransit.model.StatsChartType
+import com.example.nfctransit.model.StatsDimension
+import com.example.nfctransit.model.StatsMetric
+import com.example.nfctransit.util.AppLanguage
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import com.example.nfctransit.model.DailySpending
 import com.example.nfctransit.model.LineStat
 import com.example.nfctransit.model.StationStat
@@ -53,6 +66,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         binding.btnBackCurrent.setIconLabel(fa, "\uF2EA", getString(R.string.stats_now)) // fa-rotate-left
         binding.btnPrevPeriod.typeface = fa
         binding.btnNextPeriod.typeface = fa
+        setupCustomChart(fa)
 
         // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
         // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认
@@ -88,6 +102,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             binding.tvCardBadge.setTextColor(accentColor)
             updateCardBadgeBg()
             updateSegmentSelection()
+            viewModel.customChartConfig.value?.let { bindCustomOptions(it) }
+            viewModel.customChart.value?.let { bindCustomChart(it) }
         }
 
         // 上一期/下一期 / 回到当前
@@ -141,6 +157,360 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         viewModel.citySpending.observe(viewLifecycleOwner) { items ->
             bindDonutChart(binding.cardCities.donutChart, binding.cardCities.cityLegend, items, TransitLabels::city)
+        }
+
+        viewModel.customChartConfig.observe(viewLifecycleOwner) { bindCustomOptions(it) }
+        viewModel.customChart.observe(viewLifecycleOwner) { bindCustomChart(it) }
+    }
+
+    // ── 自定义图表（Google Analytics 探索报告风格） ──
+
+    private val dimensionOptions = listOf(
+        StatsDimension.DATE to R.string.stats_dim_date,
+        StatsDimension.WEEKDAY to R.string.stats_dim_weekday,
+        StatsDimension.HOUR to R.string.stats_dim_hour,
+        StatsDimension.MONTH to R.string.stats_dim_month,
+        StatsDimension.TYPE to R.string.stats_dim_type,
+        StatsDimension.CITY to R.string.stats_dim_city,
+        StatsDimension.LINE to R.string.stats_dim_line,
+        StatsDimension.STATION to R.string.stats_dim_station
+    )
+    private val metricOptions = listOf(
+        StatsMetric.SPENDING to R.string.stats_metric_spending,
+        StatsMetric.RIDES to R.string.stats_metric_rides,
+        StatsMetric.AVG_FARE to R.string.stats_metric_avg_fare
+    )
+    /** 图表类型切换：FontAwesome 图标 + 无障碍描述 */
+    private val chartTypeOptions = listOf(
+        Triple(StatsChartType.LINE, "", R.string.stats_chart_line),     // fa-chart-line
+        Triple(StatsChartType.COLUMN, "", R.string.stats_chart_column), // fa-chart-column
+        Triple(StatsChartType.BAR, "", R.string.stats_chart_bar),       // fa-chart-bar
+        Triple(StatsChartType.DONUT, "", R.string.stats_chart_donut)    // fa-chart-pie
+    )
+    /** 数据表默认显示的行数，超出折叠 */
+    private val tableCollapsedRows = 10
+    private var tableExpanded = false
+    private var faTypeface: Typeface? = null
+
+    private fun metricLabel(metric: StatsMetric) = getString(metricOptions.first { it.first == metric }.second)
+    private fun dimensionLabel(dimension: StatsDimension) = getString(dimensionOptions.first { it.first == dimension }.second)
+
+    private fun setupCustomChart(fa: Typeface) {
+        faTypeface = fa
+        val card = binding.cardCustom
+        card.chevDimension.typeface = fa
+        card.chevMetric.typeface = fa
+        card.pickDimension.setOnClickListener { anchor ->
+            val config = viewModel.customChartConfig.value ?: return@setOnClickListener
+            showPicker(anchor, dimensionOptions, config.dimension) {
+                tableExpanded = false
+                viewModel.setCustomChartConfig(config.copy(dimension = it))
+            }
+        }
+        card.pickMetric.setOnClickListener { anchor ->
+            val config = viewModel.customChartConfig.value ?: return@setOnClickListener
+            showPicker(anchor, metricOptions, config.metric) { viewModel.setCustomChartConfig(config.copy(metric = it)) }
+        }
+    }
+
+    /** 下拉选择：与反馈表单城市选择框同款候选列表（白色圆角外壳 + 48dp 行），宽度对齐选择框 */
+    private fun <T> showPicker(anchor: View, options: List<Pair<T, Int>>, selected: T, onPick: (T) -> Unit) {
+        val popup = ListPopupWindow(requireContext())
+        popup.anchorView = anchor
+        popup.width = anchor.width
+        popup.verticalOffset = dpToPx(6)
+        popup.isModal = true
+        popup.setBackgroundDrawable(ContextCompat.getDrawable(requireContext(), R.drawable.bg_dropdown_popup))
+        popup.setAdapter(DropdownChoiceAdapter(requireContext(), options, label = { getString(it.second) }, keys = null))
+        popup.setOnItemClickListener { _, _, position, _ ->
+            popup.dismiss()
+            if (options[position].first != selected) onPick(options[position].first)
+        }
+        popup.show()
+    }
+
+    private fun bindCustomOptions(config: CustomChartConfig) {
+        val card = binding.cardCustom
+        card.tvDimension.text = dimensionLabel(config.dimension)
+        card.tvMetric.text = metricLabel(config.metric)
+        card.chartTypeGroup.removeAllViews()
+        chartTypeOptions.forEach { (type, icon, res) ->
+            // 折线只适用于时间类维度，环形图不适用于平均票价：不可用时置灰
+            val available = config.isChartTypeAvailable(type)
+            val selected = type == config.effectiveChartType
+            card.chartTypeGroup.addView(TextView(requireContext()).apply {
+                typeface = faTypeface
+                text = icon
+                textSize = 14f
+                gravity = Gravity.CENTER
+                contentDescription = getString(res)
+                setTextColor(
+                    when {
+                        selected -> 0xFFFFFFFF.toInt()
+                        available -> Palette.INK_2
+                        else -> Palette.INK_DISABLED
+                    }
+                )
+                // 未选中也给透明胶囊背景：全局水波纹按背景形状取蒙版
+                background = GradientDrawable().apply {
+                    cornerRadius = dpToPx(999).toFloat()
+                    setColor(if (selected) accentColor else Color.TRANSPARENT)
+                }
+                isEnabled = available
+                if (available) setOnClickListener { viewModel.setCustomChartConfig(config.copy(chartType = type)) }
+            }, LinearLayout.LayoutParams(dpToPx(40), dpToPx(30)))
+        }
+    }
+
+    private fun bindCustomChart(data: CustomChartData) {
+        val card = binding.cardCustom
+        val config = data.config
+        val type = config.effectiveChartType
+        val empty = data.totals.isEmpty
+        card.tvScoreLabel.text = metricLabel(config.metric)
+        card.tvScoreValue.text = metricText(data, config.metric, data.total)
+        card.customEmpty.visibility = if (empty) View.VISIBLE else View.GONE
+        val axis = type == StatsChartType.LINE || type == StatsChartType.COLUMN
+        card.axisChart.visibility = if (!empty && axis) View.VISIBLE else View.GONE
+        card.donutRow.visibility = if (!empty && type == StatsChartType.DONUT) View.VISIBLE else View.GONE
+        card.barList.visibility = if (!empty && type == StatsChartType.BAR) View.VISIBLE else View.GONE
+
+        val labeler = CustomChartLabeler(data)
+        bindDataTable(data, labeler)
+        if (empty) return
+        when (type) {
+            StatsChartType.LINE, StatsChartType.COLUMN -> card.axisChart.setData(
+                data.items.map {
+                    AxisChartView.Point(it.value, labeler.short(it), labeler.full(it) + "  " + metricText(data, config.metric, it.value))
+                },
+                if (type == StatsChartType.LINE) AxisChartView.Style.LINE else AxisChartView.Style.COLUMN,
+                accentColor
+            ) { axisText(data, it) }
+            StatsChartType.DONUT -> card.donutChart.setSegments(
+                data.items.filter { it.value > 0 }
+                    .map { CategorySpending(it.key, it.value, it.percent, it.color, data.currency) },
+                metricText(data, config.metric, data.total),
+                metricLabel(config.metric)
+            )
+            StatsChartType.BAR -> {
+                card.barList.removeAllViews()
+                data.items.forEachIndexed { index, item ->
+                    card.barList.addView(rankBlock(
+                        index, customNameViews(item, config.dimension, labeler),
+                        metricText(data, config.metric, item.value), item.barPercent, accentColor
+                    ))
+                }
+            }
+        }
+    }
+
+    /**
+     * 数据表（GA 风格）：表头 = 维度名 + 三个指标（点击切换图表指标，当前指标着主题色并带排序图标）；
+     * 合计行；分组行显示三个指标，当前指标下附占合计百分比；超过 10 行折叠。
+     * 环形图时行首圆点与图表颜色对应。
+     */
+    private fun bindDataTable(data: CustomChartData, labeler: CustomChartLabeler) {
+        val table = binding.cardCustom.dataTable
+        table.removeAllViews()
+        if (data.totals.isEmpty) {
+            table.visibility = View.GONE
+            return
+        }
+        table.visibility = View.VISIBLE
+        val config = data.config
+        val columns = listOf(StatsMetric.RIDES, StatsMetric.SPENDING, StatsMetric.AVG_FARE)
+        val showDots = config.effectiveChartType == StatsChartType.DONUT
+
+        // 表头：同数据库查询结果表头（FILL 底、medium 字重、灰字），圆角行
+        table.addView(tableRow(
+            nameView = tableText(dimensionLabel(config.dimension), 11f, Palette.INK_3, bold = true),
+            cells = columns.map { m ->
+                val active = m == config.metric
+                tableText(metricLabel(m), 11f, if (active) accentColor else Palette.INK_3, bold = true, end = true).apply {
+                    if (active) faTypeface?.let { fa ->
+                        text = SpannableString("${metricLabel(m)} ").apply { // fa-sort-down
+                            setSpan(IconFontSpan(fa), length - 1, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+                    }
+                    // 窄屏表头可折成两行，不截断
+                    isSingleLine = false
+                    maxLines = 2
+                    if (!active) setOnClickListener { viewModel.setCustomChartConfig(config.copy(metric = m)) }
+                }
+            },
+            verticalPad = 9
+        ).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dpToPx(10).toFloat()
+                setColor(Palette.FILL)
+            }
+        })
+
+        // 合计行
+        table.addView(tableRow(
+            nameView = tableText(getString(R.string.stats_custom_table_total), 13f, Palette.INK, bold = true),
+            cells = columns.map { m -> tableText(metricText(data, m, data.totals.of(m)), 12f, Palette.INK, bold = true, end = true) },
+            verticalPad = 11
+        ))
+
+        val rows = data.tableItems
+        val visible = if (tableExpanded) rows else rows.take(tableCollapsedRows)
+        visible.forEach { item ->
+            table.addView(tableDivider())
+            val name = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            if (showDots) name.addView(View(requireContext()).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(item.color)
+                }
+            }, LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply { marginEnd = dpToPx(6) })
+            name.addView(tableText(labeler.full(item), 13f, Palette.INK).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            table.addView(tableRow(
+                nameView = name,
+                cells = columns.map { m ->
+                    val value = item.metrics.of(m)
+                    val text = metricText(data, m, value)
+                    val total = data.totals.of(m)
+                    // 当前指标（可相加）下附占合计百分比，如 GA 的 "(12.3%)"
+                    if (m == config.metric && m != StatsMetric.AVG_FARE && total > 0) {
+                        LinearLayout(requireContext()).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.END
+                            addView(tableText(text, 12f, Palette.INK, end = true))
+                            addView(tableText(String.format("%.1f%%", value / total * 100), 10f, Palette.INK_3, end = true))
+                        }
+                    } else {
+                        tableText(text, 12f, Palette.INK_2, end = true)
+                    }
+                },
+                verticalPad = 10
+            ))
+        }
+
+        if (rows.size > tableCollapsedRows) {
+            table.addView(tableDivider())
+            table.addView(tableText(
+                if (tableExpanded) getString(R.string.stats_custom_show_less)
+                else getString(R.string.stats_custom_show_all, rows.size),
+                13f, accentColor, bold = true
+            ).apply {
+                gravity = Gravity.CENTER
+                setPadding(0, dpToPx(12), 0, dpToPx(4))
+                setOnClickListener {
+                    tableExpanded = !tableExpanded
+                    viewModel.customChart.value?.let { bindDataTable(it, CustomChartLabeler(it)) }
+                }
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    /** 表格行：按比例分宽（名称列 1.4 份，三个指标列各 1 份右对齐），窄屏（~360dp）下名称列也不被挤没 */
+    private fun tableRow(nameView: View, cells: List<View>, verticalPad: Int): LinearLayout =
+        LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(8), dpToPx(verticalPad), dpToPx(8), dpToPx(verticalPad))
+            addView(nameView, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.4f))
+            cells.forEach { cell ->
+                addView(cell, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { marginStart = dpToPx(4) })
+            }
+        }
+
+    private fun tableText(text: String, size: Float, color: Int, bold: Boolean = false, end: Boolean = false): TextView =
+        TextView(requireContext()).apply {
+            this.text = text
+            textSize = size
+            setTextColor(color)
+            if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            if (end) {
+                gravity = Gravity.END
+                setSingleLine(true)
+            }
+        }
+
+    private fun tableDivider(): View = View(requireContext()).apply {
+        setBackgroundColor(Palette.LINE)
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
+    }
+
+    /** 条形图名称：线路/车站沿用排行的城市药丸 + 线路色药丸，其余为纯文本 */
+    private fun customNameViews(item: CustomChartItem, dimension: StatsDimension, labeler: CustomChartLabeler): List<View> {
+        if (item.key == CustomChartItem.OTHER_KEY) return listOf(rankNameView(labeler.full(item)))
+        return when (dimension) {
+            StatsDimension.LINE -> buildLinePills(LineStat(item.key, 0, 0f, item.cityName, item.lineColor))
+            StatsDimension.STATION -> buildStationViews(StationStat(item.key, 0, 0f, item.cityName))
+            else -> listOf(rankNameView(labeler.full(item)).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
+    }
+
+    /** 指标数值：次数为整数，金额保留两位 */
+    private fun metricText(data: CustomChartData, metric: StatsMetric, value: Double): String =
+        if (metric == StatsMetric.RIDES) value.roundToInt().toString()
+        else "${data.currency}${String.format("%.2f", value)}"
+
+    /** 坐标轴刻度：去掉多余小数，金额 ≥1000 用 k */
+    private fun axisText(data: CustomChartData, value: Double): String {
+        val prefix = if (data.config.metric == StatsMetric.RIDES) "" else data.currency
+        val (v, suffix) = if (value >= 1000) value / 1000 to "k" else value to ""
+        return prefix + String.format("%.2f", v).trimEnd('0').trimEnd('.') + suffix
+    }
+
+    /** 自定义图表分组键 → 当前界面语言的显示名（数据键保持中文/数字，显示时翻译） */
+    private inner class CustomChartLabeler(data: CustomChartData) {
+        private val dimension = data.config.dimension
+        private val multiCity = data.tableItems.map { it.cityName }.filter { it.isNotBlank() }.distinct().size > 1
+        private val multiYear = dimension == StatsDimension.MONTH &&
+            data.items.map { it.key.take(4) }.distinct().size > 1
+        private val locale = AppLanguage.locale()
+
+        /** 表格/气泡/条形图用的完整名 */
+        fun full(item: CustomChartItem): String = when {
+            item.key == CustomChartItem.OTHER_KEY -> getString(R.string.stats_custom_other)
+            dimension == StatsDimension.HOUR -> "${item.key.padStart(2, '0')}:00"
+            dimension == StatsDimension.DATE || dimension == StatsDimension.MONTH -> item.key
+            dimension == StatsDimension.LINE || dimension == StatsDimension.STATION -> {
+                val name = if (dimension == StatsDimension.STATION) TransitLabels.station(item.key) else item.key
+                if (multiCity && item.cityName.isNotBlank()) "${TransitLabels.city(item.cityName)} $name" else name
+            }
+            else -> short(item)
+        }
+
+        /** 坐标轴标签用的短名 */
+        fun short(item: CustomChartItem): String {
+            if (item.key == CustomChartItem.OTHER_KEY) return getString(R.string.stats_custom_other)
+            return when (dimension) {
+                StatsDimension.TYPE -> TransitLabels.type(item.key)
+                StatsDimension.CITY ->
+                    if (item.key.isBlank()) getString(R.string.unknown) else TransitLabels.city(item.key)
+                StatsDimension.LINE -> item.key
+                StatsDimension.STATION -> TransitLabels.station(item.key)
+                StatsDimension.WEEKDAY -> {
+                    val cal = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+                        add(Calendar.DAY_OF_YEAR, item.key.toIntOrNull() ?: 0)
+                    }
+                    SimpleDateFormat("EEE", locale).format(cal.time)
+                }
+                StatsDimension.HOUR -> item.key.padStart(2, '0')
+                StatsDimension.MONTH -> if (multiYear) item.key else {
+                    val cal = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_MONTH, 1)
+                        set(Calendar.MONTH, (item.key.substring(5, 7).toIntOrNull() ?: 1) - 1)
+                    }
+                    SimpleDateFormat("MMM", locale).format(cal.time)
+                }
+                StatsDimension.DATE -> item.key.substring(5)
+            }
         }
     }
 
@@ -531,67 +901,79 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 else -> return@forEachIndexed
             }
 
-            // 两行：上行 名次 + 名称（药丸）+ 次数；下行 按占比缩放的圆角条（最高项满宽）
-            val row = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            row.addView(TextView(requireContext()).apply {
-                text = "${index + 1}"
-                textSize = 13f
-                gravity = Gravity.CENTER
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(if (index == 0) barColor else Palette.INK_3)
-                layoutParams = LinearLayout.LayoutParams(dpToPx(20), LinearLayout.LayoutParams.WRAP_CONTENT)
-                    .apply { marginEnd = dpToPx(8) }
-            })
-            val names = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            nameViews.forEach { names.addView(it) }
-            row.addView(names)
-            row.addView(TextView(requireContext()).apply {
-                text = resources.getQuantityString(R.plurals.rides_count, count, count)
-                textSize = 13f
-                setTextColor(Palette.INK)
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            })
-
-            val barWeight = barPercent.coerceIn(0.03f, 1f)
-            val track = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.HORIZONTAL
-                background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(999).toFloat()
-                    setColor(Palette.FILL)
-                }
-                weightSum = 1f
-            }
-            track.addView(View(requireContext()).apply {
-                background = GradientDrawable().apply {
-                    cornerRadius = dpToPx(999).toFloat()
-                    setColor(barColor)
-                }
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, barWeight)
-            })
-
-            val block = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { if (index > 0) topMargin = dpToPx(14) }
-            }
-            block.addView(row)
-            block.addView(track, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(6)
-            ).apply {
-                topMargin = dpToPx(6)
-                marginStart = dpToPx(28)
-            })
-            container.addView(block)
+            container.addView(rankBlock(
+                index, nameViews, resources.getQuantityString(R.plurals.rides_count, count, count), barPercent, barColor
+            ))
         }
+    }
+
+    /** 排行行：上行 名次 + 名称（药丸）+ 数值；下行 按占比缩放的圆角条（最高项满宽） */
+    private fun rankBlock(
+        index: Int,
+        nameViews: List<View>,
+        valueText: String,
+        barPercent: Float,
+        barColor: Int
+    ): LinearLayout {
+        val row = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(TextView(requireContext()).apply {
+            text = "${index + 1}"
+            textSize = 13f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(if (index == 0) barColor else Palette.INK_3)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(20), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = dpToPx(8) }
+        })
+        val names = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        nameViews.forEach { names.addView(it) }
+        row.addView(names)
+        row.addView(TextView(requireContext()).apply {
+            text = valueText
+            textSize = 13f
+            setTextColor(Palette.INK)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        })
+
+        val barWeight = barPercent.coerceIn(0.03f, 1f)
+        val track = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = GradientDrawable().apply {
+                cornerRadius = dpToPx(999).toFloat()
+                setColor(Palette.FILL)
+            }
+            weightSum = 1f
+        }
+        track.addView(View(requireContext()).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dpToPx(999).toFloat()
+                setColor(barColor)
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, barWeight)
+        })
+
+        val block = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { if (index > 0) topMargin = dpToPx(14) }
+        }
+        block.addView(row)
+        block.addView(track, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(6)
+        ).apply {
+            topMargin = dpToPx(6)
+            marginStart = dpToPx(28)
+        })
+        return block
     }
 
     /** 车站行：城市药丸 + 站名文本（城市未知时不加药丸） */

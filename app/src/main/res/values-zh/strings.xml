@@ -119,6 +119,28 @@
     <string name="stats_by_city">城市开销</string>
     <string name="stats_top_stations">常去车站 Top 5</string>
     <string name="stats_top_lines">常坐线路 Top 5</string>
+    <string name="stats_custom_chart">自定义图表</string>
+    <string name="stats_custom_dimension">维度</string>
+    <string name="stats_custom_metric">指标</string>
+    <string name="stats_dim_type">交通类型</string>
+    <string name="stats_dim_city">城市</string>
+    <string name="stats_dim_line">线路</string>
+    <string name="stats_dim_station">车站</string>
+    <string name="stats_dim_weekday">星期</string>
+    <string name="stats_dim_hour">时段</string>
+    <string name="stats_dim_month">月份</string>
+    <string name="stats_dim_date">日期</string>
+    <string name="stats_metric_spending">消费金额</string>
+    <string name="stats_metric_rides">乘车次数</string>
+    <string name="stats_metric_avg_fare">平均票价</string>
+    <string name="stats_chart_line">折线图</string>
+    <string name="stats_custom_show_all">显示全部 %1$d 行</string>
+    <string name="stats_custom_show_less">收起</string>
+    <string name="stats_chart_column">柱状图</string>
+    <string name="stats_chart_bar">条形图</string>
+    <string name="stats_chart_donut">环形图</string>
+    <string name="stats_custom_table_total">总计</string>
+    <string name="stats_custom_other">其他</string>
 
     <!-- Transaction detail / list -->
     <string name="txn_detail_title">交易详情</string>

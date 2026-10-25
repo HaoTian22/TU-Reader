@@ -246,7 +246,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-        <!-- 统计内容：摘要 → 消费趋势 → 分类 / 城市 → 常去车站 / 常坐线路；分区标题在卡片外（同详情页） -->
+        <!-- 统计内容：摘要 → 消费趋势 → 分类 / 城市 → 常去车站 / 常坐线路 → 自定义图表；分区标题在卡片外（同详情页） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -284,6 +284,12 @@
                 android:text="@string/stats_top_lines" />
 
             <include android:id="@+id/cardLines" layout="@layout/card_top_lines" />
+
+            <TextView
+                style="@style/DetailSectionTitle"
+                android:text="@string/stats_custom_chart" />
+
+            <include android:id="@+id/cardCustom" layout="@layout/card_custom_chart" />
             </LinearLayout>
             </LinearLayout>
         </ScrollView>

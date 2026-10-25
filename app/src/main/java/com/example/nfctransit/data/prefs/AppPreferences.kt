@@ -32,6 +32,7 @@ object AppPreferences {
     private val KEY_KEEP_DEBUG_LOGS = stringPreferencesKey("keep_debug_logs") // "true"/"false"
     private val KEY_PLAYBACK_HAPTICS = stringPreferencesKey("playback_haptics") // "true"/"false"
     private val KEY_PLAYBACK_SOUND = stringPreferencesKey("playback_sound")       // "true"/"false"
+    private val KEY_STATS_CUSTOM_CHART = stringPreferencesKey("stats_custom_chart") // CustomChartConfig.encode()
     private val KEY_IGNORED_APP_VERSION = stringPreferencesKey("ignored_app_version")
     private val KEY_CURRENT_TRIP_ROUTE_DISPLAY_MODE =
         stringPreferencesKey("current_trip_route_display_mode")
@@ -59,6 +60,13 @@ object AppPreferences {
 
     suspend fun isPlaybackSound(context: Context): Boolean =
         context.dataStore.data.first()[KEY_PLAYBACK_SOUND] != "false"  // 默认 true
+
+    suspend fun getStatsCustomChart(context: Context): String? =
+        context.dataStore.data.first()[KEY_STATS_CUSTOM_CHART]
+
+    suspend fun setStatsCustomChart(context: Context, encoded: String) {
+        context.dataStore.edit { it[KEY_STATS_CUSTOM_CHART] = encoded }
+    }
 
     suspend fun getIgnoredAppVersion(context: Context): String? =
         context.dataStore.data.first()[KEY_IGNORED_APP_VERSION]

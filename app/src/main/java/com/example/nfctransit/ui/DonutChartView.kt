@@ -39,10 +39,13 @@ class DonutChartView @JvmOverloads constructor(
 
     private var segments: List<CategorySpending> = emptyList()
     private var totalText = "¥0.00"
+    private var centerLabel: String? = null
 
-    fun setSegments(segments: List<CategorySpending>, totalText: String) {
+    /** centerLabel 为中心小标题，null = 默认"总开销" */
+    fun setSegments(segments: List<CategorySpending>, totalText: String, centerLabel: String? = null) {
         this.segments = segments
         this.totalText = totalText
+        this.centerLabel = centerLabel
         invalidate()
     }
 
@@ -84,7 +87,7 @@ class DonutChartView @JvmOverloads constructor(
         var scale = 1f
         val amountW = amountPaint.measureText(totalText)
         if (amountW > maxTextW) scale = min(scale, maxTextW / amountW)
-        val totalLabel = context.getString(R.string.stats_donut_total)
+        val totalLabel = centerLabel ?: context.getString(R.string.stats_donut_total)
         val labelW = labelPaint.measureText(totalLabel)
         if (labelW > maxTextW) scale = min(scale, maxTextW / labelW)
         val baseGlyphH = Rect().also { amountPaint.getTextBounds(totalText, 0, totalText.length, it) }.height().toFloat()
