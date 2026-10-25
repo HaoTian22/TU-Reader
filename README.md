@@ -54,12 +54,16 @@
     <td align="center" width="50%"><img height="560" alt="交易记录 - 交易列表" src="https://github.com/user-attachments/assets/6ec9b6e9-dd35-4887-a2b5-5ec74da8b76c" /><br />交易列表</td>
   </tr>
   <tr>
-    <td align="center" width="50%"><img height="560" alt="主界面 - 卡片页面" src="https://github.com/user-attachments/assets/b1755775-52b4-41df-be10-0d487a2c5300" /><br />卡片页面</td>
+    <td align="center" width="50%"><img height="560" alt="主界面 - 多钱包余额与最近交易" src="docs/screenshots/card-page.png" /><br />卡片页面</td>
     <td align="center" width="50%"><img height="560" alt="卡片信息" src="https://github.com/user-attachments/assets/75a21f14-a5e4-4edf-b526-36bcb2eebc4a" /><br />卡片信息</td>
   </tr>
   <tr>
     <td align="center" width="50%"><img height="560" alt="统计分析 - 消费与乘车图表" src="https://github.com/user-attachments/assets/8a355300-a594-4901-a182-ff1970867047" /><br />统计分析</td>
     <td align="center" width="50%"><img height="560" alt="交易记录 - 交易详情" src="https://github.com/user-attachments/assets/6c89401c-7494-4014-b739-fbd0abad3ab8" /><br />交易详情</td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img height="560" alt="自定义统计 - 消费趋势与统计明细" src="docs/screenshots/custom-chart.png" /><br />自定义图表</td>
+    <td align="center" width="50%"><img height="560" alt="地图轨迹 - 城际行程回放" src="docs/screenshots/map-playback.png" /><br />地图轨迹</td>
   </tr>
 </table>
 

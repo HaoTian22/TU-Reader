@@ -54,12 +54,16 @@ Card not listed, or results look wrong? Open an issue and attach a read log.
     <td align="center" width="50%"><img height="560" alt="Transactions - list" src="https://github.com/user-attachments/assets/6ec9b6e9-dd35-4887-a2b5-5ec74da8b76c" /><br />Transaction list</td>
   </tr>
   <tr>
-    <td align="center" width="50%"><img height="560" alt="Home - card page" src="https://github.com/user-attachments/assets/b1755775-52b4-41df-be10-0d487a2c5300" /><br />Card page</td>
+    <td align="center" width="50%"><img height="560" alt="Home - multiple wallet balances and recent transactions" src="docs/screenshots/card-page.png" /><br />Card page</td>
     <td align="center" width="50%"><img height="560" alt="Card info" src="https://github.com/user-attachments/assets/75a21f14-a5e4-4edf-b526-36bcb2eebc4a" /><br />Card info</td>
   </tr>
   <tr>
     <td align="center" width="50%"><img height="560" alt="Analytics - spending and rides" src="https://github.com/user-attachments/assets/8a355300-a594-4901-a182-ff1970867047" /><br />Analytics</td>
     <td align="center" width="50%"><img height="560" alt="Transactions - detail" src="https://github.com/user-attachments/assets/6c89401c-7494-4014-b739-fbd0abad3ab8" /><br />Transaction detail</td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img height="560" alt="Custom chart - spending trends and statistics table" src="docs/screenshots/custom-chart.png" /><br />Custom charts</td>
+    <td align="center" width="50%"><img height="560" alt="Map trails - intercity trip playback" src="docs/screenshots/map-playback.png" /><br />Map trails</td>
   </tr>
 </table>
 
