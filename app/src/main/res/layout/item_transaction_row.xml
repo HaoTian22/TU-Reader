@@ -147,7 +147,7 @@
             android:layout_height="wrap_content"
             tools:text="余额 ¥45.50"
             android:textColor="@color/ink_3"
-            android:textSize="11sp" />
+            android:textSize="9sp" />
 
         <!-- 协议药丸：该记录被哪些协议写入（LNT/TU），最多两个；空则隐藏 -->
         <LinearLayout
@@ -163,7 +163,7 @@
                 android:layout_height="wrap_content"
                 android:text="TU"
                 android:textColor="@color/ink_2"
-                android:textSize="8sp"
+                android:textSize="7sp"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"
@@ -177,7 +177,7 @@
                 android:layout_height="wrap_content"
                 android:text="LNT"
                 android:textColor="@color/ink_2"
-                android:textSize="8sp"
+                android:textSize="7sp"
                 android:background="@drawable/bg_chip_default"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"

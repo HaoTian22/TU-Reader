@@ -79,6 +79,24 @@ class CustomChartStatsTest {
     }
 
     @Test
+    fun dateFillsWholePeriodAndTableSortsBySelectedMetric() {
+        val txns = listOf(
+            txn(date = "2025-03-03", amount = 2.0),
+            txn(date = "2025-03-05", amount = 7.0)
+        )
+        val data = computeCustomChart(
+            txns, CustomChartConfig(StatsDimension.DATE, StatsMetric.SPENDING), "¥", "2025-03-01", "2025-03-07"
+        )
+        // 图表按时间顺序覆盖整个周期，无消费的日期补 0
+        assertEquals((1..7).map { "2025-03-0$it" }, data.items.map { it.key })
+        // 表格含 0 值日期，按所选指标降序，同值保持时间顺序
+        assertEquals(
+            listOf("2025-03-05", "2025-03-03", "2025-03-01", "2025-03-02", "2025-03-04", "2025-03-06", "2025-03-07"),
+            data.tableItems.map { it.key }
+        )
+    }
+
+    @Test
     fun weekdayAndHourFillAllSlotsInOrder() {
         val txns = listOf(
             txn(date = "2026-10-19", time = "08:10:00", amount = 2.0), // 周一

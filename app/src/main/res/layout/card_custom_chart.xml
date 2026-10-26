@@ -139,9 +139,10 @@
         android:orientation="horizontal"
         android:visibility="gone">
 
+        <!-- 全宽：圆环按短边居中绘制，点选扇区的气泡可伸到圆环两侧 -->
         <com.example.nfctransit.ui.DonutChartView
             android:id="@+id/donutChart"
-            android:layout_width="160dp"
+            android:layout_width="match_parent"
             android:layout_height="160dp" />
     </LinearLayout>
 

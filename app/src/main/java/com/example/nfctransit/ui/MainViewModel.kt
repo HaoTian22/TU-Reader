@@ -1746,7 +1746,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _dailySpending.value = computeDailySpending(moneyTxns, currentPeriod, start, end).map { it.copy(currency = currency) }
         _categorySpending.value = computeCategorySpending(moneyTxns).map { it.copy(currency = currency) }
         _citySpending.value = computeCitySpending(moneyTxns).map { it.copy(currency = currency) }
-        _customChart.value = computeCustomChart(periodTxns, _customChartConfig.value ?: CustomChartConfig(), currency)
+        _customChart.value = computeCustomChart(periodTxns, _customChartConfig.value ?: CustomChartConfig(), currency, start, end)
         _statsSummary.value = computeStatsSummary(moneyTxns, start, end).copy(
             rideCount = periodTxns.count { (it.transitType == "地铁" || it.transitType == "公交") && it.amountYuan > 0 },
             currency = currency

@@ -64,7 +64,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/ink_3"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -87,6 +87,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:textColor="@color/ink_3"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 </LinearLayout>

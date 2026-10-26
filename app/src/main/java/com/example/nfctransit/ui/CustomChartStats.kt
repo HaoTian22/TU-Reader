@@ -72,14 +72,18 @@ private fun weekdayIndex(date: String): Int? = try {
 /**
  * 自定义图表聚合（类似 Google Analytics 探索报告：一个维度 × 三个指标）。
  * - 乘车次数统计全部有金额的非充值记录；消费/平均票价只统计所选币种（不同币种不可相加）。
- * - 图表分组：时间类维度保持自然顺序并补 0（星期 7 格、时段 24 格、月份/日期在首末之间连续）；
+ * - 图表分组：时间类维度保持自然顺序并补 0（星期 7 格、时段 24 格、月份/日期连续：
+ *   有统计周期时覆盖整个周期（当前周期截至今天），全部时间则取首末之间）；
  *   类别维度按所选指标降序，超出图表上限的部分（可相加指标）合并为"其他"。
- * - 表格分组：只含有数据的行；时间维度按自然顺序，类别维度按所选指标降序且不截断。
+ * - 表格分组：全部分组按所选指标降序（同值保持自然顺序）且不截断；日期/月份/星期含 0 值行，时段只含有数据的行。
+ * [start]/[end] 为统计周期 "yyyy-MM-dd"，空 = 全部时间。
  */
 internal fun computeCustomChart(
     txns: List<UiTransaction>,
     config: CustomChartConfig,
-    currency: String
+    currency: String,
+    start: String = "",
+    end: String = ""
 ): CustomChartData {
     val metric = config.metric
     val groups = linkedMapOf<GroupKey, MetricValues>()
@@ -108,7 +112,7 @@ internal fun computeCustomChart(
     }
 
     val chartGroups: List<Pair<GroupKey, MetricValues>> = if (config.dimension.isOrdered) {
-        orderedKeys(config.dimension, groups.keys.map { it.key }).map { GroupKey(it) }
+        orderedKeys(config.dimension, groups.keys.map { it.key }, start, end).map { GroupKey(it) }
             .map { it to (groups[it] ?: MetricValues()) }
     } else {
         val sorted = byValue.map { it to groups.getValue(it) }
@@ -122,9 +126,11 @@ internal fun computeCustomChart(
         else sorted.take(limit - 1) + (GroupKey(CustomChartItem.OTHER_KEY) to
             sorted.drop(limit - 1).fold(MetricValues()) { acc, p -> acc + p.second })
     }
-    val tableGroups: List<Pair<GroupKey, MetricValues>> =
-        if (config.dimension.isOrdered) chartGroups.filter { !it.second.isEmpty }
-        else byValue.map { it to groups.getValue(it) }
+    // 表格按所选指标降序（表头排序图标所示）；sortedByDescending 稳定，同值保持时间顺序
+    val tableGroups: List<Pair<GroupKey, MetricValues>> = when (config.dimension) {
+        StatsDimension.HOUR -> chartGroups.filter { !it.second.isEmpty }
+        else -> if (config.dimension.isOrdered) chartGroups else byValue.map { it to groups.getValue(it) }
+    }.sortedByDescending { it.second.of(metric) }
 
     val additiveTotal = if (metric == StatsMetric.AVG_FARE) 0.0 else totals.of(metric)
     fun toItems(list: List<Pair<GroupKey, MetricValues>>): List<CustomChartItem> {
@@ -146,13 +152,22 @@ internal fun computeCustomChart(
     return CustomChartData(config, toItems(chartGroups), toItems(tableGroups), totals, currency)
 }
 
-/** 时间类维度的完整键序列：星期/时段固定格数，月份/日期取首末之间连续区间（日期超过 92 天只保留有数据的天） */
-private fun orderedKeys(dimension: StatsDimension, present: Collection<String>): List<String> = when (dimension) {
+/**
+ * 时间类维度的完整键序列：星期/时段固定格数；月份/日期连续，区间 = 统计周期（截至今天，且覆盖全部有数据的键），
+ * 无周期时取首末之间。日期最多 3660 天（防止异常日期撑爆）。
+ */
+private fun orderedKeys(
+    dimension: StatsDimension,
+    present: Collection<String>,
+    start: String,
+    end: String
+): List<String> = when (dimension) {
     StatsDimension.WEEKDAY -> (0..6).map { it.toString() }
     StatsDimension.HOUR -> (0..23).map { it.toString() }
     StatsDimension.MONTH -> {
-        val first = present.min()
-        val last = present.max()
+        val today = SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)
+        val first = listOfNotNull(present.min(), start.take(7).takeIf { it.length == 7 }).min()
+        val last = listOfNotNull(present.max(), end.take(7).takeIf { it.length == 7 }?.let { minOf(it, today) }).max()
         val out = mutableListOf<String>()
         var y = first.take(4).toInt()
         var m = first.substring(5, 7).toInt()
@@ -167,16 +182,19 @@ private fun orderedKeys(dimension: StatsDimension, present: Collection<String>):
     StatsDimension.DATE -> {
         val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val sorted = present.sorted()
+        val today = fmt.format(Calendar.getInstance().time)
+        val first = listOfNotNull(sorted.first(), start.takeIf { it.length == 10 }).min()
+        val last = listOfNotNull(sorted.last(), end.takeIf { it.length == 10 }?.let { minOf(it, today) }).max()
         try {
-            val cal = Calendar.getInstance().apply { time = fmt.parse(sorted.first())!! }
+            val cal = Calendar.getInstance().apply { time = fmt.parse(first)!! }
             val out = mutableListOf<String>()
-            while (out.size <= 92) {
+            while (out.size < 3660) {
                 val key = fmt.format(cal.time)
                 out.add(key)
-                if (key >= sorted.last()) break
+                if (key >= last) break
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
-            if (out.size > 92) sorted else out
+            out
         } catch (e: Exception) {
             sorted
         }

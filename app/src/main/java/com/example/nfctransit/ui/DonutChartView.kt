@@ -6,13 +6,27 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.text.TextPaint
+import android.text.TextUtils
+import android.util.TypedValue
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import com.example.nfctransit.model.CategorySpending
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.min
+import kotlin.math.sin
 import com.example.nfctransit.R
 
-/** 环形饼图（空心圆）：按分类画圆弧，中心显示总开销 */
+/**
+ * 环形饼图（空心圆）：按分类画圆弧，中心显示总开销。
+ * 传入 details 时可点选扇区（与自定义图表 AxisChartView 的选中样式一致）：选中扇区保持原色、其余淡化，
+ * 扇区中点旁浮出深色气泡显示名称与数值；再点同一扇区或点圆心取消。
+ * 视图宽于圆环时（宽度 match_parent），气泡可伸到圆环两侧而不被裁切。
+ */
 class DonutChartView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
@@ -37,15 +51,39 @@ class DonutChartView @JvmOverloads constructor(
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     }
 
+    private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.INK }
+    private val bubbleTitlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xB3FFFFFF.toInt()
+        textSize = sp(10f)
+    }
+    private val bubbleValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt()
+        textSize = sp(12f)
+        typeface = Typeface.DEFAULT_BOLD
+    }
+    private val bubbleRect = RectF()
+
     private var segments: List<CategorySpending> = emptyList()
     private var totalText = "¥0.00"
     private var centerLabel: String? = null
+    private var details: List<Pair<String, String>>? = null
+    private var selected = -1
 
-    /** centerLabel 为中心小标题，null = 默认"总开销" */
-    fun setSegments(segments: List<CategorySpending>, totalText: String, centerLabel: String? = null) {
+    /**
+     * centerLabel 为中心小标题，null = 默认"总开销"；
+     * details 与 segments 一一对应（名称, 数值文字），非 null 时可点选扇区
+     */
+    fun setSegments(
+        segments: List<CategorySpending>,
+        totalText: String,
+        centerLabel: String? = null,
+        details: List<Pair<String, String>>? = null
+    ) {
         this.segments = segments
         this.totalText = totalText
         this.centerLabel = centerLabel
+        this.details = details?.takeIf { it.size == segments.size }
+        selected = -1
         invalidate()
     }
 
@@ -67,7 +105,8 @@ class DonutChartView @JvmOverloads constructor(
             for (seg in segments) {
                 val sweep = seg.percent * 360f
                 val drawSweep = (sweep - gapDegrees).coerceAtLeast(0.5f)
-                ringPaint.color = seg.color
+                ringPaint.color = if (selected < 0 || segments[selected] === seg) seg.color
+                    else ColorUtils.blendARGB(0xFFFFFFFF.toInt(), seg.color, 0.35f)
                 canvas.drawArc(rect, start + gapDegrees / 2f, drawSweep, false, ringPaint)
                 start += sweep
             }
@@ -109,7 +148,58 @@ class DonutChartView @JvmOverloads constructor(
         val amountBaseline = labelBaseline + gap - aTop
         canvas.drawText(totalLabel, centerX, labelBaseline, labelPaint)
         canvas.drawText(totalText, centerX, amountBaseline, amountPaint)
+
+        details?.getOrNull(selected)?.let { (title, value) -> drawBubble(canvas, title, value, centerX, centerY, radius) }
+    }
+
+    /** 选中气泡：锚在扇区弧线中点，上半环放在锚点上方、下半环放在下方，左右不超出视图 */
+    private fun drawBubble(canvas: Canvas, title: String, value: String, cx: Float, cy: Float, radius: Float) {
+        val startFraction = segments.take(selected).sumOf { it.percent.toDouble() }
+        val mid = Math.toRadians((startFraction + segments[selected].percent / 2.0) * 360.0 - 90.0)
+        val ax = cx + (radius * cos(mid)).toFloat()
+        val ay = cy + (radius * sin(mid)).toFloat()
+
+        val padH = dpToPx(8)
+        val maxW = width - padH * 2
+        val name = TextUtils.ellipsize(title, bubbleTitlePaint, maxW, TextUtils.TruncateAt.END).toString()
+        val w = (maxOf(bubbleTitlePaint.measureText(name), bubbleValuePaint.measureText(value)) + padH * 2).coerceAtMost(width.toFloat())
+        val h = dpToPx(38)
+        val offset = ringPaint.strokeWidth / 2f + dpToPx(4)
+        val top = (if (ay <= cy) ay - offset - h else ay + offset).coerceIn(0f, (height - h).coerceAtLeast(0f))
+        val left = (ax - w / 2f).coerceIn(0f, (width - w).coerceAtLeast(0f))
+        bubbleRect.set(left, top, left + w, top + h)
+        canvas.drawRoundRect(bubbleRect, dpToPx(6), dpToPx(6), bubblePaint)
+        canvas.drawText(name, left + padH, top + dpToPx(15), bubbleTitlePaint)
+        canvas.drawText(value, left + padH, top + dpToPx(31), bubbleValuePaint)
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (details == null || segments.isEmpty()) return false
+        if (event.actionMasked == MotionEvent.ACTION_UP) {
+            val index = segmentAt(event.x, event.y)
+            val next = if (index == selected) -1 else index
+            if (next != selected) { selected = next; invalidate() }
+        }
+        return true
+    }
+
+    /** 触点所在扇区：圆环内外各放宽一些便于点中；圆心或环外返回 -1 */
+    private fun segmentAt(x: Float, y: Float): Int {
+        val size = min(width, height).toFloat()
+        val radius = size / 2f - ringPaint.strokeWidth / 2f - dpToPx(4)
+        val dist = hypot(x - width / 2f, y - height / 2f)
+        if (dist < radius - ringPaint.strokeWidth || dist > radius + ringPaint.strokeWidth) return -1
+        // 从 12 点方向顺时针的角度（0..360）
+        val angle = (Math.toDegrees(atan2((y - height / 2f).toDouble(), (x - width / 2f).toDouble())) + 90 + 360) % 360
+        var start = 0.0
+        segments.forEachIndexed { i, seg ->
+            start += seg.percent * 360.0
+            if (angle < start) return i
+        }
+        return segments.lastIndex
     }
 
     private fun dpToPx(dp: Int): Float = dp * resources.displayMetrics.density
+    private fun sp(v: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, v, resources.displayMetrics)
 }

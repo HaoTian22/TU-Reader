@@ -3,6 +3,9 @@ package com.example.nfctransit.ui
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -46,6 +49,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
     /** 当前卡片主题色（跟随卡片渐变起点），默认蓝 */
     private var accentColor = Palette.ACCENT
+    // 每日消费柱状图选中态（-1 未选中）；trendBars 为各柱视图及其原色，用于淡化未选中柱
+    private var trendSelected = -1
+    private var trendBars: List<Pair<View, Int>> = emptyList()
+    private var trendData: List<DailySpending> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -68,17 +75,12 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         binding.btnNextPeriod.typeface = fa
         setupCustomChart(fa)
 
-        // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时收起柱状图小弹窗。
+        // 点击页面任意非柱体区域（图表空白、汇总卡、排行卡等）时取消柱状图选中。
         // 监听挂在 ScrollView 的内容容器 contentContainer（普通 LinearLayout，走 View 默认
         // onTouchEvent，会调用 OnTouchListener）上：点击柱体时柱（clickable）消费 DOWN，
         // 容器 onTouch 不触发，弹窗保持；点击其他区域时 DOWN 穿透到容器自身，onTouch 触发收起。
         binding.contentContainer.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                val popup = binding.cardTrend.chartPopup
-                if (popup.visibility == View.VISIBLE) {
-                    popup.visibility = View.GONE
-                }
-            }
+            if (event.action == MotionEvent.ACTION_DOWN) selectTrendBar(-1, toggle = false)
             false
         }
 
@@ -286,12 +288,19 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 if (type == StatsChartType.LINE) AxisChartView.Style.LINE else AxisChartView.Style.COLUMN,
                 accentColor
             ) { axisText(data, it) }
-            StatsChartType.DONUT -> card.donutChart.setSegments(
-                data.items.filter { it.value > 0 }
-                    .map { CategorySpending(it.key, it.value, it.percent, it.color, data.currency) },
-                metricText(data, config.metric, data.total),
-                metricLabel(config.metric)
-            )
+            StatsChartType.DONUT -> {
+                val slices = data.items.filter { it.value > 0 }
+                card.donutChart.setSegments(
+                    slices.map { CategorySpending(it.key, it.value, it.percent, it.color, data.currency) },
+                    metricText(data, config.metric, data.total),
+                    metricLabel(config.metric),
+                    // 点选扇区时中心显示：名称 / 数值 + 占比
+                    slices.map {
+                        val share = if (it.percent > 0) " " + String.format("%.1f%%", it.percent * 100) else ""
+                        labeler.full(it) to metricText(data, config.metric, it.value) + share
+                    }
+                )
+            }
             StatsChartType.BAR -> {
                 card.barList.removeAllViews()
                 data.items.forEachIndexed { index, item ->
@@ -617,6 +626,10 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         val container = trendBinding.chartContainer
         val grid = trendBinding.chartGrid
         container.removeAllViews()
+        trendData = data
+        trendSelected = -1
+        trendPopupHide()
+        val bars = mutableListOf<Pair<View, Int>>()
         // 图表区可用高 180-20(padTop)-4(padBottom)=156，减去 value(13)+label(14)，
         // 最高柱占 129dp 正好顶满图表区，"归一化到视图 max"才直观
         val maxHeight = 129
@@ -630,9 +643,6 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         // 柱子很多时（如整月 30+ 根）不显示每根柱子的金额文字，避免拥挤
         val showValues = data.size <= 12
-        // 弹窗放在卡片根部 overlay（不受窄列宽度约束）
-        val popup = trendBinding.chartPopup
-
         for (d in data) {
             // 单列：金额文字(固定高) + 圆角柱 + 底部标签(固定高)，整体贴底，
             // value/label 固定高度保证所有列同构，柱子底部严格对齐
@@ -696,22 +706,26 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 )
             }
 
+            bars += bar to barColor
             col.addView(value)
             col.addView(bar)
             col.addView(label)
             container.addView(col)
         }
+        trendBars = bars
 
-        // 手势按方向分流：纵向拖动交给页面滚动；横向拖动锁定图表、弹窗跟随手指；轻点显示所点柱的弹窗。
+        // 交互与自定义图表 AxisChartView 一致：轻点选中（再点同一根取消）、横向拖动连续选中；
+        // 选中柱保持原色、其余柱淡化，竖向参考线 + 顶部气泡显示日期与金额。
+        // 手势按方向分流：纵向拖动交给页面滚动；横向拖动锁定图表、选中跟随手指。
         // DOWN 时不禁止父级拦截，纵向位移超过 touchSlop 时 ScrollView 自行接管（本视图收到 CANCEL）；
         // 横向位移先超过 touchSlop 时再禁止拦截，之后的纵向抖动不会滚动页面。
         val touchSlop = android.view.ViewConfiguration.get(requireContext()).scaledTouchSlop
         var downX = 0f
         var downY = 0f
         var scrubbing = false
-        fun revealAt(x: Float) {
+        fun selectAt(x: Float, toggle: Boolean) {
             val idx = columnIndexAt(x, container)
-            if (idx in data.indices) showPopupFor(data[idx], container.getChildAt(idx) as LinearLayout)
+            if (idx in data.indices) selectTrendBar(idx, toggle)
         }
         container.setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -730,19 +744,18 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                             container.parent.requestDisallowInterceptTouchEvent(true)
                         }
                     }
-                    if (scrubbing) revealAt(event.x)
+                    if (scrubbing) selectAt(event.x, toggle = false)
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     // 未进入横向拖动 = 轻点（纵向拖动早已被 ScrollView 接管，走不到这里）
-                    if (!scrubbing) revealAt(event.x)
+                    if (!scrubbing) selectAt(event.x, toggle = true)
                     container.parent.requestDisallowInterceptTouchEvent(false)
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
-                    // 被 ScrollView 接管（纵向滚动）：不显示弹窗
+                    // 被 ScrollView 接管（纵向滚动）：不改变选中
                     container.parent.requestDisallowInterceptTouchEvent(false)
-                    if (scrubbing) popup.visibility = View.GONE
                     scrubbing = false
                     true
                 }
@@ -751,8 +764,29 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         }
     }
 
-    private fun showPopupFor(d: DailySpending, col: LinearLayout) {
-        val popup = binding.cardTrend.chartPopup
+    /** 选中第 [index] 根柱（-1 取消）；[toggle] 时再点已选中的柱即取消 */
+    private fun selectTrendBar(index: Int, toggle: Boolean) {
+        val next = if (toggle && index == trendSelected) -1 else index
+        if (next == trendSelected) return
+        trendSelected = next
+        trendBars.forEachIndexed { i, (bar, color) ->
+            (bar.background as? GradientDrawable)?.setColor(
+                if (next < 0 || i == next) color else ColorUtils.blendARGB(0xFFFFFFFF.toInt(), color, 0.35f)
+            )
+        }
+        val d = trendData.getOrNull(next)
+        if (d == null) trendPopupHide() else showPopupFor(d, binding.cardTrend.chartContainer.getChildAt(next))
+    }
+
+    private fun trendPopupHide() {
+        binding.cardTrend.chartPopup.visibility = View.GONE
+        binding.cardTrend.chartGrid.setGuide(-1f, 0f, 0)
+    }
+
+    private fun showPopupFor(d: DailySpending, col: View) {
+        val trend = binding.cardTrend
+        val popup = trend.chartPopup
+        val grid = trend.chartGrid
         popup.text = buildPopupText(d)
         popup.measure(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
@@ -760,20 +794,27 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         )
         val popupW = popup.measuredWidth
         val popupH = popup.measuredHeight
-        // popup 挂在 trendRoot 上，用窗口坐标把柱中心换算成相对 trendRoot 的位置
+        // popup 挂在 trendRoot 上，用窗口坐标把柱中心换算成相对 trendRoot / 网格的位置
         val colLoc = IntArray(2)
         val rootLoc = IntArray(2)
+        val gridLoc = IntArray(2)
         col.getLocationInWindow(colLoc)
-        binding.cardTrend.root.getLocationInWindow(rootLoc)
-        val px = (colLoc[0] + col.width / 2 - popupW / 2) - rootLoc[0]
-        // 柱所在列顶往下移一些（图表区有 20dp padTop，数值文字也占 13dp），
-        // 弹窗底部贴近数值文字上方，避免浮到标题行上方
-        val py = colLoc[1] - popupH - dpToPx(4) - rootLoc[1] + dpToPx(16)
+        trend.root.getLocationInWindow(rootLoc)
+        grid.getLocationInWindow(gridLoc)
+        val centerX = colLoc[0] + col.width / 2
+        // 气泡贴图表区顶部，水平居中于柱，不超出图表区左右边界
+        val minX = gridLoc[0] - rootLoc[0]
+        val px = (centerX - rootLoc[0] - popupW / 2).coerceIn(minX, (minX + grid.width - popupW).coerceAtLeast(minX))
         (popup.layoutParams as FrameLayout.LayoutParams).apply {
             this.leftMargin = px
-            this.topMargin = py
+            this.topMargin = gridLoc[1] - rootLoc[1]
         }
         if (popup.visibility != View.VISIBLE) popup.visibility = View.VISIBLE
+        grid.setGuide(
+            (centerX - gridLoc[0]).toFloat(),
+            (popupH + dpToPx(2)).toFloat(),
+            ColorUtils.setAlphaComponent(accentColor, 0x80)
+        )
     }
 
     /** 手指横向位置落在第几列（按列左边界判断） */
@@ -785,16 +826,26 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         return -1
     }
 
-    private fun buildPopupText(d: DailySpending): String {
+    /** 气泡文字：淡色小字标签（月份 / 日期）+ 粗体金额，与自定义图表气泡一致 */
+    private fun buildPopupText(d: DailySpending): CharSequence {
         val amount = d.amountLabel()
         // 年视图的柱代表月份，用 "1月" 更直观；其余显示日期
-        return if (d.isMonth) {
-            "${d.dayLabel} $amount"
-        } else if (d.date.isNotEmpty()) {
-            val parts = d.date.split("-")
-            "${parts[0]}.${parts[1].toInt()}.${parts[2].toInt()}\n$amount"
-        } else {
-            amount
+        val title = when {
+            d.isMonth -> d.dayLabel
+            d.date.isNotEmpty() -> d.date.split("-").let { "${it[0]}.${it[1].toInt()}.${it[2].toInt()}" }
+            else -> ""
+        }
+        return bubbleText(title, amount)
+    }
+
+    private fun bubbleText(title: String, value: String): CharSequence {
+        val text = if (title.isEmpty()) value else "$title\n$value"
+        return SpannableString(text).apply {
+            if (title.isNotEmpty()) {
+                setSpan(ForegroundColorSpan(0xB3FFFFFF.toInt()), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(AbsoluteSizeSpan(10, true), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            setSpan(StyleSpan(Typeface.BOLD), text.length - value.length, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 

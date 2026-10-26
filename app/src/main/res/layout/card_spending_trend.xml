@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 外层 FrameLayout：承载点击柱后浮出的信息小框（全宽定位，不受窄列约束） -->
+<!-- 外层 FrameLayout：承载选中柱后的信息气泡（全宽定位，不受窄列约束） -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/trendRoot"
     android:layout_width="match_parent"
@@ -14,9 +14,10 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- 216 = 原 180 + 顶部 36dp 留给选中气泡（柱贴底，几何不变） -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="180dp">
+        android:layout_height="216dp">
 
         <!-- 背景网格：水平虚线 + 左侧金额刻度，几何与柱子对齐 -->
         <com.example.nfctransit.ui.ChartGridView
@@ -36,15 +37,15 @@
     </FrameLayout>
 </LinearLayout>
 
-    <!-- 柱点击信息弹窗：全宽 overlay，点击柱子时定位到该柱上方 -->
+    <!-- 选中气泡：全宽 overlay，贴图表区顶部、水平居中于选中柱（标签 + 数值两行） -->
     <TextView
         android:id="@+id/chartPopup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="#FFFFFF"
-        android:textSize="9sp"
-        android:textStyle="bold"
-        android:gravity="center"
+        android:textSize="12sp"
+        android:lineSpacingExtra="2dp"
+        android:gravity="start"
         android:background="@drawable/bg_chart_popup"
         android:visibility="gone" />
 </FrameLayout>

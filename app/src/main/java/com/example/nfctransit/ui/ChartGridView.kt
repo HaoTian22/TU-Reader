@@ -15,6 +15,7 @@ import kotlin.math.pow
 /**
  * 柱状图背景网格：按"整数刻度"画水平虚线，左侧留出标签栏写金额。
  * 纵向几何与柱子一致：基线在视图底部上方 [baselineOffsetPx]，满高 [plotHeightPx] 对应 [maxValue]。
+ * 选中柱时另画一条竖向参考线（[setGuide]），与自定义图表 AxisChartView 的选中样式一致。
  */
 class ChartGridView @JvmOverloads constructor(
     context: Context,
@@ -34,7 +35,10 @@ class ChartGridView @JvmOverloads constructor(
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 7f, resources.displayMetrics)
         textAlign = Paint.Align.RIGHT
     }
+    private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = density }
     private val path = Path()
+    private var guideX = -1f
+    private var guideTop = 0f
 
     private var maxValue = 0.0
     private var currency = ""
@@ -57,9 +61,18 @@ class ChartGridView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** 竖向参考线：x 为本视图坐标，从 [top] 画到基线；x < 0 时不画 */
+    fun setGuide(x: Float, top: Float, color: Int) {
+        guideX = x
+        guideTop = top
+        guidePaint.color = color
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
-        if (maxValue <= 0 || ticks.isEmpty()) return
         val baseline = height - baselineOffsetPx
+        if (guideX >= 0) canvas.drawLine(guideX, guideTop, guideX, baseline, guidePaint)
+        if (maxValue <= 0 || ticks.isEmpty()) return
         val textCenter = (labelPaint.descent() + labelPaint.ascent()) / 2
         for (v in ticks) {
             val y = baseline - (v / maxValue * plotHeightPx).toFloat()
