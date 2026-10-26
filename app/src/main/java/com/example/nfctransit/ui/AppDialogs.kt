@@ -73,15 +73,6 @@ object AppDialogs {
 
         view.findViewById<TextView>(R.id.dialogTitle)?.text = title
         view.findViewById<TextView>(R.id.dialogMessage)?.text = message
-        // 正文过长时限高为屏高 60% 并滚动，按钮始终可见
-        view.findViewById<View>(R.id.dialogMessageScroll)?.let { scroll ->
-            val maxHeight = (context.resources.displayMetrics.heightPixels * 0.6f).toInt()
-            scroll.post {
-                if (scroll.height > maxHeight) {
-                    scroll.layoutParams = scroll.layoutParams.apply { height = maxHeight }
-                }
-            }
-        }
         view.findViewById<TextView>(R.id.dialogCancel)?.apply {
             text = cancelLabel
             // cancelLabel 为空 = 单按钮提示框
@@ -96,6 +87,11 @@ object AppDialogs {
                 onConfirm()
             }
         }
+        // 正文过长时限高为屏高 60% 并滚动，按钮始终可见
+        limitScrollHeightPx(
+            context, view, view.findViewById(R.id.dialogMessageScroll),
+            (context.resources.displayMetrics.heightPixels * 0.6f).toInt()
+        )
         view.applyTouchFeedback()
         dialog.show()
     }
@@ -584,7 +580,6 @@ object AppDialogs {
 
         view.findViewById<TextView>(R.id.dialogOptionsTitle)?.text = title
         val container = view.findViewById<LinearLayout>(R.id.dialogOptionsContainer) ?: return
-        limitScrollHeight(context, view.findViewById(R.id.dialogOptionsScroll), maxHeightDp)
 
         var picked = selectedIndex
         val radios = mutableListOf<android.widget.RadioButton>()
@@ -624,6 +619,7 @@ object AppDialogs {
             text = cancelLabel
             setOnClickListener { dialog.dismiss() }
         }
+        limitScrollHeight(context, view, view.findViewById(R.id.dialogOptionsScroll), maxHeightDp)
         view.applyTouchFeedback()
         dialog.show()
     }
@@ -651,7 +647,6 @@ object AppDialogs {
 
         view.findViewById<TextView>(R.id.dialogFilterTitle)?.text = title
         val container = view.findViewById<LinearLayout>(R.id.dialogFilterContainer) ?: return
-        limitScrollHeight(context, view.findViewById(R.id.dialogFilterScroll), null)
         val current = selected.toMutableSet()
 
         options.forEach { option ->
@@ -677,6 +672,7 @@ object AppDialogs {
                 onDone(current.toSet())
             }
         }
+        limitScrollHeight(context, view, view.findViewById(R.id.dialogFilterScroll), null)
         view.applyTouchFeedback()
         dialog.show()
     }
@@ -758,15 +754,25 @@ object AppDialogs {
         intArrayOf(accentColor, Palette.INK_3)
     )
 
-    /** 列表区限高：显式 dp 优先，否则屏高 55%；按钮始终可见 */
-    private fun limitScrollHeight(context: Context, scroll: View?, maxHeightDp: Int?) {
-        scroll ?: return
+    /** 列表区限高：显式 dp 优先，否则屏高 55%；按钮始终可见。须在内容填充后、show() 前调用 */
+    private fun limitScrollHeight(context: Context, root: View, scroll: View?, maxHeightDp: Int?) {
         val maxHeight = maxHeightDp?.let { (it * context.resources.displayMetrics.density).toInt() }
             ?: (context.resources.displayMetrics.heightPixels * 0.55f).toInt()
-        scroll.post {
-            if (scroll.height > maxHeight) {
-                scroll.layoutParams = scroll.layoutParams.apply { height = maxHeight }
-            }
+        limitScrollHeightPx(context, root, scroll, maxHeight)
+    }
+
+    /**
+     * show() 前按弹窗宽度预先测量并限高。不能 post 到首次布局之后再改：
+     * 首帧会按完整高度显示（贴近屏幕顶部），随后收缩并重新居中，表现为弹窗从上方闪到中间。
+     */
+    private fun limitScrollHeightPx(context: Context, root: View, scroll: View?, maxHeight: Int) {
+        scroll ?: return
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(dialogWidth(context), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        if (scroll.measuredHeight > maxHeight) {
+            scroll.layoutParams = scroll.layoutParams.apply { height = maxHeight }
         }
     }
 
@@ -796,7 +802,6 @@ object AppDialogs {
         val selectAllCheck = view.findViewById<MaterialCheckBox>(R.id.reviewSelectAllCheck)
         val deleteButton = view.findViewById<TextView>(R.id.reviewDelete)
         styleCheckBox(selectAllCheck, accentColor)
-        limitScrollHeight(context, view.findViewById(R.id.reviewScroll), null)
 
         // 行不随勾选着色（相邻勾选行底色会连成一片），状态只由复选框表达
         fun refresh() {
@@ -847,6 +852,7 @@ object AppDialogs {
             onDelete(selected.toSet())
         }
         refresh()
+        limitScrollHeight(context, view, view.findViewById(R.id.reviewScroll), null)
         view.applyTouchFeedback()
         dialog.show()
     }

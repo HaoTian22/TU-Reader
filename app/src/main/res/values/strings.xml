@@ -69,9 +69,7 @@
     <string name="card_home_monthly_discount">Discount this month</string>
     <string name="card_home_monthly_ride_spend">Ride spending this month</string>
     <string name="card_home_recent">Recent transactions</string>
-    <string name="card_home_view_all">All ›</string>
     <string name="card_home_week_spending">Spending this week</string>
-    <string name="card_home_view_stats">Stats ›</string>
 
     <!-- Card info -->
     <string name="card_info_title">Card info</string>

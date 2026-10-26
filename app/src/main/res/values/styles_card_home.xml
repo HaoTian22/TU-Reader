@@ -72,18 +72,6 @@
         <item name="android:textSize">15sp</item>
     </style>
 
-    <style name="CardHomeSectionLink">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:clickable">true</item>
-        <item name="android:focusable">true</item>
-        <item name="android:paddingStart">8dp</item>
-        <item name="android:paddingTop">4dp</item>
-        <item name="android:paddingEnd">4dp</item>
-        <item name="android:paddingBottom">4dp</item>
-        <item name="android:textSize">13sp</item>
-    </style>
-
     <style name="CardHomeSectionCard">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

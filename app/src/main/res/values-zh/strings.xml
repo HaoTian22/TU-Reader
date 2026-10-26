@@ -65,9 +65,7 @@
     <string name="card_home_monthly_discount">本月优惠</string>
     <string name="card_home_monthly_ride_spend">本月累计乘车消费</string>
     <string name="card_home_recent">最近交易</string>
-    <string name="card_home_view_all">全部 ›</string>
     <string name="card_home_week_spending">本周消费</string>
-    <string name="card_home_view_stats">统计 ›</string>
 
     <!-- Card info -->
     <string name="card_info_title">卡片信息</string>

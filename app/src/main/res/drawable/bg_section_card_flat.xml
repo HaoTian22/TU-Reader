@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 无描边卡片底：与最近交易分段列表的外圆角（SegmentedListLayout.OUTER_RADIUS_DP）一致 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/surface" />
+    <corners android:radius="16dp" />
+</shape>

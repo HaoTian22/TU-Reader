@@ -68,16 +68,13 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
         binding.btnMore.setOnClickListener { showMoreMenu() }
         binding.actionTransactions.setOnClickListener { go(R.id.action_cardHome_to_transactionList) }
-        binding.btnViewAll.setOnClickListener { go(R.id.action_cardHome_to_transactionList) }
-        binding.actionStats.setOnClickListener {
+        // 迷你图固定为"本周"，跳转统计页也默认"本周"视图，保持一致
+        val openWeekStats = View.OnClickListener {
             viewModel.setStatsPeriod("本周")
             go(R.id.action_cardHome_to_stats)
         }
-        binding.btnMiniStatsAll.setOnClickListener {
-            // 迷你图固定为"本周"，跳转统计页也默认"本周"视图，保持一致
-            viewModel.setStatsPeriod("本周")
-            go(R.id.action_cardHome_to_stats)
-        }
+        binding.actionStats.setOnClickListener(openWeekStats)
+        binding.weekChartCard.setOnClickListener(openWeekStats)
         binding.actionMapTrace.setOnClickListener { go(R.id.action_cardHome_to_mapTrace) }
 
         // 状态栏衬底只在内容滚动到其下方时出现，静止时让头部渐变完整延伸到状态栏
@@ -98,7 +95,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         viewModel.selectedCard.observe(viewLifecycleOwner) { card ->
             if (card != null) bindHeader(card)
         }
-        // 主题色跟随卡片：快捷操作图标、优惠胶囊、迷你图、查看全部一起变
+        // 主题色跟随卡片：快捷操作图标、优惠胶囊、迷你图一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
             val tile = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f)
@@ -109,13 +106,11 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                     setColor(tile)
                 }
             }
-            binding.btnViewAll.setTextColor(accentColor)
-            binding.btnMiniStatsAll.setTextColor(accentColor)
             renderDiscount(viewModel.selectedCityDiscounts.value.orEmpty())
             viewModel.homeWeeklySpending.value?.takeIf { it.isNotEmpty() }?.let { bindMiniChart(it) }
         }
         viewModel.allTransactions.observe(viewLifecycleOwner) { txns ->
-            bindRecentTransactions(txns.take(4))
+            bindRecentTransactions(txns.take(3))
         }
         // 城市优惠展示数据（DiscountRegistry 各方案按卡内月累乘统计解析）就绪后刷新优惠卡片
         viewModel.selectedCityDiscounts.observe(viewLifecycleOwner) { renderDiscount(it) }

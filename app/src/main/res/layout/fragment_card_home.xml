@@ -225,17 +225,12 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- 最近交易 -->
+            <!-- 最近交易：每行点击进入交易列表 -->
             <LinearLayout style="@style/CardHomeSectionHeader">
 
                 <TextView
                     style="@style/CardHomeSectionTitle"
                     android:text="@string/card_home_recent" />
-
-                <TextView
-                    android:id="@+id/btnViewAll"
-                    style="@style/CardHomeSectionLink"
-                    android:text="@string/card_home_view_all" />
             </LinearLayout>
 
             <com.example.nfctransit.ui.SegmentedListLayout
@@ -263,14 +258,13 @@
                     android:layout_weight="1"
                     android:textColor="@color/ink_3"
                     android:textSize="12sp" />
-
-                <TextView
-                    android:id="@+id/btnMiniStatsAll"
-                    style="@style/CardHomeSectionLink"
-                    android:text="@string/card_home_view_stats" />
             </LinearLayout>
 
-            <LinearLayout style="@style/CardHomeSectionCard">
+            <!-- 整卡可点击进入统计页（入口与快捷操作栏「统计」一致，区块内不再放链接） -->
+            <LinearLayout
+                android:id="@+id/weekChartCard"
+                style="@style/CardHomeSectionCard"
+                android:background="@drawable/bg_section_card_flat">
 
                 <!-- 柱状图：每天一列（金额 / 柱 / 星期），由代码生成 -->
                 <LinearLayout
