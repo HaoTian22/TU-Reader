@@ -69,6 +69,8 @@ object TransitData {
     @Volatile
     private var boundaryVersion: String = "0"
     private val byDeviceCode = mutableMapOf<String, MutableList<StationResolution>>() // 同编号保留所有类型
+    // TU 0x18 兜底：去掉城市前缀后的完整 12 位终端号，仅保留协议允许且全库唯一的映射。
+    private val byTuFullTerminal = mutableMapOf<String, StationResolution>()
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
     // 原始编号前缀 -> 该前缀下全部设备映射，与设备实际城市 city_id 无关；
@@ -490,6 +492,15 @@ object TransitData {
         .filter { rows -> rows.map { it.transitType }.distinct().size == 1 }
         .flatten()
 
+    /** 终端前缀不是城市码；完整终端号跨城市/类型重码时不猜测，深圳 CU 共享规则仍适用。 */
+    internal fun uniqueTuFullTerminals(candidates: List<StationResolution>): Map<String, StationResolution> =
+        candidates.filter {
+            acceptsMapping("TU", it) && it.deviceCode.length == 16 &&
+                it.deviceCode.all { char -> char in '0'..'9' }
+        }.groupBy { it.deviceCode.drop(4) }
+            .mapNotNull { (terminal, rows) -> rows.singleOrNull()?.let { terminal to it } }
+            .toMap()
+
     /** 根据 TU subtype 决定设备映射允许的交通类型；未知 subtype 不限制候选。 */
     internal fun tuTransitFamilyForSubtype(subtype: Int): TuTransitFamily? = when (subtype) {
         0x01 -> TuTransitFamily.RAIL
@@ -648,11 +659,13 @@ object TransitData {
     /**
      * 非 TU 卡种（YCT/SZT/CU/苏州/天津）的站点解析（简化：前缀分桶 + 最长重叠）。
      *
-     * 0x18 记录 [10..16)：前 4 位 = 城市/网络前缀（广州 YCT 0100、深圳 5180…），其余 = 位置/终端码。
+     * 0x18 记录 [10..16)：部分协议前 4 位为城市/网络前缀（广州 YCT 0100、深圳 5180…），
+     * TU 也可能整段都是终端号，不含城市码。
      * 按前缀分桶到该前缀下全部 reader_device，对整段 code（= prefix + 剩余）做最长重叠（同长优先
-     * 字节对齐），与 TU 0x1E 共用同一 longestOverlap。未知前缀（如珠海 5850 暂无设备数据）自然无命中。
+     * 字节对齐）；未知前缀在该规则下无命中。
+     * TU 前缀匹配未命中时，再按完整 12 位终端号匹配全库唯一映射，城市取命中设备所属城市。
      *
-     * @param standard 卡种标识（"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"）；SZT 启用深圳 Terminal 特殊匹配
+     * @param standard 卡种标识（"TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"）；SZT 启用深圳 Terminal 特殊匹配
      * @param cityCode 交易城市码（与 code 前 4 位同源，保留签名兼容）
      * @param code     记录 [10..16) 的 hex 串（12 位，含前缀/终端字段）
      * @param terminal 记录 [10..16) 的 BCD 串（与 code 同字节，保留签名兼容）
@@ -671,7 +684,8 @@ object TransitData {
         val prefix = if (code.length >= 4) code.substring(0, 4) else code
         val body = if (code.length > 4) code.substring(4) else code
         if (body.isEmpty()) return null
-        return longestOverlap(prefix, body, standard)?.first?.toEntry()
+        longestOverlap(prefix, body, standard)?.first?.let { return it.toEntry() }
+        return if (standard == "TU") byTuFullTerminal[code]?.toEntry() else null
     }
 
     /**
@@ -791,6 +805,7 @@ object TransitData {
             cityBoundaries.clear()
             boundaryVersion = "0"
             byDeviceCode.clear()
+            byTuFullTerminal.clear()
             byStationId.clear()
             byLineStationId.clear()
             byCombinedZh.clear()
@@ -825,7 +840,9 @@ object TransitData {
                             protocolCityCodes[mapping.protocol to mapping.code] = code
                         }
                     }
-                    for (r in dao.getAllResolutions()) {
+                    val resolutions = dao.getAllResolutions()
+                    byTuFullTerminal.putAll(uniqueTuFullTerminals(resolutions))
+                    for (r in resolutions) {
                         byDeviceCode.getOrPut(r.deviceCode, ::mutableListOf).add(r)
                         r.stationId?.let { byStationId[it] = r }
                         r.lineId?.let { lid -> r.stationId?.let { byLineStationId[lid to it] = r } }

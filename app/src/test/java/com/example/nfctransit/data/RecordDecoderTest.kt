@@ -17,6 +17,96 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecordDecoderTest {
+    private val nanningFare = RecordDecoder.ZoneRecord(
+        0x18, 1, "TU", "0004000000000000B40941310607445120261006133925"
+    )
+
+    private fun nanningMapping() = lntMapping("地铁").copy(
+        cityId = 219, cityCode = "6110", cityName = "南宁", standard = "TU",
+        deviceCode = "6110413106074451", lineId = 3032, stationId = 7004,
+        lineName = "3号线", stationName = "青秀山"
+    )
+
+    @Test
+    fun tuFareWithoutJourneyResolvesUniqueFullTerminalForFreshAndArchivedRecords() {
+        withDeviceMappings(listOf(nanningMapping()), prefix = "6110") {
+            val fresh = RecordDecoder.decodeCard("TU", listOf(nanningFare), null, 2026).display.single()
+            val saved = ArchivedTransactionEntity(
+                cardId = "test", sfi = "0x18", protocol = "TU", hex = nanningFare.hex,
+                contentHash = RecordDecoder.contentHash(nanningFare.hex), resolvedDate = fresh.date,
+                firstSeenAt = 0, lastSeenAt = 0
+            )
+            for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
+                assertEquals("6110413106074451", tx.deviceCode)
+                assertEquals("6110", tx.cityCode)
+                assertEquals("4131", tx.rawCityCode)
+                assertEquals("3号线", tx.lineName)
+                assertEquals("青秀山", tx.stationName)
+                assertEquals(3032L, tx.lineId)
+                assertEquals(7004L, tx.stationId)
+                assertEquals("地铁", tx.transitType)
+                assertEquals("20261006", tx.date)
+                assertEquals("133925", tx.time)
+            }
+        }
+    }
+
+    @Test
+    fun tuFullTerminalRejectsCityOrTransitTypeCollisionsInEitherLoadOrder() {
+        val mapping = nanningMapping()
+        val conflicts = listOf(
+            mapping.copy(deviceCode = "3320413106074451", cityCode = "3320", cityId = 1),
+            mapping.copy(transitType = "公交")
+        )
+        for (conflict in conflicts) {
+            for (rows in listOf(listOf(mapping, conflict), listOf(conflict, mapping))) {
+                withDeviceMappings(rows, prefix = "6110") {
+                    val tx = RecordDecoder.decodeCard("TU", listOf(nanningFare), null, 2026).display.single()
+                    assertNull(tx.deviceCode)
+                    assertEquals("公共交通", tx.stationName)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun tuFullTerminalFiltersOtherProtocolsAndRetainsShenzhenCuSharing() {
+        val mapping = nanningMapping()
+        val unrelatedCu = mapping.copy(standard = "CU", deviceCode = "3140413106074451")
+        withDeviceMappings(listOf(mapping, unrelatedCu), prefix = "6110") {
+            assertEquals("6110413106074451", TransitData.resolveByStandard(
+                "TU", "4131", "413106074451", "413106074451"
+            )?.code)
+            assertNull(TransitData.resolveByStandard("CU", "4131", "413106074451", "413106074451"))
+        }
+        withDeviceMappings(listOf(unrelatedCu), prefix = "3140") {
+            assertNull(TransitData.resolveByStandard("TU", "4131", "413106074451", "413106074451"))
+        }
+        val shenzhen = unrelatedCu.copy(deviceCode = "5180413106074451", cityCode = "5840")
+        withDeviceMappings(listOf(shenzhen), prefix = "5180") {
+            val entry = TransitData.resolveByStandard("TU", "4131", "413106074451", "413106074451")
+            assertEquals("5180413106074451", entry?.code)
+            assertEquals("5840", entry?.cityCode)
+        }
+    }
+
+    @Test
+    fun tuFullTerminalDoesNotUsePartialCodesOrOverrideExistingPrefixMatch() {
+        val mapping = nanningMapping()
+        withDeviceMappings(listOf(
+            mapping.copy(deviceCode = "61104131060744"),
+            mapping.copy(deviceCode = "611000413106074451")
+        ), prefix = "6110") {
+            assertNull(TransitData.resolveByStandard("TU", "4131", "413106074451", "413106074451"))
+        }
+        val prefixMatch = mapping.copy(deviceCode = "4131060744", stationName = "前缀命中站")
+        withDeviceMappings(listOf(mapping, prefixMatch), prefix = "4131") {
+            assertEquals("前缀命中站", TransitData.resolveByStandard(
+                "TU", "4131", "413106074451", "413106074451"
+            )?.station)
+        }
+    }
+
     @Test
     fun importedShanghaiCuFareResolvesLineAndStationWithCuProtocol() {
         val hex = "00540006A4000000000920001109311120260823150028"
@@ -540,15 +630,23 @@ class RecordDecoderTest {
         @Suppress("UNCHECKED_CAST")
         val rawIndex = rawBuckets.get(TransitData) as MutableMap<String, MutableList<StationResolution>>
         val previousRaw = rawIndex[prefix]
+        val terminals = TransitData::class.java.getDeclaredField("byTuFullTerminal").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val terminalIndex = terminals.get(TransitData) as MutableMap<String, StationResolution>
+        val previousTerminals = terminalIndex.toMap()
         val wasLoaded = loaded.getBoolean(TransitData)
         try {
             loaded.setBoolean(TransitData, true)
             index[key] = mappings
             rawIndex[prefix] = mappings.toMutableList()
+            terminalIndex.clear()
+            terminalIndex.putAll(TransitData.uniqueTuFullTerminals(mappings))
             block()
         } finally {
             if (previous == null) index.remove(key) else index[key] = previous
             if (previousRaw == null) rawIndex.remove(prefix) else rawIndex[prefix] = previousRaw
+            terminalIndex.clear()
+            terminalIndex.putAll(previousTerminals)
             loaded.setBoolean(TransitData, wasLoaded)
         }
     }
