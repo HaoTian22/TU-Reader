@@ -334,7 +334,10 @@ object RecordDecoder {
         first: CanonicalTransaction,
         second: CanonicalTransaction
     ): CanonicalTransaction {
-        val preferred = if (first.journeyHex == null && second.journeyHex != null) second else first
+        // TU 钱包一侧优先（1E 只存在于 TU 钱包；含 TU 的合并记录纠错标 TU，展示须与其匹配一致），
+        // 同为 TU 时带 1E 旅程者优先
+        val preferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
+            .let { if (it.compare(second, first) > 0) second else first }
         val primaryBlocks = buildList {
             add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex))
             preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
