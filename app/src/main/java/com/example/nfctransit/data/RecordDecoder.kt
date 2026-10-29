@@ -158,7 +158,7 @@ object RecordDecoder {
                 // TU 钱包：1E 映射表 + 18 主交易 + 旅程合并
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, currentYear, null
+                    "TU", tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
 
@@ -197,7 +197,7 @@ object RecordDecoder {
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, currentYear, null
+                    "TU", tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
                 val display = mergeForDisplay(szt + tuMerged).sortedWith(

@@ -169,7 +169,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             // 默认城市与导入时一致（库中设备行城市 → 前缀对应城市）；卡内声明城市只是推测，不预填
             codeOptions = codeOptions,
             actualCityCode = TransitData.overrideCityCode(
-                txn.cardType.ifBlank { txn.protocol }, prefix, code, txn.transitType
+                "TU".takeIf { it == txn.protocol || it in txn.protocols } ?: txn.protocol.ifBlank { txn.cardType },
+                prefix, code, txn.transitType
             ) ?: txn.actualCityCode.takeIf { txn.locationSource != LocationSource.DECLARED_CITY_FALLBACK },
             hasRawRecord = rawRecord.isNotBlank(),
             accentColor = accentColor

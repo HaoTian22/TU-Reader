@@ -1123,7 +1123,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     prefix.trim(), code.trim(), type.trim(),
                     line.trim(), station.trim()
                 )
-                val standard = transaction.cardType.ifBlank { transaction.protocol.ifBlank { "OVERRIDE" } }
+                // 按记录所在钱包标记（双钱包卡的 TU 钱包记录按 TU 匹配，标卡型会被 TU 路径拒绝）；
+                // 两钱包合并的记录（CU+TU 等）只要含 TU 就标 TU
+                val standard = "TU".takeIf { it == transaction.protocol || it in transaction.protocols }
+                    ?: transaction.protocol.ifBlank { transaction.cardType.ifBlank { "OVERRIDE" } }
                 val startedAt = SystemClock.elapsedRealtime()
                 var mark = startedAt
                 fun lap(step: String) {
