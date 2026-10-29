@@ -73,6 +73,9 @@ object TransitData {
     private val byDeviceCode = mutableMapOf<String, MutableList<StationResolution>>() // 同编号保留所有类型
     // TU 0x18 兜底：去掉城市前缀后的完整 12 位终端号，仅保留协议允许且全库唯一的映射。
     private val byTuFullTerminal = mutableMapOf<String, StationResolution>()
+    // 非 TU 0x18：协议 -> (完整 12 位终端号 -> 该协议内全库唯一映射)。终端号前 4 位未必是城市前缀
+    // （深圳通保留段 0000…），纠错表单以"城市前缀 + 完整 Terminal"登记时前缀分桶永远找不到。
+    private val byFullTerminal = mutableMapOf<String, Map<String, StationResolution>>()
     private val byStationId = mutableMapOf<Long, StationResolution>()    // station_id -> 解析结果
     private val byLineStationId = mutableMapOf<Pair<Long, Long>, StationResolution>() // (line_id, station_id) -> 解析结果
     // 原始编号前缀 -> 该前缀下全部设备映射，与设备实际城市 city_id 无关；
@@ -505,10 +508,12 @@ object TransitData {
 
     /** 终端前缀不是城市码；完整终端号跨城市/类型重码时不猜测，深圳 CU 共享规则仍适用。 */
     internal fun uniqueTuFullTerminals(candidates: List<StationResolution>): Map<String, StationResolution> =
-        candidates.filter {
-            acceptsMapping("TU", it) && it.deviceCode.length == 16 &&
-                it.deviceCode.all { char -> char in '0'..'9' }
-        }.groupBy { it.deviceCode.drop(4) }
+        uniqueFullTerminals("TU", candidates.filter { it.deviceCode.all { char -> char in '0'..'9' } })
+
+    /** 4 位前缀 + 12 位终端号的映射，按去前缀后的完整终端号索引；同号多行（跨城/跨类型）不猜测。 */
+    internal fun uniqueFullTerminals(standard: String, candidates: List<StationResolution>): Map<String, StationResolution> =
+        candidates.filter { acceptsMapping(standard, it) && it.deviceCode.length == 16 }
+            .groupBy { it.deviceCode.drop(4) }
             .mapNotNull { (terminal, rows) -> rows.singleOrNull()?.let { terminal to it } }
             .toMap()
 
@@ -688,6 +693,12 @@ object TransitData {
         terminal: String
     ): StationEntry? {
         ensureLoaded()
+        // 完整终端号精确命中比任何前缀分桶重叠都具体（纠错常以"城市前缀 + 完整 Terminal"登记），优先采用
+        if (standard != "TU") {
+            byFullTerminal[cityProtocol(standard)]?.get(code)?.let {
+                return it.toEntry(if (standard == "SZT") SP_RULE_SHENZHEN else null)
+            }
+        }
         if (standard == "SZT") {
             resolveShenzhenTerminal(code, terminal)?.let { return it }
         }
@@ -815,6 +826,7 @@ object TransitData {
             protocolCityCodes.clear()
             byDeviceCode.clear()
             byTuFullTerminal.clear()
+            byFullTerminal.clear()
             byStationId.clear()
             byLineStationId.clear()
             byCombinedZh.clear()
@@ -854,6 +866,9 @@ object TransitData {
                     }
                     val resolutions = dao.getAllResolutions()
                     byTuFullTerminal.putAll(uniqueTuFullTerminals(resolutions))
+                    for (protocol in resolutions.map { cityProtocol(it.standard) }.distinct() - "TU") {
+                        byFullTerminal[protocol] = uniqueFullTerminals(protocol, resolutions)
+                    }
                     for (r in resolutions) {
                         byDeviceCode.getOrPut(r.deviceCode, ::mutableListOf).add(r)
                         r.stationId?.let { byStationId[it] = r }

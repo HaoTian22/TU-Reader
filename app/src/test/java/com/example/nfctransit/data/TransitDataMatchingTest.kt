@@ -25,7 +25,7 @@ class TransitDataMatchingTest {
     @Test
     fun shenzhenTuAndSztShareCuTerminalMappingsWithCanonicalCity() {
         val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
-        val fields = listOf("resolutionsByCity", "candidatesByCityAndFamily", "byDeviceCode")
+        val fields = listOf("resolutionsByCity", "candidatesByCityAndFamily", "byDeviceCode", "byFullTerminal")
             .associateWith { TransitData::class.java.getDeclaredField(it).apply { isAccessible = true } }
         @Suppress("UNCHECKED_CAST")
         val buckets = fields.getValue("resolutionsByCity").get(TransitData) as MutableMap<String, MutableList<StationResolution>>
@@ -33,6 +33,9 @@ class TransitDataMatchingTest {
         val cached = fields.getValue("candidatesByCityAndFamily").get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
         @Suppress("UNCHECKED_CAST")
         val devices = fields.getValue("byDeviceCode").get(TransitData) as MutableMap<String, MutableList<StationResolution>>
+        @Suppress("UNCHECKED_CAST")
+        val fullTerminals = fields.getValue("byFullTerminal").get(TransitData) as MutableMap<String, Map<String, StationResolution>>
+        val oldFullTerminals = fullTerminals.toMap()
         val oldBuckets = buckets.toMap()
         val oldCached = cached.toMap()
         val oldDevices = devices.toMap()
@@ -44,13 +47,17 @@ class TransitDataMatchingTest {
         val bus = metro.copy(standard = "TU", deviceCode = "51800D3100", transitType = "公交",
             lineName = "M337", stationId = null, stationName = null)
         val genericBus = bus.copy(standard = "CU", deviceCode = "518020", lineName = "东部公交")
+        // 用户反馈的真实深圳通 0x18 记录：库中 518031 大类公交 vs 用户以完整 Terminal 登记的纠错
+        val bus31 = genericBus.copy(deviceCode = "518031", lineName = null)
+        val override358 = genericBus.copy(standard = "SZT", deviceCode = "5180000031010680", lineName = "358快线")
         try {
             loaded.setBoolean(TransitData, true)
-            buckets["5180"] = mutableListOf(metro, bus, genericBus)
+            buckets["5180"] = mutableListOf(metro, bus, genericBus, bus31, override358)
             for (family in listOf(null, TransitData.TuTransitFamily.RAIL, TransitData.TuTransitFamily.BUS)) {
                 cached["5180" to family] = TransitData.tuCandidates(buckets.getValue("5180"), family)
             }
             for (mapping in buckets.getValue("5180")) devices[mapping.deviceCode] = mutableListOf(mapping)
+            fullTerminals["CU"] = TransitData.uniqueFullTerminals("CU", buckets.getValue("5180"))
             for (city in listOf("5840", "5180")) {
                 val entry = TransitData.resolveTuStation(city, "0000", "0000", "000040011001",
                     expectedFamily = TransitData.TuTransitFamily.RAIL)
@@ -58,6 +65,9 @@ class TransitDataMatchingTest {
                 assertEquals("5840", entry?.cityCode)
             }
             assertEquals("福田口岸", TransitData.resolveByStandard("SZT", "5180", "000040011001", "000040011001")?.station)
+            val record = "0594000000000000780900003101068020261008155441"
+            val terminal = record.substring(20, 32)
+            assertEquals("358快线", TransitData.resolveByStandard("SZT", "5180", terminal, terminal)?.line)
             assertEquals("福田口岸", TransitData.resolveByStandard("TU", "5180", "518040011001", "518040011001")?.station)
             assertEquals("M337", TransitData.resolveTuStation("5840", "0000", "0000", "",
                 rawCode = "0D310000000000", expectedFamily = TransitData.TuTransitFamily.BUS)?.line)
@@ -70,6 +80,30 @@ class TransitDataMatchingTest {
             buckets.clear(); buckets.putAll(oldBuckets)
             cached.clear(); cached.putAll(oldCached)
             devices.clear(); devices.putAll(oldDevices)
+            fullTerminals.clear(); fullTerminals.putAll(oldFullTerminals)
+            loaded.setBoolean(TransitData, wasLoaded)
+        }
+    }
+
+    @Test
+    fun macauPassOverrideMatchesFullTerminalDespiteZeroPrefix() {
+        val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
+        val field = TransitData::class.java.getDeclaredField("byFullTerminal").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val fullTerminals = field.get(TransitData) as MutableMap<String, Map<String, StationResolution>>
+        val old = fullTerminals.toMap()
+        val wasLoaded = loaded.getBoolean(TransitData)
+        // 真机澳门通 0x18 记录 + 用户纠错 0446,000000011476,公交,25B（standard MPASS）
+        val override25b = resolution("", "公交", "25B", null).copy(
+            cityCode = "0446", cityName = "澳门", standard = "MPASS", deviceCode = "0446000000011476")
+        try {
+            loaded.setBoolean(TransitData, true)
+            fullTerminals["MPASS"] = TransitData.uniqueFullTerminals("MPASS", listOf(override25b))
+            val record = "00030000000000001E0900000001147620261011205703"
+            val terminal = record.substring(20, 32)
+            assertEquals("25B", TransitData.resolveByStandard("MPASS", "0446", terminal, terminal)?.line)
+        } finally {
+            fullTerminals.clear(); fullTerminals.putAll(old)
             loaded.setBoolean(TransitData, wasLoaded)
         }
     }
