@@ -29,6 +29,8 @@ data class OverrideImportSummary(
     val skipped: Int = 0,
     val errors: List<String> = emptyList()
 ) {
+    val ok: Boolean get() = skipped == 0 && errors.isEmpty()
+
     fun message(): String = buildString {
         append(L10n.str(R.string.override_import_summary, added, updated, unchanged))
         if (skipped > 0) append(L10n.str(R.string.override_import_skipped, skipped))

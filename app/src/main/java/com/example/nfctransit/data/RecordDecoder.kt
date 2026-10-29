@@ -401,15 +401,12 @@ object RecordDecoder {
                 cityCode, lineCode, stationCode, terminal, rawCode,
                 expectedFamily = expectedFamily
             )
-            val fallbackStation = when (expectedFamily) {
-                TransitData.TuTransitFamily.RAIL -> "轨道交通"
-                else -> "公共交通"
-            }
-            val fallbackTransitType = when (expectedFamily) {
-                TransitData.TuTransitFamily.RAIL -> "地铁"
-                TransitData.TuTransitFamily.BUS -> "公交"
-                null -> "公交"
-            }
+            // 未命中映射时，subtype=轨道 仍需 line 与 station 各自非全 0 才兜底为地铁
+            // （01000000 / 00001011 → 公交）。用原始 hex 片段，避免 bcd 展开 hex 字母造成错位。
+            val railFallback = expectedFamily == TransitData.TuTransitFamily.RAIL &&
+                rawCode.take(4).any { it != '0' } && rawCode.drop(4).take(4).any { it != '0' }
+            val fallbackStation = if (railFallback) "轨道交通" else "公共交通"
+            val fallbackTransitType = if (railFallback) "地铁" else "公交"
             val mappedRef = entry
             // 方向判断使用数据库原始类型或 subtype 兜底类型，不受显示语言影响。
             val direction = tuDirectionForType(

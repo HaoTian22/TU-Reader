@@ -1,6 +1,8 @@
 package com.example.nfctransit.data
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import com.example.nfctransit.BuildConfig
 import com.google.gson.Gson
 import java.net.HttpURLConnection
@@ -10,6 +12,9 @@ import java.util.Date
 import java.util.Locale
 import com.example.nfctransit.R
 import com.example.nfctransit.util.L10n
+
+/** 上传结果：提示文案 + 是否成功（决定提示条样式） */
+data class UploadResult(val message: String, val ok: Boolean)
 
 object FeedbackUploader {
     private val gson = Gson()
@@ -38,9 +43,9 @@ object FeedbackUploader {
         locationCityName: String? = null,
         locationSource: FeedbackLocationSource,
         rawRecord: String? = null
-    ): String {
+    ): UploadResult {
         val endpoint = BuildConfig.FEEDBACK_UPLOAD_URL.trim()
-        if (endpoint.isEmpty()) return L10n.str(R.string.upload_not_configured)
+        if (endpoint.isEmpty()) return UploadResult(L10n.str(R.string.upload_not_configured), false)
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -65,13 +70,23 @@ object FeedbackUploader {
                     SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
                 )
             )
+            val startedAt = SystemClock.elapsedRealtime()
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            when (val code = connection.responseCode) {
-                in 200..299 -> L10n.str(R.string.upload_done)
-                else -> L10n.str(R.string.upload_failed_http, code)
+            val code = connection.responseCode
+            Log.d("OverrideSave", "upload HTTP $code: ${SystemClock.elapsedRealtime() - startedAt} ms, ${body.length} chars")
+            when (code) {
+                in 200..299 -> UploadResult(L10n.str(R.string.upload_done), true)
+                else -> {
+                    val detail = runCatching {
+                        connection.errorStream?.bufferedReader()?.use { it.readText() }
+                    }.getOrNull()
+                    Log.w("OverrideSave", "upload failed HTTP $code: $detail")
+                    UploadResult(L10n.str(R.string.upload_failed_http, code), false)
+                }
             }
         } catch (e: Exception) {
-            L10n.str(R.string.upload_failed, e.message ?: L10n.str(R.string.network_error))
+            Log.w("OverrideSave", "upload failed", e)
+            UploadResult(L10n.str(R.string.upload_failed, e.message ?: L10n.str(R.string.network_error)), false)
         } finally {
             connection.disconnect()
         }

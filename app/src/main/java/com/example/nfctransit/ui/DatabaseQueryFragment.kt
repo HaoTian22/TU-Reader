@@ -22,7 +22,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.TableRow
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -132,7 +131,7 @@ class DatabaseQueryFragment : Fragment(R.layout.fragment_database_query) {
         val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE)
             as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("prompt", prompt))
-        Toast.makeText(requireContext(), R.string.db_prompt_copied, Toast.LENGTH_SHORT).show()
+        AppToast.show(requireContext(), R.string.db_prompt_copied, AppToast.Kind.SUCCESS)
     }
 
     private fun showSqlDialog() {

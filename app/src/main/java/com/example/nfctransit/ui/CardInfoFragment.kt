@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -69,7 +68,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                 val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                     as android.content.ClipboardManager
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.card_info_copy_raw_cd), rawHexToCopy))
-                Toast.makeText(requireContext(), R.string.card_raw_copied, Toast.LENGTH_SHORT).show()
+                AppToast.show(requireContext(), R.string.card_raw_copied, AppToast.Kind.SUCCESS)
             }
         }
 
@@ -431,7 +430,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
             accentColor = accentColor
         ) { value ->
             if (!viewModel.renameSelectedCard(value)) {
-                Toast.makeText(requireContext(), R.string.card_name_empty, Toast.LENGTH_SHORT).show()
+                AppToast.show(requireContext(), R.string.card_name_empty, AppToast.Kind.ERROR)
             }
         }
     }

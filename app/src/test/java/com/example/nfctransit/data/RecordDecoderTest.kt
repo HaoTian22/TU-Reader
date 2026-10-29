@@ -403,10 +403,20 @@ class RecordDecoderTest {
     @Test
     fun tuType06UsesSubtypeFallbackWhenMappingIsMissing() = withDeviceMappings(emptyList()) {
         for (subtype in listOf(0x01, 0x02, 0x00)) {
-            val tx = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(0x06, subtype)), null, 2026)
+            val tx = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(0x06, subtype, "00181011")), null, 2026)
                 .display.single()
             assertNull(tx.deviceCode)
             assertEquals(if (subtype == 0x01) TransitDirection.ENTRY else null, tx.direction)
+        }
+    }
+
+    @Test
+    fun tuRailFallbackRequiresNonZeroLineAndStation() = withDeviceMappings(emptyList()) {
+        for ((code, expected) in listOf("00181011" to "地铁", "01000000" to "公交", "00001011" to "公交")) {
+            val tx = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(0x03, 0x01, code)), null, 2026)
+                .display.single()
+            assertNull(tx.deviceCode)
+            assertEquals(code, expected, tx.transitType)
         }
     }
 
@@ -420,7 +430,7 @@ class RecordDecoderTest {
             ApduUtil.hexToBytes("990000180001").copyInto(data, destinationOffset = 10)
             ApduUtil.hexToBytes("20260101120000").copyInto(data, destinationOffset = 16)
             val fare = RecordDecoder.ZoneRecord(0x18, 1, "TU", ApduUtil.bytesToHex(data))
-            val decoded = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(type, 0x01), fare), null, 2026)
+            val decoded = RecordDecoder.decodeCard("TU", listOf(tuJourneyRecord(type, 0x01, "00181011"), fare), null, 2026)
             val tx = decoded.display.single()
             assertEquals("06", tx.typeHex)
             assertEquals(if (type == 0x06) TransitDirection.ENTRY else TransitDirection.EXIT, tx.direction)
@@ -607,12 +617,12 @@ class RecordDecoderTest {
         standard = "YCT", transitType = type, deviceCode = "99000018"
     )
 
-    private fun tuJourneyRecord(type: Int, subtype: Int): RecordDecoder.ZoneRecord {
+    private fun tuJourneyRecord(type: Int, subtype: Int, lineStation: String = "00180000"): RecordDecoder.ZoneRecord {
         val data = ByteArray(48)
         data[0] = type.toByte()
         ApduUtil.hexToBytes("990000180001").copyInto(data, destinationOffset = 3)
         data[9] = subtype.toByte()
-        ApduUtil.hexToBytes("00180000000000").copyInto(data, destinationOffset = 10)
+        ApduUtil.hexToBytes(lineStation + "000000").copyInto(data, destinationOffset = 10)
         data[20] = 0x64
         ApduUtil.hexToBytes("20260101120000").copyInto(data, destinationOffset = 25)
         ApduUtil.hexToBytes("9900").copyInto(data, destinationOffset = 32)

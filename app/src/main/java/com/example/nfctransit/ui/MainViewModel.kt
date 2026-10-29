@@ -32,6 +32,7 @@ import com.example.nfctransit.data.TransitOverrideStore
 import com.example.nfctransit.data.OverrideDuplicate
 import com.example.nfctransit.data.TransitOverrideDuplicates
 import com.example.nfctransit.data.FeedbackUploader
+import com.example.nfctransit.data.UploadResult
 import com.example.nfctransit.data.FeedbackLocationSource
 import com.example.nfctransit.data.FeedbackOverride
 import com.example.nfctransit.data.TransitOverrideRow
@@ -77,11 +78,16 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.channels.Channel
 import com.example.nfctransit.util.AppLanguage
 import com.example.nfctransit.util.L10n
 
@@ -91,8 +97,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val cardStateCoordinator = CardStateCoordinator()
     private val nfcReadGate = NfcReadGate()
     @Volatile private var activeIsoDep: TagTechnology? = null
-    private val _nfcReadMessage = MutableLiveData<String?>()
-    val nfcReadMessage: LiveData<String?> = _nfcReadMessage
+    private val _nfcReadMessage = MutableLiveData<StatusMessage?>()
+    val nfcReadMessage: LiveData<StatusMessage?> = _nfcReadMessage
 
     fun consumeNfcReadMessage() { _nfcReadMessage.value = null }
 
@@ -141,11 +147,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 八达通等 FeliCa 卡没有 IsoDep，走 NfcF
                 val nfcF = if (isoDep == null) NfcF.get(tag) else null
                 if (isoDep == null && nfcF == null) {
-                    _nfcReadMessage.value = L10n.str(R.string.nfc_no_isodep)
+                    _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_no_isodep), AppToast.Kind.ERROR)
                     return@launch
                 }
                 activeIsoDep = isoDep ?: nfcF
-                _nfcReadMessage.value = L10n.str(R.string.nfc_detecting)
+                _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_detecting), AppToast.Kind.PROGRESS)
                 val startedAt = SystemClock.elapsedRealtime()
                 val result = withContext(Dispatchers.IO) {
                     if (isoDep != null) TransitCardReader(isoDep).read() else OctopusReader(nfcF!!).read()
@@ -169,8 +175,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 currentSessionNfcLog = result.rawLog
                 _nfcLog.value = result.rawLog
                 if (result.matchedProfile == null) {
-                    _nfcReadMessage.value = if (result.readError != null) L10n.str(R.string.nfc_interrupted)
-                        else L10n.str(R.string.nfc_unsupported_card)
+                    _nfcReadMessage.value = StatusMessage(
+                        if (result.readError != null) L10n.str(R.string.nfc_interrupted)
+                        else L10n.str(R.string.nfc_unsupported_card),
+                        AppToast.Kind.ERROR
+                    )
                     return@launch
                 }
                 if (result.readError == null && wantsComboProbe(result, fromIso)) {
@@ -183,7 +192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         saveNfcResult(timedOut.result, timedOut.startedAt)
                     })
                     _readerTech.value = if (fromIso) ReaderTech.FELICA_ONLY else ReaderTech.ISO_ONLY
-                    _nfcReadMessage.value = L10n.str(R.string.nfc_combo_probing)
+                    _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_combo_probing), AppToast.Kind.PROGRESS)
                     return@launch
                 }
                 saveNfcResult(result, startedAt)
@@ -191,7 +200,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 throw error
             } catch (error: Exception) {
                 Log.e("TransitReader", "读取或保存卡片失败", error)
-                _nfcReadMessage.value = L10n.str(R.string.nfc_read_failed)
+                _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_read_failed), AppToast.Kind.ERROR)
             } finally {
                 activeIsoDep?.let { try { it.close() } catch (_: Exception) {} }
                 activeIsoDep = null
@@ -205,23 +214,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentSessionNfcLog = result.rawLog
         _nfcLog.value = result.rawLog
         try {
-            _nfcReadMessage.value = L10n.str(R.string.nfc_saving)
+            _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_saving), AppToast.Kind.PROGRESS)
             val saved = cardStateCoordinator.withRestoredState { applyNfcData(result) }
             _nfcReadMessage.value = when {
-                !saved -> L10n.str(R.string.nfc_nothing_saved)
-                result.readError != null -> L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount)
-                lastReadCount == 0 -> L10n.str(R.string.nfc_saved_no_txns)
-                else -> L10n.plural(R.plurals.nfc_saved, lastReadCount, profile.name, lastReadCount)
+                !saved -> StatusMessage(L10n.str(R.string.nfc_nothing_saved), AppToast.Kind.ERROR)
+                result.readError != null -> StatusMessage(
+                    L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount), AppToast.Kind.INFO
+                )
+                lastReadCount == 0 -> StatusMessage(L10n.str(R.string.nfc_saved_no_txns), AppToast.Kind.SUCCESS)
+                else -> StatusMessage(
+                    L10n.plural(R.plurals.nfc_saved, lastReadCount, profile.name, lastReadCount), AppToast.Kind.SUCCESS
+                )
             }
             Log.d("TransitReader", "NFC task finished after ${SystemClock.elapsedRealtime() - startedAt} ms; saved=$saved")
         } catch (error: CancellationException) {
             throw error
         } catch (error: NfcDataSavedException) {
             Log.e("TransitReader", "数据已保存，界面重建失败", error)
-            _nfcReadMessage.value = L10n.str(R.string.nfc_saved_ui_failed)
+            _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_saved_ui_failed), AppToast.Kind.ERROR)
         } catch (error: Exception) {
             Log.e("TransitReader", "读取或保存卡片失败", error)
-            _nfcReadMessage.value = L10n.str(R.string.nfc_read_failed)
+            _nfcReadMessage.value = StatusMessage(L10n.str(R.string.nfc_read_failed), AppToast.Kind.ERROR)
         }
     }
 
@@ -250,6 +263,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 任何 canonicalByCard 被改写的点都必须同步清掉对应项（重派生出最新 UI）。
      */
     private val cachedTxnsByCard = mutableMapOf<String, List<UiTransaction>>()
+
+    /** 每卡内存状态的写入代次；后台重建只在构建期间无人改写该卡时才落内存，避免覆盖更新的读卡结果 */
+    private val cardStateGeneration = mutableMapOf<String, Long>()
+
+    /** 选中卡之外的卡片后台重建；新一轮重建开始时取消上一轮 */
+    private var backgroundRebuildJob: Job? = null
 
     /** 本次会话 APDU 日志（仅内存，导出用；持久化走 SessionLogStore 文件） */
     private var currentSessionNfcLog: List<String> = emptyList()
@@ -437,8 +456,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationDbVersion = MutableLiveData<String?>(null)
     val stationDbVersion: LiveData<String?> = _stationDbVersion
 
-    private val _feedbackStatus = MutableLiveData<String?>(null)
-    val feedbackStatus: LiveData<String?> = _feedbackStatus
+    /**
+     * 后台操作（保存/上传纠错、更新站名库、清缓存）的提示：由 MainActivity 统一显示，
+     * 发起页面已关闭或用户切到别的页面时也能看到结果。缓冲到 Activity 前台再收。
+     */
+    private val _toasts = Channel<StatusMessage>(Channel.BUFFERED)
+    val toasts: Flow<StatusMessage> = _toasts.receiveAsFlow()
+
+    private fun toast(message: StatusMessage) {
+        _toasts.trySend(message)
+    }
 
     private val _feedbackSaving = MutableLiveData(false)
     val feedbackSaving: LiveData<Boolean> = _feedbackSaving
@@ -450,8 +477,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _overrideDuplicates = MutableLiveData<List<OverrideDuplicate>?>(null)
     val overrideDuplicates: LiveData<List<OverrideDuplicate>?> = _overrideDuplicates
 
-    private val _overrideStatus = MutableLiveData<String?>(null)
-    val overrideStatus: LiveData<String?> = _overrideStatus
 
     private val _cacheClearing = MutableLiveData(false)
     val cacheClearing: LiveData<Boolean> = _cacheClearing
@@ -585,6 +610,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private fun applyCardState(cardId: String, state: BuiltCardState) {
+        cardStateGeneration[cardId] = (cardStateGeneration[cardId] ?: 0L) + 1
         canonicalByCard[cardId] = state.canonicals
         cachedTxnsByCard[cardId] = state.txns
         rawRecordsByCard[cardId] = state.raws
@@ -629,23 +655,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存，刷新当前选中卡 */
+    /**
+     * 站名映射表更新 / 清缓存后：所有卡强制重解码（站名与 ID 可能变化）并重建缓存。
+     * 先重建并刷新当前选中卡后返回（调用方随即报成功）；其余卡在后台逐张重建。
+     */
     private suspend fun rebuildAllCardsAndRefresh() {
+        backgroundRebuildJob?.cancel()
         cachedTxnsByCard.clear()
         val dbVersion = uiCacheVersion()
-        cardEntities.forEach { card ->
-            try {
-                val state = withContext(Dispatchers.Default) {
-                    loadCardState(card, forceRebuild = true, dbVersion = dbVersion)
+        val selected = cardEntities.getOrNull(_selectedIndex.value ?: -1)
+        if (selected != null) {
+            rebuildCard(selected, dbVersion)
+            emitCardData(selected.cardId)
+        }
+        val rest = cardEntities.filter { it.cardId != selected?.cardId }
+        if (rest.isEmpty()) return
+        backgroundRebuildJob = viewModelScope.launch {
+            for (card in rest) {
+                rebuildCard(card, dbVersion)
+                // 后台期间切到了这张卡：用新状态刷新
+                if (cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId == card.cardId) {
+                    emitCardData(card.cardId)
                 }
-                applyCardState(card.cardId, state)
-            } catch (e: Exception) {
-                // 单张卡失败不拖垮其余卡片（与 restore() 一致）
-                Log.e("MainViewModel", "重建卡片 ${card.cardId} 失败", e)
             }
         }
-        val cardId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId
-        if (cardId != null) emitCardData(cardId)
+    }
+
+    private suspend fun rebuildCard(card: CardEntity, dbVersion: String) {
+        try {
+            val cardStartedAt = SystemClock.elapsedRealtime()
+            val generation = cardStateGeneration[card.cardId]
+            val state = withContext(Dispatchers.Default) {
+                loadCardState(card, forceRebuild = true, dbVersion = dbVersion)
+            }
+            // 卡已删除，或构建期间被读卡等写入了更新的状态：丢弃本次结果
+            if (cardEntities.none { it.cardId == card.cardId }) return
+            if (cardStateGeneration[card.cardId] != generation) return
+            applyCardState(card.cardId, state)
+            Log.d("OverrideSave", "rebuild card ${card.cardId}: ${SystemClock.elapsedRealtime() - cardStartedAt} ms")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 单张卡失败不拖垮其余卡片（与 restore() 一致）
+            Log.e("MainViewModel", "重建卡片 ${card.cardId} 失败", e)
+        }
     }
 
     // ── NFC 数据加载（等待恢复 → 串行解码/合并/持久化/重建）──
@@ -1045,13 +1098,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _allTransactions.value?.find { it.id == id }
     }
 
-    fun consumeFeedbackStatus() {
-        _feedbackStatus.value = null
-    }
-
-    fun consumeOverrideStatus() {
-        _overrideStatus.value = null
-    }
 
     fun saveFeedbackOverride(
         transaction: UiTransaction,
@@ -1068,14 +1114,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         if (_feedbackSaving.value == true) return
         _feedbackSaving.value = true
-        _feedbackStatus.value = null
+        toast(StatusMessage(L10n.str(R.string.feedback_saving), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
+            // 本地落盘后即开始上传，与重导入/重建卡片并行
+            var upload: Deferred<UploadResult>? = null
             try {
                 val normalized = TransitOverrideRow(
                     prefix.trim(), code.trim(), type.trim(),
                     line.trim(), station.trim()
                 )
                 val standard = transaction.cardType.ifBlank { transaction.protocol.ifBlank { "OVERRIDE" } }
+                val startedAt = SystemClock.elapsedRealtime()
+                var mark = startedAt
+                fun lap(step: String) {
+                    val now = SystemClock.elapsedRealtime()
+                    Log.d("OverrideSave", "$step: ${now - mark} ms")
+                    mark = now
+                }
                 val result = withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
@@ -1096,30 +1151,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         original
                     )
-                    val summary = TransitOverrideImporter.import(context)
+                    lap("store")
+                    if (publish) {
+                        upload = viewModelScope.async(Dispatchers.IO) {
+                            FeedbackUploader.upload(
+                                getApplication(), normalized, type.trim(), standard,
+                                locationCityCode, locationCityName, locationSource, rawRecord
+                            )
+                        }
+                    }
+                    val summary = TransitOverrideImporter.importKey(context, normalized.mappingKey)
+                    lap("import")
                     TransitData.reload()
+                    lap("reload")
                     _overrideRows.postValue(TransitOverrideStore.list(context))
                     summary
                 }
                 rebuildAllCardsAndRefresh()
-                val uploadStatus = if (publish) {
-                    withContext(Dispatchers.IO) {
-                        FeedbackUploader.upload(
-                            getApplication(), normalized, type.trim(), standard,
-                            locationCityCode, locationCityName, locationSource, rawRecord
-                        )
-                    }
-                } else null
-                _feedbackStatus.value = buildString {
-                    append(result.message())
-                    if (uploadStatus != null) append(L10n.str(R.string.status_separator)).append(uploadStatus)
-                }
+                lap("rebuild")
+                Log.d("OverrideSave", "total: ${SystemClock.elapsedRealtime() - startedAt} ms")
+                // 选中卡重建完即报成功；上传若仍在进行，结果稍后单独提示
+                toast(statusWithUpload(result.message(), result.ok, upload))
+                _feedbackSaving.value = false
+                reportPendingUpload(upload) { toast(it) }
             } catch (e: Exception) {
-                _feedbackStatus.value = L10n.str(R.string.feedback_save_failed, e.message ?: L10n.str(R.string.unknown_error))
+                toast(statusWithUpload(
+                    L10n.str(R.string.feedback_save_failed, e.message ?: L10n.str(R.string.unknown_error)), false, upload
+                ))
+                _feedbackSaving.value = false
+                reportPendingUpload(upload) { toast(it) }
             } finally {
                 _feedbackSaving.value = false
             }
         }
+    }
+
+    /** 上传已完成则把结果拼在本地状态后，否则只返回本地状态；任一失败即按失败样式提示 */
+    private suspend fun statusWithUpload(local: String, localOk: Boolean, upload: Deferred<UploadResult>?): StatusMessage {
+        val uploaded = upload?.takeIf { it.isCompleted }?.await()
+            ?: return StatusMessage(local, localOk)
+        return StatusMessage(local + L10n.str(R.string.status_separator) + uploaded.message, localOk && uploaded.ok)
+    }
+
+    /** 上传在本地完成后仍未结束：等它完成再单独提示一次 */
+    private suspend fun reportPendingUpload(upload: Deferred<UploadResult>?, post: (StatusMessage) -> Unit) {
+        if (upload == null || upload.isCompleted) return
+        val uploaded = upload.await()
+        Log.d("OverrideSave", "upload reported after local save")
+        post(StatusMessage(uploaded.message, uploaded.ok))
     }
     fun refreshOverrideRows() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1137,7 +1216,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         publish: Boolean = false
     ) {
         viewModelScope.launch {
+            var upload: Deferred<UploadResult>? = null
             try {
+                val startedAt = SystemClock.elapsedRealtime()
+                var mark = startedAt
+                fun lap(step: String) {
+                    val now = SystemClock.elapsedRealtime()
+                    Log.d("OverrideSave", "$step: ${now - mark} ms")
+                    mark = now
+                }
                 val update = withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
                     val database = AppDatabase.get(context)
@@ -1177,27 +1264,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         original
                     )
-                    val result = TransitOverrideImporter.import(context)
+                    lap("store")
+                    if (publish) {
+                        upload = viewModelScope.async(Dispatchers.IO) {
+                            FeedbackUploader.upload(
+                                getApplication(), row, row.type, standard,
+                                locationCity?.code, locationCity?.name, locationSource
+                            )
+                        }
+                    }
+                    // 改键时 restoreOriginal 可能改动其他类型的同编号行，需整表重放；否则只应用本行
+                    val result = if (oldKey != row.mappingKey) {
+                        TransitOverrideImporter.import(context)
+                    } else {
+                        TransitOverrideImporter.importKey(context, row.mappingKey)
+                    }
+                    lap("import")
                     TransitData.reload()
+                    lap("reload")
                     _overrideRows.postValue(TransitOverrideStore.list(context))
                     _overrideDuplicates.postValue(TransitOverrideDuplicates.find(context))
-                    Triple(result, standard, locationCity)
+                    lap("list+duplicates")
+                    result
                 }
                 rebuildAllCardsAndRefresh()
-                val uploadStatus = if (publish) {
-                    withContext(Dispatchers.IO) {
-                        FeedbackUploader.upload(
-                            getApplication(), row, row.type, update.second,
-                            update.third?.code, update.third?.name, locationSource
-                        )
-                    }
-                } else null
-                _overrideStatus.value = buildString {
-                    append(L10n.str(R.string.override_saved, update.first.message()))
-                    if (uploadStatus != null) append(L10n.str(R.string.status_separator)).append(uploadStatus)
-                }
+                lap("rebuild")
+                Log.d("OverrideSave", "total: ${SystemClock.elapsedRealtime() - startedAt} ms")
+                toast(statusWithUpload(L10n.str(R.string.override_saved, update.message()), update.ok, upload))
+                reportPendingUpload(upload) { toast(it) }
             } catch (e: Exception) {
-                _overrideStatus.value = L10n.str(R.string.override_save_failed, e.message ?: L10n.str(R.string.unknown_error))
+                toast(statusWithUpload(
+                    L10n.str(R.string.override_save_failed, e.message ?: L10n.str(R.string.unknown_error)), false, upload
+                ))
+                reportPendingUpload(upload) { toast(it) }
             }
         }
     }
@@ -1222,9 +1321,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _overrideDuplicates.postValue(TransitOverrideDuplicates.find(context))
                 }
                 rebuildAllCardsAndRefresh()
-                _overrideStatus.value = L10n.str(R.string.override_deleted)
+                toast(StatusMessage(L10n.str(R.string.override_deleted), true))
             } catch (e: Exception) {
-                _overrideStatus.value = L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error))
+                toast(StatusMessage(
+                    L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error)), false
+                ))
             }
         }
     }
@@ -1254,9 +1355,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     count
                 }
                 rebuildAllCardsAndRefresh()
-                _overrideStatus.value = L10n.str(R.string.overrides_duplicates_deleted, removed)
+                toast(StatusMessage(L10n.str(R.string.overrides_duplicates_deleted, removed), true))
             } catch (e: Exception) {
-                _overrideStatus.value = L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error))
+                toast(StatusMessage(
+                    L10n.str(R.string.override_delete_failed, e.message ?: L10n.str(R.string.unknown_error)), false
+                ))
             }
         }
     }
@@ -1460,6 +1563,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_stationDbUpdating.value == true) return
         _stationDbUpdating.value = true
         _stationDbProgress.value = null
+        toast(StatusMessage(L10n.str(R.string.station_db_updating), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
             try {
                 val downloaded = withContext(Dispatchers.IO) {
@@ -1490,13 +1594,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 站名/线路 ID 可能已变 → 全部卡强制重解码并重建缓存（不能直接复用旧 canonical/UI 缓存）
                 rebuildAllCardsAndRefresh()
                 // 界面重建完成后再报成功，避免「提示已更新但界面还是旧站名」
-                _stationDbUpdateStatus.value = if (duplicates.isEmpty()) {
+                // 先取文案：设置页观察者会在赋值时同步消费并清空 LiveData
+                val message = if (duplicates.isEmpty()) {
                     L10n.str(R.string.station_db_updated)
                 } else {
                     L10n.str(R.string.station_db_updated_with_duplicates, duplicates.size)
                 }
+                _stationDbUpdateStatus.value = message
+                toast(StatusMessage(message, true))
             } catch (e: Exception) {
-                _stationDbUpdateStatus.value = L10n.str(R.string.station_db_update_failed, e.message.orEmpty())
+                val message = L10n.str(R.string.station_db_update_failed, e.message.orEmpty())
+                _stationDbUpdateStatus.value = message
+                toast(StatusMessage(message, false))
             } finally {
                 _stationDbUpdating.value = false
             }
@@ -1511,6 +1620,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearCache() {
         if (_cacheClearing.value == true) return
         _cacheClearing.value = true
+        toast(StatusMessage(L10n.str(R.string.cache_clearing), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
             try {
                 val ctx = getApplication<Application>()
@@ -1534,13 +1644,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _stationDbVersion.value = assetVersion ?: "0"
                 }
                 rebuildAllCardsAndRefresh()
-                _cacheClearStatus.value = if (resetToAsset) {
+                // 先取文案：设置页观察者会在赋值时同步消费并清空 LiveData
+                val message = if (resetToAsset) {
                     L10n.str(R.string.cache_cleared_reset)
                 } else {
                     L10n.str(R.string.cache_cleared_kept)
                 }
+                _cacheClearStatus.value = message
+                toast(StatusMessage(message, true))
             } catch (e: Exception) {
-                _cacheClearStatus.value = L10n.str(R.string.cache_clear_failed, e.message.orEmpty())
+                val message = L10n.str(R.string.cache_clear_failed, e.message.orEmpty())
+                _cacheClearStatus.value = message
+                toast(StatusMessage(message, false))
             } finally {
                 _cacheClearing.value = false
             }
@@ -2175,3 +2290,8 @@ private val OCTOPUS_COMBO_ISO_TYPES = setOf("TU", "SZT")
 private const val COMBO_WINDOW_MS = 1200L
 /** 恢复全技术轮询后屏蔽本次已读标签的时长。 */
 private const val COMBO_SUPPRESS_MS = 3000L
+
+/** 一次性提示：文案 + 样式（决定提示条图标、颜色与是否常驻） */
+data class StatusMessage(val text: String, val kind: AppToast.Kind) {
+    constructor(text: String, ok: Boolean) : this(text, if (ok) AppToast.Kind.SUCCESS else AppToast.Kind.ERROR)
+}

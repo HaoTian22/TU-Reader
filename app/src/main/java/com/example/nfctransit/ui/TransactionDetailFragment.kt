@@ -4,8 +4,6 @@ import android.app.Dialog
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.Spannable
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -13,7 +11,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -46,16 +43,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private var rawRecordForFeedback = ""
     private data class RawBlock(val sfi: Int, val protocol: String, val hex: String)
     private var feedbackDialog: Dialog? = null
-    private var feedbackProgressToast: Toast? = null
-    private val feedbackToastHandler = Handler(Looper.getMainLooper())
-    private val repeatFeedbackProgressToast = object : Runnable {
-        override fun run() {
-            feedbackProgressToast?.show()
-            if (viewModel.feedbackSaving.value == true) {
-                feedbackToastHandler.postDelayed(this, 2_500)
-            }
-        }
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -109,38 +96,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                     as android.content.ClipboardManager
                 cm.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.label_raw_data), rawHexToCopy))
-                android.widget.Toast.makeText(requireContext(), R.string.raw_copied, android.widget.Toast.LENGTH_SHORT).show()
+                AppToast.show(requireContext(), R.string.raw_copied, AppToast.Kind.SUCCESS)
             }
         }
         binding.btnFeedbackHex.setOnClickListener { showFeedbackDialog() }
-
-        viewModel.feedbackStatus.observe(viewLifecycleOwner) { status ->
-            if (!status.isNullOrBlank()) {
-                stopFeedbackProgressToast()
-                Toast.makeText(requireContext(), status, Toast.LENGTH_LONG).show()
-                viewModel.consumeFeedbackStatus()
-            }
-        }
-        viewModel.feedbackSaving.observe(viewLifecycleOwner) { saving ->
-            if (saving) startFeedbackProgressToast() else stopFeedbackProgressToast()
-        }
-
-    }
-
-    private fun startFeedbackProgressToast() {
-        if (feedbackProgressToast == null) {
-            feedbackProgressToast = Toast.makeText(
-                requireContext(), R.string.feedback_saving, Toast.LENGTH_LONG
-            )
-        }
-        feedbackToastHandler.removeCallbacks(repeatFeedbackProgressToast)
-        repeatFeedbackProgressToast.run()
-    }
-
-    private fun stopFeedbackProgressToast() {
-        feedbackToastHandler.removeCallbacks(repeatFeedbackProgressToast)
-        feedbackProgressToast?.cancel()
-        feedbackProgressToast = null
     }
 
     private fun showFeedbackDialog() {
@@ -198,7 +157,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             }
             .orEmpty()
         feedbackDialog?.dismiss()
-        viewModel.consumeFeedbackStatus()
         // 在打开表单时固定当前展示内容，避免保存纠错后重新解析改变 Match 等信息。
         val rawRecord = rawRecordForFeedback
         feedbackDialog = AppDialogs.feedback(
@@ -231,9 +189,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 else -> null
             }
             if (error != null) {
-                android.widget.Toast.makeText(
-                    requireContext(), error, android.widget.Toast.LENGTH_LONG
-                ).show()
+                AppToast.show(requireContext(), error, AppToast.Kind.ERROR, AppToast.LONG)
                 return@feedback false
             }
             viewModel.saveFeedbackOverride(
@@ -579,7 +535,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
-        stopFeedbackProgressToast()
         feedbackDialog?.dismiss()
         feedbackDialog = null
         super.onDestroyView()

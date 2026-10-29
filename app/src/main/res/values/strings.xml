@@ -10,6 +10,7 @@
 
     <!-- Common -->
     <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
     <string name="action_save">Save</string>
     <string name="action_clear">Clear</string>
     <string name="action_ok">OK</string>
@@ -377,6 +378,8 @@
     <string name="cache_cleared_reset">✓ Cache cleared, station database reset</string>
     <string name="cache_cleared_kept">✓ Cache cleared</string>
     <string name="cache_clear_failed">Clearing failed: %s</string>
+    <string name="station_db_updating">Updating station database…</string>
+    <string name="cache_clearing">Clearing cache…</string>
     <string name="standard_tunion">T-Union</string>
     <string name="stats_day_of_month">%d</string>
 

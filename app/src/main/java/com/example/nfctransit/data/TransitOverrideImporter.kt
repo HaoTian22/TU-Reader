@@ -16,7 +16,13 @@ object TransitOverrideImporter {
     private val codeRegex = Regex("[0-9A-Za-z]+")
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
 
-    suspend fun import(context: Context): OverrideImportSummary {
+    suspend fun import(context: Context): OverrideImportSummary = importRows(context, null)
+
+    /** 只应用单条纠错（保存/编辑后用）；其余行已在库中，无需整表重放 */
+    suspend fun importKey(context: Context, key: String): OverrideImportSummary =
+        importRows(context, key)
+
+    private suspend fun importRows(context: Context, onlyKey: String?): OverrideImportSummary {
         val appContext = context.applicationContext
         val snapshot = TransitOverrideStore.read(appContext)
         if (snapshot.rows.isEmpty()) return OverrideImportSummary()
@@ -30,6 +36,7 @@ object TransitOverrideImporter {
 
         AppDatabase.get(appContext).withTransaction {
             snapshot.rows.values.forEachIndexed { index, row ->
+                if (onlyKey != null && row.mappingKey != onlyKey) return@forEachIndexed
                 val error = validate(row)
                 if (error != null) {
                     skipped++

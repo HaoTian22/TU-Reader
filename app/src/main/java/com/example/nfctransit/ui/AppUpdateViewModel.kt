@@ -2,7 +2,6 @@ package com.example.nfctransit.ui
 
 import android.app.Application
 import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nfctransit.BuildConfig
@@ -58,7 +57,7 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
                 throw error
             } catch (error: Exception) {
                 Log.w("AppUpdate", "Failed to save ignored version", error)
-                Toast.makeText(getApplication(), R.string.app_update_ignore_failed, Toast.LENGTH_LONG).show()
+                AppToast.show(getApplication(), R.string.app_update_ignore_failed, AppToast.Kind.ERROR, AppToast.LONG)
             }
         }
     }

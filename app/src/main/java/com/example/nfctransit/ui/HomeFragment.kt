@@ -15,7 +15,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
@@ -63,7 +62,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     success = true
                 )
                 context?.let {
-                    Toast.makeText(it, "✓ $message", Toast.LENGTH_LONG).show()
+                    AppToast.show(it, message, AppToast.Kind.SUCCESS, AppToast.LONG)
                 }
             } catch (e: Exception) {
                 isImportingOldData = false

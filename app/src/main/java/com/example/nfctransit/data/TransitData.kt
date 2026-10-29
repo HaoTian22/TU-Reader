@@ -68,6 +68,8 @@ object TransitData {
     private val cityBoundaries = mutableListOf<CityBoundary>()
     @Volatile
     private var boundaryVersion: String = "0"
+    // 边界来自 APK 资产（~6.8MB JSON），与站名库无关；只在进程内解析一次，reload 不清空。
+    private var boundariesLoaded = false
     private val byDeviceCode = mutableMapOf<String, MutableList<StationResolution>>() // 同编号保留所有类型
     // TU 0x18 兜底：去掉城市前缀后的完整 12 位终端号，仅保留协议允许且全库唯一的映射。
     private val byTuFullTerminal = mutableMapOf<String, StationResolution>()
@@ -321,6 +323,9 @@ object TransitData {
         return if (a.resolution.cityCode == preferCity) a else b
     }
 
+    /** TU 1E 原始码中 line(4)+station(4) 段长度；轨道映射只能在此段内命中。 */
+    private const val TU_LINE_STATION_LENGTH = 8
+
     /** TU 匹配顺序固定为重叠长度、末尾对齐、起始位置、非0字符长度。 */
     private fun matchInCity(
         effectiveCity: String,
@@ -336,7 +341,8 @@ object TransitData {
                 effectiveCity,
                 rawCode,
                 expectedFamily,
-                if (isSZ) SP_RULE_SHENZHEN else null
+                if (isSZ) SP_RULE_SHENZHEN else null,
+                railWindow = TU_LINE_STATION_LENGTH
             )
         } else null
         val terminalMatch = if (isSZ && terminal.isNotEmpty()) {
@@ -407,7 +413,8 @@ object TransitData {
         spRule: String?,
         minLength: Int = 1,
         requireTailAlignment: Boolean = true,
-        candidates: List<StationResolution>? = null
+        candidates: List<StationResolution>? = null,
+        railWindow: Int? = null
     ): CityMatch? {
         var best: StationResolution? = null
         var bestIndex = Int.MAX_VALUE
@@ -417,6 +424,10 @@ object TransitData {
         val eligible = candidates?.let { unambiguousCandidates(it, expectedFamily) }
             ?: candidatesByCityAndFamily[prefix to expectedFamily].orEmpty()
         for (resolution in eligible) {
+            // 轨道映射只允许命中 line+station 段（body 前 railWindow 位），公交仍可在整段内匹配。
+            val searchBody = if (railWindow != null && matchesTuTransitFamily(resolution.transitType, TuTransitFamily.RAIL)) {
+                body.take(railWindow)
+            } else body
             val dev = resolution.deviceCode
             val patterns = if (dev.startsWith(prefix)) {
                 listOf(dev, dev.removePrefix(prefix)).distinct()
@@ -426,9 +437,9 @@ object TransitData {
             for (pattern in patterns) {
                 if (pattern.length < minLength) continue
                 val bodyIndex = if (requireTailAlignment) {
-                    tuTailAlignedPatternIndex(pattern, body)
+                    tuTailAlignedPatternIndex(pattern, searchBody)
                 } else {
-                    body.indexOf(pattern)
+                    searchBody.indexOf(pattern)
                 }
                 if (bodyIndex < 0) continue
                 val index = prefix.length + bodyIndex
@@ -797,13 +808,11 @@ object TransitData {
         }
     }
 
-    /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换） */
+    /** 在线更新站名映射表后清空内存索引并从新库重新载入（调用方需先完成 DB 文件替换；城市边界资产保留） */
     fun reload() {
         synchronized(loadLock) {
             cityInfos.clear()
             protocolCityCodes.clear()
-            cityBoundaries.clear()
-            boundaryVersion = "0"
             byDeviceCode.clear()
             byTuFullTerminal.clear()
             byStationId.clear()
@@ -828,7 +837,10 @@ object TransitData {
             if (loaded) return@ensureLoaded
             try {
                 val ctx = appContext ?: return@ensureLoaded
-                loadBoundaries(ctx)
+                if (!boundariesLoaded) {
+                    loadBoundaries(ctx)
+                    boundariesLoaded = true
+                }
                 runBlocking {
                     val dao = AppDatabase.get(ctx).transitDao()
                     for (c in dao.getAllCities()) {

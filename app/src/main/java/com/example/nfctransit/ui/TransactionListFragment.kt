@@ -293,7 +293,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
         clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.transactions), TransactionActionSheet.plainText(txn)))
         // Android 13+ 系统会自行提示已复制
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
-            android.widget.Toast.makeText(ctx, R.string.copied, android.widget.Toast.LENGTH_SHORT).show()
+            AppToast.show(ctx, R.string.copied, AppToast.Kind.SUCCESS)
         }
     }
 

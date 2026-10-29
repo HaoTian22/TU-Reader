@@ -8,6 +8,7 @@
 
     <!-- Common -->
     <string name="action_cancel">取消</string>
+    <string name="action_close">关闭</string>
     <string name="action_save">保存</string>
     <string name="action_clear">清除</string>
     <string name="action_ok">确定</string>
@@ -365,6 +366,8 @@
     <string name="cache_cleared_reset">✓ 已清理缓存，站名库已重置</string>
     <string name="cache_cleared_kept">✓ 已清理缓存</string>
     <string name="cache_clear_failed">清理失败: %s</string>
+    <string name="station_db_updating">正在更新站名映射表…</string>
+    <string name="cache_clearing">正在清理缓存…</string>
     <string name="standard_tunion">交通联合</string>
     <string name="stats_day_of_month">%d号</string>
 

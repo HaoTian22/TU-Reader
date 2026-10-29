@@ -12,7 +12,6 @@ import android.net.Uri
 import android.app.Dialog
 import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -29,6 +28,7 @@ import com.example.nfctransit.ui.PredictiveBackLayout
 import com.example.nfctransit.util.AppLanguage
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 import kotlinx.coroutines.launch
+import com.example.nfctransit.ui.AppToast
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
     private val appUpdateViewModel: AppUpdateViewModel by viewModels()
     private var startupUpdateDialog: Dialog? = null
     private var predictiveBackAnimator: PredictiveBackFragmentAnimator? = null
-    private var nfcToast: Toast? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,11 +79,18 @@ class MainActivity : AppCompatActivity() {
         AppLanguage.init(applicationContext)
         TransitData.init(applicationContext)
 
+        AppToast.bind(this)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
-            Toast.makeText(this, R.string.nfc_not_supported, Toast.LENGTH_LONG).show()
+            AppToast.show(this, R.string.nfc_not_supported, AppToast.Kind.ERROR, AppToast.LONG)
         }
         observeCardRead(navHost)
+        // 后台操作的结果提示跨页面显示
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.toasts.collect { AppToast.show(this@MainActivity, it) }
+            }
+        }
         trackCardPerBackStackEntry(navHost)
         // 进程回收后 Navigation 会直接还原到任意页面，而这些页面在 restore() 完成前没有数据（空白或占位）；
         // 统一用全局加载态遮住，恢复完成后淡出
@@ -101,8 +107,7 @@ class MainActivity : AppCompatActivity() {
         }
         viewModel.nfcReadMessage.observe(this) { message ->
             if (message != null) {
-                nfcToast?.cancel()
-                nfcToast = Toast.makeText(this, message, Toast.LENGTH_LONG).also { it.show() }
+                AppToast.show(this, message)
                 viewModel.consumeNfcReadMessage()
             }
         }
@@ -128,7 +133,7 @@ class MainActivity : AppCompatActivity() {
                                 startActivity(Intent(Intent.ACTION_VIEW,
                                     Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
                             } catch (error: Exception) {
-                                Toast.makeText(this@MainActivity, R.string.cannot_open_browser, Toast.LENGTH_SHORT).show()
+                                AppToast.show(this@MainActivity, R.string.cannot_open_browser, AppToast.Kind.ERROR)
                             }
                         }
                     }
@@ -222,8 +227,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        nfcToast?.cancel()
-        nfcToast = null
         nfcAdapter?.disableReaderMode(this)
         android.util.Log.d("TransitReader", "Reader mode disabled")
         super.onPause()
@@ -245,7 +248,7 @@ class MainActivity : AppCompatActivity() {
             intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
         }
         if (tag == null) {
-            Toast.makeText(this, R.string.nfc_no_card, Toast.LENGTH_SHORT).show()
+            AppToast.show(this, R.string.nfc_no_card, AppToast.Kind.ERROR)
             return
         }
 

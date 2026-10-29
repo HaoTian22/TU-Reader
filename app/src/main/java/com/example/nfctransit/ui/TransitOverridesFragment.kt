@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -74,12 +73,6 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         binding.duplicateIcon.text = ""   // clone
         binding.btnReviewDuplicates.setOnClickListener { reviewDuplicates() }
         binding.duplicateBanner.setOnClickListener { reviewDuplicates() }
-        viewModel.overrideStatus.observe(viewLifecycleOwner) { status ->
-            if (!status.isNullOrBlank()) {
-                Toast.makeText(requireContext(), status, Toast.LENGTH_LONG).show()
-                viewModel.consumeOverrideStatus()
-            }
-        }
         viewModel.refreshOverrideRows()
     }
 
@@ -243,7 +236,7 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
             )
             val error = validate(updated)
             if (error != null) {
-                Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
+                AppToast.show(requireContext(), error, AppToast.Kind.ERROR)
                 false
             } else {
                 viewModel.updateOverride(row.mappingKey, updated, locationSource, publish)

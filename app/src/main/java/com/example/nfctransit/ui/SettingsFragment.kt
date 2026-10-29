@@ -12,7 +12,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
-import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
@@ -317,7 +316,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
 
         // 站名映射表在线更新：行右侧同一位置切换 箭头 → 下载进度环（已知大小时按比例填充，
-        // 未知或校验替换阶段为不定进度）→ 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头。失败原因用 Toast 提示。
+        // 未知或校验替换阶段为不定进度）→ 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头。结果提示由 MainActivity 统一显示。
         val chevronMap = binding.root.findViewById<TextView>(R.id.chevronUpdateStationMap)!!
         val progressMap = binding.root
             .findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
@@ -378,17 +377,16 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                     showChevron("", Palette.SUCCESS)               // fa-circle-check
                 } else {
                     showChevron("", Palette.DANGER)                // fa-triangle-exclamation
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                 }
                 pendingRevert = Runnable { showChevron("", Palette.INK_3) }  // fa-chevron-right
                 chevronMap.postDelayed(pendingRevert!!, 3000)
-                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠ 与 Toast
+                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠
                 viewModel.consumeStationDbUpdateStatus()
             }
         }
 
         // 清理缓存：确认弹窗 → viewModel.clearCache()。反馈与「站名映射表更新」一致：
-        // 行右侧 箭头 → 不定进度环 → 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头；失败原因用 Toast 提示。
+        // 行右侧 箭头 → 不定进度环 → 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头；结果提示由 MainActivity 统一显示。
         val chevronCache = binding.root.findViewById<TextView>(R.id.chevronClearCache)!!
         val progressCache = binding.root
             .findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
@@ -418,15 +416,13 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             if (msg != null) {
                 if (msg.startsWith("✓")) {
                     showCacheChevron("", Palette.SUCCESS)          // fa-circle-check
-                    Toast.makeText(requireContext(), msg.removePrefix("✓").trim(), Toast.LENGTH_SHORT).show()
                 } else {
                     showCacheChevron("", Palette.DANGER)           // fa-triangle-exclamation
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                 }
                 pendingCacheRevert = Runnable { showCacheChevron("", Palette.INK_3) }  // fa-chevron-right
                 chevronCache.postDelayed(pendingCacheRevert!!, 3000)
                 updateLocalStorageSize()  // 清理后占用变小，刷新本地存储大小显示
-                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠ 与 Toast
+                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠
                 viewModel.consumeCacheClearStatus()
             }
         }
@@ -630,8 +626,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             try {
                 val result = appUpdateViewModel.checkManually()
                 when (result) {
-                    AppUpdateResult.UpToDate -> Toast.makeText(context, R.string.app_up_to_date, Toast.LENGTH_SHORT).show()
-                    AppUpdateResult.NoRelease -> Toast.makeText(context, R.string.app_no_release, Toast.LENGTH_SHORT).show()
+                    AppUpdateResult.UpToDate -> AppToast.show(context, R.string.app_up_to_date, AppToast.Kind.SUCCESS)
+                    AppUpdateResult.NoRelease -> AppToast.show(context, R.string.app_no_release)
                     is AppUpdateResult.Available -> {
                         updateDialog?.dismiss()
                         updateDialog = AppDialogs.appUpdate(context, BuildConfig.VERSION_NAME,
@@ -640,7 +636,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                                 startActivity(Intent(Intent.ACTION_VIEW,
                                     Uri.parse(result.release.apkUrl ?: result.release.pageUrl)))
                             } catch (e: Exception) {
-                                Toast.makeText(context, R.string.cannot_open_browser, Toast.LENGTH_SHORT).show()
+                                AppToast.show(context, R.string.cannot_open_browser, AppToast.Kind.ERROR)
                             }
                         }
                     }
@@ -648,8 +644,8 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Toast.makeText(context, context.getString(R.string.app_update_failed,
-                    e.localizedMessage ?: context.getString(R.string.network_error)), Toast.LENGTH_LONG).show()
+                AppToast.show(context, context.getString(R.string.app_update_failed,
+                    e.localizedMessage ?: context.getString(R.string.network_error)), AppToast.Kind.ERROR, AppToast.LONG)
             } finally {
                 row.isEnabled = true
                 label.setText(R.string.check_for_updates)

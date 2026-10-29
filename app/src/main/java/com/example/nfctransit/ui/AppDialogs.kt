@@ -462,9 +462,7 @@ object AppDialogs {
                 if (selectedType.isEmpty() || selectedType.length > 32 ||
                     selectedType.contains('\n') || selectedType.contains('\r')
                 ) {
-                    android.widget.Toast.makeText(
-                        context, R.string.feedback_type_required, android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    AppToast.show(context, R.string.feedback_type_required, AppToast.Kind.ERROR)
                     typeCustomInput.requestFocus()
                     return@setOnClickListener
                 }
@@ -476,9 +474,7 @@ object AppDialogs {
                         it.nameEn?.equals(typedCity, ignoreCase = true) == true
                 }
                 if (city == null) {
-                    android.widget.Toast.makeText(
-                        context, R.string.override_err_city, android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    AppToast.show(context, R.string.override_err_city, AppToast.Kind.ERROR)
                     cityInput.requestFocus()
                     return@setOnClickListener
                 }
