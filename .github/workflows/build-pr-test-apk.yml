@@ -83,6 +83,9 @@ jobs:
         with:
           gradle-version: '9.6.1'
 
+      - name: Download station database from R2
+        run: python3 tools/download_transit_db.py
+
       - name: Build debug APK
         env:
           FEEDBACK_UPLOAD_URL: ${{ vars.FEEDBACK_UPLOAD_URL }}

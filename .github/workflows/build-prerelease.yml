@@ -63,6 +63,9 @@ jobs:
           VERSION=${VERSION:-1.0.0}
           echo "name=${VERSION}-build.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
+      - name: Download station database from R2
+        run: python3 tools/download_transit_db.py
+
       - name: Build release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

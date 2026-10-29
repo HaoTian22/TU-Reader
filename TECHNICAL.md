@@ -29,6 +29,16 @@
 
 ### 构建项目
 
+`transit.db` 和 `transit.db.version` 不纳入 Git。GitHub Actions 的正式版、预发布版和 PR 测试包均在构建前从 Cloudflare R2 公共地址下载这两个文件；下载失败、版本文件无效或数据库 schema / 完整性校验失败时停止构建。构建日志记录数据库版本和 SHA-256，便于追溯 APK 使用的数据。
+
+本地首次构建或需要更新内置数据库时，先运行（仅需 Python 标准库）：
+
+```bash
+python tools/download_transit_db.py
+```
+
+文件保存到 `app/src/main/assets/data/`。已有本地数据库仍可用于离线构建；本地 CSV 更新和上传 R2 的流程不变。R2 数据独立更新，因此同一代码提交在不同时间构建可能包含不同版本的站名映射表。
+
 由于本机无 Gradle Wrapper 和 JAVA_HOME，使用以下命令构建：
 
 ```bash

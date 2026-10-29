@@ -24,7 +24,8 @@ export JAVA_HOME="C:/Users/Hao_T/.gradle/jdks/eclipse_adoptium-17-amd64-windows.
 
 - **数据源**：`D:\Code\Android\APPs-Dev\tripreader-data` CSV → `tools/update_transit_db.py` 增量更新内置库（保留已有英文名/坐标/线路配色；CSV `Station-en` 列为英文名权威，非空且与库中不同则同步 `station.station_name_en`），并维护 `room_master_table.identity_hash`。
 - **发布**：`tools/update_transit_db.py --upload` 在更新后自动调 `tools/upload_transit_db.py`（纯 Python SigV4）上传到 Cloudflare R2（`https://assets2.haotian22.top/transit.db`，对象键 `transit.db`）。R2 凭据从 `tools/.r2config.json`（已被 .gitignore 排除）或环境变量 `R2_*` 读取；上传前校验 identity_hash 与 App schema 一致，防止发布 App 会拒绝的库。
-- **内置**：`assets/data/transit.db` 首次启动经 `createFromAsset` 拷贝。
+- **构建取数**：`transit.db` 及 `transit.db.version` 不纳入 Git；三个 APK 工作流均先运行 `python3 tools/download_transit_db.py` 从 R2 下载并校验 schema、完整性和版本文件，失败则停止构建。本地首次构建也先运行该脚本，已有文件可离线使用。
+- **内置**：构建时准备的 `assets/data/transit.db` 首次启动经 `createFromAsset` 拷贝。
 - **在线整库更新**（设置页「站名映射表更新」）：
   1. `data/StationDbUpdater.kt` — 从 `https://assets2.haotian22.top/transit.db` 下载到 cache（改 URL 改 `DOWNLOAD_URL`）。
   2. `data/db/AppDatabase.kt#replaceWithDownloaded` — **先以当前 schema 打开下载库校验 identity_hash**（不匹配/非 SQLite 抛异常，原库不动）→ 关旧实例、清旧库（含 WAL）、替换文件、重置单例。

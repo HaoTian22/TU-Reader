@@ -57,6 +57,9 @@ jobs:
         with:
           gradle-version: '9.6.1'
 
+      - name: Download station database from R2
+        run: python3 tools/download_transit_db.py
+
       - name: Run unit tests
         shell: bash
         run: gradle -PversionName="$RELEASE_TAG" -Dorg.gradle.jvmargs=-Xmx2g -Pkotlin.daemon.jvmargs=-Xmx2g :app:testDebugUnitTest --refresh-dependencies --no-daemon --max-workers=2 --console=plain
