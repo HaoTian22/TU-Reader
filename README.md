@@ -98,7 +98,7 @@
 ## 反馈与交流
 
 - **问题反馈 / 功能建议**:[GitHub Issues](https://github.com/HaoTian22/TU-Reader/issues),也可从应用「设置 → 反馈入口」进入。
-- **使用交流 / 想法讨论**:[GitHub Discussions](https://github.com/HaoTian22/TU-Reader/discussions)，或使用邮箱: <a href="mailto:s1qs445l0@mozmail.com">与我联系。开讨论群等相关事宜正在考虑当中，可以在 Discussions 里留言。
+- **使用交流 / 想法讨论**:[GitHub Discussions](https://github.com/HaoTian22/TU-Reader/discussions)，或使用<a href="mailto:s1qs445l0@mozmail.com">邮箱</a>与我联系。开讨论群等相关事宜正在考虑当中，可以在 Discussions 里留言。
 - **站名 / 线路纠错**:在交易详情页点击「反馈」,填写正确的城市、线路和站名;保存后立即在本机生效,开启「公开上传纠错」可帮助改进站名数据。
 
 提交问题时请提供:应用版本、手机型号、Android 版本、卡片类型与城市、复现步骤,以及相关截图或读取日志。

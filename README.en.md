@@ -110,7 +110,7 @@ The original data is licensed under [CC BY 4.0](https://creativecommons.org/lice
 ## Feedback
 
 - **Bugs / feature requests:** [GitHub Issues](https://github.com/HaoTian22/TU-Reader/issues), or in-app via *Settings → Feedback*.
-- **Questions / ideas:** [GitHub Discussions](https://github.com/HaoTian22/TU-Reader/discussions).
+- **Questions / ideas:** [GitHub Discussions](https://github.com/HaoTian22/TU-Reader/discussions). Or contact me via <a href="mailto:s1qs445l0@mozmail.com">email</a>.
 - **Station / line corrections:** tap "Feedback" on a transaction detail page and enter the correct city, line and station. It takes effect on your device immediately; enable "public correction upload" to help improve the shared dataset.
 
 When reporting a problem, please include the app version, phone model, Android version, card type and city, reproduction steps, and screenshots or read logs.
