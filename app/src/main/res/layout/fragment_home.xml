@@ -119,18 +119,6 @@
             android:text="@string/home_import_backup"
             android:textColor="@color/ink_disabled"
             android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/tvImportOldDataStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="32dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="32dp"
-            android:gravity="center"
-            android:textColor="@color/ink_3"
-            android:textSize="12sp"
-            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Content: 卡包 —— 标题 + 总余额/卡片数 + 叠放卡片 + 贴卡读取新卡片 -->

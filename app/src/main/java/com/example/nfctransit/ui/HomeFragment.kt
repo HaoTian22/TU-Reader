@@ -19,14 +19,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.databinding.FragmentHomeBinding
 import com.example.nfctransit.model.UiCard
-import kotlinx.coroutines.launch
 
 /**
  * 首页卡包：总余额 / 卡片数 + 叠放的卡片（后一张压住前一张，只露出标题条，最后一张完整展示）。
@@ -39,41 +37,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private val viewModel: MainViewModel by viewModels({ requireActivity() })
 
-    private var isImportingOldData = false
-
+    // 导入在 ViewModel 里跑，进行中/结果提示由 MainActivity 统一显示
     private val importOldDataLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri == null) {
-            isImportingOldData = false
-            renderOldDataImportState(importing = false)
-            return@registerForActivityResult
-        }
-
-        isImportingOldData = true
-        renderOldDataImportState(importing = true)
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val message = viewModel.importDatabase(uri)
-                isImportingOldData = false
-                renderOldDataImportState(
-                    importing = false,
-                    message = message,
-                    success = true
-                )
-                context?.let {
-                    AppToast.show(it, message, AppToast.Kind.SUCCESS, AppToast.LONG)
-                }
-            } catch (e: Exception) {
-                isImportingOldData = false
-                val detail = e.message?.takeIf { it.isNotBlank() } ?: getString(R.string.err_unsupported_format)
-                renderOldDataImportState(
-                    importing = false,
-                    message = getString(R.string.import_failed, detail),
-                    success = false
-                )
-            }
-        }
+        if (uri != null) viewModel.importDatabase(uri)
     }
 
     override fun onCreateView(
@@ -143,33 +111,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     /** 首页无数据时直接导入 TransitU / TripReader 数据库备份。 */
     private fun setupOldDataImport() {
-        renderOldDataImportState(importing = isImportingOldData)
         binding.btnImportOldData.setOnClickListener {
-            if (isImportingOldData) return@setOnClickListener
-            renderOldDataImportState(importing = false)
+            if (viewModel.dbImporting.value == true) return@setOnClickListener
             importOldDataLauncher.launch(arrayOf("*/*"))
         }
-    }
-
-    private fun renderOldDataImportState(
-        importing: Boolean,
-        message: String? = null,
-        success: Boolean = false
-    ) {
-        val currentBinding = _binding ?: return
-        currentBinding.btnImportOldData.isEnabled = !importing
-        currentBinding.btnImportOldData.setText(if (importing) R.string.importing else R.string.home_import_old)
-        currentBinding.tvImportOldDataStatus.apply {
-            text = message.orEmpty()
-            setTextColor(
-                when {
-                    importing -> Palette.INK_3
-                    success -> Palette.SUCCESS
-                    else -> Palette.DANGER
-                }
-            )
-            visibility = if (importing || message != null) View.VISIBLE else View.GONE
-            if (importing) setText(R.string.import_old_progress)
+        viewModel.dbImporting.observe(viewLifecycleOwner) { importing ->
+            binding.btnImportOldData.isEnabled = !importing
+            binding.btnImportOldData.setText(if (importing) R.string.importing else R.string.home_import_old)
         }
     }
 

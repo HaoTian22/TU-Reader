@@ -487,6 +487,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _cacheClearStatus = MutableLiveData<String?>(null)
     val cacheClearStatus: LiveData<String?> = _cacheClearStatus
 
+    private val _dbImporting = MutableLiveData(false)
+    val dbImporting: LiveData<Boolean> = _dbImporting
+
+    /** 导入结果（成功/失败），一次性：设置页处理后清空 */
+    private val _dbImportStatus = MutableLiveData<StatusMessage?>(null)
+    val dbImportStatus: LiveData<StatusMessage?> = _dbImportStatus
+
     // 当前统计周期（本周/本月/本年/自定义）与周期偏移（0=当前，-1=上一期，+1=下一期）
     private var currentPeriod = "本周"
     private var currentOffset = 0
@@ -1497,10 +1504,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 导入数据库：自动识别 TripReader（card_table/tran_table）与本应用导出库（cards/…）两种格式，
+     * 导入数据库（设置页 / 首页空态共用）：在 viewModelScope 里跑，离开发起页面不会中断；
+     * 进行中与结果提示由 MainActivity 统一显示。
+     */
+    fun importDatabase(uri: Uri) {
+        if (_dbImporting.value == true) return
+        _dbImporting.value = true
+        toast(StatusMessage(L10n.str(R.string.import_old_progress), AppToast.Kind.PROGRESS))
+        viewModelScope.launch {
+            val status = try {
+                StatusMessage(importDatabaseFrom(uri), true)
+            } catch (e: Exception) {
+                val detail = e.message?.takeIf { it.isNotBlank() } ?: L10n.str(R.string.err_unsupported_format)
+                StatusMessage(L10n.str(R.string.import_failed, detail), false)
+            }
+            _dbImportStatus.value = status
+            toast(status)
+            _dbImporting.value = false
+        }
+    }
+
+    fun consumeDbImportStatus() {
+        _dbImportStatus.value = null
+    }
+
+    /**
+     * 自动识别 TripReader（card_table/tran_table）与本应用导出库（cards/…）两种格式，
      * 复制所选文件到缓存 → 去重合并 → 重载界面，返回结果文案。
      */
-    suspend fun importDatabase(uri: Uri): String = cardStateCoordinator.withRestoredState {
+    private suspend fun importDatabaseFrom(uri: Uri): String = cardStateCoordinator.withRestoredState {
         val tmp = withContext(Dispatchers.IO) { copyUriToCache(uri) }
         val (summary, fromTripReader) = withContext(Dispatchers.IO) {
             try {

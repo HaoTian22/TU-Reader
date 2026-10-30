@@ -6,12 +6,9 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
-import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.LinearInterpolator
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
@@ -74,77 +71,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
     }
 
+    // 导入在 ViewModel 里跑，进行中/结果提示由 MainActivity 统一显示；行右侧状态见 onViewCreated
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val chevron = _binding?.root?.findViewById<TextView>(R.id.chevronImportData)
-                val statusText = _binding?.root?.findViewById<TextView>(R.id.tvImportDataStatus)
-                if (chevron == null || statusText == null) {
-                    // 视图不可用：仅兜底执行导入并提示
-                    val fallback = try {
-                        viewModel.importDatabase(uri)
-                    } catch (e: Exception) {
-                        getString(R.string.import_failed, e.message.orEmpty())
-                    }
-                    showStatus(fallback)
-                    return@launch
-                }
-                // 导入反馈与「站名映射表更新」一致：加载转圈 → 成功✓ / 失败✗，5 秒恢复箭头
-                val spinner = ObjectAnimator.ofFloat(chevron, "rotation", 0f, 360f).apply {
-                    duration = 800
-                    repeatCount = ValueAnimator.INFINITE
-                    interpolator = LinearInterpolator()
-                }
-                var pendingRevert: Runnable? = null
-                fun feedback(state: String, msg: String) {
-                    spinner.cancel()
-                    chevron.rotation = 0f
-                    when (state) {
-                        "loading" -> {
-                            chevron.text = ""                  // fa-spinner
-                            chevron.setTextColor(Palette.INK_3)
-                            spinner.start()
-                        }
-                        "success" -> {
-                            chevron.text = ""                  // fa-circle-check
-                            chevron.setTextColor(Palette.SUCCESS)
-                        }
-                        "error" -> {
-                            chevron.text = ""                  // fa-xmark
-                            chevron.setTextColor(Palette.DANGER)
-                        }
-                    }
-                    statusText.text = msg
-                    statusText.setTextColor(
-                        when (state) {
-                            "success" -> Palette.SUCCESS
-                            "error" -> Palette.DANGER
-                            else -> Palette.INK_3
-                        }
-                    )
-                    statusText.visibility = View.VISIBLE
-                    pendingRevert?.let { chevron.removeCallbacks(it) }
-                    pendingRevert = Runnable {
-                        spinner.cancel()
-                        chevron.rotation = 0f
-                        chevron.text = ""                      // fa-chevron-right
-                        chevron.setTextColor(Palette.INK_3)
-                        statusText.visibility = View.GONE
-                    }
-                    chevron.postDelayed(pendingRevert!!, 5000)
-                }
-                feedback("loading", getString(R.string.importing))
-                val (state, msg) = try {
-                    "success" to viewModel.importDatabase(uri)
-                } catch (e: Exception) {
-                    "error" to getString(R.string.import_failed, e.message.orEmpty())
-                }
-                feedback(state, msg)
-                if (state == "success") updateLocalStorageSize()
-            }
-        }
+        if (uri != null) viewModel.importDatabase(uri)
     }
 
     override fun onCreateView(
@@ -265,8 +196,46 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             showClearDialog()
         }
 
+        // 导入数据：行右侧 箭头 → 不定进度环 → 成功 ✓ / 失败 ⚠，3 秒后恢复为箭头（与「清理缓存」一致）
+        val chevronImport = binding.root.findViewById<TextView>(R.id.chevronImportData)!!
+        val progressImport = binding.root
+            .findViewById<com.google.android.material.progressindicator.CircularProgressIndicator>(
+                R.id.progressImportData
+            )!!
+        var pendingImportRevert: Runnable? = null
+
+        fun showImportChevron(glyph: String, color: Int) {
+            progressImport.visibility = View.GONE
+            chevronImport.text = glyph
+            chevronImport.setTextColor(color)
+            chevronImport.visibility = View.VISIBLE
+        }
+
         binding.root.findViewById<View>(R.id.rowImportData)?.setOnClickListener {
+            if (viewModel.dbImporting.value == true) return@setOnClickListener
+            pendingImportRevert?.let { chevronImport.removeCallbacks(it) }
             importLauncher.launch(arrayOf("*/*"))
+        }
+        viewModel.dbImporting.observe(viewLifecycleOwner) { importing ->
+            if (importing) {
+                chevronImport.visibility = View.GONE
+                progressImport.setIndicatorColor(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
+                progressImport.visibility = View.VISIBLE
+            }
+        }
+        viewModel.dbImportStatus.observe(viewLifecycleOwner) { status ->
+            if (status != null) {
+                if (status.kind == AppToast.Kind.SUCCESS) {
+                    showImportChevron("", Palette.SUCCESS)        // fa-circle-check
+                    updateLocalStorageSize()
+                } else {
+                    showImportChevron("", Palette.DANGER)         // fa-triangle-exclamation
+                }
+                pendingImportRevert = Runnable { showImportChevron("", Palette.INK_3) }  // fa-chevron-right
+                chevronImport.postDelayed(pendingImportRevert!!, 3000)
+                // 一次性结果：处理后清空，重新进入设置页不会重放旧的 ✓/⚠
+                viewModel.consumeDbImportStatus()
+            }
         }
 
         val currentTripRouteValue =

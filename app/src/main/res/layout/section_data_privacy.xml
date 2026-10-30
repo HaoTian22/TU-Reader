@@ -214,26 +214,34 @@
                     android:text="@string/import_backup_db"
                     android:textColor="@color/ink"
                     android:textSize="14sp" />
-                <TextView
-                    android:id="@+id/chevronImportData"
+                <!-- 右侧状态：箭头 / 导入中进度环 / 成功 ✓ / 失败 ⚠（与「清理缓存」一致） -->
+                <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="&#xf054;"
-                    android:textColor="@color/ink_3"
-                    android:textSize="14sp"
-                    android:tag="fa" />
-            </LinearLayout>
+                    android:layout_height="24dp">
 
-            <TextView
-                android:id="@+id/tvImportDataStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="@color/success"
-                android:textSize="11sp"
-                android:paddingStart="30dp"
-                android:paddingTop="4dp"
-                android:visibility="gone" />
+                    <TextView
+                        android:id="@+id/chevronImportData"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end|center_vertical"
+                        android:text="&#xf054;"
+                        android:textColor="@color/ink_3"
+                        android:textSize="14sp"
+                        android:tag="fa" />
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/progressImportData"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end|center_vertical"
+                        android:indeterminate="true"
+                        android:visibility="gone"
+                        app:indicatorSize="22dp"
+                        app:trackThickness="2.5dp"
+                        app:trackCornerRadius="2dp"
+                        app:trackColor="@color/fill" />
+                </FrameLayout>
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
