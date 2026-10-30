@@ -8,7 +8,9 @@ package com.example.nfctransit.model
 data class RawHexBlock(
     val sfi: Int,
     val protocol: String,
-    val hex: String
+    val hex: String,
+    /** 读出该记录的应用 AID；旧缓存/无来源为 null */
+    val selectedAid: String? = null
 )
 
 data class CanonicalTransaction(
@@ -46,5 +48,8 @@ data class CanonicalTransaction(
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
     val protocols: Set<String> = emptySet(),
     /** EC 日志为 DOL 指定布局；随归档保存，历史日志不依赖卡片当前格式。 */
-    val logFormat: String? = null
+    val logFormat: String? = null,
+    /** 读出主记录 / 1E 旅程记录的应用 AID（详情页原始数据标注来源应用）；无来源为 null */
+    val selectedAid: String? = null,
+    val journeyAid: String? = null
 )

@@ -33,6 +33,20 @@ class TuTransactionAssociationTest {
         assertEquals(400L, result.first { it.identity == "fare-b" }.balanceAfterFen)
     }
 
+    @Test fun archivedRecordsKeepTheirApplicationThroughJourneyMerge() {
+        val fareHex = "0001000000000001000612345678901220260101120000"
+        val journey = "041111123456789012020001000200000000000100000003E82026010212000099000000000000000000000000000000"
+        val restored = RecordDecoder.decodeArchive("TU", listOf(
+            RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, fareHex, "20260101"),
+            RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EC_AID, journey, "20260102")
+        ))
+        val fare = restored.single { it.hex == fareHex }
+        assertEquals(CardProfiles.TU_EP_AID, fare.selectedAid)
+        val merged = restored.firstOrNull { it.journeyHex == journey }
+        if (merged != null) assertEquals(CardProfiles.TU_EC_AID, merged.journeyAid)
+        else assertEquals(CardProfiles.TU_EC_AID, restored.single { it.hex == journey }.selectedAid)
+    }
+
     @Test fun historicalFareNeverBorrowsAnotherTimestampBalanceOrOldArchiveFill() {
         val fareHex = "0001000000000001000612345678901220260101120000"
         val journey = "041111123456789012020001000200000000000100000003E82026010212000099000000000000000000000000000000"

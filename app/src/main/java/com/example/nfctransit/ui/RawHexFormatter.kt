@@ -330,7 +330,27 @@ object RawHexFormatter {
         val protocol = record.protocol.ifBlank {
             record.selectedAid.takeIf { com.example.nfctransit.CardProfiles.isUnknownApp(it) } ?: "GEN"
         }
-        return "SFI ${record.sfi.toSfiHex()}  $protocol  Rec ${record.recNo}"
+        val app = record.selectedAid.takeIf { it.isNotBlank() }?.let(::appLabel)
+        val source = if (app == null || app == protocol) protocol else "$protocol ($app)"
+        return "SFI ${record.sfi.toSfiHex()}  $source  Rec ${record.recNo}"
+    }
+
+    /** 交易详情原始块标题：SFI + 协议（所属应用）；无协议/应用时只显示 SFI。 */
+    fun blockTitle(sfi: Int, protocol: String, selectedAid: String?): String {
+        val app = selectedAid?.takeIf { it.isNotBlank() }?.let(::appLabel)
+        val source = when {
+            protocol.isBlank() -> app
+            app == null || app == protocol -> protocol
+            else -> "$protocol ($app)"
+        }
+        return if (source == null) "SFI ${sfi.toSfiHex()}" else "SFI ${sfi.toSfiHex()}  $source"
+    }
+
+    /** 记录所属应用：AID 本身是可读 ASCII（如 PAY.TICL）时显示名称，否则显示 AID。 */
+    fun appLabel(aid: String): String {
+        val bytes = runCatching { ApduUtil.hexToBytes(aid) }.getOrNull()
+        return bytes?.takeIf { it.isNotEmpty() && it.all { b -> b.toInt() in 0x20..0x7E } }
+            ?.toString(Charsets.US_ASCII) ?: aid
     }
 
     fun rangeText(start: Int, end: Int): String =

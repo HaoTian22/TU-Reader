@@ -361,16 +361,16 @@ object RecordDecoder {
         val preferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
             .let { if (it.compare(second, first) > 0) second else first }
         val primaryBlocks = buildList {
-            add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex))
-            preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
+            add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex, preferred.selectedAid))
+            preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, preferred.journeyAid)) }
         }.toSet()
         val allBlocks = buildList {
             addAll(first.rawVariants)
             addAll(second.rawVariants)
-            add(RawHexBlock(first.sfi, first.protocol, first.hex))
-            first.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
-            add(RawHexBlock(second.sfi, second.protocol, second.hex))
-            second.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
+            add(RawHexBlock(first.sfi, first.protocol, first.hex, first.selectedAid))
+            first.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, first.journeyAid)) }
+            add(RawHexBlock(second.sfi, second.protocol, second.hex, second.selectedAid))
+            second.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, second.journeyAid)) }
         }
         val variants = allBlocks.distinct().filterNot { it in primaryBlocks }
         return preferred.copy(
@@ -464,7 +464,7 @@ object RecordDecoder {
             if (timestamp.length >= 14) {
                 journey.add(
                     buildTransaction(
-                        sfi = 0x1E, protocol = rec.protocol, hex = rec.hex,
+                        sfi = 0x1E, protocol = rec.protocol, hex = rec.hex, selectedAid = rec.selectedAid,
                         sequence = 0, amountFen = amountFen, typeHex = ApduUtil.bytesToHex(byteArrayOf(data[0])),
                         terminal = terminal,
                         stationName = ref.station, direction = ref.direction,
@@ -617,6 +617,7 @@ object RecordDecoder {
             results.add(
                 buildTransaction(
                     sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
+                    selectedAid = rec.selectedAid,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
                     stationName = ref.station, direction = direction,
@@ -666,7 +667,7 @@ object RecordDecoder {
             if (recharge) "" else ref.station, null, ref.line, ref.lineColor, ref.lineId, ref.stationId,
             if (recharge) "充值" else ref.transitType, if (recharge) null else ref.cityCode,
             date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule
-        ).copy(logFormat = formatHex)
+        ).copy(logFormat = formatHex, selectedAid = rec.selectedAid.ifEmpty { null })
     }
 
     private fun buildTransaction(
@@ -690,9 +691,11 @@ object RecordDecoder {
         time: String,
         balanceAfterFen: Long?,
         deviceCode: String? = null,
-        spRule: String? = null
+        spRule: String? = null,
+        selectedAid: String = ""
     ): CanonicalTransaction {
         return CanonicalTransaction(
+            selectedAid = selectedAid.ifEmpty { null },
             identity = contentHash(hex),
             sequence = sequence,
             amountFen = amountFen,
@@ -750,7 +753,7 @@ object RecordDecoder {
                 transitType = j.transitType, cityCode = j.cityCode ?: f.cityCode,
                 rawCityCode = j.rawCityCode ?: f.rawCityCode,
                 balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                journeyHex = j.hex, deviceCode = j.deviceCode, spRule = j.spRule
+                journeyHex = j.hex, journeyAid = j.selectedAid, deviceCode = j.deviceCode, spRule = j.spRule
             ))
         }
         journey.forEachIndexed { index, j -> if (index !in usedJourney) out.add(j) }

@@ -83,7 +83,9 @@ data class UiTransaction(
     val spRule: String? = null,      // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行附加展示；null=普通命中
     val actualCityCode: String? = null,
     val locationSource: LocationSource = LocationSource.DECLARED_CITY_FALLBACK,
-    val logFormat: String? = null
+    val logFormat: String? = null,
+    val selectedAid: String? = null,  // 主记录所属应用 AID
+    val journeyAid: String? = null    // 1E 旅程记录所属应用 AID
 )
 
 data class StationStat(

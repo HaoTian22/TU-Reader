@@ -149,7 +149,9 @@ object TransactionMapper {
             spRule = spRule,
             actualCityCode = actualLocation.cityCode,
             locationSource = actualLocation.source,
-            logFormat = logFormat
+            logFormat = logFormat,
+            selectedAid = selectedAid,
+            journeyAid = journeyAid
         )
     }
 

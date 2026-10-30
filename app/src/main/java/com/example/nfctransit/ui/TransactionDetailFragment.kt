@@ -370,19 +370,19 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val blocks = mutableListOf<RawBlock>()
         val sb = StringBuilder()
         if (mainHex.isNotBlank()) {
-            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol, txn.logFormat)
+            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol, txn.logFormat, txn.selectedAid)
             blocks.add(RawBlock(txn.sfi, txn.protocol, mainHex))
             sb.append(mainHex)
         }
         for (variant in variants) {
             if (variant.hex.isBlank() || blocks.any { it.hex == variant.hex } || variant.hex == journeyHex) continue
-            appendHexBlock(binding.hexPanel, variant.sfi, variant.hex, variant.protocol)
+            appendHexBlock(binding.hexPanel, variant.sfi, variant.hex, variant.protocol, selectedAid = variant.selectedAid)
             blocks.add(RawBlock(variant.sfi, variant.protocol, variant.hex))
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(variant.hex)
         }
         if (!journeyHex.isNullOrBlank() && journeyHex != mainHex && blocks.none { it.hex == journeyHex }) {
-            appendHexBlock(binding.hexPanel, 0x1E, journeyHex, "TU")
+            appendHexBlock(binding.hexPanel, 0x1E, journeyHex, "TU", selectedAid = txn.journeyAid)
             blocks.add(RawBlock(0x1E, "TU", journeyHex))
             if (sb.isNotEmpty()) sb.append('\n')
             sb.append(journeyHex)
@@ -454,10 +454,11 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         sfi: Int,
         hex: String,
         protocol: String,
-        logFormat: String? = null
+        logFormat: String? = null,
+        selectedAid: String? = null
     ) {
         val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol, hex, logFormat)
-        addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
+        addMonospaceLine(container, RawHexFormatter.blockTitle(sfi, protocol, selectedAid), dim = true)
         addColoredHexLine(container, RawHexFormatter.colorizeHex(hex, fields))
     }
 
