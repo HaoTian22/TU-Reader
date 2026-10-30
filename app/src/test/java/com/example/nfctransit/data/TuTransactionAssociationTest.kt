@@ -40,11 +40,9 @@ class TuTransactionAssociationTest {
             RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, fareHex, "20260101"),
             RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EC_AID, journey, "20260102")
         ))
-        val fare = restored.single { it.hex == fareHex }
-        assertEquals(CardProfiles.TU_EP_AID, fare.selectedAid)
-        val merged = restored.firstOrNull { it.journeyHex == journey }
-        if (merged != null) assertEquals(CardProfiles.TU_EC_AID, merged.journeyAid)
-        else assertEquals(CardProfiles.TU_EC_AID, restored.single { it.hex == journey }.selectedAid)
+        val sources = restored.flatMap { it.sources }
+        assertEquals(CardProfiles.TU_EP_AID, sources.single { it.hex == fareHex }.selectedAid)
+        assertEquals(CardProfiles.TU_EC_AID, sources.single { it.hex == journey }.selectedAid)
     }
 
     @Test fun historicalFareNeverBorrowsAnotherTimestampBalanceOrOldArchiveFill() {

@@ -4,6 +4,7 @@ import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
@@ -143,15 +144,11 @@ object TransactionMapper {
             iconBgColor = ICON_BG,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
-            journeyHex = journeyHex,
-            rawVariants = rawVariants,
             deviceCode = deviceCode,
             spRule = spRule,
             actualCityCode = actualLocation.cityCode,
             locationSource = actualLocation.source,
-            logFormat = logFormat,
-            selectedAid = selectedAid,
-            journeyAid = journeyAid
+            sources = sources.ifEmpty { listOf(RawHexBlock(sfi, protocol, hex)) }
         )
     }
 

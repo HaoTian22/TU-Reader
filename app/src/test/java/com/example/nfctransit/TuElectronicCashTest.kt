@@ -59,8 +59,9 @@ class TuElectronicCashTest {
             assertEquals(if (transaction.sfi == 0x0C) "02" else "06", transaction.typeHex)
         }
         val rows = decoded.archive.map {
-            val aid = if (it.logFormat != null) CardProfiles.TU_EC_AID else CardProfiles.TU_EP_AID
-            RecordDecoder.ArchivedRecord(it.sfi, aid, it.hex, it.date, it.logFormat)
+            val logFormat = it.sources.first().logFormat
+            val aid = if (logFormat != null) CardProfiles.TU_EC_AID else CardProfiles.TU_EP_AID
+            RecordDecoder.ArchivedRecord(it.sfi, aid, it.hex, it.date, logFormat)
         }
         assertEquals(decoded.display, RecordDecoder.decodeArchive("TU", rows))
     }

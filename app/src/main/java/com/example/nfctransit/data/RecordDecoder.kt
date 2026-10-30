@@ -360,21 +360,8 @@ object RecordDecoder {
         // 同为 TU 时带 1E 旅程者优先
         val preferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
             .let { if (it.compare(second, first) > 0) second else first }
-        val primaryBlocks = buildList {
-            add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex, preferred.selectedAid))
-            preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, preferred.journeyAid)) }
-        }.toSet()
-        val allBlocks = buildList {
-            addAll(first.rawVariants)
-            addAll(second.rawVariants)
-            add(RawHexBlock(first.sfi, first.protocol, first.hex, first.selectedAid))
-            first.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, first.journeyAid)) }
-            add(RawHexBlock(second.sfi, second.protocol, second.hex, second.selectedAid))
-            second.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it, second.journeyAid)) }
-        }
-        val variants = allBlocks.distinct().filterNot { it in primaryBlocks }
         return preferred.copy(
-            rawVariants = variants,
+            sources = (preferred.sources + first.sources + second.sources).distinct(),
             protocols = unionProtocols(first, second)
         )
     }
@@ -666,8 +653,9 @@ object RecordDecoder {
             amount, if (recharge) "02" else "06", terminal,
             if (recharge) "" else ref.station, null, ref.line, ref.lineColor, ref.lineId, ref.stationId,
             if (recharge) "充值" else ref.transitType, if (recharge) null else ref.cityCode,
-            date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule
-        ).copy(logFormat = formatHex, selectedAid = rec.selectedAid.ifEmpty { null })
+            date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule,
+            selectedAid = rec.selectedAid, logFormat = formatHex
+        )
     }
 
     private fun buildTransaction(
@@ -692,10 +680,11 @@ object RecordDecoder {
         balanceAfterFen: Long?,
         deviceCode: String? = null,
         spRule: String? = null,
-        selectedAid: String = ""
+        selectedAid: String = "",
+        logFormat: String? = null
     ): CanonicalTransaction {
         return CanonicalTransaction(
-            selectedAid = selectedAid.ifEmpty { null },
+            sources = listOf(RawHexBlock(sfi, protocol, hex, selectedAid.ifEmpty { null }, logFormat)),
             identity = contentHash(hex),
             sequence = sequence,
             amountFen = amountFen,
@@ -753,7 +742,7 @@ object RecordDecoder {
                 transitType = j.transitType, cityCode = j.cityCode ?: f.cityCode,
                 rawCityCode = j.rawCityCode ?: f.rawCityCode,
                 balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                journeyHex = j.hex, journeyAid = j.selectedAid, deviceCode = j.deviceCode, spRule = j.spRule
+                sources = f.sources + j.sources, deviceCode = j.deviceCode, spRule = j.spRule
             ))
         }
         journey.forEachIndexed { index, j -> if (index !in usedJourney) out.add(j) }

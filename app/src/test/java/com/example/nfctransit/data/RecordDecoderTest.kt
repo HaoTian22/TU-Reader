@@ -493,9 +493,14 @@ class RecordDecoderTest {
         val fare = decoded.display.single { it.sfi == 0x18 }
         assertEquals("194202", fare.time)
         assertEquals(setOf("CU", "TU"), fare.protocols)
+        // 每条原始记录各自带来源：TU 0x18 + 合并的 TU 1E + CU 应用的 0x18
         assertEquals(
-            listOf("00070000C8000001900941310088943720260606194202"),
-            fare.rawVariants.map { it.hex }
+            setOf(
+                "TU" to "0007000320000001900941310088943720260606194202",
+                "TU" to "040000000263033114010000000000001600000190000000C820260606194202584012215840FFFF",
+                "CU" to "00070000C8000001900941310088943720260606194202"
+            ),
+            fare.sources.map { it.protocol to it.hex }.toSet()
         )
         assertEquals(3, decoded.archive.size)
     }
