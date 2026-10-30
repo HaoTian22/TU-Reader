@@ -29,7 +29,12 @@ data class TripReaderCard(
     val isTFT: Boolean = false,
     val isSUZ: Boolean = false,
     val cdTUBalance: Long = TripReaderDatabase.UNKNOWN_BALANCE,
-    val cdCUBalance: Long = TripReaderDatabase.UNKNOWN_BALANCE
+    val cdCUBalance: Long = TripReaderDatabase.UNKNOWN_BALANCE,
+    /** TU / 城市钱包信息文件 SFI 0x15 原始内容（与本应用读卡保存的信息槽位逐字节一致），空串为无 */
+    val cdTURawInfo: String = "",
+    val cdCURawInfo: String = "",
+    /** TripReader 最后读取该卡的时间（毫秒），未知为 null */
+    val cdLastUpdateMs: Long? = null
 )
 
 /**
@@ -75,6 +80,9 @@ object TripReaderDatabase {
         val isSUZ: String,
         val cardTUBalance: String,
         val cardCUBalance: String,
+        val cardTURawInfo: String,
+        val cardCURawInfo: String,
+        val cardLastUpdate: String,
         val cardIsLNT: String,
         val txIsCU: String,
         val txIsTU18: String,
@@ -93,6 +101,7 @@ object TripReaderDatabase {
         cardNo = "cdNo", cardNo2 = "cdNo2", cardBalance = "cdBalance", cardTitle = "cdTitle",
         isTU = "isTU", isCU = "isCU", isSZT = "isSZT", isYCT = "isYCT",
         isTFT = "isTFT", isSUZ = "isSUZ", cardTUBalance = "cdTUBalance", cardCUBalance = "cdCUBalance",
+        cardTURawInfo = "cdTURawInfo", cardCURawInfo = "cdCURawInfo", cardLastUpdate = "cdLastUpdate",
         cardIsLNT = "isLNT", txIsLNT = "isLNT",
         txIsCU = "txCU", txIsTU18 = "txTU18", txIsYCT = "txYCT", txSfi = "txSFI",
         txDate = "txDate", txCUResult = "txCUResult", txTUResult = "txTUResult",
@@ -105,6 +114,7 @@ object TripReaderDatabase {
         cardNo = "ZCDNO", cardNo2 = "ZCDNO2", cardBalance = "ZCDBALANCE", cardTitle = "ZCDTITLE",
         isTU = "ZISTU", isCU = "ZISCU", isSZT = "ZISSZT", isYCT = "ZISYCT",
         isTFT = "ZISTFT", isSUZ = "ZISSUZ", cardTUBalance = "ZCDTUBALANCE", cardCUBalance = "ZCDCUBALANCE",
+        cardTURawInfo = "ZCDTURAWINFO", cardCURawInfo = "ZCDCURAWINFO", cardLastUpdate = "ZCDLASTUPDATE",
         cardIsLNT = "ZISLNT", txIsLNT = "ZISLNT",
         txIsCU = "ZTXCU", txIsTU18 = "ZTXTU18", txIsYCT = "ZTXYCT", txSfi = "ZTXSFI",
         txDate = "ZTXDATE", txCUResult = "ZTXCURESULT", txTUResult = "ZTXTURESULT",
@@ -132,6 +142,9 @@ object TripReaderDatabase {
                 val iSuzFlag = c.getColumnIndex(schema.isSUZ)
                 val iTuBal = c.getColumnIndex(schema.cardTUBalance)
                 val iCuBal = c.getColumnIndex(schema.cardCUBalance)
+                val iTuInfo = c.getColumnIndex(schema.cardTURawInfo)
+                val iCuInfo = c.getColumnIndex(schema.cardCURawInfo)
+                val iLastUpdate = c.getColumnIndex(schema.cardLastUpdate)
                 while (c.moveToNext()) {
                     if (iRaw < 0 || iNo < 0) continue
                     val rawNo = c.getString(iRaw)
@@ -182,7 +195,12 @@ object TripReaderDatabase {
                             isTFT = iTftFlag >= 0 && c.getInt(iTftFlag) != 0,
                             isSUZ = iSuzFlag >= 0 && c.getInt(iSuzFlag) != 0,
                             cdTUBalance = if (iTuBal >= 0) c.getLong(iTuBal) else UNKNOWN_BALANCE,
-                            cdCUBalance = if (iCuBal >= 0) c.getLong(iCuBal) else UNKNOWN_BALANCE
+                            cdCUBalance = if (iCuBal >= 0) c.getLong(iCuBal) else UNKNOWN_BALANCE,
+                            cdTURawInfo = if (iTuInfo >= 0) c.getString(iTuInfo).orEmpty() else "",
+                            cdCURawInfo = if (iCuInfo >= 0) c.getString(iCuInfo).orEmpty() else "",
+                            cdLastUpdateMs = if (iLastUpdate >= 0 && !c.isNull(iLastUpdate)) {
+                                dateToMillis(c, iLastUpdate, schema.dateIsAppleReference)
+                            } else null
                         )
                     )
                 }

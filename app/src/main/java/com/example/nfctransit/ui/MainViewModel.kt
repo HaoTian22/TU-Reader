@@ -1711,7 +1711,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val apps = cardAppsByCard[cardId].orEmpty()
         val ecSelect = apps.firstOrNull { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) }?.selectResp
         val primary = com.example.nfctransit.data.CardMetadataParser.parse(primaryProtocol, records, ecSelect)
-        val second = if (cardType in CardProfiles.DUAL_TU_TYPES && records.any { it.protocol == "TU" }) {
+        // 双协议卡的 TU 应用：有 TU 原始记录或卡上有 TU 应用（导入卡可能只有应用卡号）时展示
+        val hasTuApp = records.any { it.protocol == "TU" } ||
+            apps.any { CardProfiles.protocolForAid(it.selectedAid) == "TU" }
+        val second = if (cardType in CardProfiles.DUAL_TU_TYPES && hasTuApp) {
             com.example.nfctransit.data.CardMetadataParser.parse("TU", records, ecSelect, allowBlankFallback = false)
         } else null
         // TU 卡号：单协议 TU 为主卡号，双协议卡（YCT/SZT/CU）为第二卡号；其 IIN 可定位发卡机构。

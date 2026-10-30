@@ -70,10 +70,33 @@ class TripReaderProtocolTest {
     }
 
     @Test
-    fun totalBalanceOnlyAssignedWhenTheCardHasOneWallet() {
+    fun totalBalanceFillsEveryWalletWithoutASideBalance() {
         assertEquals(listOf(CardProfiles.TU_EP_AID to 1544L), tripReaderBalances(tuCard))
-        assertEquals(emptyList<Pair<String, Long>>(), tripReaderBalances(dualCard))
-        assertEquals(listOf(CardProfiles.YCT_TICL_AID to 500L), tripReaderBalances(dualCard.copy(cdCUBalance = 500)))
+        assertEquals(
+            listOf(CardProfiles.TU_EP_AID to 3840L, CardProfiles.YCT_TICL_AID to 3840L),
+            tripReaderBalances(dualCard)
+        )
+        assertEquals(
+            listOf(CardProfiles.YCT_TICL_AID to 500L, CardProfiles.TU_EP_AID to 3840L),
+            tripReaderBalances(dualCard.copy(cdCUBalance = 500))
+        )
+    }
+
+    @Test
+    fun rawInfoMapsToTheSameInfoSlotsAsCardReads() {
+        // 与本机读卡保存的 TU A000000632010105 / 岭南通 PAY.APPY 的 SFI 0x15 rec 0 逐字节一致
+        val tuInfo = "02205810FFFFFFFF02010310487039534635882720240715204012150000"
+        val lntInfo = "FFFFFFFFFFFFFFFF5100009534635882030002FFFFFFFF202406212034123120240621438188010100000000052B000101015100009534635882030000000000FF8000FFFFFF"
+        val card = dualCard.copy(cdTURawInfo = tuInfo, cdCURawInfo = lntInfo)
+        assertEquals(
+            listOf(CardProfiles.TU_EP_AID to tuInfo, CardProfiles.YCT_APPY_AID to lntInfo),
+            tripReaderInfoRecords(card)
+        )
+        // 未核对过布局的城市钱包信息不导入
+        assertEquals(
+            listOf(CardProfiles.TU_EP_AID to tuInfo),
+            tripReaderInfoRecords(card.copy(isYCT = false, isCU = true))
+        )
     }
 
     @Test

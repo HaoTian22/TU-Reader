@@ -132,7 +132,7 @@ internal fun tripReaderCardNumbers(card: TripReaderCard): List<Pair<String, Stri
 
 /**
  * TripReader 余额的归属应用：分侧余额（cdTUBalance / cdCUBalance）直接对应应用；
- * 总余额 cdBalance 只在卡上只有一个钱包时才能确定归属。
+ * 总余额 cdBalance 补给没有分侧余额的每个钱包（双钱包卡两侧共用同一余额，实卡读取两侧一致）。
  */
 internal fun tripReaderBalances(card: TripReaderCard): List<Pair<String, Long>> {
     fun known(value: Long) = value.takeIf { it != TripReaderDatabase.UNKNOWN_BALANCE && it >= 0 }
@@ -140,11 +140,22 @@ internal fun tripReaderBalances(card: TripReaderCard): List<Pair<String, Long>> 
     val result = linkedMapOf<String, Long>()
     if (card.isTU) known(card.cdTUBalance)?.let { result[CardProfiles.TU_EP_AID] = it }
     walletAid?.let { aid -> known(card.cdCUBalance)?.let { result[aid] = it } }
-    listOfNotNull(CardProfiles.TU_EP_AID.takeIf { card.isTU }, walletAid).singleOrNull()?.let { aid ->
+    for (aid in listOfNotNull(CardProfiles.TU_EP_AID.takeIf { card.isTU }, walletAid)) {
         known(card.cdBalance)?.let { result.putIfAbsent(aid, it) }
     }
     return result.toList()
 }
+
+/**
+ * TripReader 保存的信息文件（SFI 0x15）→ 本应用读卡时的信息槽位 (AID, hex)：
+ * cdTURawInfo 与 TU 应用 0x15 逐字节一致；cdCURawInfo 已核对与岭南通 PAY.APPY 0x15（70 字节布局）一致，
+ * 其它城市钱包尚无样本核对，不导入。
+ */
+internal fun tripReaderInfoRecords(card: TripReaderCard): List<Pair<String, String>> = listOfNotNull(
+    card.cdTURawInfo.trim().takeIf { card.isTU && it.isNotEmpty() }?.let { CardProfiles.TU_EP_AID to it },
+    card.cdCURawInfo.trim().takeIf { tripReaderCardType(card) == "YCT" && it.isNotEmpty() }
+        ?.let { CardProfiles.YCT_APPY_AID to it }
+)
 
 /**
  * 用户数据仓库：协调 Room 用户库（cards/card_app/raw_records/transactions_archive）、
@@ -572,6 +583,19 @@ class TransitRepository(private val context: Context) {
                 dao.mergeCardApp(CardAppEntity(cardId = cardId, selectedAid = aid, balanceFen = balance, readAt = 0))
             }
             numbersByCard.getOrPut(cardId) { mutableSetOf() }.addAll(cardNumbers.map { it.second })
+            // 信息文件只填补空槽位：实际读卡得到的当前槽位内容不被导入覆盖。
+            val seenAt = src.cdLastUpdateMs ?: now
+            for ((aid, hex) in tripReaderInfoRecords(src)) {
+                val appId = ensureApp(cardId, aid)
+                if (dao.getRawSlot(appId, "0x15", 0) == null) {
+                    dao.insertRawRecord(
+                        RawRecordEntity(
+                            appId = appId, sfi = "0x15", recNo = 0, hex = hex,
+                            contentHash = RecordDecoder.contentHash(hex), firstSeenAt = seenAt, lastSeenAt = seenAt
+                        )
+                    )
+                }
+            }
 
             // TU 与城市钱包分开解码；归档按各记录自己的应用落库。
             val decodedArchive = buildList {
