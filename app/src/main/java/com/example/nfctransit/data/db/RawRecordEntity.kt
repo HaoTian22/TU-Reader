@@ -47,7 +47,7 @@ data class RawRecordEntity(
     fun toRawRecord(): RawRecord {
         val zone = sfi.toSfiInt()
         val appProtocol = CardProfiles.protocolForAid(selectedAid)
-        // 苏州/天津交易沿用空解码标签，避免把已有归档重新记成不同协议的交易。
+        // 苏州/天府通交易沿用空解码标签，避免把已有归档重新记成不同协议的交易。
         val protocol = appProtocol.takeIf { zone == 0x15 || it in setOf("LNT", "TU", "CU", "SZT", "MPASS", "OCTOPUS") }.orEmpty()
         return RawRecord(zone, recNo, protocol, hex, selectedAid)
     }

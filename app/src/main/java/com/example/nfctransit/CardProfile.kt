@@ -4,7 +4,7 @@ package com.example.nfctransit
  * 交通卡卡种档案：AID / 关键 SFI / 交易记录字段布局
  * 数据来源：NFC Wiki 智能卡手册 (wiki.nfc.im) 交通卡章节
  * 覆盖：岭南通(YCT1/PAY.APPY、YCT2/PAY.TICL)、深圳通(SZT)、苏州(SUXIN/SZTK)、
- *       天津(TFT)、数字城市一卡通(CU)、澳门通(MPASS)、交通联合卡(TU)
+ *       成都天府通(TFT)、数字城市一卡通(CU)、澳门通(MPASS)、交通联合卡(TU)
  * 识别顺序（首个 SELECT 成功即判定卡型）见 CardProfiles.known 的排列顺序。
  */
 data class CardProfile(
@@ -141,7 +141,7 @@ object CardProfiles {
             cardType = "SZTK"
         ),
         CardProfile(
-            name = "天津通 (TFT)",
+            name = "天府通 (TFT)",
             aidCandidates = listOf("D156000015B9ABB9B2D3A6D3C3"),
             infoSfi = 0x15,
             tradeSfi = 0x18,

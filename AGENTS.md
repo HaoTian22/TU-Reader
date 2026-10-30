@@ -1,6 +1,6 @@
 # TU-Reader
 
-NFC 交通卡读取器（交通联合卡 / 深圳通 / 岭南通 / 苏州 / 天津 / 住建部 CU）。功能与使用说明见 [README.md](README.md)，业务/协议细节见 [TECHNICAL.md](TECHNICAL.md)。
+NFC 交通卡读取器（交通联合卡 / 深圳通 / 岭南通 / 苏州 / 成都天府通 / 住建部 CU）。功能与使用说明见 [README.md](README.md)，业务/协议细节见 [TECHNICAL.md](TECHNICAL.md)。
 
 ## 构建
 

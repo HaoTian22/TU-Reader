@@ -41,7 +41,7 @@ It is built on public transit-card protocol documentation (the NFC Wiki smart-ca
 | Octopus | Hong Kong | ⚠️ Balance only |
 | Macau Pass | Macau public transit card | ✅ Supported |
 | Suzhou Tong (SUZ) | Suzhou transit card | ❓ Unverified |
-| Tianjin City Card (TFT) | Tianjin transit card | ❓ Unverified |
+| Tianfu Tong (TFT) | Chengdu transit card | ❓ Unverified |
 | MOHURD CU (City Union) | City one-card system | ❓ Unverified |
 
 Card not listed, or results look wrong? Open an issue and attach a read log.
