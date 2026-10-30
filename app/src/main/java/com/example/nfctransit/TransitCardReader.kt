@@ -694,6 +694,24 @@ class TransitCardReader internal constructor(
             log.add("YCT 钱包应用 PAY.TICL 选择失败")
             return YctCardResult(info, null, payMonth, statsRecord = statsRecord)
         }
+        // 月统计文件在钱包应用 PAY.TICL 下（TripReader 同样在 SELECT TICL 后读取）；
+        // 部分卡在 PAY.APPY 上下文读 SFI 0x08 返回 6A82，因此在 TICL 上下文补读。
+        if (statsRecord == null) {
+            try {
+                val resp = transceive(ApduUtil.buildReadRecord(0x08, 1, 0x16))
+                log.add("READ RECORD SFI=08 rec=1 (stats month, TICL) -> ${ApduUtil.bytesToHex(resp)}")
+                val d = ApduUtil.dataOnly(resp)
+                if (ApduUtil.isSuccess(resp) && d.size >= 5) {
+                    statsRecord = rawRecord(0x08, 1, "LNT", ApduUtil.bytesToHex(d))
+                    val year = 2000 + bcdNibble(d[3])
+                    val month = bcdNibble(d[4])
+                    if (month in 1..12) payMonth = year * 100 + month
+                    log.add("统计月份: ${if (payMonth != null) payMonth else "无法解析"}")
+                }
+            } catch (e: Exception) {
+                log.add("读取统计月份异常: ${e.message}")
+            }
+        }
         // ③ BALANCE CHECK 查余额（必须在 TICL 上下文）；失败（respHex=null）→ 余额未知为 null
         val balance = readBalance(profile, log)
         val balanceFen: Long? = if (balance.respHex != null) balance.fen else null
