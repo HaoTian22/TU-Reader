@@ -16,9 +16,10 @@ data class DatabaseQueryResult(
 
 object DatabaseQueryEngine {
 
-    private const val MAX_RESULT_ROWS = 1000
+    // 结果表格已虚拟化渲染，行数不再影响流畅度；上限只防内存占用：行数 + 累计字符数（约 20MB 字符串）
+    private const val MAX_RESULT_ROWS = 50_000
     private const val MAX_RESULT_COLUMNS = 64
-    private const val MAX_RESULT_CELLS = 5000
+    private const val MAX_RESULT_CHARS = 10_000_000L
     private const val MAX_CELL_CHARS = 4096
     private val forbiddenKeywords = setOf(
         "INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "CREATE",
@@ -65,14 +66,20 @@ object DatabaseQueryEngine {
                 val columns = cursor.columnNames.toList()
                 val rows = ArrayList<List<String>>()
                 var truncated = false
+                var totalChars = 0L
                 while (cursor.moveToNext()) {
-                    if (rows.size >= MAX_RESULT_ROWS ||
-                        (rows.size + 1) * columnCount > MAX_RESULT_CELLS
-                    ) {
+                    if (rows.size >= MAX_RESULT_ROWS) {
                         truncated = true
                         break
                     }
-                    rows += List(columnCount) { index -> readCell(cursor, index) }
+                    val row = List(columnCount) { index -> readCell(cursor, index) }
+                    val rowChars = row.sumOf { it.length.toLong() }
+                    if (rows.isNotEmpty() && totalChars + rowChars > MAX_RESULT_CHARS) {
+                        truncated = true
+                        break
+                    }
+                    totalChars += rowChars
+                    rows += row
                 }
                 return DatabaseQueryResult(columns, rows, truncated)
             }

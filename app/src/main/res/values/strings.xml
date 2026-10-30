@@ -307,7 +307,10 @@
     <string name="db_user_data">User data database</string>
     <string name="db_transit">Station mapping database</string>
     <string name="db_prompt_copied">Prompt copied</string>
-    <string name="db_paste_first">Tap the SQL box to paste a query first</string>
+    <string name="db_paste_first">Paste a SQL query first</string>
+    <string name="db_paste_clipboard">Replace SQL with clipboard</string>
+    <string name="db_sql_pasted">SQL replaced from clipboard</string>
+    <string name="db_clipboard_empty">Clipboard has no text</string>
     <string name="db_querying">Running query…</string>
     <string name="db_result_truncated">" (large result, partially shown)"</string>
     <plurals name="db_query_done">

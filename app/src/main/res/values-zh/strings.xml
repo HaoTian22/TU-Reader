@@ -302,7 +302,10 @@
     <string name="db_user_data">用户数据数据库</string>
     <string name="db_transit">站名映射数据库</string>
     <string name="db_prompt_copied">Prompt 已复制</string>
-    <string name="db_paste_first">请先点按 SQL 框粘贴查询</string>
+    <string name="db_paste_first">请先粘贴 SQL 查询</string>
+    <string name="db_paste_clipboard">用剪贴板内容替换 SQL</string>
+    <string name="db_sql_pasted">已用剪贴板内容替换 SQL</string>
+    <string name="db_clipboard_empty">剪贴板中没有文本</string>
     <string name="db_querying">正在查询…</string>
     <string name="db_result_truncated">（结果较大，仅显示部分内容）</string>
     <plurals name="db_query_done">

@@ -146,7 +146,7 @@
                 </ScrollView>
             </LinearLayout>
 
-            <!-- SQL 行：点击预览框粘贴/编辑，右侧运行 -->
+            <!-- SQL 行：点击预览框编辑，剪贴板按钮一键替换，右侧运行 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -171,6 +171,19 @@
                     android:textColor="@color/ink_3"
                     android:textSize="12sp"
                     android:fontFamily="monospace"
+                    android:background="@drawable/bg_db_sql_box"
+                    android:clickable="true"
+                    android:focusable="true" />
+
+                <TextView
+                    android:id="@+id/btnPasteSql"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:gravity="center"
+                    android:contentDescription="@string/db_paste_clipboard"
+                    android:textColor="@color/accent"
+                    android:textSize="15sp"
                     android:background="@drawable/bg_db_sql_box"
                     android:clickable="true"
                     android:focusable="true" />
@@ -223,23 +236,34 @@
             android:minHeight="140dp"
             android:background="@drawable/bg_card_plain">
 
+            <!-- 结果网格：表头固定在顶部，数据行用 RecyclerView 虚拟化（只创建可见行），
+                 列宽在后台预先算好后整体设定，避免大结果集一次性创建/测量上千个单元格 -->
             <HorizontalScrollView
+                android:id="@+id/resultsHScroll"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:fillViewport="true"
                 android:scrollbars="horizontal">
 
-                <ScrollView
+                <LinearLayout
+                    android:id="@+id/resultsGrid"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
-                    android:fillViewport="true"
-                    android:scrollbars="vertical">
+                    android:orientation="vertical">
 
-                    <TableLayout
-                        android:id="@+id/resultsTable"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </ScrollView>
+                    <LinearLayout
+                        android:id="@+id/resultsHeader"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/resultsList"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:scrollbars="vertical" />
+                </LinearLayout>
             </HorizontalScrollView>
 
             <LinearLayout
