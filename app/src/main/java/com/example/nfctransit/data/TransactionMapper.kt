@@ -1,8 +1,10 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.data.db.CardAppEntity
 import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.model.CanonicalTransaction
+import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.UiCard
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
@@ -20,19 +22,34 @@ object TransactionMapper {
     /** 交易类型图标底色：统一中性灰，类型差异只靠 Font Awesome 图形区分 */
     private const val ICON_BG = 0xFFECEEF1
 
-    fun CardEntity.toUiCard(): UiCard = UiCard(
-        id = cardId,
-        name = name,
-        cardType = name,  // 保持旧版 UI 语义：历史调用将 cardType 当作展示名
-        protocolType = cardType,
-        lastFour = lastFour,
-        cardNumber = cardNumber,
-        secondCardNumber = secondCardNumber,
-        balanceFen = latestBalanceFen,
-        gradientStartColor = gradientStartColor,
-        gradientEndColor = gradientEndColor,
-        lastReadAt = lastReadAt
-    )
+    /**
+     * 卡号与余额取自卡上应用：主应用（卡型主协议，卡号应用优先）的卡号与钱包余额；
+     * 双协议卡另给出 TU 应用卡号。未知卡没有应用卡号，展示芯片 UID。
+     */
+    fun CardEntity.toUiCard(apps: List<CardAppEntity>): UiCard {
+        val primary = CardProfiles.primaryProtocol(cardType)
+        val infoAid = CardProfiles.infoAid(cardType)
+        val primaryApps = apps.filter { CardProfiles.protocolForAid(it.selectedAid) == primary }
+            .sortedByDescending { it.selectedAid.equals(infoAid, ignoreCase = true) }
+        val number = primaryApps.firstNotNullOfOrNull { it.appCardNumber?.takeIf(String::isNotEmpty) }
+            ?: chipUid.orEmpty()
+        val tuNumber = if (primary == "TU") null else apps
+            .filter { CardProfiles.protocolForAid(it.selectedAid) == "TU" }
+            .firstNotNullOfOrNull { it.appCardNumber?.takeIf(String::isNotEmpty) }
+        return UiCard(
+            id = cardId,
+            name = name,
+            cardType = name,  // 保持旧版 UI 语义：历史调用将 cardType 当作展示名
+            protocolType = cardType,
+            lastFour = number.ifEmpty { tuNumber.orEmpty() }.takeLast(4).ifEmpty { "----" },
+            cardNumber = number,
+            secondCardNumber = tuNumber,
+            balanceFen = primaryApps.filter { it.balanceFen != null }.maxByOrNull { it.readAt }?.balanceFen,
+            gradientStartColor = gradientStartColor,
+            gradientEndColor = gradientEndColor,
+            lastReadAt = lastReadAt
+        )
+    }
 
     /** CanonicalTransaction → UiTransaction；站点/线路名按当前界面语言经 ID 重新解析，ID 缺失回退存档名 */
     fun CanonicalTransaction.toUiTransaction(index: Int, cardType: String = ""): UiTransaction {
@@ -127,13 +144,11 @@ object TransactionMapper {
             iconBgColor = ICON_BG,
             protocols = if (protocols.isNotEmpty()) protocols.sorted()
                 else if (protocol.isBlank()) emptyList() else listOf(protocol),
-            journeyHex = journeyHex,
-            rawVariants = rawVariants,
             deviceCode = deviceCode,
             spRule = spRule,
             actualCityCode = actualLocation.cityCode,
             locationSource = actualLocation.source,
-            logFormat = logFormat
+            sources = sources.ifEmpty { listOf(RawHexBlock(sfi, protocol, hex)) }
         )
     }
 

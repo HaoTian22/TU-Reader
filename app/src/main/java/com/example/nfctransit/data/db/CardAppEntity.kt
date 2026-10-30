@@ -7,10 +7,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * 卡上应用 SELECT/BALANCE 记录（用户数据库）——每张卡、每个应用一行。
- * 同一张卡可能命中多个应用（双协议 YCT 的 LNT 钱包 PAY.TICL + TU 钱包 A000000632010105，
- * 各存一行）；PSE（2PAY.SYS.DDF01）枚举结果也存一行（selected_aid=PSE_AID，无余额）。
- * 按 (card_id, selected_aid) 合并，read_at 标记最新读取时间，保留该次完整快照。
+ * 卡上应用（用户数据库）——每张卡、每个应用一行；原始记录与交易归档都挂在应用上（app_id）。
+ * 同一张卡可能命中多个应用（双协议 YCT 的 LNT 信息应用 PAY.APPY、钱包 PAY.TICL + TU 钱包
+ * A000000632010105，各存一行）；PSE（2PAY.SYS.DDF01）枚举结果也存一行（无余额）。
+ * app_card_number 为该应用自己的应用序列号（卡号），balance_fen 为该应用钱包余额。
+ * select_resp 为空表示该应用从未实际 SELECT：只由导入数据（TripReader）或旧版本数据推断得到。
+ * 按 (card_id, selected_aid) 合并，read_at 标记最新读取时间。
  */
 @Entity(
     tableName = "card_app",
@@ -23,17 +25,18 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index(value = ["card_id", "read_at"]),
-        Index(value = ["card_id", "selected_aid"], unique = true)
+        Index(value = ["card_id", "selected_aid"], unique = true),
+        Index(value = ["app_card_number"])
     ]
 )
 data class CardAppEntity(
     @PrimaryKey(autoGenerate = true)
-    @ColumnInfo(name = "row_id") val rowId: Long = 0,
+    @ColumnInfo(name = "app_id") val appId: Long = 0,
     @ColumnInfo(name = "card_id") val cardId: String,
-    @ColumnInfo(name = "read_at") val readAt: Long,
     @ColumnInfo(name = "selected_aid") val selectedAid: String,
-    @ColumnInfo(name = "select_resp") val selectResp: String,
+    @ColumnInfo(name = "app_card_number") val appCardNumber: String? = null,
+    @ColumnInfo(name = "select_resp") val selectResp: String? = null,
     @ColumnInfo(name = "balance_fen") val balanceFen: Long? = null,
-    @ColumnInfo(name = "balance_resp") val balanceResp: String? = null
+    @ColumnInfo(name = "balance_resp") val balanceResp: String? = null,
+    @ColumnInfo(name = "read_at") val readAt: Long
 )

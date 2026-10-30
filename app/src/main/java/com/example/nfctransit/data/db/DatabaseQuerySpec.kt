@@ -21,52 +21,48 @@ enum class DatabaseQuerySpec(
 
             当前数据库：user_data.db
             表结构：
-            1. cards
+            1. cards（卡片本身：名称、卡型、配色；卡号与余额属于卡上应用，见 card_app）
                card_id TEXT PRIMARY KEY NOT NULL
-               card_number TEXT NOT NULL
-               second_card_number TEXT NULL
                name TEXT NOT NULL
-               card_type TEXT NOT NULL
-               last_four TEXT NOT NULL
+               card_type TEXT NOT NULL（YCT/TU/CU/SZT/TFT/MPASS/OCTOPUS/UNKNOWN 等）
+               chip_uid TEXT NULL（仅未知卡：芯片 UID）
                gradient_start_color INTEGER NOT NULL
                gradient_end_color INTEGER NOT NULL
-               latest_balance_fen INTEGER NULL（余额，单位分）
                created_at INTEGER NOT NULL（Unix 毫秒时间戳）
                last_read_at INTEGER NOT NULL（Unix 毫秒时间戳）
 
-            2. raw_records
-               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            2. card_app（卡上应用，每张卡每个应用一行）
+               app_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
                card_id TEXT NOT NULL，外键关联 cards.card_id，删除卡片时级联删除
+               selected_aid TEXT NOT NULL（应用 AID，如 5041592E5449434C 岭南通钱包、A000000632010105 交通联合）
+               app_card_number TEXT NULL（该应用的卡号/应用序列号）
+               select_resp TEXT NULL（NULL 表示该应用由导入数据推断，未实际读取）
+               balance_fen INTEGER NULL（该应用钱包余额，单位分）
+               balance_resp TEXT NULL
+               read_at INTEGER NOT NULL（Unix 毫秒时间戳；0 表示从未实际读取）
+
+            3. raw_records（应用内文件记录的当前内容）
+               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+               app_id INTEGER NOT NULL，外键关联 card_app.app_id，删除应用时级联删除
                sfi TEXT NOT NULL（例如 0x18）
                rec_no INTEGER NOT NULL
-               selected_aid TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                first_seen_at INTEGER NOT NULL（Unix 毫秒时间戳）
                last_seen_at INTEGER NOT NULL（Unix 毫秒时间戳）
 
-            3. transactions_archive
+            4. transactions_archive（交易原始记录归档，每条交易记录一行）
                row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-               card_id TEXT NOT NULL，外键关联 cards.card_id，删除卡片时级联删除
+               app_id INTEGER NOT NULL，外键关联 card_app.app_id，删除应用时级联删除
                sfi TEXT NOT NULL
-               protocol TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                resolved_date TEXT NOT NULL（格式 yyyyMMdd）
-               balance_after_fen INTEGER NULL（余额，单位分）
                first_seen_at INTEGER NOT NULL（Unix 毫秒时间戳）
                last_seen_at INTEGER NOT NULL（Unix 毫秒时间戳）
 
-            4. card_app
-               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-               card_id TEXT NOT NULL，外键关联 cards.card_id，删除卡片时级联删除
-               read_at INTEGER NOT NULL（Unix 毫秒时间戳）
-               selected_aid TEXT NOT NULL
-               select_resp TEXT NOT NULL
-               balance_fen INTEGER NULL（余额，单位分）
-               balance_resp TEXT NULL
-
-            关联关系：raw_records.card_id、transactions_archive.card_id、card_app.card_id 都关联 cards.card_id。
+            关联关系：card_app.card_id 关联 cards.card_id；raw_records.app_id、transactions_archive.app_id 关联 card_app.app_id，
+            按卡筛选需经 card_app 连接。金额、站点等交易字段在 hex 中，数据库不另存。
             金额字段以分为单位；时间字段以 Unix 毫秒为单位；NULL 表示没有值。
 
             我的需求：
@@ -77,52 +73,48 @@ enum class DatabaseQuerySpec(
 
             Current database: user_data.db
             Tables:
-            1. cards
+            1. cards (the card itself: name, type, colors; card numbers and balances belong to the card's applications, see card_app)
                card_id TEXT PRIMARY KEY NOT NULL
-               card_number TEXT NOT NULL
-               second_card_number TEXT NULL
                name TEXT NOT NULL
-               card_type TEXT NOT NULL
-               last_four TEXT NOT NULL
+               card_type TEXT NOT NULL (YCT/TU/CU/SZT/TFT/MPASS/OCTOPUS/UNKNOWN etc.)
+               chip_uid TEXT NULL (unknown cards only: chip UID)
                gradient_start_color INTEGER NOT NULL
                gradient_end_color INTEGER NOT NULL
-               latest_balance_fen INTEGER NULL (balance, in fen = 1/100 CNY)
                created_at INTEGER NOT NULL (Unix timestamp in milliseconds)
                last_read_at INTEGER NOT NULL (Unix timestamp in milliseconds)
 
-            2. raw_records
-               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            2. card_app (applications on a card, one row per card and application)
+               app_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
                card_id TEXT NOT NULL, foreign key to cards.card_id, deleted together with the card
+               selected_aid TEXT NOT NULL (application AID, e.g. 5041592E5449434C Lingnan Pass wallet, A000000632010105 T-Union)
+               app_card_number TEXT NULL (this application's card number / serial)
+               select_resp TEXT NULL (NULL means the application was inferred from imported data, never actually read)
+               balance_fen INTEGER NULL (this application's wallet balance, in fen = 1/100 CNY)
+               balance_resp TEXT NULL
+               read_at INTEGER NOT NULL (Unix timestamp in milliseconds; 0 means never actually read)
+
+            3. raw_records (current content of each file record in an application)
+               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+               app_id INTEGER NOT NULL, foreign key to card_app.app_id, deleted together with the application
                sfi TEXT NOT NULL (e.g. 0x18)
                rec_no INTEGER NOT NULL
-               selected_aid TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                first_seen_at INTEGER NOT NULL (Unix timestamp in milliseconds)
                last_seen_at INTEGER NOT NULL (Unix timestamp in milliseconds)
 
-            3. transactions_archive
+            4. transactions_archive (archived raw transaction records, one row per record)
                row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-               card_id TEXT NOT NULL, foreign key to cards.card_id, deleted together with the card
+               app_id INTEGER NOT NULL, foreign key to card_app.app_id, deleted together with the application
                sfi TEXT NOT NULL
-               protocol TEXT NOT NULL
                hex TEXT NOT NULL
                content_hash TEXT NOT NULL
                resolved_date TEXT NOT NULL (format yyyyMMdd)
-               balance_after_fen INTEGER NULL (balance, in fen = 1/100 CNY)
                first_seen_at INTEGER NOT NULL (Unix timestamp in milliseconds)
                last_seen_at INTEGER NOT NULL (Unix timestamp in milliseconds)
 
-            4. card_app
-               row_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-               card_id TEXT NOT NULL, foreign key to cards.card_id, deleted together with the card
-               read_at INTEGER NOT NULL (Unix timestamp in milliseconds)
-               selected_aid TEXT NOT NULL
-               select_resp TEXT NOT NULL
-               balance_fen INTEGER NULL (balance, in fen = 1/100 CNY)
-               balance_resp TEXT NULL
-
-            Relations: raw_records.card_id, transactions_archive.card_id and card_app.card_id all reference cards.card_id.
+            Relations: card_app.card_id references cards.card_id; raw_records.app_id and transactions_archive.app_id reference card_app.app_id,
+            so filtering by card joins through card_app. Amounts, stations and other transaction fields live in hex and are not stored separately.
             Amounts are in fen (1/100 CNY); times are Unix milliseconds; NULL means no value.
 
             My request:

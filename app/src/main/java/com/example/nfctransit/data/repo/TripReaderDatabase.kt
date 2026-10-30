@@ -10,7 +10,11 @@ data class TripReaderSource(
     val cards: List<TripReaderCard>
 )
 
-/** TripReader 库中的一张卡：cdNo = 19 位交通联合应用序列号，cdNo2 = 10 位岭南通应用序列号（可能为空）；isSZT/isYCT/isLNT 等为来源库卡型标志 */
+/**
+ * TripReader 库中的一张卡。TripReader 把卡上应用分成 TU（交通联合）与 CU（城市钱包：岭南通/深圳通/住建部/天府通…）两侧：
+ * isTU 时 cdNo 为 TU 应用序列号（与 cdTURawInfo 一致），cdNo2 为城市钱包应用序列号（与 cdCURawInfo 一致，可能为空）；
+ * 无 TU 时 cdNo 为城市钱包卡号。isSZT/isYCT/isCU/isTFT/isSUZ 等为来源库卡型标志；余额未知为 -99999999。
+ */
 data class TripReaderCard(
     val cdNo: String,
     val cdNo2: String,
@@ -21,15 +25,31 @@ data class TripReaderCard(
     val isSZT: Boolean,
     val isYCT: Boolean,
     val isLNT: Boolean?,
-    val transactions: List<TripReaderTransaction>
+    val transactions: List<TripReaderTransaction>,
+    val isTFT: Boolean = false,
+    val isSUZ: Boolean = false,
+    val cdTUBalance: Long = TripReaderDatabase.UNKNOWN_BALANCE,
+    val cdCUBalance: Long = TripReaderDatabase.UNKNOWN_BALANCE,
+    /** TU / 城市钱包信息文件 SFI 0x15 原始内容（与本应用读卡保存的信息槽位逐字节一致），空串为无 */
+    val cdTURawInfo: String = "",
+    val cdCURawInfo: String = "",
+    /** TripReader 最后读取该卡的时间（毫秒），未知为 null */
+    val cdLastUpdateMs: Long? = null
 )
 
-/** TripReader 对同一条交易同时存两份原始记录：cuHex = SFI 0x18 主交易，tuHex = SFI 0x1E 旅程 */
+/**
+ * TripReader 对同一条交易同时存两份原始记录：cuHex = 主交易（txCUResult，SFI txSFI，通常 0x18），tuHex = SFI 0x1E 旅程。
+ * 逐条应用标记（表结构没有该列时为 null）：isTU18 = cuHex 属于 TU 钱包，isCU = cuHex 属于城市钱包，isYCT = 岭南通钱包。
+ */
 data class TripReaderTransaction(
     val dateMs: Long,
     val cuHex: String,
     val tuHex: String,
-    val isLNT: Boolean? = null
+    val isLNT: Boolean? = null,
+    val isCU: Boolean? = null,
+    val isTU18: Boolean? = null,
+    val isYCT: Boolean? = null,
+    val sfi: Int? = null
 )
 
 /**
@@ -37,11 +57,11 @@ data class TripReaderTransaction(
  *  - txCUResult / ZTXCURESULT：SFI 0x18 主交易原始记录（23B）。交通联合钱包带完整年份；岭南通（LNT）钱包
  *    年份字段为 0000，真实年份只能靠 txDate / ZTXDATE 复原；Core Data 变体的 ZTXDATE 使用 Apple NSDate 秒数。
  *  - txTUResult / ZTXTURESULT：SFI 0x1E 旅程/站点记录（48B）。
- * 卡片身份用 card_table 的 cdNo/cdNo2 对齐本应用 cards 的 card_number/second_card_number。
+ * 卡片身份用 card_table 的 cdNo/cdNo2 对齐本应用 card_app 的应用卡号；逐条应用标记决定记录归属的应用。
  */
 object TripReaderDatabase {
 
-    private const val UNKNOWN_BALANCE = -99999999L
+    const val UNKNOWN_BALANCE = -99999999L
 
     private data class Schema(
         val cardTable: String,
@@ -56,7 +76,18 @@ object TripReaderDatabase {
         val isCU: String,
         val isSZT: String,
         val isYCT: String,
+        val isTFT: String,
+        val isSUZ: String,
+        val cardTUBalance: String,
+        val cardCUBalance: String,
+        val cardTURawInfo: String,
+        val cardCURawInfo: String,
+        val cardLastUpdate: String,
         val cardIsLNT: String,
+        val txIsCU: String,
+        val txIsTU18: String,
+        val txIsYCT: String,
+        val txSfi: String,
         val txIsLNT: String,
         val txDate: String,
         val txCUResult: String,
@@ -69,7 +100,10 @@ object TripReaderDatabase {
         cardRawNo = "cdRawNo", transactionRawNo = "cdRawNo",
         cardNo = "cdNo", cardNo2 = "cdNo2", cardBalance = "cdBalance", cardTitle = "cdTitle",
         isTU = "isTU", isCU = "isCU", isSZT = "isSZT", isYCT = "isYCT",
+        isTFT = "isTFT", isSUZ = "isSUZ", cardTUBalance = "cdTUBalance", cardCUBalance = "cdCUBalance",
+        cardTURawInfo = "cdTURawInfo", cardCURawInfo = "cdCURawInfo", cardLastUpdate = "cdLastUpdate",
         cardIsLNT = "isLNT", txIsLNT = "isLNT",
+        txIsCU = "txCU", txIsTU18 = "txTU18", txIsYCT = "txYCT", txSfi = "txSFI",
         txDate = "txDate", txCUResult = "txCUResult", txTUResult = "txTUResult",
         dateIsAppleReference = false
     )
@@ -79,7 +113,10 @@ object TripReaderDatabase {
         cardRawNo = "ZCDRAWNO", transactionRawNo = "ZCDRAWNO",
         cardNo = "ZCDNO", cardNo2 = "ZCDNO2", cardBalance = "ZCDBALANCE", cardTitle = "ZCDTITLE",
         isTU = "ZISTU", isCU = "ZISCU", isSZT = "ZISSZT", isYCT = "ZISYCT",
+        isTFT = "ZISTFT", isSUZ = "ZISSUZ", cardTUBalance = "ZCDTUBALANCE", cardCUBalance = "ZCDCUBALANCE",
+        cardTURawInfo = "ZCDTURAWINFO", cardCURawInfo = "ZCDCURAWINFO", cardLastUpdate = "ZCDLASTUPDATE",
         cardIsLNT = "ZISLNT", txIsLNT = "ZISLNT",
+        txIsCU = "ZTXCU", txIsTU18 = "ZTXTU18", txIsYCT = "ZTXYCT", txSfi = "ZTXSFI",
         txDate = "ZTXDATE", txCUResult = "ZTXCURESULT", txTUResult = "ZTXTURESULT",
         dateIsAppleReference = true
     )
@@ -101,6 +138,13 @@ object TripReaderDatabase {
                 val iSztFlag = c.getColumnIndex(schema.isSZT)
                 val iYctFlag = c.getColumnIndex(schema.isYCT)
                 val iLntFlag = c.getColumnIndex(schema.cardIsLNT)
+                val iTftFlag = c.getColumnIndex(schema.isTFT)
+                val iSuzFlag = c.getColumnIndex(schema.isSUZ)
+                val iTuBal = c.getColumnIndex(schema.cardTUBalance)
+                val iCuBal = c.getColumnIndex(schema.cardCUBalance)
+                val iTuInfo = c.getColumnIndex(schema.cardTURawInfo)
+                val iCuInfo = c.getColumnIndex(schema.cardCURawInfo)
+                val iLastUpdate = c.getColumnIndex(schema.cardLastUpdate)
                 while (c.moveToNext()) {
                     if (iRaw < 0 || iNo < 0) continue
                     val rawNo = c.getString(iRaw)
@@ -113,6 +157,11 @@ object TripReaderDatabase {
                         val iCu = t.getColumnIndex(schema.txCUResult)
                         val iTu = t.getColumnIndex(schema.txTUResult)
                         val iTxLntFlag = t.getColumnIndex(schema.txIsLNT)
+                        val iTxCu = t.getColumnIndex(schema.txIsCU)
+                        val iTxTu18 = t.getColumnIndex(schema.txIsTU18)
+                        val iTxYct = t.getColumnIndex(schema.txIsYCT)
+                        val iTxSfi = t.getColumnIndex(schema.txSfi)
+                        fun flag(index: Int) = if (index >= 0) t.getInt(index) != 0 else null
                         while (t.moveToNext()) {
                             val cuHex = if (iCu >= 0) t.getString(iCu) else ""
                             val tuHex = if (iTu >= 0) t.getString(iTu) else ""
@@ -122,7 +171,11 @@ object TripReaderDatabase {
                                     dateMs = if (iDate >= 0) dateToMillis(t, iDate, schema.dateIsAppleReference) else 0L,
                                     cuHex = cuHex,
                                     tuHex = tuHex,
-                                    isLNT = if (iTxLntFlag >= 0) t.getInt(iTxLntFlag) != 0 else null
+                                    isLNT = flag(iTxLntFlag),
+                                    isCU = flag(iTxCu),
+                                    isTU18 = flag(iTxTu18),
+                                    isYCT = flag(iTxYct),
+                                    sfi = if (iTxSfi >= 0) t.getInt(iTxSfi).takeIf { it in 1..30 } else null
                                 )
                             )
                         }
@@ -138,7 +191,16 @@ object TripReaderDatabase {
                             isSZT = iSztFlag >= 0 && c.getInt(iSztFlag) != 0,
                             isYCT = iYctFlag >= 0 && c.getInt(iYctFlag) != 0,
                             isLNT = if (iLntFlag >= 0) c.getInt(iLntFlag) != 0 else null,
-                            transactions = transactions
+                            transactions = transactions,
+                            isTFT = iTftFlag >= 0 && c.getInt(iTftFlag) != 0,
+                            isSUZ = iSuzFlag >= 0 && c.getInt(iSuzFlag) != 0,
+                            cdTUBalance = if (iTuBal >= 0) c.getLong(iTuBal) else UNKNOWN_BALANCE,
+                            cdCUBalance = if (iCuBal >= 0) c.getLong(iCuBal) else UNKNOWN_BALANCE,
+                            cdTURawInfo = if (iTuInfo >= 0) c.getString(iTuInfo).orEmpty() else "",
+                            cdCURawInfo = if (iCuInfo >= 0) c.getString(iCuInfo).orEmpty() else "",
+                            cdLastUpdateMs = if (iLastUpdate >= 0 && !c.isNull(iLastUpdate)) {
+                                dateToMillis(c, iLastUpdate, schema.dateIsAppleReference)
+                            } else null
                         )
                     )
                 }

@@ -77,14 +77,16 @@ data class UiTransaction(
     val icon: String,              // Font Awesome 7 solid 字形（fa-solid-900.otf）
     val iconBgColor: Long,         // background color for icon circle
     val protocols: List<String> = emptyList(),  // 该记录被哪些协议写入（LNT/TU），排序后展示
-    val journeyHex: String? = null, // TU 卡同笔交易的 1E 旅程原始 hex（详情页原始数据显示两份）；null=无配对 1E
-    val rawVariants: List<RawHexBlock> = emptyList(), // 合并展示交易的其他原始记录
     val deviceCode: String? = null,  // 站名解析命中的 device_code（如 581000140019）；null=未命中
     val spRule: String? = null,      // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行附加展示；null=普通命中
     val actualCityCode: String? = null,
     val locationSource: LocationSource = LocationSource.DECLARED_CITY_FALLBACK,
-    val logFormat: String? = null
-)
+    /** 组成该交易的全部原始记录（各带来源应用），详情页原始数据逐条展示 */
+    val sources: List<RawHexBlock> = emptyList()
+) {
+    /** 与本交易合并的 TU 1E 旅程记录（本交易自身为 1E 时为 null） */
+    val journeyHex: String? get() = sources.firstOrNull { it.sfi == 0x1E && it.hex != hex }?.hex
+}
 
 data class StationStat(
     val name: String,

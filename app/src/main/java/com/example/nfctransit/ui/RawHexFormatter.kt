@@ -147,7 +147,9 @@ object RawHexFormatter {
         val color: Int
     )
 
-    fun fieldsFor(sfi: Int, size: Int, protocol: String, hex: String = "", logFormat: String? = null): List<FieldSpec> {
+    fun fieldsFor(
+        sfi: Int, size: Int, protocol: String, hex: String = "", logFormat: String? = null, recNo: Int? = null
+    ): List<FieldSpec> {
         if (logFormat != null) {
             val tags = com.example.nfctransit.BerTlv.values(ApduUtil.hexToBytes(logFormat))
             val dol = tags[0x9F4F] ?: tags[0xDF4F] ?: return emptyList()
@@ -165,6 +167,28 @@ object RawHexFormatter {
                 }
                 FieldSpec(label, field.offset, field.offset + field.length, method, color)
             }.filter { it.end <= size }
+        }
+        // 月统计（优惠来源）：岭南通 PAY.TICL SFI 0x08 rec1 与 TU SFI 0x19 rec1 同一格式，
+        // 布局同 DiscountRegistry.walletMonthStats（TripReader 读取 0x08 #1 一致）；其余记录格式未知不标注。
+        if (recNo == 1 && ((sfi == 0x08 && protocol == "LNT") || (sfi == 0x19 && protocol == "TU")) && size >= 14) {
+            return listOf(
+                FieldSpec("Record Identifier", 0, 1, "hex", RECORD),
+                FieldSpec("Record Length", 1, 2, "hex", RECORD),
+                FieldSpec("Stats Year", 3, 4, "BCD+2000", TIMESTAMP),
+                FieldSpec("Stats Month", 4, 5, "BCD", TIMESTAMP),
+                FieldSpec("Trip Count", 7, 8, "hex", TYPE),
+                FieldSpec("Month Total (fen)", 12, 14, "hex", AMOUNT)
+            )
+        }
+        // TU 管理信息：与 CardMetadataParser 读取的字段一致
+        if (sfi == 0x17 && protocol == "TU" && size >= 11) {
+            return listOf(
+                FieldSpec("Country Code", 0, 4, "hex", AREA),
+                FieldSpec("Province Code", 4, 6, "hex", AREA),
+                FieldSpec("City Code", 6, 8, "hex", AREA),
+                FieldSpec("Interoperability ID", 8, 10, "hex", SELECT_SFI),
+                FieldSpec("Card Kind", 10, 11, "hex", SELECT_LABEL)
+            )
         }
         if (sfi == 0x15 && protocol == "LNT" && size >= 32) {
             return listOf(
@@ -330,7 +354,27 @@ object RawHexFormatter {
         val protocol = record.protocol.ifBlank {
             record.selectedAid.takeIf { com.example.nfctransit.CardProfiles.isUnknownApp(it) } ?: "GEN"
         }
-        return "SFI ${record.sfi.toSfiHex()}  $protocol  Rec ${record.recNo}"
+        val app = record.selectedAid.takeIf { it.isNotBlank() }?.let(::appLabel)
+        val source = if (app == null || app == protocol) protocol else "$protocol ($app)"
+        return "SFI ${record.sfi.toSfiHex()}  $source  Rec ${record.recNo}"
+    }
+
+    /** 交易详情原始块标题：SFI + 协议（所属应用）；无协议/应用时只显示 SFI。 */
+    fun blockTitle(sfi: Int, protocol: String, selectedAid: String?): String {
+        val app = selectedAid?.takeIf { it.isNotBlank() }?.let(::appLabel)
+        val source = when {
+            protocol.isBlank() -> app
+            app == null || app == protocol -> protocol
+            else -> "$protocol ($app)"
+        }
+        return if (source == null) "SFI ${sfi.toSfiHex()}" else "SFI ${sfi.toSfiHex()}  $source"
+    }
+
+    /** 记录所属应用：AID 本身是可读 ASCII（如 PAY.TICL）时显示名称，否则显示 AID。 */
+    fun appLabel(aid: String): String {
+        val bytes = runCatching { ApduUtil.hexToBytes(aid) }.getOrNull()
+        return bytes?.takeIf { it.isNotEmpty() && it.all { b -> b.toInt() in 0x20..0x7E } }
+            ?.toString(Charsets.US_ASCII) ?: aid
     }
 
     fun rangeText(start: Int, end: Int): String =
@@ -348,7 +392,10 @@ object RawHexFormatter {
         for (record in records) {
             if (out.isNotEmpty()) out.append("\n\n")
             out.append(header(record)).append('\n').append(record.hex)
-            val fields = fieldsFor(record.sfi, runCatching { ApduUtil.hexToBytes(record.hex).size }.getOrDefault(0), record.protocol, record.hex)
+            val fields = fieldsFor(
+                record.sfi, runCatching { ApduUtil.hexToBytes(record.hex).size }.getOrDefault(0), record.protocol, record.hex,
+                recNo = record.recNo
+            )
             for (field in fields) {
                 val method = field.method.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
                 out.append('\n').append("[${field.label} ${rangeText(field.start, field.end)}$method] ")

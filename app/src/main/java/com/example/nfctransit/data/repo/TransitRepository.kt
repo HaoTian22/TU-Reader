@@ -12,7 +12,6 @@ import com.example.nfctransit.parseCuCardNumber
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.TransitData
-import com.example.nfctransit.data.UiCache
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.data.toSfiInt
 import com.example.nfctransit.data.db.ArchivedTransactionEntity
@@ -44,10 +43,11 @@ data class ImportSummary(
     val merged: Int = 0
 )
 
+/** 归档去重键：同一应用、同一扇区、同一内容。 */
 private data class ArchiveKey(
-    val contentHash: String,
-    val protocol: String,
-    val sfi: String
+    val selectedAid: String,
+    val sfi: String,
+    val contentHash: String
 )
 
 /** 卡号由协议字段产生，导入时忽略意外的首尾空白；空值不参与身份比较。 */
@@ -57,15 +57,15 @@ internal fun cardIdentityNumbers(vararg values: String?): Set<String> =
 internal fun sharesCardIdentity(first: Set<String>, second: Set<String>): Boolean =
     first.any(second::contains)
 
-internal fun cuCardNumberFromRaw(records: List<RawRecordEntity>): String? {
+internal fun cuCardNumberFromRaw(records: List<RawRecord>): String? {
     val info = records.firstOrNull {
-        it.sfi.toSfiInt() == 0x15 && it.recNo == 0 && it.selectedAid.equals(CardProfiles.CU_AID, true)
+        it.sfi == 0x15 && it.recNo == 0 && it.selectedAid.equals(CardProfiles.CU_AID, true)
     } ?: return null
     val data = runCatching { ApduUtil.hexToBytes(info.hex) }.getOrNull() ?: return null
     return data.takeIf { it.size >= 20 }?.let(::parseCuCardNumber)
 }
 
-/** cuHex 是通用 0x18 字段；完整年份不能区分 CU 与 TU，应先使用来源卡型。 */
+/** 表结构没有逐条应用标记时的旧推断：cuHex 是通用 0x18 字段；完整年份不能区分 CU 与 TU，应先使用来源卡型。 */
 internal fun tripReaderFareProtocol(card: TripReaderCard, transaction: TripReaderTransaction): String {
     if (card.isSZT) return "SZT"
     if (card.isCU) return "CU"
@@ -84,21 +84,83 @@ internal fun tripReaderFareProtocol(card: TripReaderCard, transaction: TripReade
     }
 }
 
-/** TripReader 导入不保存 NFC 原始槽位或应用快照；有这些证据的双钱包卡不改写协议。 */
-internal fun importedCuArchiveRepairs(
-    cardType: String,
-    hasRawRecords: Boolean,
-    hasAppRecords: Boolean,
-    archive: List<ArchivedTransactionEntity>
-): List<ArchivedTransactionEntity> =
-    if (cardType == "CU" && !hasRawRecords && !hasAppRecords) {
-        archive.filter { it.protocol == "TU" && it.sfi.toSfiInt() == 0x18 }
-    } else emptyList()
+/** TripReader「CU 侧」城市钱包对应的应用；苏州（SUXIN/SZTK 两个 AID）等无法确定应用时为 null。 */
+internal fun tripReaderWalletAid(card: TripReaderCard, transaction: TripReaderTransaction? = null): String? = when {
+    card.isSZT -> CardProfiles.walletAid("SZT")
+    card.isCU -> CardProfiles.CU_AID
+    card.isTFT -> CardProfiles.TFT_AID
+    transaction?.isYCT == true || card.isYCT || card.isLNT == true -> CardProfiles.YCT_TICL_AID
+    else -> null
+}
+
+/** 主交易 cuHex 所属应用：优先用 TripReader 逐条应用标记（txTU18 / txCU），无标记列时回退旧推断。 */
+internal fun tripReaderFareAid(card: TripReaderCard, transaction: TripReaderTransaction): String? = when {
+    transaction.isTU18 == true -> CardProfiles.TU_EP_AID
+    transaction.isCU == true -> tripReaderWalletAid(card, transaction)
+    transaction.isTU18 == false && transaction.isCU == false -> null
+    card.isSUZ -> null
+    else -> when (tripReaderFareProtocol(card, transaction)) {
+        "TU" -> CardProfiles.TU_EP_AID
+        "LNT" -> CardProfiles.YCT_TICL_AID
+        else -> tripReaderWalletAid(card, transaction)
+    }
+}
+
+/** 本应用卡型：城市钱包优先（双协议卡的主应用），只有 TU 时为 TU。 */
+internal fun tripReaderCardType(card: TripReaderCard): String = when {
+    card.isSZT -> "SZT"
+    card.isCU -> "CU"
+    card.isTFT -> "TFT"
+    card.isYCT || card.isLNT == true -> "YCT"
+    else -> "TU"
+}
 
 /**
- * 用户数据仓库：协调 Room 用户库（cards/raw_records/transactions_archive）、
+ * TripReader 卡号的归属应用：有 TU 时 cdNo 归 TU 应用，cdNo2 归城市钱包的卡号应用（岭南通为 PAY.APPY）；
+ * 无 TU 时 cdNo 归城市钱包。无法确定应用的卡号不保存。
+ */
+internal fun tripReaderCardNumbers(card: TripReaderCard): List<Pair<String, String>> {
+    val walletInfoAid = tripReaderCardType(card).takeIf { it != "TU" && tripReaderWalletAid(card) != null }
+        ?.let(CardProfiles::infoAid)
+    val tuNumber = card.cdNo.trim().takeIf { card.isTU && it.isNotEmpty() }
+    val walletNumber = (if (card.isTU) card.cdNo2 else card.cdNo).trim().takeIf { it.isNotEmpty() }
+    return listOfNotNull(
+        tuNumber?.let { CardProfiles.TU_EP_AID to it },
+        walletNumber?.let { number -> walletInfoAid?.let { it to number } }
+    )
+}
+
+/**
+ * TripReader 余额的归属应用：分侧余额（cdTUBalance / cdCUBalance）直接对应应用；
+ * 总余额 cdBalance 补给没有分侧余额的每个钱包（双钱包卡两侧共用同一余额，实卡读取两侧一致）。
+ */
+internal fun tripReaderBalances(card: TripReaderCard): List<Pair<String, Long>> {
+    fun known(value: Long) = value.takeIf { it != TripReaderDatabase.UNKNOWN_BALANCE && it >= 0 }
+    val walletAid = tripReaderWalletAid(card)
+    val result = linkedMapOf<String, Long>()
+    if (card.isTU) known(card.cdTUBalance)?.let { result[CardProfiles.TU_EP_AID] = it }
+    walletAid?.let { aid -> known(card.cdCUBalance)?.let { result[aid] = it } }
+    for (aid in listOfNotNull(CardProfiles.TU_EP_AID.takeIf { card.isTU }, walletAid)) {
+        known(card.cdBalance)?.let { result.putIfAbsent(aid, it) }
+    }
+    return result.toList()
+}
+
+/**
+ * TripReader 保存的信息文件（SFI 0x15）→ 本应用读卡时的信息槽位 (AID, hex)：
+ * cdTURawInfo 与 TU 应用 0x15 逐字节一致；cdCURawInfo 已核对与岭南通 PAY.APPY 0x15（70 字节布局）一致，
+ * 其它城市钱包尚无样本核对，不导入。
+ */
+internal fun tripReaderInfoRecords(card: TripReaderCard): List<Pair<String, String>> = listOfNotNull(
+    card.cdTURawInfo.trim().takeIf { card.isTU && it.isNotEmpty() }?.let { CardProfiles.TU_EP_AID to it },
+    card.cdCURawInfo.trim().takeIf { tripReaderCardType(card) == "YCT" && it.isNotEmpty() }
+        ?.let { CardProfiles.YCT_APPY_AID to it }
+)
+
+/**
+ * 用户数据仓库：协调 Room 用户库（cards/card_app/raw_records/transactions_archive）、
  * DataStore（轻量设置）与日志文件（SessionLogStore）。
- * 渲染唯一来源是 transactions_archive（按内容去重、append-only）。
+ * 原始记录与归档都挂在卡上应用（card_app.app_id）下；渲染唯一来源是 transactions_archive。
  */
 class TransitRepository(private val context: Context) {
 
@@ -109,48 +171,16 @@ class TransitRepository(private val context: Context) {
 
     suspend fun loadCards(): List<CardEntity> = dao.getAllCards()
 
-    /** 修复旧导入把 CU 主交易标为 TU 的错误；保留原始内容、日期和余额。 */
-    suspend fun repairImportedCuArchives() {
-        val repairedCards = database.withTransaction {
-            val repaired = mutableListOf<String>()
-            for (card in dao.getAllCards().filter { it.cardType == "CU" }) {
-                val rows = importedCuArchiveRepairs(
-                    card.cardType, dao.getRawRecords(card.cardId).isNotEmpty(),
-                    dao.getCardApps(card.cardId).isNotEmpty(), dao.getArchive(card.cardId)
-                )
-                for (row in rows) {
-                    dao.insertArchiveRow(row.copy(rowId = 0, protocol = "CU"))
-                    dao.deleteArchiveRow(row.rowId)
-                }
-                if (rows.isNotEmpty()) repaired.add(card.cardId)
-            }
-            repaired
+    /** 旧版本按旧规则解析的住建部卡号：按 CU 应用信息文件重新解析并写回该应用。 */
+    suspend fun migrateCuCardNumbers() = database.withTransaction {
+        for (card in dao.getAllCards().filter { it.cardType == "CU" }) {
+            val cardNumber = cuCardNumberFromRaw(loadRawRecords(card.cardId))
+                ?.takeIf { it.isNotEmpty() } ?: continue
+            val app = dao.getCardApps(card.cardId)
+                .firstOrNull { it.selectedAid.equals(CardProfiles.CU_AID, true) } ?: continue
+            if (app.appCardNumber != cardNumber) dao.updateAppCardNumber(app.appId, cardNumber)
         }
-        repairedCards.forEach { UiCache.delete(context, it) }
     }
-
-    suspend fun migrateCuCardNumbers(): List<CardEntity> = database.withTransaction {
-        val cards = dao.getAllCards()
-        val rawByCard = dao.getAllRawRecords().groupBy { it.cardId }
-        val migrated = cards.map { card ->
-            if (card.cardType != "CU") return@map card
-            val cardNumber = cuCardNumberFromRaw(rawByCard[card.cardId].orEmpty()) ?: return@map card
-            if (cardNumber.isEmpty() || cardNumber == card.cardNumber) {
-                card
-            } else {
-                card.copy(cardNumber = cardNumber, lastFour = cardNumber.takeLast(4))
-            }
-        }
-        migrated.filterIndexed { index, card -> card != cards[index] }
-            .forEach { dao.upsertCard(it) }
-        migrated
-    }
-
-    suspend fun findCardByCardNumber(cardNumber: String): CardEntity? =
-        dao.findByCardNumber(cardNumber)
-
-    suspend fun findCardByLastFour(lastFour: String): CardEntity? =
-        dao.findByLastFour(lastFour)
 
     suspend fun getCard(cardId: String): CardEntity? = dao.getCard(cardId)
 
@@ -161,60 +191,110 @@ class TransitRepository(private val context: Context) {
     suspend fun updateCardColors(cardId: String, startColor: Long, endColor: Long) =
         dao.updateCardColors(cardId, startColor, endColor)
 
-    suspend fun updateCardBalance(cardId: String, balanceFen: Long?, lastReadAt: Long) =
-        dao.updateCardBalance(cardId, balanceFen, lastReadAt)
+    // ── card_app ──
 
-    // ── raw_records（卡内当前槽位状态；不用于渲染）──
+    /** 卡上该应用的 app_id；没有时新建一行推断出的应用（无 SELECT 响应、read_at = 0）。 */
+    private suspend fun ensureApp(cardId: String, selectedAid: String): Long =
+        dao.getCardApp(cardId, selectedAid)?.appId
+            ?: dao.insertCardAppRow(CardAppEntity(cardId = cardId, selectedAid = selectedAid, readAt = 0))
+
+    suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {
+        apps.filter { it.selectedAid.isNotBlank() }.forEach { dao.mergeCardApp(it.copy(cardId = cardId)) }
+    }
+
+    suspend fun loadCardApps(cardId: String): List<CardAppEntity> = dao.getCardApps(cardId)
+
+    suspend fun loadAllCardApps(): List<CardAppEntity> = dao.getAllCardApps()
+
+    private suspend fun appNumbersByCard(): MutableMap<String, MutableSet<String>> =
+        dao.getAllCardApps().groupBy({ it.cardId }, { it.appCardNumber })
+            .mapValuesTo(mutableMapOf()) { (_, numbers) -> cardIdentityNumbers(*numbers.toTypedArray()).toMutableSet() }
+
+    // ── raw_records（应用内当前槽位状态；不用于渲染）──
 
     suspend fun syncRawRecords(cardId: String, records: List<RawRecord>) {
         val now = System.currentTimeMillis()
-        fun key(selectedAid: String, sfi: String, recNo: Int) = Triple(selectedAid, sfi, recNo)
-        val existingSlots = dao.getRawRecords(cardId).associateBy { key(it.selectedAid, it.sfi, it.recNo) }
-        val rows = records.associateBy { key(it.selectedAid, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
-            val hash = RecordDecoder.contentHash(rec.hex)
-            val existing = existingSlots[key(rec.selectedAid, rec.sfi.toSfiHex(), rec.recNo)]
+        val appIds = mutableMapOf<String, Long>()
+        val existingSlots = dao.getRawRecords(cardId).associateBy { Triple(it.appId, it.sfi, it.recNo) }
+        val rows = records.associateBy { Triple(it.selectedAid, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
+            val appId = appIds.getOrPut(rec.selectedAid) { ensureApp(cardId, rec.selectedAid) }
+            val existing = existingSlots[Triple(appId, rec.sfi.toSfiHex(), rec.recNo)]
             RawRecordEntity(
                 rowId = existing?.rowId ?: 0,
-                cardId = cardId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
-                selectedAid = rec.selectedAid, hex = rec.hex, contentHash = hash,
+                appId = appId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
+                hex = rec.hex, contentHash = RecordDecoder.contentHash(rec.hex),
                 firstSeenAt = existing?.firstSeenAt ?: now, lastSeenAt = now
             )
         }
         dao.upsertRawRecords(rows)
     }
 
-    suspend fun loadRawRecords(cardId: String): List<RawRecordEntity> =
-        dao.getRawRecords(cardId)
+    /** 原始记录（带所属应用 AID 与由 AID 推出的解码协议）。 */
+    suspend fun loadRawRecords(cardId: String): List<RawRecord> {
+        val aids = dao.getCardApps(cardId).associate { it.appId to it.selectedAid }
+        return dao.getRawRecords(cardId).map { it.toRawRecord(aids[it.appId].orEmpty()) }
+    }
 
     // ── transactions_archive（渲染唯一来源，按内容去重）──
 
-    suspend fun archiveTransactions(cardId: String, transactions: List<CanonicalTransaction>): Boolean {
-        if (transactions.isEmpty()) return false
+    /**
+     * 解码出的交易 → 所属应用 AID：取读出同一内容（扇区 + SHA-256(hex)）的原始记录的应用，
+     * 多个候选时优先解码协议一致者；没有读卡来源时按协议推断。
+     */
+    private fun aidResolver(
+        records: List<RecordDecoder.ZoneRecord>,
+        cardType: String
+    ): (CanonicalTransaction) -> String {
+        val aidsByContent = records.filter { it.selectedAid.isNotEmpty() }
+            .groupBy({ it.sfi to RecordDecoder.contentHash(it.hex) }, { it.selectedAid })
+        return { t ->
+            val candidates = aidsByContent[t.sfi to t.identity].orEmpty()
+            candidates.firstOrNull { CardProfiles.decodeProtocol(it, t.sfi) == t.protocol }
+                ?: candidates.firstOrNull()
+                ?: CardProfiles.defaultAidForProtocol(t.protocol, cardType)
+        }
+    }
+
+    private suspend fun archiveKeys(cardId: String): Set<ArchiveKey> {
+        val aids = dao.getCardApps(cardId).associate { it.appId to it.selectedAid }
+        return dao.getArchive(cardId).mapTo(mutableSetOf()) {
+            ArchiveKey(aids[it.appId].orEmpty(), it.sfi, it.contentHash)
+        }
+    }
+
+    /** 写入归档，返回新增行数；已存在的行只刷新 last_seen_at。 */
+    suspend fun archiveTransactions(
+        cardId: String,
+        cardType: String,
+        records: List<RecordDecoder.ZoneRecord>,
+        transactions: List<CanonicalTransaction>
+    ): Int {
+        if (transactions.isEmpty()) return 0
         val now = System.currentTimeMillis()
-        val rows = transactions.distinctBy { ArchiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) }
-            .map { t ->
+        val aidOf = aidResolver(records, cardType)
+        val appIds = mutableMapOf<String, Long>()
+        val rows = transactions.map { aidOf(it) to it }
+            .distinctBy { (aid, t) -> ArchiveKey(aid, t.sfi.toSfiHex(), t.identity) }
+            .map { (aid, t) ->
                 ArchivedTransactionEntity(
-                    cardId = cardId,
+                    appId = appIds.getOrPut(aid) { ensureApp(cardId, aid) },
                     sfi = t.sfi.toSfiHex(),
-                    protocol = t.protocol,
                     hex = t.hex,
                     contentHash = t.identity,
                     resolvedDate = t.date,
-                    balanceAfterFen = t.balanceAfterFen,
-                    logFormat = t.logFormat,
                     firstSeenAt = now,
                     lastSeenAt = now
                 )
             }
         val inserted = dao.insertArchiveRows(rows)
         val repeated = rows.filterIndexed { index, _ -> inserted[index] == -1L }
-        for ((zone, entries) in repeated.groupBy { it.protocol to it.sfi }) {
+        for ((zone, entries) in repeated.groupBy { it.appId to it.sfi }) {
             // SQLite 绑定数量有上限，长历史导入也按小批次更新。
             for (batch in entries.chunked(400)) {
-                dao.touchArchives(cardId, zone.first, zone.second, batch.map { it.contentHash }, now)
+                dao.touchArchives(zone.first, zone.second, batch.map { it.contentHash }, now)
             }
         }
-        return inserted.any { it != -1L }
+        return inserted.count { it != -1L }
     }
 
     suspend fun backfillArchiveFromRaw(
@@ -226,13 +306,10 @@ class TransitRepository(private val context: Context) {
         val records = RecordDecoder.transactionRecords(cardType, rawRecords)
         if (records.isEmpty()) return false
 
-        fun archiveKey(contentHash: String, protocol: String, sfi: String) =
-            ArchiveKey(contentHash, protocol, sfi)
-
-        val existingKeys = dao.getArchive(cardId).mapTo(mutableSetOf()) {
-            archiveKey(it.contentHash, it.protocol, it.sfi)
-        }
-        if (records.none { archiveKey(RecordDecoder.recordContentHash(it), it.protocol, it.sfi.toSfiHex()) !in existingKeys }) {
+        val existingKeys = archiveKeys(cardId)
+        if (records.none {
+                ArchiveKey(it.selectedAid, it.sfi.toSfiHex(), RecordDecoder.contentHash(it.hex)) !in existingKeys
+            }) {
             return false
         }
 
@@ -241,22 +318,21 @@ class TransitRepository(private val context: Context) {
             rawRecords, DiscountRegistry.walletMonthStats
         )?.month
         val decoded = RecordDecoder.decodeCard(cardType, records, statsMonth, currentYear)
+        val aidOf = aidResolver(records, cardType)
         val missing = decoded.archive.filter {
-            archiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) !in existingKeys
+            ArchiveKey(aidOf(it), it.sfi.toSfiHex(), it.identity) !in existingKeys
         }
         if (missing.isEmpty()) return false
 
         return database.withTransaction {
-            val currentKeys = dao.getArchive(cardId).mapTo(mutableSetOf()) {
-                archiveKey(it.contentHash, it.protocol, it.sfi)
-            }
+            val currentKeys = archiveKeys(cardId)
             val pending = missing.filter {
-                archiveKey(it.identity, it.protocol, it.sfi.toSfiHex()) !in currentKeys
+                ArchiveKey(aidOf(it), it.sfi.toSfiHex(), it.identity) !in currentKeys
             }
             if (pending.isEmpty()) {
                 false
             } else {
-                archiveTransactions(cardId, orderForArchive(cardId, records, pending))
+                archiveTransactions(cardId, cardType, records, orderForArchive(cardId, records, pending))
                 true
             }
         }
@@ -269,11 +345,12 @@ class TransitRepository(private val context: Context) {
         apps: List<CardAppEntity>
     ): Boolean = database.withTransaction {
         dao.upsertCard(card)
+        syncCardApps(card.cardId, apps)
         syncRawRecords(card.cardId, rawRecords)
         val records = RecordDecoder.transactionRecords(card.cardType, rawRecords)
-        val archiveChanged = archiveTransactions(card.cardId, orderForArchive(card.cardId, records, transactions))
-        syncCardApps(card.cardId, apps)
-        archiveChanged
+        archiveTransactions(
+            card.cardId, card.cardType, records, orderForArchive(card.cardId, records, transactions)
+        ) > 0
     }
 
     /**
@@ -286,39 +363,35 @@ class TransitRepository(private val context: Context) {
         records: List<RecordDecoder.ZoneRecord>,
         transactions: List<CanonicalTransaction>
     ): List<CanonicalTransaction> {
-        fun key(t: CanonicalTransaction) = ArchiveKey(t.identity, t.protocol, t.sfi.toSfiHex())
-        val recNoByKey = records.associate {
-            ArchiveKey(RecordDecoder.recordContentHash(it), it.protocol, it.sfi.toSfiHex()) to it.recNo
-        }
+        val recNoByContent = records.associate { (it.sfi to RecordDecoder.contentHash(it.hex)) to it.recNo }
+        val aids = dao.getCardApps(cardId).associate { it.appId to it.selectedAid }
         val archive = dao.getArchive(cardId)
-        val existingKeys = archive.mapTo(mutableSetOf()) { ArchiveKey(it.contentHash, it.protocol, it.sfi) }
-        val (existing, fresh) = transactions.sortedByDescending { recNoByKey[key(it)] ?: 0 }
-            .partition { key(it) in existingKeys }
-        val latestLnt = archive.filter { it.protocol == "LNT" }.maxByOrNull { it.rowId }?.resolvedDate
+        val existingContent = archive.mapTo(mutableSetOf()) { it.sfi.toSfiInt() to it.contentHash }
+        val (existing, fresh) = transactions.sortedByDescending { recNoByContent[it.sfi to it.identity] ?: 0 }
+            .partition { (it.sfi to it.identity) in existingContent }
+        val latestLnt = archive.filter {
+            CardProfiles.decodeProtocol(aids[it.appId].orEmpty(), it.sfi.toSfiInt()) == "LNT"
+        }.maxByOrNull { it.rowId }?.resolvedDate
         return existing + RecordDecoder.alignLntYears(fresh, latestLnt)
     }
 
-    suspend fun loadArchive(cardId: String): List<ArchivedTransactionEntity> =
-        dao.getArchive(cardId)
-
-    suspend fun maxArchiveRowId(cardId: String): Long? = dao.maxArchiveRowId(cardId)
-
-    // ── card_app（按卡片与应用合并，保留最新 SELECT/BALANCE 快照）──
-
-    suspend fun syncCardApps(cardId: String, apps: List<CardAppEntity>) {
-        dao.insertCardApps(apps.filter { it.selectedAid.isNotBlank() }.map { it.copy(cardId = cardId) })
+    /** 归档行 + 所属应用 AID；EC 日志附带该应用该文件的 DOL（原始记录 rec_no=0）。 */
+    suspend fun loadArchive(cardId: String, rawRecords: List<RawRecord>): List<RecordDecoder.ArchivedRecord> {
+        val aids = dao.getCardApps(cardId).associate { it.appId to it.selectedAid }
+        val formats = RecordDecoder.ecLogFormats(rawRecords)
+        return dao.getArchive(cardId).map { row ->
+            val aid = aids[row.appId].orEmpty()
+            val sfi = row.sfi.toSfiInt()
+            RecordDecoder.ArchivedRecord(sfi, aid, row.hex, row.resolvedDate, formats[aid.uppercase() to sfi])
+        }
     }
 
-    suspend fun loadCardApps(cardId: String): List<CardAppEntity> =
-        dao.getCardApps(cardId)
-
-    suspend fun loadLatestCardApps(cardId: String): List<CardAppEntity> =
-        dao.getLatestCardApps(cardId)
+    suspend fun maxArchiveRowId(cardId: String): Long? = dao.maxArchiveRowId(cardId)
 
     // ── 删除 / 清空 ──
 
     suspend fun deleteCard(cardId: String) {
-        dao.deleteCard(cardId)  // FK CASCADE 清除 raw_records + transactions_archive
+        dao.deleteCard(cardId)  // FK CASCADE：cards → card_app → raw_records + transactions_archive
         SessionLogStore.deleteCardLogs(context, cardId)
         if (AppPreferences.getSelectedCardId(context) == cardId) {
             AppPreferences.setSelectedCardId(context, null)
@@ -346,10 +419,10 @@ class TransitRepository(private val context: Context) {
     }
 
     /**
-     * 导入另一份用户库：卡片按 card_number（空号按 last_four）匹配现有卡，已存在则复用其 card_id
-     * 并合并记录（不覆盖卡片元数据）；新卡分配新 UUID 并追加到卡序。
-     * 交易按 (card_id, content_hash, protocol, sfi)、原始记录按 (card_id, selected_aid, sfi, rec_no) 去重，
-     * 只插入现有库中没有的行；应用按 (card_id, selected_aid) 合并并保留最新快照。
+     * 导入另一份用户库（旧版本经 Room 迁移到当前结构）：卡片按任一应用卡号（未知卡按芯片 UID）匹配现有卡，
+     * 已存在则复用其 card_id 并合并记录（不覆盖卡片元数据）；新卡分配新 UUID 并追加到卡序。
+     * 应用按 (card_id, selected_aid) 合并；原始记录按 (应用, sfi, rec_no)、交易按 (应用, sfi, content_hash) 去重，
+     * 只插入现有库中没有的行。
      */
     suspend fun importDatabase(importFile: File): ImportSummary {
         val src = Room.databaseBuilder(
@@ -357,9 +430,9 @@ class TransitRepository(private val context: Context) {
         ).setJournalMode(RoomDatabase.JournalMode.TRUNCATE).addMigrations(*UserDatabase.MIGRATIONS).build()
         val srcDao = src.userDao()
         val importedCards = srcDao.getAllCards()
+        val importedApps = srcDao.getAllCardApps()
         val importedRaws = srcDao.getAllRawRecords()
         val importedArchives = srcDao.getAllArchive()
-        val importedApps = srcDao.getAllCardApps()
         src.close()
 
         val now = System.currentTimeMillis()
@@ -367,62 +440,58 @@ class TransitRepository(private val context: Context) {
         // 再让本次导入的记录落到唯一的 card_id，避免“再次导入也还是两张卡”。
         val mergedCards = coalesceDuplicateCards()
         val existingCards = dao.getAllCards().toMutableList()
+        val numbersByCard = appNumbersByCard()
+        val importedAppsByCard = importedApps.groupBy { it.cardId }
         val idMap = mutableMapOf<String, String>()
         val newCardIds = mutableListOf<String>()
 
         for (card in importedCards) {
-            val existing = matchCardByNumbers(
-                existingCards,
-                card.cardNumber,
-                card.secondCardNumber.orEmpty(),
-                card.lastFour
+            val numbers = cardIdentityNumbers(
+                *importedAppsByCard[card.cardId].orEmpty().map { it.appCardNumber }.toTypedArray()
             )
-            if (existing != null) {
-                val merged = mergeCardNumbers(existing, card.cardNumber, card.secondCardNumber.orEmpty())
-                if (merged != existing) {
-                    dao.upsertCard(merged)
-                    existingCards[existingCards.indexOf(existing)] = merged
-                }
-                idMap[card.cardId] = existing.cardId
+            val existing = matchCard(existingCards, numbersByCard, numbers, card.chipUid)
+            val targetId = if (existing != null) {
+                existing.cardId
             } else {
                 val newId = UUID.randomUUID().toString()
                 val imported = card.copy(cardId = newId)
                 dao.upsertCard(imported)
                 existingCards.add(imported)
-                idMap[card.cardId] = newId
                 newCardIds.add(newId)
+                newId
             }
+            idMap[card.cardId] = targetId
+            numbersByCard.getOrPut(targetId) { mutableSetOf() }.addAll(numbers)
         }
         if (newCardIds.isNotEmpty()) {
             val order = AppPreferences.getCardOrder(context)
             AppPreferences.setCardOrder(context, order + newCardIds)
         }
 
+        val appIdMap = mutableMapOf<Long, Long>()
+        for (app in importedApps) {
+            val targetId = idMap[app.cardId] ?: continue
+            appIdMap[app.appId] = dao.mergeCardApp(app.copy(appId = 0, cardId = targetId))
+        }
+
         var newRaw = 0
         for (raw in importedRaws) {
-            val targetId = idMap[raw.cardId] ?: continue
-            if (dao.getRawSlot(targetId, raw.selectedAid, raw.sfi, raw.recNo) == null) {
+            val targetApp = appIdMap[raw.appId] ?: continue
+            if (dao.getRawSlot(targetApp, raw.sfi, raw.recNo) == null) {
                 dao.insertRawRecord(
-                    raw.copy(cardId = targetId, rowId = 0, firstSeenAt = now, lastSeenAt = now)
+                    raw.copy(rowId = 0, appId = targetApp, firstSeenAt = now, lastSeenAt = now)
                 )
                 newRaw++
             }
         }
 
-        for (app in importedApps) {
-            val targetId = idMap[app.cardId] ?: continue
-            dao.insertCardApp(app.copy(cardId = targetId, rowId = 0))
-        }
-
         var newArchive = 0
         for (arc in importedArchives) {
-            val targetId = idMap[arc.cardId] ?: continue
-            if (dao.getArchiveSlot(targetId, arc.contentHash, arc.protocol, arc.sfi) == null) {
-                dao.insertArchiveRow(
-                    arc.copy(cardId = targetId, rowId = 0, firstSeenAt = now, lastSeenAt = now)
-                )
-                newArchive++
-            }
+            val targetApp = appIdMap[arc.appId] ?: continue
+            val inserted = dao.insertArchiveRow(
+                arc.copy(rowId = 0, appId = targetApp, firstSeenAt = now, lastSeenAt = now)
+            )
+            if (inserted != -1L) newArchive++
         }
 
         return ImportSummary(newCardIds.size, newRaw, newArchive, mergedCards)
@@ -430,15 +499,16 @@ class TransitRepository(private val context: Context) {
 
     /**
      * 导入 TripReader（card_table / tran_table）数据库：
-     * 卡片按 cdNo / cdNo2（交通联合 19 位 / 岭南通 10 位应用序列号）匹配现有卡（card_number /
-     * second_card_number），已存在则复用其 card_id 合并交易；新卡按记录内容推断卡型并分配新 UUID。
-     * 交易记录去重沿用 (card_id, content_hash, protocol, sfi)：
-     *  - TU 钱包记录（0x1E 旅程 + 全日期 0x18）走 RecordDecoder.decodeCard 复原日期/余额/站点；
+     * 卡片按 cdNo / cdNo2 匹配现有卡的应用卡号，已存在则复用其 card_id 合并交易；新卡按来源卡型标志建卡。
+     * 每条记录按 TripReader 逐条应用标记归入应用（txTU18 → TU 钱包，txCU → 城市钱包，txTUResult → TU 0x1E），
+     * 卡号/余额按 TU / 城市钱包两侧归入对应应用（见 [tripReaderCardNumbers] / [tripReaderBalances]）。
+     *  - TU 与 CU/SZT/天府通记录走 RecordDecoder.decodeCard 复原日期；
      *  - LNT 记录（岭南通，年份字段 0000）直接用源库 txDate 复原年份，resolved_date 落库。
      */
     suspend fun importTripReaderDatabase(importFile: File): ImportSummary {
         val source = TripReaderDatabase.read(importFile)
         val existingCards = dao.getAllCards().toMutableList()
+        val numbersByCard = appNumbersByCard()
         val now = System.currentTimeMillis()
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val newCardIds = mutableListOf<String>()
@@ -447,47 +517,40 @@ class TransitRepository(private val context: Context) {
 
         for (src in source.cards) {
             val tuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
-            val sztRecords = mutableListOf<RecordDecoder.ZoneRecord>()
-            val cuRecords = mutableListOf<RecordDecoder.ZoneRecord>()
+            val walletRecords = mutableListOf<RecordDecoder.ZoneRecord>()
             val lntRows = mutableListOf<Pair<String, Long>>()  // (0x18 hex, 源库 txDate 毫秒)
             var recNo = 0
             for (tx in src.transactions) {
-                if (tx.cuHex.isNotEmpty()) {
-                    when (tripReaderFareProtocol(src, tx)) {
-                        "SZT" -> sztRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "SZT", tx.cuHex))
-                        "CU" -> cuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "CU", tx.cuHex))
-                        "LNT" -> lntRows.add(tx.cuHex to tx.dateMs)
-                        else -> tuRecords.add(RecordDecoder.ZoneRecord(0x18, recNo++, "TU", tx.cuHex))
+                val fareAid = tx.cuHex.takeIf { it.isNotEmpty() }?.let { tripReaderFareAid(src, tx) }
+                if (fareAid != null) {
+                    val sfi = tx.sfi ?: 0x18
+                    val record = RecordDecoder.ZoneRecord(
+                        sfi, recNo++, CardProfiles.decodeProtocol(fareAid, sfi), tx.cuHex, selectedAid = fareAid
+                    )
+                    when (fareAid) {
+                        CardProfiles.YCT_TICL_AID -> lntRows.add(tx.cuHex to tx.dateMs)
+                        CardProfiles.TU_EP_AID -> tuRecords.add(record)
+                        else -> walletRecords.add(record)
                     }
                 }
                 if (tx.tuHex.isNotEmpty()) {
-                    tuRecords.add(RecordDecoder.ZoneRecord(0x1E, recNo++, "TU", tx.tuHex))
+                    tuRecords.add(
+                        RecordDecoder.ZoneRecord(0x1E, recNo++, "TU", tx.tuHex, selectedAid = CardProfiles.TU_EP_AID)
+                    )
                 }
             }
 
-            val hasLnt = src.isLNT == true || src.isYCT || lntRows.isNotEmpty()
-            val importedCardType = when {
-                src.isSZT -> "SZT"
-                src.isCU -> "CU"
-                hasLnt -> "YCT"
-                else -> "TU"
-            }
-            val existing = matchTripReaderCard(existingCards, src.cdNo, src.cdNo2)
+            val importedCardType = tripReaderCardType(src)
+            val cardNumbers = tripReaderCardNumbers(src)
+            val existing = matchCard(
+                existingCards, numbersByCard,
+                cardIdentityNumbers(*cardNumbers.map { it.second }.toTypedArray()), null
+            )
             val cardId = if (existing != null) {
-                val merged = mergeCardNumbers(existing, src.cdNo, src.cdNo2).let {
-                    if (importedCardType in setOf("SZT", "CU")) {
-                        it.copy(cardType = importedCardType)
-                    } else {
-                        it
-                    }
-                }.let {
-                    src.cdBalance.takeIf { balance -> balance >= 0 }?.let { balance ->
-                        it.copy(latestBalanceFen = balance)
-                    } ?: it
-                }
-                if (merged != existing) {
-                    dao.upsertCard(merged)
-                    existingCards[existingCards.indexOf(existing)] = merged
+                if (importedCardType in setOf("SZT", "CU", "TFT") && existing.cardType != importedCardType) {
+                    val retyped = existing.copy(cardType = importedCardType)
+                    dao.upsertCard(retyped)
+                    existingCards[existingCards.indexOf(existing)] = retyped
                 }
                 existing.cardId
             } else run {
@@ -495,50 +558,67 @@ class TransitRepository(private val context: Context) {
                 val gradient = importCardPalette.firstOrNull { it.first !in usedColors }
                     ?: importCardPalette[newCardIds.size % importCardPalette.size]
                 usedColors.add(gradient.first)
-                val imported = buildTripReaderCard(id, src, importedCardType, gradient)
+                val imported = CardEntity(
+                    cardId = id,
+                    name = sequenceOf(src.cdNo, src.cdNo2)
+                        .mapNotNull(TransitData::cardName)
+                        .firstOrNull() ?: src.cdTitle,
+                    cardType = importedCardType,
+                    gradientStartColor = gradient.first,
+                    gradientEndColor = gradient.second,
+                    createdAt = now,
+                    lastReadAt = now
+                )
                 dao.upsertCard(imported)
                 existingCards.add(imported)
                 newCardIds.add(id)
                 id
             }
 
-            // CU/SZT 的 0x18 与 TU 的 0x1E 分开解码、归档，沿用读卡时的双协议路径。
-            val transactionRecords = cuRecords + sztRecords + tuRecords
-            val transactionCardType = when {
-                src.isSZT -> "SZT"
-                src.isCU -> "CU"
-                else -> "TU"
+            // 卡号/余额只补充应用缺失的值：实际读卡得到的快照更新（read_at 更大），不被导入覆盖。
+            for ((aid, number) in cardNumbers) {
+                dao.mergeCardApp(CardAppEntity(cardId = cardId, selectedAid = aid, appCardNumber = number, readAt = 0))
             }
-            if (transactionRecords.isNotEmpty()) {
-                val decoded = RecordDecoder.decodeCard(transactionCardType, transactionRecords, null, currentYear)
-                for (t in decoded.archive) {
-                    val sfiHex = t.sfi.toSfiHex()
-                    if (dao.getArchiveSlot(cardId, t.identity, t.protocol, sfiHex) == null) {
-                        dao.insertArchiveRow(
-                            ArchivedTransactionEntity(
-                                cardId = cardId, sfi = sfiHex, protocol = t.protocol, hex = t.hex,
-                                contentHash = t.identity, resolvedDate = t.date,
-                                balanceAfterFen = t.balanceAfterFen,
-                                logFormat = t.logFormat,
-                                firstSeenAt = now, lastSeenAt = now
-                            )
-                        )
-                        newArchive++
-                    }
-                }
+            for ((aid, balance) in tripReaderBalances(src)) {
+                dao.mergeCardApp(CardAppEntity(cardId = cardId, selectedAid = aid, balanceFen = balance, readAt = 0))
             }
-            // LNT：年份来自源库绝对时间，渲染时由归档的 resolved_date 覆盖 hex 内 0000 年份
-            for ((hex, dateMs) in lntRows) {
-                val hash = RecordDecoder.contentHash(hex)
-                if (dao.getArchiveSlot(cardId, hash, "LNT", "0x18") == null) {
-                    dao.insertArchiveRow(
-                        ArchivedTransactionEntity(
-                            cardId = cardId, sfi = "0x18", protocol = "LNT", hex = hex,
-                            contentHash = hash, resolvedDate = yyyyMMdd(dateMs),
-                            balanceAfterFen = null, firstSeenAt = now, lastSeenAt = now
+            numbersByCard.getOrPut(cardId) { mutableSetOf() }.addAll(cardNumbers.map { it.second })
+            // 信息文件只填补空槽位：实际读卡得到的当前槽位内容不被导入覆盖。
+            val seenAt = src.cdLastUpdateMs ?: now
+            for ((aid, hex) in tripReaderInfoRecords(src)) {
+                val appId = ensureApp(cardId, aid)
+                if (dao.getRawSlot(appId, "0x15", 0) == null) {
+                    dao.insertRawRecord(
+                        RawRecordEntity(
+                            appId = appId, sfi = "0x15", recNo = 0, hex = hex,
+                            contentHash = RecordDecoder.contentHash(hex), firstSeenAt = seenAt, lastSeenAt = seenAt
                         )
                     )
-                    newArchive++
+                }
+            }
+
+            // TU 与城市钱包分开解码；归档按各记录自己的应用落库。
+            val decodedArchive = buildList {
+                if (tuRecords.isNotEmpty()) {
+                    addAll(RecordDecoder.decodeCard("TU", tuRecords, null, currentYear).archive)
+                }
+                if (walletRecords.isNotEmpty()) {
+                    addAll(RecordDecoder.decodeCard(importedCardType, walletRecords, null, currentYear).archive)
+                }
+            }
+            newArchive += archiveTransactions(cardId, importedCardType, tuRecords + walletRecords, decodedArchive)
+            // LNT：年份来自源库绝对时间，渲染时由归档的 resolved_date 覆盖 hex 内 0000 年份
+            if (lntRows.isNotEmpty()) {
+                val lntApp = ensureApp(cardId, CardProfiles.YCT_TICL_AID)
+                for ((hex, dateMs) in lntRows) {
+                    val inserted = dao.insertArchiveRow(
+                        ArchivedTransactionEntity(
+                            appId = lntApp, sfi = "0x18", hex = hex,
+                            contentHash = RecordDecoder.contentHash(hex), resolvedDate = yyyyMMdd(dateMs),
+                            firstSeenAt = now, lastSeenAt = now
+                        )
+                    )
+                    if (inserted != -1L) newArchive++
                 }
             }
         }
@@ -547,7 +627,6 @@ class TransitRepository(private val context: Context) {
             val order = AppPreferences.getCardOrder(context)
             AppPreferences.setCardOrder(context, order + newCardIds)
         }
-        repairImportedCuArchives()
         return ImportSummary(newCardIds.size, 0, newArchive)
     }
 
@@ -555,20 +634,19 @@ class TransitRepository(private val context: Context) {
     fun isTripReaderDatabase(file: File): Boolean = TripReaderDatabase.isTripReaderDatabase(file)
 
     /**
-     * 合并早期版本留下的重复卡。只接受完整 primary/secondary 卡号有交集的卡，绝不以尾号作为
+     * 合并早期版本留下的重复卡。只接受应用卡号有交集的卡，绝不以尾号作为
      * 删除依据；尾号相同的不同实体卡会继续独立保留。
      */
     suspend fun coalesceDuplicateCards(): Int {
         val replacementIds = mutableMapOf<String, String>()
         val mergedCount = database.withTransaction {
+            val numbersByCard = appNumbersByCard()
             val canonicalCards = mutableListOf<CardEntity>()
             var count = 0
             for (candidate in dao.getAllCards()) {
+                val candidateNumbers = numbersByCard[candidate.cardId].orEmpty()
                 val canonicalIndex = canonicalCards.indexOfFirst { canonical ->
-                    sharesCardIdentity(
-                        cardIdentityNumbers(canonical.cardNumber, canonical.secondCardNumber),
-                        cardIdentityNumbers(candidate.cardNumber, candidate.secondCardNumber)
-                    )
+                    sharesCardIdentity(numbersByCard[canonical.cardId].orEmpty(), candidateNumbers)
                 }
                 if (canonicalIndex < 0) {
                     canonicalCards.add(candidate)
@@ -581,9 +659,7 @@ class TransitRepository(private val context: Context) {
                     backfillArchiveFromRaw(
                         card.cardId,
                         card.cardType,
-                        dao.getRawRecords(card.cardId).map {
-                            it.toRawRecord()
-                        },
+                        loadRawRecords(card.cardId),
                         Calendar.getInstance().get(Calendar.YEAR)
                     )
                 }
@@ -591,6 +667,7 @@ class TransitRepository(private val context: Context) {
                 dao.upsertCard(merged)
                 mergeDuplicateCardRows(merged.cardId, candidate.cardId)
                 dao.deleteCard(candidate.cardId)
+                numbersByCard.getOrPut(merged.cardId) { mutableSetOf() }.addAll(candidateNumbers)
                 canonicalCards[canonicalIndex] = merged
                 replacementIds[candidate.cardId] = merged.cardId
                 count++
@@ -610,117 +687,55 @@ class TransitRepository(private val context: Context) {
         return mergedCount
     }
 
-    /** 合并归档及应用记录，并保留最新原始槽位，再由调用方删除冗余卡。 */
+    /** 应用合并到目标卡，原始槽位保留较新的内容、归档补入缺失行，再由调用方删除冗余卡。 */
     private suspend fun mergeDuplicateCardRows(targetCardId: String, duplicateCardId: String) {
+        val appIds = mutableMapOf<Long, Long>()
+        for (app in dao.getCardApps(duplicateCardId)) {
+            appIds[app.appId] = dao.mergeCardApp(app.copy(appId = 0, cardId = targetCardId))
+        }
         for (raw in dao.getRawRecords(duplicateCardId)) {
-            val existing = dao.getRawSlot(targetCardId, raw.selectedAid, raw.sfi, raw.recNo)
+            val targetApp = appIds[raw.appId] ?: continue
+            val existing = dao.getRawSlot(targetApp, raw.sfi, raw.recNo)
             if (existing == null) {
-                dao.insertRawRecord(raw.copy(cardId = targetCardId, rowId = 0))
+                dao.insertRawRecord(raw.copy(rowId = 0, appId = targetApp))
             } else if (raw.lastSeenAt > existing.lastSeenAt) {
-                dao.overwriteRawSlot(
-                    targetCardId, raw.selectedAid, raw.sfi, raw.recNo,
-                    raw.hex, raw.contentHash, raw.lastSeenAt
-                )
+                dao.overwriteRawSlot(targetApp, raw.sfi, raw.recNo, raw.hex, raw.contentHash, raw.lastSeenAt)
             }
         }
         for (archive in dao.getArchive(duplicateCardId)) {
-            if (dao.getArchiveSlot(targetCardId, archive.contentHash, archive.protocol, archive.sfi) == null) {
-                dao.insertArchiveRow(archive.copy(cardId = targetCardId, rowId = 0))
-            }
-        }
-        for (app in dao.getCardApps(duplicateCardId)) {
-            dao.insertCardApp(app.copy(cardId = targetCardId, rowId = 0))
+            val targetApp = appIds[archive.appId] ?: continue
+            dao.insertArchiveRow(archive.copy(rowId = 0, appId = targetApp))
         }
     }
 
     private fun mergeDuplicateCardMetadata(
         canonical: CardEntity,
         duplicate: CardEntity
-    ): CardEntity {
-        val withNumbers = mergeCardNumbers(
-            canonical, duplicate.cardNumber, duplicate.secondCardNumber.orEmpty()
-        )
-        val duplicateIsNewer = duplicate.lastReadAt > canonical.lastReadAt
-        return withNumbers.copy(
-            cardType = if (withNumbers.cardType == "TU" && duplicate.cardType != "TU") {
-                duplicate.cardType
-            } else {
-                withNumbers.cardType
-            },
-            lastFour = withNumbers.lastFour.ifEmpty { duplicate.lastFour },
-            latestBalanceFen = if (duplicateIsNewer || withNumbers.latestBalanceFen == null) {
-                duplicate.latestBalanceFen
-            } else {
-                withNumbers.latestBalanceFen
-            },
-            createdAt = minOf(withNumbers.createdAt, duplicate.createdAt),
-            lastReadAt = maxOf(withNumbers.lastReadAt, duplicate.lastReadAt)
-        )
-    }
+    ): CardEntity = canonical.copy(
+        cardType = if (canonical.cardType == "TU" && duplicate.cardType != "TU") {
+            duplicate.cardType
+        } else {
+            canonical.cardType
+        },
+        chipUid = canonical.chipUid ?: duplicate.chipUid,
+        createdAt = minOf(canonical.createdAt, duplicate.createdAt),
+        lastReadAt = maxOf(canonical.lastReadAt, duplicate.lastReadAt)
+    )
 
-    private fun matchTripReaderCard(
+    /** 卡片身份：任一应用卡号相同；没有应用卡号的未知卡按芯片 UID。 */
+    private fun matchCard(
         existing: List<CardEntity>,
-        cdNo: String,
-        cdNo2: String
-    ): CardEntity? = matchCardByNumbers(existing, cdNo, cdNo2)
-
-    private fun matchCardByNumbers(
-        existing: List<CardEntity>,
-        first: String,
-        second: String,
-        fallbackLastFour: String = ""
+        numbersByCard: Map<String, Set<String>>,
+        numbers: Set<String>,
+        chipUid: String?
     ): CardEntity? {
-        val numbers = cardIdentityNumbers(first, second)
         if (numbers.isNotEmpty()) {
-            existing.firstOrNull { card ->
-                sharesCardIdentity(numbers, cardIdentityNumbers(card.cardNumber, card.secondCardNumber))
-            }?.let { return it }
+            return existing.firstOrNull { card ->
+                sharesCardIdentity(numbers, numbersByCard[card.cardId].orEmpty())
+            }
         }
-        val lastFours = buildSet {
-            addAll(numbers.map { it.takeLast(4) }.filter { it.isNotEmpty() })
-            fallbackLastFour.trim().takeIf { it.isNotEmpty() }?.let(::add)
-        }
-        return if (lastFours.isNotEmpty()) {
-            existing.firstOrNull { it.lastFour in lastFours }
-        } else {
-            null
-        }
-    }
-
-    private fun mergeCardNumbers(existing: CardEntity, first: String, second: String): CardEntity {
-        val numbers = cardIdentityNumbers(first, second)
-        val primary = existing.cardNumber.ifEmpty { numbers.firstOrNull().orEmpty() }
-        val secondary = existing.secondCardNumber?.takeIf { it.isNotEmpty() }
-            ?: numbers.firstOrNull { it != primary }
-        return if (primary != existing.cardNumber || secondary != existing.secondCardNumber) {
-            existing.copy(cardNumber = primary, secondCardNumber = secondary)
-        } else {
-            existing
-        }
-    }
-
-    private fun buildTripReaderCard(
-        cardId: String,
-        src: TripReaderCard,
-        cardType: String,
-        gradient: Pair<Long, Long>
-    ): CardEntity {
-        val now = System.currentTimeMillis()
-        return CardEntity(
-            cardId = cardId,
-            cardNumber = src.cdNo,
-            secondCardNumber = src.cdNo2.ifEmpty { null },
-            name = sequenceOf(src.cdNo, src.cdNo2)
-                .mapNotNull(TransitData::cardName)
-                .firstOrNull() ?: src.cdTitle,
-            cardType = cardType,
-            lastFour = src.cdNo.takeLast(4).ifEmpty { src.cdNo2.takeLast(4) },
-            gradientStartColor = gradient.first,
-            gradientEndColor = gradient.second,
-            latestBalanceFen = if (src.cdBalance >= 0) src.cdBalance else null,
-            createdAt = now,
-            lastReadAt = now
-        )
+        val uid = chipUid?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return existing.firstOrNull { it.chipUid == uid }
     }
 
     private fun yyyyMMdd(epochMs: Long): String =

@@ -24,6 +24,7 @@ import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
 import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
+import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
 
@@ -41,7 +42,6 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private var rawHexToCopy = ""
     /** 与原始记录面板使用同一组数据。 */
     private var rawRecordForFeedback = ""
-    private data class RawBlock(val sfi: Int, val protocol: String, val hex: String)
     private var feedbackDialog: Dialog? = null
 
     override fun onCreateView(
@@ -125,9 +125,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         }
         val code = if (isLnt) rawCode.removePrefix(prefix) else rawCode
         // 设备编号候选：Line & Station（1E）与各原始记录的 Terminal；0x18 与 0x1E 的终端号可能不同，两者都列出
-        val rawBlocks = listOf(txn.sfi to txn.hex) +
-            listOfNotNull(txn.journeyHex?.let { 0x1E to it }) +
-            txn.rawVariants.map { it.sfi to it.hex }
+        val rawBlocks = txn.sources.map { it.sfi to it.hex }
         val journeyHexes = rawBlocks.filter { it.first == 0x1E }.map { it.second }
         val terminals = rawBlocks.mapNotNull { (sfi, hex) ->
             when {
@@ -358,35 +356,18 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
     private fun bindRawHex(txn: UiTransaction) {
         val hexContainer = binding.hexPanel
         hexContainer.removeAllViews()
-        val mainHex = txn.hex
-        val journeyHex = txn.journeyHex
-        val variants = txn.rawVariants.orEmpty()
-        if (mainHex.isBlank() && journeyHex.isNullOrBlank() && variants.isEmpty()) {
+        // 每条原始记录展示自己的来源（协议 + 应用）；同一记录（同扇区同应用同内容）只列一次
+        val blocks = txn.sources.filter { it.hex.isNotBlank() }.distinct()
+        if (blocks.isEmpty()) {
             rawHexToCopy = ""
             rawRecordForFeedback = ""
             addMonospaceLine(binding.hexPanel, getString(R.string.txn_no_raw), dim = true)
             return
         }
-        val blocks = mutableListOf<RawBlock>()
-        val sb = StringBuilder()
-        if (mainHex.isNotBlank()) {
-            appendHexBlock(binding.hexPanel, txn.sfi, mainHex, txn.protocol, txn.logFormat)
-            blocks.add(RawBlock(txn.sfi, txn.protocol, mainHex))
-            sb.append(mainHex)
+        for (block in blocks) {
+            appendHexBlock(binding.hexPanel, block)
         }
-        for (variant in variants) {
-            if (variant.hex.isBlank() || blocks.any { it.hex == variant.hex } || variant.hex == journeyHex) continue
-            appendHexBlock(binding.hexPanel, variant.sfi, variant.hex, variant.protocol)
-            blocks.add(RawBlock(variant.sfi, variant.protocol, variant.hex))
-            if (sb.isNotEmpty()) sb.append('\n')
-            sb.append(variant.hex)
-        }
-        if (!journeyHex.isNullOrBlank() && journeyHex != mainHex && blocks.none { it.hex == journeyHex }) {
-            appendHexBlock(binding.hexPanel, 0x1E, journeyHex, "TU")
-            blocks.add(RawBlock(0x1E, "TU", journeyHex))
-            if (sb.isNotEmpty()) sb.append('\n')
-            sb.append(journeyHex)
-        }
+        val sb = StringBuilder(blocks.joinToString("\n") { it.hex })
         // Match 行：标签与 SFI 同色，值新起一行；特殊匹配规则（广佛跨城/深圳）附加标记
         addMonospaceLine(binding.hexPanel, "Match", dim = true)
         val matchCode = txn.deviceCode ?: "Null"
@@ -394,20 +375,16 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         // 颜色图例：含义 + 区域 + 解析方式 + 颜色
         addDivider(binding.hexPanel)
         for (block in blocks) {
-            val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex,
-                txn.logFormat.takeIf { block.hex == txn.hex }
-            )
+            val fields = blockFields(block)
             if (fields.isEmpty()) continue
-            addMonospaceLine(binding.hexPanel, "SFI ${block.sfi.toSfiHex()} fields", dim = true)
+            addMonospaceLine(binding.hexPanel, "${RawHexFormatter.blockTitle(block.sfi, block.protocol, block.selectedAid)} fields", dim = true)
             for (f in fields) addLegendRow(binding.hexPanel, f)
         }
         rawHexToCopy = buildCopyText(sb.toString(), blocks, txn)
         rawRecordForFeedback = buildString {
             for (block in blocks) {
                 if (isNotEmpty()) append("\n\n")
-                append("SFI ${block.sfi.toSfiHex()}")
-                if (block.protocol.isNotBlank()) append(" (${block.protocol})")
+                append(RawHexFormatter.blockTitle(block.sfi, block.protocol, block.selectedAid))
                 append('\n').append(block.hex)
             }
             append("\n\n[Match] ").append(matchCode)
@@ -417,18 +394,15 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     private fun buildCopyText(
         rawValue: String,
-        blocks: List<RawBlock>,
+        blocks: List<RawHexBlock>,
         txn: UiTransaction
     ): String {
         val out = StringBuilder(rawValue)
         out.append("\n\n")
         for (block in blocks) {
-            val fields = RawHexFormatter.fieldsFor(
-                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex,
-                txn.logFormat.takeIf { block.hex == txn.hex }
-            )
+            val fields = blockFields(block)
             if (fields.isEmpty()) continue
-            out.append("SFI ${block.sfi.toSfiHex()}\n")
+            out.append(RawHexFormatter.blockTitle(block.sfi, block.protocol, block.selectedAid)).append('\n')
             for (f in fields) {
                 val methodPart = if (f.method.isEmpty()) "" else " ${f.method}"
                 out.append("[${f.label} ${rangeText(f.start, f.end)}$methodPart] ")
@@ -449,16 +423,13 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         return compact.substring(from, to)
     }
 
-    private fun appendHexBlock(
-        container: LinearLayout,
-        sfi: Int,
-        hex: String,
-        protocol: String,
-        logFormat: String? = null
-    ) {
-        val fields = RawHexFormatter.fieldsFor(sfi, ApduUtil.hexToBytes(hex).size, protocol, hex, logFormat)
-        addMonospaceLine(container, "SFI ${sfi.toSfiHex()}", dim = true)
-        addColoredHexLine(container, RawHexFormatter.colorizeHex(hex, fields))
+    private fun blockFields(block: RawHexBlock) = RawHexFormatter.fieldsFor(
+        block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex, block.logFormat
+    )
+
+    private fun appendHexBlock(container: LinearLayout, block: RawHexBlock) {
+        addMonospaceLine(container, RawHexFormatter.blockTitle(block.sfi, block.protocol, block.selectedAid), dim = true)
+        addColoredHexLine(container, RawHexFormatter.colorizeHex(block.hex, blockFields(block)))
     }
 
     private fun addDivider(container: LinearLayout) {
@@ -472,7 +443,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val lineView = TextView(requireContext()).apply {
             this.text = spannable
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.RAW)             // 未解析字节保持原始 hex 色
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制
@@ -495,14 +466,14 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         row.addView(TextView(requireContext()).apply {
             text = f.label
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(f.color)
         })
         val methodPart = if (f.method.isNotEmpty()) " ${f.method}" else ""
         row.addView(TextView(requireContext()).apply {
             text = " [${rangeText(f.start, f.end)}$methodPart]"
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.LEGEND_TEXT)
             setTextIsSelectable(true)
         })
@@ -517,7 +488,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             this.text = text
             textSize = 10f
             setTextColor(if (dim) RawHexFormatter.DIM else RawHexFormatter.RAW)
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制
         }

@@ -5,10 +5,15 @@ package com.example.nfctransit.model
  * 站点映射、文案、图标改动时只需重新映射为 UiTransaction，不影响 NFC 原始数据。
  * 金额/余额统一为 Long 分，UI 层再转元。
  */
+/** 组成一笔交易的一条原始记录及其来源：读出它的应用 AID，EC 日志另带该文件的 DOL。 */
 data class RawHexBlock(
     val sfi: Int,
     val protocol: String,
-    val hex: String
+    val hex: String,
+    /** 读出该记录的应用 AID；无读卡来源为 null */
+    val selectedAid: String? = null,
+    /** EC 日志记录的 DOL（按字段解析需要）；其它记录为 null */
+    val logFormat: String? = null
 )
 
 data class CanonicalTransaction(
@@ -39,12 +44,14 @@ data class CanonicalTransaction(
     val deviceCode: String? = null,
     /** 特殊匹配规则标记（广佛跨城/深圳终端号派生，如 "(SP Rule: Guangzhou/Foshan)"）；详情页 Match 行展示；仅内存，不落库 */
     val spRule: String? = null,
-    /** 1E 旅程记录对应的原始 hex（TU 卡 1E+18 合并展示时携带，详情页原始数据显示两份）；仅内存，不落库 */
-    val journeyHex: String? = null,
-    /** 合并展示交易的其他原始记录（如跨应用的另一份 0x18）；仅内存，不落库 */
-    val rawVariants: List<RawHexBlock> = emptyList(),
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
     val protocols: Set<String> = emptySet(),
-    /** EC 日志为 DOL 指定布局；随归档保存，历史日志不依赖卡片当前格式。 */
-    val logFormat: String? = null
-)
+    /**
+     * 组成该交易的全部原始记录，各自带来源：首条为解析出本交易的记录，
+     * 与之合并的 TU 1E 旅程、其它应用写入的同一笔交易依次附加。仅内存，不落库。
+     */
+    val sources: List<RawHexBlock> = emptyList()
+) {
+    /** 与本交易合并的 TU 1E 旅程记录（本交易自身为 1E 时为 null） */
+    val journeyHex: String? get() = sources.firstOrNull { it.sfi == 0x1E && it.hex != hex }?.hex
+}

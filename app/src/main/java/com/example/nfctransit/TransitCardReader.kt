@@ -52,13 +52,20 @@ class TransitCardReader internal constructor(
         val previous = applicationReads[aid]
         applicationReads[aid] = AppRead(
             aid, ApduUtil.bytesToHex(ApduUtil.dataOnly(response)),
-            previous?.balanceFen, previous?.balanceResp
+            previous?.balanceFen, previous?.balanceResp, previous?.cardNumber
         )
     }
 
     private fun rememberBalance(aid: String, balance: Long?, response: String?) {
         val application = applicationReads[aid] ?: return
         applicationReads[aid] = application.copy(balanceFen = balance, balanceResp = response)
+    }
+
+    /** 卡号是读出它的应用自己的应用序列号，随该应用快照保存。 */
+    private fun rememberCardNumber(aid: String, cardNumber: String?) {
+        val number = cardNumber?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val application = applicationReads[aid] ?: return
+        applicationReads[aid] = application.copy(cardNumber = number)
     }
 
     private fun rawRecord(sfi: Int, recNo: Int, protocol: String, hex: String) =
@@ -102,7 +109,8 @@ class TransitCardReader internal constructor(
         val selectedAid: String,
         val selectResp: String,        // SELECT 成功响应（FCI）dataOnly hex
         val balanceFen: Long?,         // 该应用余额（分），无/失败为 null
-        val balanceResp: String?       // BALANCE CHECK 响应 dataOnly hex，未发/失败为 null
+        val balanceResp: String?,      // BALANCE CHECK 响应 dataOnly hex，未发/失败为 null
+        val cardNumber: String? = null // 该应用的应用序列号（卡号），未读到为 null
     )
 
     data class ReadResult(
@@ -197,8 +205,9 @@ class TransitCardReader internal constructor(
             val info = yct?.info ?: if (yct == null) readCuInfo(profile, log) else null
             val bc = if (yct == null) readBalance(profile, log) else null
             var balance = yct?.balance ?: bc?.takeIf { it.respHex != null }?.fen
-            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType },
-                if (yct != null) "5041592E41505059" else aid)
+            val infoAid = if (yct != null) CardProfiles.YCT_APPY_AID else aid
+            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType }, infoAid)
+            rememberCardNumber(infoAid, info?.cardNumber)
             yct?.statsRecord?.let(rawRecs::add)
             if (profile.cardType == "TU") {
                 val recordBalance = collectTuWallet(profile, log, rawRecs)
@@ -223,10 +232,33 @@ class TransitCardReader internal constructor(
             if (yct == null || yct.walletSelected) {
                 rememberBalance(primaryAid, balance, yct?.balanceResp ?: bc?.respHex)
             }
+
+            // 主钱包的额外文件趁其应用仍选中时限时探测；TU（双协议卡的 TU 钱包、TU 卡的电子现金）放到最后读。
+            // 实测岭南通双协议卡读完 TU/EC 后再 SELECT PAY.TICL 返回 6A82，先读 TU 会让主钱包文件探测落空。
+            if (connectionError == null && (yct == null || yct.walletSelected)) {
+                val optionalStartedAt = nowMs()
+                optionalReading = true
+                try {
+                    channel.timeout = 500
+                    val primarySelected = activeAid == primaryAid || selectApplication(primaryAid, log) != null
+                    if (primarySelected && connectionError == null) {
+                        probeAllFiles(log, rawRecs, protocol,
+                            profile.transactionSfis + profile.infoSfi + statsSfis, optionalStartedAt)
+                    }
+                } catch (error: Exception) {
+                    log.add("额外文件探测异常: ${error.message}")
+                } finally {
+                    channel.timeout = 3000
+                    optionalReading = false
+                }
+                log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
+            }
+
             val tu = if (profile.cardType in CardProfiles.DUAL_TU_TYPES && connectionError == null) {
                 readTuWallet(log, rawRecs)
             } else TuWalletResult(null, null)
             addInfoRecord(rawRecs, tu.info, "TU", tu.selectedAid)
+            rememberCardNumber(tu.selectedAid, tu.info?.cardNumber)
             if (tu.selectedAid.isNotEmpty()) {
                 rememberBalance(tu.selectedAid, tu.balance, tu.balanceResp)
             }
@@ -236,25 +268,7 @@ class TransitCardReader internal constructor(
                 }
             }
             log.add("核心读取耗时: ${nowMs() - coreStartedAt} ms")
-
-            // 先完成全部钱包的核心读取，再限时保留未知文件；断卡不会丢弃核心结果。
             optionalReading = true
-            if (connectionError == null && (yct == null || yct.walletSelected)) {
-                val optionalStartedAt = nowMs()
-                try {
-                    channel.timeout = 500
-                    val primarySelected = activeAid == primaryAid || selectApplication(primaryAid, log) != null
-                    if (primarySelected && connectionError == null) {
-                        probeAllFiles(log, rawRecs, protocol,
-                            profile.transactionSfis + profile.infoSfi + statsSfis +
-                                (if (yct != null) setOf(0x08) else emptySet()),
-                            optionalStartedAt)
-                    }
-                } catch (error: Exception) {
-                    log.add("额外文件探测异常: ${error.message}")
-                }
-                log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
-            }
             return ReadResult(profile, info, balance, tu.info, tu.balance, yct?.payMonth,
                 rawRecs, log, applicationReads.values.toList(), readError)
         }
@@ -360,6 +374,7 @@ class TransitCardReader internal constructor(
             return management ?: tags[tag]?.takeIf { it.size == 3 }?.let(BerTlv::bcd)?.let { "20$it" } ?: "未知"
         }
         val info = CardInfo("交通联合卡 (T-Union)", date(0x5F25, 0xDF25), date(0x5F24, 0xDF24), pan, "")
+        rememberCardNumber(aid, pan)
         val balanceResponse = readEcData(0x9F79, log)
         val balance = balanceResponse?.let { BerTlv.values(it)[0x9F79] }
             ?.takeIf { it.size == 6 }?.let(BerTlv::bcd)?.toLongOrNull()
@@ -682,6 +697,24 @@ class TransitCardReader internal constructor(
         if (selectTicl == null) {
             log.add("YCT 钱包应用 PAY.TICL 选择失败")
             return YctCardResult(info, null, payMonth, statsRecord = statsRecord)
+        }
+        // 月统计文件在钱包应用 PAY.TICL 下（TripReader 同样在 SELECT TICL 后读取）；
+        // 部分卡在 PAY.APPY 上下文读 SFI 0x08 返回 6A82，因此在 TICL 上下文补读。
+        if (statsRecord == null) {
+            try {
+                val resp = transceive(ApduUtil.buildReadRecord(0x08, 1, 0x16))
+                log.add("READ RECORD SFI=08 rec=1 (stats month, TICL) -> ${ApduUtil.bytesToHex(resp)}")
+                val d = ApduUtil.dataOnly(resp)
+                if (ApduUtil.isSuccess(resp) && d.size >= 5) {
+                    statsRecord = rawRecord(0x08, 1, "LNT", ApduUtil.bytesToHex(d))
+                    val year = 2000 + bcdNibble(d[3])
+                    val month = bcdNibble(d[4])
+                    if (month in 1..12) payMonth = year * 100 + month
+                    log.add("统计月份: ${if (payMonth != null) payMonth else "无法解析"}")
+                }
+            } catch (e: Exception) {
+                log.add("读取统计月份异常: ${e.message}")
+            }
         }
         // ③ BALANCE CHECK 查余额（必须在 TICL 上下文）；失败（respHex=null）→ 余额未知为 null
         val balance = readBalance(profile, log)

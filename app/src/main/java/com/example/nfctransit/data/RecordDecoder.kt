@@ -7,7 +7,6 @@ import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.MonthAccumSpec
 import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.TransitDirection
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import java.security.MessageDigest
 import java.util.Calendar
 
@@ -27,26 +26,43 @@ object RecordDecoder {
         val recNo: Int,
         val protocol: String,  // "LNT"/"SZT"/"TU"/"" — 双协议卡区分钱包
         val hex: String,
+        val logFormat: String? = null,
+        val selectedAid: String = ""  // 读出该记录的应用；无读卡来源（TripReader 导入）时为空
+    )
+
+    /**
+     * 归档行的解码输入：仓库按 app_id 关联出应用 AID（解码协议由 AID 推出），
+     * EC 日志行附带所属应用该文件的 DOL（raw_records rec_no=0）。
+     */
+    data class ArchivedRecord(
+        val sfi: Int,
+        val selectedAid: String,
+        val hex: String,
+        val resolvedDate: String,
         val logFormat: String? = null
     )
+
+    /** EC 日志文件的 DOL：rec_no=0 保存 GET DATA 9F4F/DF4F 响应，按 (AID, SFI) 索引。 */
+    fun ecLogFormats(records: List<RawRecord>): Map<Pair<String, Int>, String> =
+        records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
+            .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
 
     /** EC recNo=0 retains GET DATA log format, rather than a transaction. */
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
         // 未知卡只有原始数据；八达通交易记录加密不可读，卡内仅余额块
         if (cardType == CardProfiles.UNKNOWN.cardType || cardType == CardProfiles.OCTOPUS.cardType) return emptyList()
         val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
-        val formats = records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
-            .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
+        val formats = ecLogFormats(records)
         return records.mapNotNull { raw ->
             if (CardProfiles.isUnknownApp(raw.selectedAid)) {
                 null  // 未知应用的文件只在原始数据块展示
             } else if (raw.selectedAid.equals(CardProfiles.TU_EC_AID, true)) {
                 if (raw.recNo == 0) return@mapNotNull null
-                if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex)
+                if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, selectedAid = raw.selectedAid)
                 val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
-                ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format)
+                ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format, raw.selectedAid)
             } else if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
-                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex)
+                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex, selectedAid = raw.selectedAid)
             } else null
         }
     }
@@ -221,10 +237,16 @@ object RecordDecoder {
      * resolved_date 保留 LNT 推断年份；余额只取原始记录中实际存在的字段，
      * 不沿用旧版本归档时填充的余额。其余字段从 hex 解析。
      */
-    fun decodeArchive(cardType: String, rows: List<ArchivedTransactionEntity>): List<CanonicalTransaction> {
+    fun decodeArchive(cardType: String, rows: List<ArchivedRecord>): List<CanonicalTransaction> {
         if (rows.isEmpty()) return emptyList()
-        val records = rows.map { ZoneRecord(it.sfi.toSfiInt(), 0, it.protocol, it.hex, it.logFormat) }
-        val storedDate = rows.associate { it.contentHash to it.resolvedDate }      // 归档：contentHash → 日期
+        // EC 日志缺少 DOL 时无法按字段解码，与读卡路径一致只作原始数据保留
+        val decodable = rows.filter {
+            !it.selectedAid.equals(CardProfiles.TU_EC_AID, true) || it.sfi == 0x1E || it.logFormat != null
+        }
+        val records = decodable.map {
+            ZoneRecord(it.sfi, 0, CardProfiles.decodeProtocol(it.selectedAid, it.sfi), it.hex, it.logFormat, it.selectedAid)
+        }
+        val storedDate = decodable.associate { contentHash(it.hex) to it.resolvedDate }      // 归档：contentHash → 日期
 
         val base = when (cardType) {
             "TU" -> {
@@ -336,23 +358,12 @@ object RecordDecoder {
     ): CanonicalTransaction {
         // TU 钱包一侧优先（1E 只存在于 TU 钱包；含 TU 的合并记录纠错标 TU，展示须与其匹配一致），
         // 同为 TU 时带 1E 旅程者优先
-        val preferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
-            .let { if (it.compare(second, first) > 0) second else first }
-        val primaryBlocks = buildList {
-            add(RawHexBlock(preferred.sfi, preferred.protocol, preferred.hex))
-            preferred.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
-        }.toSet()
-        val allBlocks = buildList {
-            addAll(first.rawVariants)
-            addAll(second.rawVariants)
-            add(RawHexBlock(first.sfi, first.protocol, first.hex))
-            first.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
-            add(RawHexBlock(second.sfi, second.protocol, second.hex))
-            second.journeyHex?.let { add(RawHexBlock(0x1E, "TU", it)) }
-        }
-        val variants = allBlocks.distinct().filterNot { it in primaryBlocks }
+        val secondPreferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
+            .compare(second, first) > 0
+        val (preferred, other) = if (secondPreferred) second to first else first to second
+        // 展示字段取自 preferred，其记录在前；两侧可能共享同一条记录（如同一 1E 旅程），去重
         return preferred.copy(
-            rawVariants = variants,
+            sources = (preferred.sources + other.sources).distinct(),
             protocols = unionProtocols(first, second)
         )
     }
@@ -442,7 +453,7 @@ object RecordDecoder {
             if (timestamp.length >= 14) {
                 journey.add(
                     buildTransaction(
-                        sfi = 0x1E, protocol = rec.protocol, hex = rec.hex,
+                        sfi = 0x1E, protocol = rec.protocol, hex = rec.hex, selectedAid = rec.selectedAid,
                         sequence = 0, amountFen = amountFen, typeHex = ApduUtil.bytesToHex(byteArrayOf(data[0])),
                         terminal = terminal,
                         stationName = ref.station, direction = ref.direction,
@@ -595,6 +606,7 @@ object RecordDecoder {
             results.add(
                 buildTransaction(
                     sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
+                    selectedAid = rec.selectedAid,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,
                     stationName = ref.station, direction = direction,
@@ -643,11 +655,10 @@ object RecordDecoder {
             amount, if (recharge) "02" else "06", terminal,
             if (recharge) "" else ref.station, null, ref.line, ref.lineColor, ref.lineId, ref.stationId,
             if (recharge) "充值" else ref.transitType, if (recharge) null else ref.cityCode,
-            date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule
-        ).copy(identity = recordContentHash(rec), logFormat = formatHex)
+            date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule,
+            selectedAid = rec.selectedAid, logFormat = formatHex
+        )
     }
-
-    fun recordContentHash(record: ZoneRecord): String = contentHash(record.hex + record.logFormat.orEmpty())
 
     private fun buildTransaction(
         sfi: Int,
@@ -670,9 +681,12 @@ object RecordDecoder {
         time: String,
         balanceAfterFen: Long?,
         deviceCode: String? = null,
-        spRule: String? = null
+        spRule: String? = null,
+        selectedAid: String = "",
+        logFormat: String? = null
     ): CanonicalTransaction {
         return CanonicalTransaction(
+            sources = listOf(RawHexBlock(sfi, protocol, hex, selectedAid.ifEmpty { null }, logFormat)),
             identity = contentHash(hex),
             sequence = sequence,
             amountFen = amountFen,
@@ -730,7 +744,7 @@ object RecordDecoder {
                 transitType = j.transitType, cityCode = j.cityCode ?: f.cityCode,
                 rawCityCode = j.rawCityCode ?: f.rawCityCode,
                 balanceAfterFen = j.balanceAfterFen ?: f.balanceAfterFen,
-                journeyHex = j.hex, deviceCode = j.deviceCode, spRule = j.spRule
+                sources = f.sources + j.sources, deviceCode = j.deviceCode, spRule = j.spRule
             ))
         }
         journey.forEachIndexed { index, j -> if (index !in usedJourney) out.add(j) }

@@ -1,7 +1,7 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.TransitDirection
 import org.junit.Assert.*
@@ -33,15 +33,25 @@ class TuTransactionAssociationTest {
         assertEquals(400L, result.first { it.identity == "fare-b" }.balanceAfterFen)
     }
 
+    @Test fun archivedRecordsKeepTheirApplicationThroughJourneyMerge() {
+        val fareHex = "0001000000000001000612345678901220260101120000"
+        val journey = "041111123456789012020001000200000000000100000003E82026010212000099000000000000000000000000000000"
+        val restored = RecordDecoder.decodeArchive("TU", listOf(
+            RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, fareHex, "20260101"),
+            RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EC_AID, journey, "20260102")
+        ))
+        val sources = restored.flatMap { it.sources }
+        assertEquals(CardProfiles.TU_EP_AID, sources.single { it.hex == fareHex }.selectedAid)
+        assertEquals(CardProfiles.TU_EC_AID, sources.single { it.hex == journey }.selectedAid)
+    }
+
     @Test fun historicalFareNeverBorrowsAnotherTimestampBalanceOrOldArchiveFill() {
         val fareHex = "0001000000000001000612345678901220260101120000"
         val journey = "041111123456789012020001000200000000000100000003E82026010212000099000000000000000000000000000000"
         val records = listOf(RecordDecoder.ZoneRecord(0x18, 1, "TU", fareHex), RecordDecoder.ZoneRecord(0x1E, 1, "TU", journey))
         val decoded = RecordDecoder.decodeCard("TU", records, null, 2026)
         assertNull(decoded.display.single { it.sfi == 0x18 }.balanceAfterFen)
-        val row = ArchivedTransactionEntity(cardId = "c", sfi = "0x18", protocol = "TU", hex = fareHex,
-            contentHash = RecordDecoder.contentHash(fareHex), resolvedDate = "20260101", balanceAfterFen = 9999,
-            firstSeenAt = 1, lastSeenAt = 1)
+        val row = RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, fareHex, "20260101")
         assertNull(RecordDecoder.decodeArchive("TU", listOf(row)).single().balanceAfterFen)
     }
 
