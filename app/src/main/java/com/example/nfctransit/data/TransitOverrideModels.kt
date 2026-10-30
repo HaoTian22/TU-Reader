@@ -31,10 +31,10 @@ data class OverrideImportSummary(
 ) {
     val ok: Boolean get() = skipped == 0 && errors.isEmpty()
 
-    fun message(): String = buildString {
-        append(L10n.str(R.string.override_import_summary, added, updated, unchanged))
-        if (skipped > 0) append(L10n.str(R.string.override_import_skipped, skipped))
-        if (errors.isNotEmpty()) append(L10n.str(R.string.override_import_failed, errors.size))
+    fun message(): String = if (ok) {
+        L10n.str(R.string.override_saved)
+    } else {
+        L10n.str(R.string.override_save_failed, errors.firstOrNull() ?: L10n.str(R.string.unknown_error))
     }
 }
 

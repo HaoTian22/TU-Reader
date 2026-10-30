@@ -1114,7 +1114,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         if (_feedbackSaving.value == true) return
         _feedbackSaving.value = true
-        toast(StatusMessage(L10n.str(R.string.feedback_saving), AppToast.Kind.PROGRESS))
+        toast(savingStatus(publish))
         viewModelScope.launch {
             // 本地落盘后即开始上传，与重导入/重建卡片并行
             var upload: Deferred<UploadResult>? = null
@@ -1189,6 +1189,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** 只有勾选公开上传时才提示“上传” */
+    private fun savingStatus(publish: Boolean) = StatusMessage(
+        L10n.str(if (publish) R.string.feedback_saving else R.string.override_saving), AppToast.Kind.PROGRESS
+    )
+
     /** 上传已完成则把结果拼在本地状态后，否则只返回本地状态；任一失败即按失败样式提示 */
     private suspend fun statusWithUpload(local: String, localOk: Boolean, upload: Deferred<UploadResult>?): StatusMessage {
         val uploaded = upload?.takeIf { it.isCompleted }?.await()
@@ -1218,6 +1223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         locationSource: FeedbackLocationSource,
         publish: Boolean = false
     ) {
+        toast(savingStatus(publish))
         viewModelScope.launch {
             var upload: Deferred<UploadResult>? = null
             try {
@@ -1293,7 +1299,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 rebuildAllCardsAndRefresh()
                 lap("rebuild")
                 Log.d("OverrideSave", "total: ${SystemClock.elapsedRealtime() - startedAt} ms")
-                toast(statusWithUpload(L10n.str(R.string.override_saved, update.message()), update.ok, upload))
+                toast(statusWithUpload(update.message(), update.ok, upload))
                 reportPendingUpload(upload) { toast(it) }
             } catch (e: Exception) {
                 toast(statusWithUpload(
@@ -1305,6 +1311,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteOverride(key: String) {
+        toast(StatusMessage(L10n.str(R.string.override_deleting), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -1336,6 +1343,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 批量删除本地映射（重复项清理）：逐条恢复覆盖前条目，最后统一重导入、重建一次 */
     fun deleteOverrides(keys: Collection<String>) {
         if (keys.isEmpty()) return
+        toast(StatusMessage(L10n.str(R.string.override_deleting), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
             try {
                 val removed = withContext(Dispatchers.IO) {

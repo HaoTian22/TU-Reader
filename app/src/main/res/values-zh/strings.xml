@@ -340,9 +340,9 @@
     <string name="feedback_save_failed">反馈保存失败：%s</string>
     <string name="override_err_missing">override 不存在</string>
     <string name="override_err_exists">该 Prefix+Code+Type 已存在</string>
-    <string name="override_saved">override 已保存：%s</string>
+    <string name="override_saved">映射已保存</string>
     <string name="override_save_failed">override 保存失败：%s</string>
-    <string name="override_deleted">override 已删除，已恢复原映射</string>
+    <string name="override_deleted">映射已删除</string>
     <string name="override_delete_failed">override 删除失败：%s</string>
     <string name="csv_header">序号,交易时间,类型,线路,站点,金额,交易后余额,终端编号</string>
     <string name="import_done">已导入：%s</string>
@@ -374,6 +374,8 @@
     <!-- Transaction detail (code) -->
     <string name="raw_copied">✓ 已复制原始数据</string>
     <string name="feedback_saving">正在保存并上传…</string>
+    <string name="override_saving">正在保存…</string>
+    <string name="override_deleting">正在删除…</string>
     <string name="err_invalid_prefix">请填写有效的 Prefix</string>
     <string name="err_invalid_code">请填写有效的 Code</string>
     <string name="err_line_format">线路：单行，最多 128 字</string>
@@ -470,9 +472,6 @@
     <string name="override_err_newline">字段不能包含换行</string>
     <string name="override_err_unknown_city">未知城市码 %s</string>
     <string name="override_import_row_error">第 %1$d 行：%2$s</string>
-    <string name="override_import_summary">覆盖已导入：新增 %1$d，修改 %2$d，未变 %3$d</string>
-    <string name="override_import_skipped">，跳过 %d</string>
-    <string name="override_import_failed">，失败 %d</string>
 
     <!-- Feedback dialog (code) -->
     <string name="feedback_type_required">请填写交通类型（最多 32 字）</string>

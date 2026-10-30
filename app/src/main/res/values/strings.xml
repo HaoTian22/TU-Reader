@@ -348,9 +348,9 @@
     <string name="feedback_save_failed">Couldn\'t save feedback: %s</string>
     <string name="override_err_missing">Override doesn\'t exist</string>
     <string name="override_err_exists">This Prefix+Code+Type already exists</string>
-    <string name="override_saved">Override saved: %s</string>
+    <string name="override_saved">Mapping saved</string>
     <string name="override_save_failed">Couldn\'t save override: %s</string>
-    <string name="override_deleted">Override deleted, original restored</string>
+    <string name="override_deleted">Mapping deleted</string>
     <string name="override_delete_failed">Couldn\'t delete override: %s</string>
     <string name="csv_header">No.,Time,Type,Line,Station,Amount,Balance after,Terminal</string>
     <string name="import_done">Imported: %s</string>
@@ -386,6 +386,8 @@
     <!-- Transaction detail (code) -->
     <string name="raw_copied">✓ Raw data copied</string>
     <string name="feedback_saving">Saving and uploading…</string>
+    <string name="override_saving">Saving…</string>
+    <string name="override_deleting">Deleting…</string>
     <string name="err_invalid_prefix">Enter a valid Prefix</string>
     <string name="err_invalid_code">Enter a valid Code</string>
     <string name="err_line_format">Line: one line, max 128 characters</string>
@@ -485,9 +487,6 @@
     <string name="override_err_newline">Fields can\'t contain line breaks</string>
     <string name="override_err_unknown_city">Unknown city code %s</string>
     <string name="override_import_row_error">Row %1$d: %2$s</string>
-    <string name="override_import_summary">Overrides imported: %1$d new, %2$d changed, %3$d unchanged</string>
-    <string name="override_import_skipped">, %d skipped</string>
-    <string name="override_import_failed">, %d failed</string>
 
     <!-- Feedback dialog (code) -->
     <string name="feedback_type_required">Enter a transit type (max 32 characters)</string>
