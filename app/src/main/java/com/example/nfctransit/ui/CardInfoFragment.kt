@@ -259,7 +259,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                         emptyList()
                     } else if (isEc && (record.recNo == 0 || sfi in setOf(1, 2, 3, 4, 8))) {
                         RawHexFormatter.fieldsForSelectResponse(record.hex)
-                    } else RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex, format)
+                    } else RawHexFormatter.fieldsFor(sfi, data?.size ?: 0, record.protocol, record.hex, format, record.recNo)
                     if (fields.isNotEmpty()) fieldVariants.add(fields)
                     appendRawBlock(
                         panel,
