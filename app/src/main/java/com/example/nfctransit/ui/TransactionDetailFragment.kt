@@ -443,7 +443,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val lineView = TextView(requireContext()).apply {
             this.text = spannable
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.RAW)             // 未解析字节保持原始 hex 色
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制
@@ -466,14 +466,14 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         row.addView(TextView(requireContext()).apply {
             text = f.label
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(f.color)
         })
         val methodPart = if (f.method.isNotEmpty()) " ${f.method}" else ""
         row.addView(TextView(requireContext()).apply {
             text = " [${rangeText(f.start, f.end)}$methodPart]"
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.LEGEND_TEXT)
             setTextIsSelectable(true)
         })
@@ -488,7 +488,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
             this.text = text
             textSize = 10f
             setTextColor(if (dim) RawHexFormatter.DIM else RawHexFormatter.RAW)
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)   // 长按可选中复制
         }

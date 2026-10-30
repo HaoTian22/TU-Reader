@@ -297,7 +297,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         val hexLine = TextView(requireContext()).apply {
             text = RawHexFormatter.colorizeHex(displayHex, fields)
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.RAW)
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)
@@ -362,7 +362,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         val line = TextView(requireContext()).apply {
             this.text = text
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(if (dim) RawHexFormatter.DIM else RawHexFormatter.RAW)
             setPadding(0, dpToPx(2), 0, dpToPx(2))
             setTextIsSelectable(true)
@@ -385,14 +385,14 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         row.addView(TextView(requireContext()).apply {
             text = field.label
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(field.color)
         })
         val method = field.method.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
         row.addView(TextView(requireContext()).apply {
             text = " [${RawHexFormatter.rangeText(field.start, field.end)}$method]"
             textSize = 10f
-            typeface = Typeface.MONOSPACE
+            typeface = RawFont.get(requireContext())
             setTextColor(RawHexFormatter.LEGEND_TEXT)
             setTextIsSelectable(true)
         })
