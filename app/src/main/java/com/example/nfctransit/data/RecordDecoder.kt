@@ -837,7 +837,7 @@ object RecordDecoder {
      * 通用月累乘统计解析：按 [MonthAccumSpec] 配置的读卡位置与字段区域，从卡原始记录提取
      * (月份 YYYYMM, 当月累计金额分)。城市差异全部由配置表达（见 DiscountRegistry），
      * 本函数不含任何城市/卡型分支：
-     *  - Fixed 定长记录式：候选 Source 按 recNo 精确匹配、协议标签过滤，固定偏移直取
+     *  - Fixed 定长记录式：候选 Source 按 recNo 精确匹配、协议标签/AID 过滤，固定偏移直取
      *  - Anchored 锚点扫描式：扫描匹配 Source 的全部记录字节流找锚点条目，取刷新日期最新
      */
     fun parseMonthAccumulation(records: List<RawRecord>, spec: MonthAccumSpec): MonthlyAccumulation? {
@@ -854,14 +854,15 @@ object RecordDecoder {
             val rec = records.firstOrNull { raw ->
                 raw.sfi == source.sfi &&
                     raw.recNo == source.recNo &&
-                    (source.protocol == null || source.protocol.equals(raw.protocol, ignoreCase = true))
+                    (source.protocol == null || source.protocol.equals(raw.protocol, ignoreCase = true)) &&
+                    (source.aid == null || source.aid.equals(raw.selectedAid, ignoreCase = true))
             } ?: continue
             val data = ApduUtil.hexToBytes(rec.hex)
             if (data.size < spec.minDataSize) continue
             val year = 2000 + bcdNibble(data[spec.yearBcdOffset])
             val month = bcdNibble(data[spec.monthBcdOffset])
             val totalFen = ApduUtil.hexToLong(
-                data.copyOfRange(spec.totalFenBeOffset, spec.totalFenBeOffset + 2)
+                data.copyOfRange(spec.totalFenBeOffset, spec.totalFenBeOffset + spec.totalFenLength)
             )
             return MonthlyAccumulation(
                 month = if (month in 1..12) year * 100 + month else null,

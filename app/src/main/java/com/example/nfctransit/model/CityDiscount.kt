@@ -1,5 +1,7 @@
 package com.example.nfctransit.model
 
+import com.example.nfctransit.CardProfiles
+
 /**
  * 城市乘车优惠的完整配置 = 城市名 + 满额折扣档位（policy）+ 卡内月累乘统计的读取位置与字段区域（stats）。
  * 解析与首页展示由通用代码完成——新增/调整一座城市只需修改 [DiscountRegistry.schemes] 中的一条配置。
@@ -19,23 +21,28 @@ data class CityDiscount(
 sealed class MonthAccumSpec {
     open val sources: List<Source> = emptyList()
 
-    /** 一个候选读卡位置。recNo 为 null 表示扫描该 SFI 下全部记录；protocol 为 null 表示不限协议 */
+    /**
+     * 一个候选读卡位置。recNo 为 null 表示扫描该 SFI 下全部记录；protocol 为 null 表示不限协议；
+     * aid 非空时只认该应用下读出的记录（同一 SFI 在不同卡种含义不同，如 CU 的 0x1A 是交易区）
+     */
     data class Source(
         val sfi: Int,
         val protocol: String? = null,
-        val recNo: Int? = null
+        val recNo: Int? = null,
+        val aid: String? = null
     )
 
     /**
-     * 定长记录式（广州/佛山 TU 0x19 rec1、岭南通 PAY.APPY SFI 0x08 rec1 等 PBOC 月统计）：
-     * 固定偏移直取 —— BCD 年（纪元 2000 起）+ BCD 月 + 大端 u16 当月累计金额（分）。
+     * 定长记录式（广州/佛山 TU 0x19 rec1、岭南通 PAY.APPY SFI 0x08 rec1、天府通 SFI 0x1A rec2 等 PBOC 月统计）：
+     * 固定偏移直取 —— BCD 年（纪元 2000 起）+ BCD 月 + 大端无符号当月累计金额（分，默认 2 字节）。
      */
     data class Fixed(
         override val sources: List<Source>,
         val yearBcdOffset: Int,
         val monthBcdOffset: Int,
         val totalFenBeOffset: Int,
-        val minDataSize: Int
+        val minDataSize: Int,
+        val totalFenLength: Int = 2
     ) : MonthAccumSpec()
 
     /**
@@ -81,6 +88,22 @@ object DiscountRegistry {
         amountBeOffset = 9
     )
 
+    /**
+     * 成都天府通：TFT 应用 SFI 0x1A rec2（51B，READ RECORD `00 B2 02 D4 33`）。
+     * [37..39) 大端 u16 本月乘次、[39..42) 大端 u24 本月累计金额（分）、[46] BCD 年 + [47] BCD 月。
+     * 布局来自 TripReader 反编译（尚无实卡样本校验）。只有天府通应用有此记录，故用 AID 限定。
+     */
+    private val chengduMonthStats = MonthAccumSpec.Fixed(
+        sources = listOf(
+            MonthAccumSpec.Source(sfi = 0x1A, recNo = 2, aid = CardProfiles.TFT_AID)
+        ),
+        yearBcdOffset = 46,
+        monthBcdOffset = 47,
+        totalFenBeOffset = 39,
+        minDataSize = 48,
+        totalFenLength = 3
+    )
+
     val schemes: List<CityDiscount> = listOf(
         CityDiscount(
             cityZh = "广州",
@@ -117,6 +140,18 @@ object DiscountRegistry {
                 )
             ),
             stats = hangzhouMonthStats
+        ),
+        CityDiscount(
+            cityZh = "成都",
+            policy = DiscountPolicy(
+                "成都",
+                listOf(
+                    DiscountPolicy.Tier(0, true, 90),       // 累计 200 元以下每乘次 9 折
+                    DiscountPolicy.Tier(20000, false, 60),  // 超过 200 元后 6 折
+                    DiscountPolicy.Tier(40000, false, 90)   // 超过 400 元后恢复 9 折
+                )
+            ),
+            stats = chengduMonthStats
         )
     )
 

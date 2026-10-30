@@ -215,6 +215,7 @@ class TransitCardReader internal constructor(
                 "CU" -> setOf(0x17)
                 "TU" -> setOf(0x17, 0x19)
                 "SZT" -> setOf(0x19)
+                "TFT" -> setOf(0x1A)
                 else -> emptySet()
             }
             for (sfi in statsSfis) collectAuxiliaryFile(sfi, protocol, log, rawRecs)

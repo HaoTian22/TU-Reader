@@ -1822,14 +1822,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 首页城市优惠展示数据：按 DiscountRegistry 配置解析卡内月累乘统计。
      * 共用同一份统计记录的方案（stats 配置相等，如广州/佛山）归为一组：
      * 组内任一城市有交易 && 统计当月有效 → 整组所有城市一起展示（广佛共用一条记录、政策并行展示）；
-     * 每组只解析一次。
+     * 每组只解析一次。来源全部限定 AID 的方案（天府通）记录本身即证明卡属该城，不要求同城交易。
      */
     private fun buildCityDiscountUis(cardId: String, txns: List<UiTransaction>): List<CityDiscountUi> {
         if (txns.isEmpty()) return emptyList()
         val records = rawRecordsByCard[cardId].orEmpty()
         val out = mutableListOf<CityDiscountUi>()
         for ((spec, groupSchemes) in DiscountRegistry.schemes.groupBy { it.stats }) {
-            val groupHasRide = groupSchemes.any { scheme ->
+            val cardSpecific = spec.sources.isNotEmpty() && spec.sources.all { it.aid != null }
+            val groupHasRide = cardSpecific || groupSchemes.any { scheme ->
                 txns.any { it.cityName.startsWith(scheme.cityZh) }
             }
             if (!groupHasRide) continue

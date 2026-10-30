@@ -83,6 +83,8 @@ object CardProfiles {
 
     val PSE_AID = "325041592E5359532E4444463031" // 2PAY.SYS.DDF01，PSE 目录
 
+    const val TFT_AID = "D156000015B9ABB9B2D3A6D3C3" // 成都天府通，名称段 GBK「公共应用」
+
     /**
      * 无任何已知应用的卡：仍保存其应用枚举与文件探测结果，只在原始数据块展示，不做任何解析。
      * 不在 [known] 中，不参与卡型识别。
@@ -142,7 +144,7 @@ object CardProfiles {
         ),
         CardProfile(
             name = "天府通 (TFT)",
-            aidCandidates = listOf("D156000015B9ABB9B2D3A6D3C3"),
+            aidCandidates = listOf(TFT_AID),
             infoSfi = 0x15,
             tradeSfi = 0x18,
             cardType = "TFT"
