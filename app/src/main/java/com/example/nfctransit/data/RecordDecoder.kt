@@ -7,7 +7,6 @@ import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.MonthAccumSpec
 import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.TransitDirection
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import java.security.MessageDigest
 import java.util.Calendar
 
@@ -27,26 +26,43 @@ object RecordDecoder {
         val recNo: Int,
         val protocol: String,  // "LNT"/"SZT"/"TU"/"" — 双协议卡区分钱包
         val hex: String,
+        val logFormat: String? = null,
+        val selectedAid: String = ""  // 读出该记录的应用；无读卡来源（TripReader 导入）时为空
+    )
+
+    /**
+     * 归档行的解码输入：仓库按 app_id 关联出应用 AID（解码协议由 AID 推出），
+     * EC 日志行附带所属应用该文件的 DOL（raw_records rec_no=0）。
+     */
+    data class ArchivedRecord(
+        val sfi: Int,
+        val selectedAid: String,
+        val hex: String,
+        val resolvedDate: String,
         val logFormat: String? = null
     )
+
+    /** EC 日志文件的 DOL：rec_no=0 保存 GET DATA 9F4F/DF4F 响应，按 (AID, SFI) 索引。 */
+    fun ecLogFormats(records: List<RawRecord>): Map<Pair<String, Int>, String> =
+        records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
+            .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
 
     /** EC recNo=0 retains GET DATA log format, rather than a transaction. */
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
         // 未知卡只有原始数据；八达通交易记录加密不可读，卡内仅余额块
         if (cardType == CardProfiles.UNKNOWN.cardType || cardType == CardProfiles.OCTOPUS.cardType) return emptyList()
         val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
-        val formats = records.filter { it.selectedAid.equals(CardProfiles.TU_EC_AID, true) && it.recNo == 0 }
-            .associate { (it.selectedAid.uppercase() to it.sfi) to it.hex }
+        val formats = ecLogFormats(records)
         return records.mapNotNull { raw ->
             if (CardProfiles.isUnknownApp(raw.selectedAid)) {
                 null  // 未知应用的文件只在原始数据块展示
             } else if (raw.selectedAid.equals(CardProfiles.TU_EC_AID, true)) {
                 if (raw.recNo == 0) return@mapNotNull null
-                if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex)
+                if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, selectedAid = raw.selectedAid)
                 val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
-                ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format)
+                ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format, raw.selectedAid)
             } else if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
-                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex)
+                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex, selectedAid = raw.selectedAid)
             } else null
         }
     }
@@ -221,10 +237,16 @@ object RecordDecoder {
      * resolved_date 保留 LNT 推断年份；余额只取原始记录中实际存在的字段，
      * 不沿用旧版本归档时填充的余额。其余字段从 hex 解析。
      */
-    fun decodeArchive(cardType: String, rows: List<ArchivedTransactionEntity>): List<CanonicalTransaction> {
+    fun decodeArchive(cardType: String, rows: List<ArchivedRecord>): List<CanonicalTransaction> {
         if (rows.isEmpty()) return emptyList()
-        val records = rows.map { ZoneRecord(it.sfi.toSfiInt(), 0, it.protocol, it.hex, it.logFormat) }
-        val storedDate = rows.associate { it.contentHash to it.resolvedDate }      // 归档：contentHash → 日期
+        // EC 日志缺少 DOL 时无法按字段解码，与读卡路径一致只作原始数据保留
+        val decodable = rows.filter {
+            !it.selectedAid.equals(CardProfiles.TU_EC_AID, true) || it.sfi == 0x1E || it.logFormat != null
+        }
+        val records = decodable.map {
+            ZoneRecord(it.sfi, 0, CardProfiles.decodeProtocol(it.selectedAid, it.sfi), it.hex, it.logFormat, it.selectedAid)
+        }
+        val storedDate = decodable.associate { contentHash(it.hex) to it.resolvedDate }      // 归档：contentHash → 日期
 
         val base = when (cardType) {
             "TU" -> {
@@ -644,10 +666,8 @@ object RecordDecoder {
             if (recharge) "" else ref.station, null, ref.line, ref.lineColor, ref.lineId, ref.stationId,
             if (recharge) "充值" else ref.transitType, if (recharge) null else ref.cityCode,
             date = date, time = time, balanceAfterFen = balance, deviceCode = ref.deviceCode, spRule = ref.spRule
-        ).copy(identity = recordContentHash(rec), logFormat = formatHex)
+        ).copy(logFormat = formatHex)
     }
-
-    fun recordContentHash(record: ZoneRecord): String = contentHash(record.hex + record.logFormat.orEmpty())
 
     private fun buildTransaction(
         sfi: Int,

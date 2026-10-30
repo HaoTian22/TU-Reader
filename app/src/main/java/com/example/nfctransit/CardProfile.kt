@@ -81,6 +81,43 @@ object CardProfiles {
         profile.aidCandidates.any { it.equals(aid, ignoreCase = true) }
     }?.cardType?.let { if (it == "YCT") "LNT" else it }.orEmpty()
 
+    /**
+     * 解码器使用的协议标签，由应用 AID 与文件推出（数据库只存 AID）。
+     * 苏州/天府通交易沿用空解码标签；其信息/统计扇区 0x15 仍用卡型标签。
+     */
+    fun decodeProtocol(aid: String, sfi: Int): String {
+        val protocol = protocolForAid(aid)
+        return protocol.takeIf { sfi == 0x15 || it in setOf("LNT", "TU", "CU", "SZT", "MPASS", "OCTOPUS") }.orEmpty()
+    }
+
+    /** 卡型的主应用协议（YCT 主钱包为 LNT）。 */
+    fun primaryProtocol(cardType: String): String = if (cardType == "YCT") "LNT" else cardType
+
+    const val YCT_APPY_AID = "5041592E41505059"  // PAY.APPY：岭南通信息文件（卡号）所在应用
+    const val YCT_TICL_AID = "5041592E5449434C"  // PAY.TICL：岭南通钱包（交易/余额）
+
+    /** 卡型的主钱包应用（交易与余额所在）；未知卡没有钱包应用。 */
+    fun walletAid(cardType: String): String = when (cardType) {
+        "YCT" -> YCT_TICL_AID
+        "TU" -> TU_EP_AID
+        OCTOPUS.cardType -> OCTOPUS.aidCandidates.first()
+        else -> known.firstOrNull { it.cardType == cardType }?.aidCandidates?.firstOrNull().orEmpty()
+    }
+
+    /** 卡型的卡号所在应用（信息文件 SFI 0x15）：岭南通为 PAY.APPY，其余同主钱包。 */
+    fun infoAid(cardType: String): String = if (cardType == "YCT") YCT_APPY_AID else walletAid(cardType)
+
+    /**
+     * 只有解码协议、没有读卡 AID 时（TripReader 导入、旧版归档）推断的应用。
+     * 空协议属于卡型自身钱包（CU/苏州/天府通交易解码标签为空）。
+     */
+    fun defaultAidForProtocol(protocol: String, cardType: String): String = when (protocol) {
+        "LNT" -> YCT_TICL_AID
+        "TU" -> TU_EP_AID
+        "" -> walletAid(cardType)
+        else -> walletAid(protocol)
+    }
+
     val PSE_AID = "325041592E5359532E4444463031" // 2PAY.SYS.DDF01，PSE 目录
 
     const val TFT_AID = "D156000015B9ABB9B2D3A6D3C3" // 成都天府通，名称段 GBK「公共应用」

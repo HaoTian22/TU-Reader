@@ -210,7 +210,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private fun bindRawData() {
         val visibleRecords = rawRecords.filter { it.hex.isNotBlank() }
         val visibleApps = cardApps.filter {
-            it.selectedAid.isNotBlank() || it.selectResp.isNotBlank() || !it.balanceResp.isNullOrBlank()
+            it.selectedAid.isNotBlank() || !it.selectResp.isNullOrBlank() || !it.balanceResp.isNullOrBlank()
         }
         if (visibleRecords.isEmpty() && visibleApps.isEmpty()) {
             rawHexToCopy = ""
@@ -226,12 +226,13 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         visibleApps.forEachIndexed { index, app ->
             val appDivider = index > 0
             appendRawBlock(panel, "selected_aid", app.selectedAid, emptyList(), appDivider)
-            if (app.selectResp.isNotBlank()) {
+            val selectResp = app.selectResp
+            if (!selectResp.isNullOrBlank()) {
                 appendRawBlock(
                     panel,
                     "select_resp",
-                    app.selectResp,
-                    RawHexFormatter.fieldsForSelectResponse(app.selectResp),
+                    selectResp,
+                    RawHexFormatter.fieldsForSelectResponse(selectResp),
                     false
                 )
             }
@@ -327,14 +328,15 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                 if (out.isNotEmpty()) out.append("\n\n")
                 out.append("selected_aid\n").append(app.selectedAid)
             }
-            if (app.selectResp.isNotBlank()) {
+            val selectResp = app.selectResp
+            if (!selectResp.isNullOrBlank()) {
                 if (out.isNotEmpty()) out.append("\n\n")
-                out.append("select_resp\n").append(app.selectResp)
-                val fields = RawHexFormatter.fieldsForSelectResponse(app.selectResp)
+                out.append("select_resp\n").append(selectResp)
+                val fields = RawHexFormatter.fieldsForSelectResponse(selectResp)
                 fields.forEach { field ->
                     val method = field.method.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
                     out.append('\n').append("[${field.label} ${RawHexFormatter.rangeText(field.start, field.end)}$method] ")
-                        .append(RawHexFormatter.hexRange(app.selectResp, field.start, field.end))
+                        .append(RawHexFormatter.hexRange(selectResp, field.start, field.end))
                 }
             }
             if (!app.balanceResp.isNullOrBlank()) {

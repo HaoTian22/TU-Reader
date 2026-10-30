@@ -1,8 +1,6 @@
 package com.example.nfctransit
 
 import com.example.nfctransit.data.RecordDecoder
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
-import com.example.nfctransit.data.toSfiHex
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -60,11 +58,10 @@ class TuElectronicCashTest {
             assertNull(transaction.balanceAfterFen)
             assertEquals(if (transaction.sfi == 0x0C) "02" else "06", transaction.typeHex)
         }
-        val rows = decoded.archive.map { ArchivedTransactionEntity(
-            cardId = "card", sfi = it.sfi.toSfiHex(), protocol = it.protocol, hex = it.hex,
-            contentHash = it.identity, resolvedDate = it.date, logFormat = it.logFormat,
-            firstSeenAt = 1, lastSeenAt = 1
-        ) }
+        val rows = decoded.archive.map {
+            val aid = if (it.logFormat != null) CardProfiles.TU_EC_AID else CardProfiles.TU_EP_AID
+            RecordDecoder.ArchivedRecord(it.sfi, aid, it.hex, it.date, it.logFormat)
+        }
         assertEquals(decoded.display, RecordDecoder.decodeArchive("TU", rows))
     }
 

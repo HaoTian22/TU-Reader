@@ -1,8 +1,8 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.data.db.StationResolution
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
 import com.example.nfctransit.data.repo.TripReaderCard
 import com.example.nfctransit.data.repo.TripReaderTransaction
 import com.example.nfctransit.data.repo.tripReaderFareProtocol
@@ -31,11 +31,7 @@ class RecordDecoderTest {
     fun tuFareWithoutJourneyResolvesUniqueFullTerminalForFreshAndArchivedRecords() {
         withDeviceMappings(listOf(nanningMapping()), prefix = "6110") {
             val fresh = RecordDecoder.decodeCard("TU", listOf(nanningFare), null, 2026).display.single()
-            val saved = ArchivedTransactionEntity(
-                cardId = "test", sfi = "0x18", protocol = "TU", hex = nanningFare.hex,
-                contentHash = RecordDecoder.contentHash(nanningFare.hex), resolvedDate = fresh.date,
-                firstSeenAt = 0, lastSeenAt = 0
-            )
+            val saved = RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, nanningFare.hex, fresh.date)
             for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
                 assertEquals("6110413106074451", tx.deviceCode)
                 assertEquals("6110", tx.cityCode)
@@ -121,10 +117,8 @@ class RecordDecoderTest {
             val protocol = tripReaderFareProtocol(sourceCard, sourceTx)
             val record = RecordDecoder.ZoneRecord(0x18, 1, protocol, hex)
             val fresh = RecordDecoder.decodeCard("CU", listOf(record), null, 2026).display.single()
-            val saved = ArchivedTransactionEntity(
-                cardId = "test", sfi = "0x18", protocol = protocol, hex = hex,
-                contentHash = RecordDecoder.contentHash(hex), resolvedDate = fresh.date,
-                firstSeenAt = 0, lastSeenAt = 0
+            val saved = RecordDecoder.ArchivedRecord(
+                0x18, CardProfiles.defaultAidForProtocol(protocol, "CU"), hex, fresh.date
             )
             for (tx in listOf(fresh, RecordDecoder.decodeArchive("CU", listOf(saved)).single())) {
                 assertEquals("CU", tx.protocol)
@@ -161,11 +155,7 @@ class RecordDecoderTest {
                         assertFalse(RawHexFormatter.copyText(listOf(RawRecord(0x18, 1, "LNT", record.hex)))
                             .contains("[Subtype"))
 
-                        val row = ArchivedTransactionEntity(
-                            cardId = "test", sfi = "0x18", protocol = "LNT", hex = record.hex,
-                            contentHash = RecordDecoder.contentHash(record.hex), resolvedDate = tx.date,
-                            firstSeenAt = 0, lastSeenAt = 0
-                        )
+                        val row = RecordDecoder.ArchivedRecord(0x18, CardProfiles.YCT_TICL_AID, record.hex, tx.date)
                         val restored = RecordDecoder.decodeArchive("YCT", listOf(row)).single()
                         assertEquals(tx.time, restored.time)
                         assertEquals(tx.transitType, restored.transitType)
@@ -526,10 +516,8 @@ class RecordDecoderTest {
         assertEquals(setOf("CU", "TU"), merged.protocols)
         assertEquals(3, decoded.archive.size)
         val archived = decoded.archive.map { t ->
-            com.example.nfctransit.data.db.ArchivedTransactionEntity(
-                cardId = "card", sfi = t.sfi.toSfiHex(), protocol = t.protocol,
-                hex = t.hex, contentHash = t.identity, resolvedDate = t.date,
-                balanceAfterFen = t.balanceAfterFen, firstSeenAt = 1, lastSeenAt = 1
+            RecordDecoder.ArchivedRecord(
+                t.sfi, CardProfiles.defaultAidForProtocol(t.protocol, "CU"), t.hex, t.date
             )
         }
         val restored = RecordDecoder.decodeArchive("CU", archived).single()

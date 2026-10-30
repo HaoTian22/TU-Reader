@@ -1,15 +1,12 @@
 package com.example.nfctransit.data.repo
 
 import com.example.nfctransit.CardProfiles
-import com.example.nfctransit.data.db.RawRecordEntity
+import com.example.nfctransit.data.RawRecord
 import org.junit.Assert.*
 import org.junit.Test
 
 class CuCardNumberRepairTest {
-    private fun info(aid: String, hex: String) = RawRecordEntity(
-        cardId = "card", sfi = "0x15", recNo = 0, selectedAid = aid, hex = hex,
-        contentHash = "hash", firstSeenAt = 1, lastSeenAt = 1
-    )
+    private fun info(aid: String, hex: String) = RawRecord(0x15, 0, "", hex, aid)
     @Test fun cuRepairIgnoresEarlierTuInfoAndRequiresCuAid() {
         val tu = info(CardProfiles.TU_EP_AID, "00".repeat(12) + "FFFFFFFFFFFFFFFF")
         val cu = info(CardProfiles.CU_AID.lowercase(), "00".repeat(12) + "000000000000007B")

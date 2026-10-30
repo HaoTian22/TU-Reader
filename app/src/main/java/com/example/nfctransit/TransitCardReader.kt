@@ -52,13 +52,20 @@ class TransitCardReader internal constructor(
         val previous = applicationReads[aid]
         applicationReads[aid] = AppRead(
             aid, ApduUtil.bytesToHex(ApduUtil.dataOnly(response)),
-            previous?.balanceFen, previous?.balanceResp
+            previous?.balanceFen, previous?.balanceResp, previous?.cardNumber
         )
     }
 
     private fun rememberBalance(aid: String, balance: Long?, response: String?) {
         val application = applicationReads[aid] ?: return
         applicationReads[aid] = application.copy(balanceFen = balance, balanceResp = response)
+    }
+
+    /** 卡号是读出它的应用自己的应用序列号，随该应用快照保存。 */
+    private fun rememberCardNumber(aid: String, cardNumber: String?) {
+        val number = cardNumber?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val application = applicationReads[aid] ?: return
+        applicationReads[aid] = application.copy(cardNumber = number)
     }
 
     private fun rawRecord(sfi: Int, recNo: Int, protocol: String, hex: String) =
@@ -102,7 +109,8 @@ class TransitCardReader internal constructor(
         val selectedAid: String,
         val selectResp: String,        // SELECT 成功响应（FCI）dataOnly hex
         val balanceFen: Long?,         // 该应用余额（分），无/失败为 null
-        val balanceResp: String?       // BALANCE CHECK 响应 dataOnly hex，未发/失败为 null
+        val balanceResp: String?,      // BALANCE CHECK 响应 dataOnly hex，未发/失败为 null
+        val cardNumber: String? = null // 该应用的应用序列号（卡号），未读到为 null
     )
 
     data class ReadResult(
@@ -197,8 +205,9 @@ class TransitCardReader internal constructor(
             val info = yct?.info ?: if (yct == null) readCuInfo(profile, log) else null
             val bc = if (yct == null) readBalance(profile, log) else null
             var balance = yct?.balance ?: bc?.takeIf { it.respHex != null }?.fen
-            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType },
-                if (yct != null) "5041592E41505059" else aid)
+            val infoAid = if (yct != null) CardProfiles.YCT_APPY_AID else aid
+            addInfoRecord(rawRecs, info, protocol.ifEmpty { profile.cardType }, infoAid)
+            rememberCardNumber(infoAid, info?.cardNumber)
             yct?.statsRecord?.let(rawRecs::add)
             if (profile.cardType == "TU") {
                 val recordBalance = collectTuWallet(profile, log, rawRecs)
@@ -227,6 +236,7 @@ class TransitCardReader internal constructor(
                 readTuWallet(log, rawRecs)
             } else TuWalletResult(null, null)
             addInfoRecord(rawRecs, tu.info, "TU", tu.selectedAid)
+            rememberCardNumber(tu.selectedAid, tu.info?.cardNumber)
             if (tu.selectedAid.isNotEmpty()) {
                 rememberBalance(tu.selectedAid, tu.balance, tu.balanceResp)
             }
@@ -360,6 +370,7 @@ class TransitCardReader internal constructor(
             return management ?: tags[tag]?.takeIf { it.size == 3 }?.let(BerTlv::bcd)?.let { "20$it" } ?: "未知"
         }
         val info = CardInfo("交通联合卡 (T-Union)", date(0x5F25, 0xDF25), date(0x5F24, 0xDF24), pan, "")
+        rememberCardNumber(aid, pan)
         val balanceResponse = readEcData(0x9F79, log)
         val balance = balanceResponse?.let { BerTlv.values(it)[0x9F79] }
             ?.takeIf { it.size == 6 }?.let(BerTlv::bcd)?.toLongOrNull()

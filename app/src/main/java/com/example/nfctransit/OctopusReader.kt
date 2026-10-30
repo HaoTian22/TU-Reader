@@ -61,7 +61,7 @@ class OctopusReader internal constructor(private val channel: FelicaChannel) {
                 blockHex?.let { RawRecord(BALANCE_SERVICE, 0, profile.cardType, it, SYSTEM_CODE) },
                 sztBlock?.let { RawRecord(SZT_SERVICE, 0, profile.cardType, ApduUtil.bytesToHex(it), SYSTEM_CODE) }
             )
-            val app = TransitCardReader.AppRead(SYSTEM_CODE, ApduUtil.bytesToHex(pollResp), balanceFen, blockHex)
+            val app = TransitCardReader.AppRead(SYSTEM_CODE, ApduUtil.bytesToHex(pollResp), balanceFen, blockHex, idmHex)
             log.add("八达通: IDm=$idmHex, 余额=${balanceFen ?: "未知"}")
             return TransitCardReader.ReadResult(
                 profile, CardInfo(profile.name, "未知", "未知", idmHex, ""), balanceFen,

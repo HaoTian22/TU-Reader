@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
- * 版本迁移见 MIGRATIONS：当前 v6，应用快照及原始槽位均使用 selected_aid 定位应用。
+ * 版本迁移见 MIGRATIONS：当前 v7，原始记录与交易归档挂在卡上应用（card_app.app_id）下，卡号与余额存各应用。
  */
 @Database(
     entities = [
@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedTransactionEntity::class,
         CardAppEntity::class
     ],
-    version = 6,
+    version = UserDatabase.VERSION,
     exportSchema = true
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -27,6 +27,7 @@ abstract class UserDatabase : RoomDatabase() {
 
     companion object {
         const val DB_NAME = "user_data.db"
+        const val VERSION = 7
 
         /** v1→v2：新增 card_app 表（卡上应用 SELECT/BALANCE 记录） */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -223,8 +224,13 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /** v6→v7：原始记录/交易归档改挂卡上应用，卡号与余额改存各应用（见 PerAppMigration）。 */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) = PerAppMigration.migrate(db)
+        }
+
         /** 全部迁移：主库打开与导入旧库共用 */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         @Volatile
         private var instance: UserDatabase? = null

@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RawRecordEntityTest {
-    private fun row(aid: String, sfi: String = "0x18") = RawRecordEntity(
-        cardId = "card", sfi = sfi, recNo = 1, selectedAid = aid,
+    private fun row(sfi: String = "0x18") = RawRecordEntity(
+        appId = 1, sfi = sfi, recNo = 1,
         hex = "1234", contentHash = "hash", firstSeenAt = 1, lastSeenAt = 2
     )
 
@@ -16,7 +16,7 @@ class RawRecordEntityTest {
             "A00000000386980701" to "CU", "5041592E535A54" to "SZT"
         )
         for ((aid, protocol) in aids) {
-            val raw = row(aid).toRawRecord()
+            val raw = row().toRawRecord(aid)
             assertEquals(aid, raw.selectedAid)
             assertEquals(protocol, raw.protocol)
             assertEquals(0x18, raw.sfi)
@@ -31,13 +31,13 @@ class RawRecordEntityTest {
             "D156000015B9ABB9B2D3A6D3C3" to "TFT"
         )
         for ((aid, cardType) in aids) {
-            assertEquals("", row(aid).toRawRecord().protocol)
-            assertEquals(cardType, row(aid, "0x15").toRawRecord().protocol)
+            assertEquals("", row().toRawRecord(aid).protocol)
+            assertEquals(cardType, row("0x15").toRawRecord(aid).protocol)
         }
     }
 
     @Test fun unknownApplicationKeepsItsIdentityForLaterSupport() {
-        val raw = row("UNKNOWN-AID").toRawRecord()
+        val raw = row().toRawRecord("UNKNOWN-AID")
         assertEquals("UNKNOWN-AID", raw.selectedAid)
         assertEquals("", raw.protocol)
     }

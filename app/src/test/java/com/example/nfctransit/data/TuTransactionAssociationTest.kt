@@ -1,7 +1,7 @@
 package com.example.nfctransit.data
 
 import com.example.nfctransit.ApduUtil
-import com.example.nfctransit.data.db.ArchivedTransactionEntity
+import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.TransitDirection
 import org.junit.Assert.*
@@ -39,9 +39,7 @@ class TuTransactionAssociationTest {
         val records = listOf(RecordDecoder.ZoneRecord(0x18, 1, "TU", fareHex), RecordDecoder.ZoneRecord(0x1E, 1, "TU", journey))
         val decoded = RecordDecoder.decodeCard("TU", records, null, 2026)
         assertNull(decoded.display.single { it.sfi == 0x18 }.balanceAfterFen)
-        val row = ArchivedTransactionEntity(cardId = "c", sfi = "0x18", protocol = "TU", hex = fareHex,
-            contentHash = RecordDecoder.contentHash(fareHex), resolvedDate = "20260101", balanceAfterFen = 9999,
-            firstSeenAt = 1, lastSeenAt = 1)
+        val row = RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, fareHex, "20260101")
         assertNull(RecordDecoder.decodeArchive("TU", listOf(row)).single().balanceAfterFen)
     }
 
