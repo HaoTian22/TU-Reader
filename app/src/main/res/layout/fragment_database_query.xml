@@ -197,7 +197,7 @@
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
                     android:text="@string/action_run"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/on_accent"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:background="@drawable/bg_chip_selected"

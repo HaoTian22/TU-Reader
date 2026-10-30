@@ -497,7 +497,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     private fun updateCardBadgeBg() {
         // 卡信息标签背景用主题色淡色填充（胶囊形）
-        val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
+        val bg = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
             cornerRadius = dpToPx(999).toFloat()
             setColor(bg)

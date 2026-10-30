@@ -42,7 +42,7 @@ object DateRangeDialog {
 
         // 浅色 sheet 配色（primary/确认等由卡片主题色注入）
         val primary = accentColor
-        val surface = 0xFFFFFFFF.toInt()
+        val surface = Palette.SURFACE
         val fieldBg = Palette.FILL
         val onSurface = Palette.INK
         val muted = Palette.INK_3
@@ -311,7 +311,7 @@ object DateRangeDialog {
                 }
                 cell.setTextColor(
                     when {
-                        isStart || isEnd -> Color.WHITE
+                        isStart || isEnd -> Palette.ON_ACCENT
                         inRange -> onPrimaryContainer
                         isToday -> primary
                         else -> onSurface

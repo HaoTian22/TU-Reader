@@ -39,7 +39,7 @@ object TransactionActionSheet {
             background = GradientDrawable().apply {
                 val r = 24f * density
                 cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-                setColor(Color.WHITE)
+                setColor(Palette.SURFACE)
             }
             setPadding(0, dp(10), 0, dp(12))
         }
@@ -65,7 +65,7 @@ object TransactionActionSheet {
                 marginEnd = dp(20)
             })
 
-        val tile = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f)
+        val tile = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         actions.forEach { action ->
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL

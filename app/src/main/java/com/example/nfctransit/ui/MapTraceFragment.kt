@@ -46,6 +46,7 @@ import com.example.nfctransit.data.route.RouteLeg
 import com.example.nfctransit.data.route.RouteLoadState
 import com.example.nfctransit.data.route.RouteMode
 import com.example.nfctransit.data.route.RoutePlan
+import com.example.nfctransit.data.route.TencentCredentials
 import com.example.nfctransit.data.route.TransitRouteQuery
 import com.example.nfctransit.data.route.TransitRouteRepository
 import com.example.nfctransit.databinding.FragmentMapTraceBinding
@@ -387,7 +388,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
                         cornerRadius = dpToPx(999f)
                         setColor(mainAccent)
                     }
-                    setTextColor(Color.WHITE)
+                    setTextColor(Palette.ON_ACCENT)
                 } else {
                     background = GradientDrawable().apply {
                         cornerRadius = dpToPx(999f)
@@ -571,7 +572,10 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
     // ── 腾讯公交真实路线 ──
 
     private fun startRouteLoading() {
-        val eligible = model.segments.filter(::canLoadTransitRoute)
+        // 设置页关闭「真实线路」时只保留示意飞线，不调用路线服务
+        val eligible = if (TencentCredentials.isRealRoutes(requireContext())) {
+            model.segments.filter(::canLoadTransitRoute)
+        } else emptyList()
         routeTotal = eligible.size
         routeFinished = 0
         routeFailures = 0

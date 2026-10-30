@@ -25,6 +25,7 @@ import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
+import com.example.nfctransit.data.route.TencentCredentials
 import com.example.nfctransit.databinding.FragmentSettingsBinding
 import java.io.File
 import kotlinx.coroutines.launch
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import com.example.nfctransit.util.AppLanguage
+import com.example.nfctransit.util.AppTheme
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
@@ -179,7 +181,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache,
             R.id.iconDarkMode, R.id.iconCurrentTripRoute,
-            R.id.iconMapSpeed, R.id.iconLanguage,
+            R.id.iconRealRoute, R.id.iconTencentKeys, R.id.iconLanguage,
             R.id.iconExportData, R.id.iconExportLog, R.id.iconDebugLog,
             R.id.iconVersion, R.id.iconCheckUpdate,
             R.id.iconOpenSource, R.id.iconFeedback
@@ -439,23 +441,84 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 if (checked != viewModel.keepDebugLogs.value) viewModel.setKeepDebugLogs(checked)
             }
         }
-        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchDarkMode)
-            ?.tintAccent(Palette.ACCENT)
 
-        // 轨迹回放震动：打开时立即给一下「行程高亮」触感作为预览
-        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchPlaybackHaptics)?.let { toggle ->
-            toggle.isChecked = viewModel.playbackHaptics.value ?: true
-            toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
-            viewModel.playbackHaptics.observe(viewLifecycleOwner) { v ->
-                if (v != toggle.isChecked) toggle.isChecked = v
+        // 深色模式：跟随系统 / 浅色 / 深色（AppCompat 重建 Activity 生效）
+        binding.root.findViewById<TextView>(R.id.tvDarkModeValue)?.text = themeModeLabel(AppTheme.mode(requireContext()))
+        binding.root.findViewById<View>(R.id.rowDarkMode)?.setOnClickListener { showThemeDialog() }
+
+        // 真实线路：关闭时轨迹地图只画示意飞线，不调用腾讯路线服务
+        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchRealRoute)?.let { toggle ->
+            val summary = binding.root.findViewById<TextView>(R.id.tvRealRouteSummary)
+            fun renderSummary(on: Boolean) {
+                summary?.setText(if (on) R.string.real_route_on else R.string.real_route_off)
             }
+            toggle.isChecked = TencentCredentials.isRealRoutes(requireContext())
+            renderSummary(toggle.isChecked)
+            toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
             viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
             toggle.setOnCheckedChangeListener { _, checked ->
-                if (checked == viewModel.playbackHaptics.value) return@setOnCheckedChangeListener
-                viewModel.setPlaybackHaptics(checked)
-                if (checked) PlaybackHaptics(requireContext()).routeShown()
+                TencentCredentials.setRealRoutes(requireContext(), checked)
+                renderSummary(checked)
             }
+            binding.root.findViewById<View>(R.id.rowRealRoute)?.setOnClickListener { toggle.toggle() }
         }
+
+        // 自带腾讯地图 Key（BYOK）：WebService Key + SecretKey，两项都填才替换内置凭据
+        updateTencentKeysRow()
+        binding.root.findViewById<View>(R.id.rowTencentKeys)?.setOnClickListener {
+            val ctx = requireContext()
+            val current = TencentCredentials.userPair(ctx)
+            AppDialogs.tencentKeys(
+                context = ctx,
+                key = current.key,
+                secretKey = current.secretKey,
+                accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
+                onSave = { key, secret ->
+                    TencentCredentials.setUserPair(ctx, key, secret)
+                    updateTencentKeysRow()
+                    AppToast.show(ctx, R.string.tencent_keys_saved, AppToast.Kind.SUCCESS)
+                },
+                onUseBuiltIn = {
+                    TencentCredentials.setUserPair(ctx, "", "")
+                    updateTencentKeysRow()
+                    AppToast.show(ctx, R.string.tencent_keys_cleared)
+                }
+            )
+        }
+    }
+
+    private fun updateTencentKeysRow() {
+        val tv = _binding?.root?.findViewById<TextView>(R.id.tvTencentKeysValue) ?: return
+        tv.setText(
+            if (TencentCredentials.hasUserPair(requireContext())) R.string.tencent_keys_custom
+            else R.string.tencent_keys_builtin
+        )
+    }
+
+    // ── 深色模式 ──
+
+    private fun themeModeLabel(mode: AppTheme.Mode): String = getString(
+        when (mode) {
+            AppTheme.Mode.SYSTEM -> R.string.theme_follow_system
+            AppTheme.Mode.LIGHT -> R.string.theme_light
+            AppTheme.Mode.DARK -> R.string.theme_dark
+        }
+    )
+
+    private fun showThemeDialog() {
+        val modes = AppTheme.Mode.entries
+        val current = AppTheme.mode(requireContext())
+        AppDialogs.options(
+            context = requireContext(),
+            title = getString(R.string.dark_mode),
+            options = modes.map(::themeModeLabel),
+            selectedIndex = modes.indexOf(current),
+            accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
+            onSelect = { which ->
+                val mode = modes[which]
+                if (mode != current) AppTheme.select(requireContext(), mode)
+            }
+        )
     }
 
     // ── 显示语言 ──

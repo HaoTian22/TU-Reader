@@ -1,7 +1,6 @@
 package com.example.nfctransit.data.route
 
 import android.content.Context
-import com.example.nfctransit.BuildConfig
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -65,8 +64,7 @@ internal object TencentTransitRequestBuilder {
 class TencentTransitRouteClient(private val context: Context) {
 
     fun fetch(query: TransitRouteQuery, includeDepartureTime: Boolean): TransitHttpResult {
-        val key = BuildConfig.TENCENT_MAP_WEB_SERVICE_KEY
-        val secretKey = BuildConfig.TENCENT_MAP_SECRET_KEY
+        val (key, secretKey) = TencentCredentials.effective(context)
         if (key.isBlank()) {
             return TransitHttpResult.Failure("未配置腾讯地图 WebService Key", transient = false)
         }
@@ -83,8 +81,7 @@ class TencentTransitRouteClient(private val context: Context) {
     }
 
     fun searchStation(query: StationSearchQuery): TransitHttpResult {
-        val key = BuildConfig.TENCENT_MAP_WEB_SERVICE_KEY
-        val secretKey = BuildConfig.TENCENT_MAP_SECRET_KEY
+        val (key, secretKey) = TencentCredentials.effective(context)
         if (key.isBlank()) {
             return TransitHttpResult.Failure("未配置腾讯地图 WebService Key", transient = false)
         }

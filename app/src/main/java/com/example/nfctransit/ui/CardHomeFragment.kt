@@ -98,7 +98,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         // 主题色跟随卡片：快捷操作图标、优惠胶囊、迷你图一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
-            val tile = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f)
+            val tile = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
             listOf(binding.iconTransactions, binding.iconStats, binding.iconMapTrace).forEach {
                 it.setTextColor(accentColor)
                 it.background = GradientDrawable().apply {
@@ -219,7 +219,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 textSize = 12f
                 background = GradientDrawable().apply {
                     cornerRadius = density * 20
-                    setColor(ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f))
+                    setColor(ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f))
                 }
                 setPadding((10 * density).toInt(), (3 * density).toInt(), (10 * density).toInt(), (3 * density).toInt())
             }
@@ -359,7 +359,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 .ifEmpty { "${week.first().currency}0.00" })
 
         val maxBar = 84f.dpToPx()
-        val lightAccent = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.45f)
+        val lightAccent = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.45f)
 
         week.forEachIndexed { i, d ->
             val col = LinearLayout(requireContext()).apply {

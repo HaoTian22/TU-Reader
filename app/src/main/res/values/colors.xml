@@ -19,6 +19,20 @@
     <color name="danger">#B3261E</color>
     <color name="success">#2E7D4F</color>
     <color name="warning">#B26A00</color>
+    <color name="warning_container">#FFF4E0</color>
+    <!-- 强调色填充上的文字/图标 -->
+    <color name="on_accent">#FFFFFF</color>
+    <!-- 交易金额：扣费红 / 入账绿（比 danger/success 更鲜亮） -->
+    <color name="amount_out">#E5383B</color>
+    <color name="amount_in">#12A150</color>
+    <!-- 点按水波纹（ink 12%） -->
+    <color name="ripple">#1F1B1C1E</color>
+    <!-- 底部渐隐（paper 0% / 60% / 95%） -->
+    <color name="paper_fade_0">#00F3F4F6</color>
+    <color name="paper_fade_60">#99F3F4F6</color>
+    <color name="paper_fade_95">#F2F3F4F6</color>
+    <!-- 地图上的提示条底色 -->
+    <color name="map_hint_bg">#E6FFFFFF</color>
 
     <!-- 深色面板（轨迹回放 / 原始数据十六进制） -->
     <color name="night">#18191B</color>

@@ -106,7 +106,7 @@ class DonutChartView @JvmOverloads constructor(
                 val sweep = seg.percent * 360f
                 val drawSweep = (sweep - gapDegrees).coerceAtLeast(0.5f)
                 ringPaint.color = if (selected < 0 || segments[selected] === seg) seg.color
-                    else ColorUtils.blendARGB(0xFFFFFFFF.toInt(), seg.color, 0.35f)
+                    else ColorUtils.blendARGB(Palette.SURFACE, seg.color, 0.35f)
                 canvas.drawArc(rect, start + gapDegrees / 2f, drawSweep, false, ringPaint)
                 start += sweep
             }

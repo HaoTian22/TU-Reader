@@ -218,7 +218,7 @@ class TransitRouteRepository(context: Context) {
             return RouteLoadState.Error("腾讯路线服务未启用", serviceDisabled = true, status = 199)
         }
         // 未配置 Key：客户端本地即失败，不必逐条排队（每条还要等节流间隔）
-        if (BuildConfig.TENCENT_MAP_WEB_SERVICE_KEY.isBlank() || BuildConfig.TENCENT_MAP_SECRET_KEY.isBlank()) {
+        if (!TencentCredentials.effective(appContext).isComplete) {
             return RouteLoadState.Error("未配置腾讯地图 WebService Key", serviceDisabled = true)
         }
         val blockedUntil = quotaBlockedUntilMillis

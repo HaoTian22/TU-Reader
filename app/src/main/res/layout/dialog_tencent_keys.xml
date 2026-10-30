@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 腾讯地图 WebService Key + SecretKey（BYOK）；样式同 dialog_text_input -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="312dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog">
+
+    <TextView
+        android:id="@+id/dialogKeysTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/tencent_keys_title"
+        android:textColor="@color/ink"
+        android:textSize="20sp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="8dp"
+        android:fontFamily="sans-serif-medium" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/tencent_keys_note"
+        android:textColor="@color/ink_3"
+        android:textSize="12sp"
+        android:lineSpacingExtra="2dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="16dp" />
+
+    <EditText
+        android:id="@+id/dialogKeyInput"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="@string/tencent_key_hint"
+        android:textColor="@color/ink"
+        android:textColorHint="@color/ink_3"
+        android:textSize="15sp"
+        android:singleLine="true"
+        android:inputType="textVisiblePassword|textNoSuggestions"
+        android:importantForAutofill="no"
+        android:background="@drawable/bg_chip_default"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="10dp" />
+
+    <EditText
+        android:id="@+id/dialogSecretInput"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="@string/tencent_secret_hint"
+        android:textColor="@color/ink"
+        android:textColorHint="@color/ink_3"
+        android:textSize="15sp"
+        android:singleLine="true"
+        android:inputType="textVisiblePassword|textNoSuggestions"
+        android:importantForAutofill="no"
+        android:background="@drawable/bg_chip_default"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:id="@+id/dialogKeysReset"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/tencent_keys_use_builtin"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/dialogKeysCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/action_cancel"
+            android:textColor="@color/ink_2"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
+
+        <TextView
+            android:id="@+id/dialogKeysSave"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/action_save"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:minWidth="64dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/bg_text_button" />
+    </LinearLayout>
+</LinearLayout>

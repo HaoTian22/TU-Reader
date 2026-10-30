@@ -438,7 +438,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     }
 
     private fun updateBadgeBackground() {
-        val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
+        val bg = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         binding.cardBadge.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
