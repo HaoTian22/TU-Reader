@@ -1,8 +1,9 @@
-Copyright 2015 The Roboto Mono Project Authors (https://github.com/googlefonts/robotomono)
+Copyright (c) 2013, Pablo Caro <me AT pcaro DOT es> - http://pcaro.es/
+with Reserved Font Name Hermit.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
-https://openfontlicense.org
+http://scripts.sil.org/OFL
 
 
 -----------------------------------------------------------
