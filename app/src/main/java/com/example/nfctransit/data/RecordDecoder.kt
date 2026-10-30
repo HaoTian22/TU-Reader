@@ -358,10 +358,12 @@ object RecordDecoder {
     ): CanonicalTransaction {
         // TU 钱包一侧优先（1E 只存在于 TU 钱包；含 TU 的合并记录纠错标 TU，展示须与其匹配一致），
         // 同为 TU 时带 1E 旅程者优先
-        val preferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
-            .let { if (it.compare(second, first) > 0) second else first }
+        val secondPreferred = compareBy<CanonicalTransaction>({ it.protocol == "TU" }, { it.journeyHex != null })
+            .compare(second, first) > 0
+        val (preferred, other) = if (secondPreferred) second to first else first to second
+        // 展示字段取自 preferred，其记录在前；两侧可能共享同一条记录（如同一 1E 旅程），去重
         return preferred.copy(
-            sources = (preferred.sources + first.sources + second.sources).distinct(),
+            sources = (preferred.sources + other.sources).distinct(),
             protocols = unionProtocols(first, second)
         )
     }
