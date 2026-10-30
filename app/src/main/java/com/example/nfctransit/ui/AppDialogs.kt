@@ -992,7 +992,7 @@ object AppDialogs {
                 }
                 holder.dot.background = android.graphics.drawable.GradientDrawable().apply {
                     shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(card.gradientStartColor.toInt())
+                    setColor(Palette.cardFace(card.gradientStartColor))
                 }
                 // 读屏用户无法拖动：提供上移 / 下移无障碍操作
                 (holder.row.getTag(R.id.dialogReorderList) as? IntArray)?.forEach {

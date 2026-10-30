@@ -204,7 +204,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
 
     private fun cardGradient(card: UiCard, radius: Int) = android.graphics.drawable.GradientDrawable(
         android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-        intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+        intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor))
     ).apply { cornerRadius = radius.toFloat() }
 
     private fun bindRawData() {

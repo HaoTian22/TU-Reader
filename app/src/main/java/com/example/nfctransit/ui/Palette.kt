@@ -37,6 +37,17 @@ object Palette {
     var isDark = false
         private set
 
+    /** 卡面 / 线路色块上的深色字：底色是固定的数据色（马卡龙卡面、线路色），不随深浅模式变化 */
+    const val CARD_INK = 0xFF1B1C1E.toInt()
+    const val CARD_INK_2 = 0xFF4A4D52.toInt()
+
+    /** 深色模式卡面蒙版：马卡龙卡面混入 45% 深底，避免在深色界面上过亮刺眼 */
+    private const val CARD_MASK = 0.45f
+
+    /** 卡面实际绘制色（深色模式加蒙版）；卡面上文字颜色也应按此色判断深浅 */
+    fun cardFace(color: Long): Int =
+        if (isDark) ColorUtils.blendARGB(color.toInt(), PAPER, CARD_MASK) else color.toInt()
+
     // 深色面板（轨迹回放 / 原始数据十六进制）：本身即深色，深浅模式通用
     const val NIGHT = 0xFF18191B.toInt()
     const val NIGHT_2 = 0xFF2A2C30.toInt()

@@ -44,7 +44,7 @@ fun TextView.applyLinePill(color: String?) {
         cornerRadius = 20f * context.resources.displayMetrics.density
         setColor(parsed)
     }
-    setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else Palette.INK_2)
+    setTextColor(if (isDarkColor(parsed)) 0xFFFFFFFF.toInt() else Palette.CARD_INK_2)
 }
 
 /** 创建一颗线路药丸 TextView（统计页/地图轨迹用） */

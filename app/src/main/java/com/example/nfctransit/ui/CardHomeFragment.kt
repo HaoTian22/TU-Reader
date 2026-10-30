@@ -137,18 +137,18 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
     // ── 头部 ──
 
     private fun bindHeader(card: UiCard) {
-        val onCard = if (isDarkColor(card.gradientStartColor.toInt())) Color.WHITE else Palette.INK
+        val onCard = if (isDarkColor(Palette.cardFace(card.gradientStartColor))) Color.WHITE else Palette.CARD_INK
         fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
         val chip = onCardAlpha(0x1F)
 
         binding.header.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+            intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor))
         ).apply {
             val r = 24f.dpToPx()
             cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r)
         }
-        binding.statusScrim.setBackgroundColor(card.gradientStartColor.toInt())
+        binding.statusScrim.setBackgroundColor(Palette.cardFace(card.gradientStartColor))
         listOf(binding.btnBack, binding.btnMore).forEach {
             it.setTextColor(onCard)
             it.background = GradientDrawable().apply {
