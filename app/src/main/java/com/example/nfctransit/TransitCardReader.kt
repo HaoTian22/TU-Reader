@@ -232,6 +232,28 @@ class TransitCardReader internal constructor(
             if (yct == null || yct.walletSelected) {
                 rememberBalance(primaryAid, balance, yct?.balanceResp ?: bc?.respHex)
             }
+
+            // 主钱包的额外文件趁其应用仍选中时限时探测；TU（双协议卡的 TU 钱包、TU 卡的电子现金）放到最后读。
+            // 实测岭南通双协议卡读完 TU/EC 后再 SELECT PAY.TICL 返回 6A82，先读 TU 会让主钱包文件探测落空。
+            if (connectionError == null && (yct == null || yct.walletSelected)) {
+                val optionalStartedAt = nowMs()
+                optionalReading = true
+                try {
+                    channel.timeout = 500
+                    val primarySelected = activeAid == primaryAid || selectApplication(primaryAid, log) != null
+                    if (primarySelected && connectionError == null) {
+                        probeAllFiles(log, rawRecs, protocol,
+                            profile.transactionSfis + profile.infoSfi + statsSfis, optionalStartedAt)
+                    }
+                } catch (error: Exception) {
+                    log.add("额外文件探测异常: ${error.message}")
+                } finally {
+                    channel.timeout = 3000
+                    optionalReading = false
+                }
+                log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
+            }
+
             val tu = if (profile.cardType in CardProfiles.DUAL_TU_TYPES && connectionError == null) {
                 readTuWallet(log, rawRecs)
             } else TuWalletResult(null, null)
@@ -246,25 +268,7 @@ class TransitCardReader internal constructor(
                 }
             }
             log.add("核心读取耗时: ${nowMs() - coreStartedAt} ms")
-
-            // 先完成全部钱包的核心读取，再限时保留未知文件；断卡不会丢弃核心结果。
             optionalReading = true
-            if (connectionError == null && (yct == null || yct.walletSelected)) {
-                val optionalStartedAt = nowMs()
-                try {
-                    channel.timeout = 500
-                    val primarySelected = activeAid == primaryAid || selectApplication(primaryAid, log) != null
-                    if (primarySelected && connectionError == null) {
-                        probeAllFiles(log, rawRecs, protocol,
-                            profile.transactionSfis + profile.infoSfi + statsSfis +
-                                (if (yct != null) setOf(0x08) else emptySet()),
-                            optionalStartedAt)
-                    }
-                } catch (error: Exception) {
-                    log.add("额外文件探测异常: ${error.message}")
-                }
-                log.add("额外探测耗时: ${nowMs() - optionalStartedAt} ms")
-            }
             return ReadResult(profile, info, balance, tu.info, tu.balance, yct?.payMonth,
                 rawRecs, log, applicationReads.values.toList(), readError)
         }

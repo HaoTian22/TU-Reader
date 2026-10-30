@@ -171,12 +171,12 @@ class TransitCardReaderSessionTest {
         }
         val result = TransitCardReader(channel).read()
         assertEquals(202610, result.statsMonth)
-        assertEquals(ApduUtil.bytesToHex(stats), result.rawRecords.single { it.sfi == 0x08 }.hex)
-        assertEquals("LNT", result.rawRecords.single { it.sfi == 0x08 }.protocol)
-        assertEquals(appy, result.rawRecords.single { it.sfi == 0x08 }.selectedAid)
+        // 原始槽位按应用区分：钱包应用 PAY.TICL 的文件探测（含 0x08）不会覆盖 PAY.APPY 的统计记录
+        val appyStats = result.rawRecords.single { it.sfi == 0x08 && it.selectedAid == appy }
+        assertEquals(ApduUtil.bytesToHex(stats), appyStats.hex)
+        assertEquals("LNT", appyStats.protocol)
         assertEquals(appy, result.rawRecords.single { it.sfi == 0x15 }.selectedAid)
         assertEquals(ticl, result.rawRecords.single { it.sfi == 0x18 }.selectedAid)
-        assertFalse(ApduUtil.bytesToHex(ApduUtil.buildReadBinary(0x08, 0, 0)) in channel.commands)
         assertTrue(result.appReads.any { it.selectedAid == ticl })
         assertEquals(1, result.appReads.count { it.selectedAid == appy })
     }
