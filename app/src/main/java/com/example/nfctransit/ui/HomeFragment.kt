@@ -275,7 +275,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val face = FrameLayout(ctx).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor))
+                intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor, end = true))
             ).apply { cornerRadius = CARD_CORNER_DP.dpToPx().toFloat() }
             isClickable = true
             // 触屏模式下不抢焦点：避免 ScrollView 为「把焦点卡片滚进可视区」自动滚动，导致首屏位置偏移

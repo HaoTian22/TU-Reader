@@ -41,12 +41,19 @@ object Palette {
     const val CARD_INK = 0xFF1B1C1E.toInt()
     const val CARD_INK_2 = 0xFF4A4D52.toInt()
 
-    /** 深色模式卡面蒙版：马卡龙卡面混入 45% 深底，避免在深色界面上过亮刺眼 */
-    private const val CARD_MASK = 0.45f
-
-    /** 卡面实际绘制色（深色模式加蒙版）；卡面上文字颜色也应按此色判断深浅 */
-    fun cardFace(color: Long): Int =
-        if (isDark) ColorUtils.blendARGB(color.toInt(), PAPER, CARD_MASK) else color.toInt()
+    /**
+     * 卡面实际绘制色；卡面上文字颜色也应按此色判断深浅。
+     * 深色模式下马卡龙卡面转成同色相的深色宝石调（饱和度封顶 0.5、亮度 ×0.4），
+     * 渐变终点再压暗一档，保留卡面渐变层次（混灰会发脏，故不用蒙版混色）。
+     */
+    fun cardFace(color: Long, end: Boolean = false): Int {
+        if (!isDark) return color.toInt()
+        val hsl = FloatArray(3)
+        ColorUtils.colorToHSL(color.toInt(), hsl)
+        hsl[1] = hsl[1].coerceAtMost(0.5f)
+        hsl[2] = (hsl[2] * 0.4f - if (end) 0.05f else 0f).coerceAtLeast(0.12f)
+        return ColorUtils.HSLToColor(hsl)
+    }
 
     // 深色面板（轨迹回放 / 原始数据十六进制）：本身即深色，深浅模式通用
     const val NIGHT = 0xFF18191B.toInt()

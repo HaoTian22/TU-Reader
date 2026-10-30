@@ -143,7 +143,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
         binding.header.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor))
+            intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor, end = true))
         ).apply {
             val r = 24f.dpToPx()
             cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r)
