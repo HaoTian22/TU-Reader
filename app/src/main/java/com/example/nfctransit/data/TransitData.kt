@@ -2,6 +2,7 @@ package com.example.nfctransit.data
 
 import android.content.Context
 import android.util.Log
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.data.db.AppDatabase
 import com.example.nfctransit.data.db.StationResolution
 import com.example.nfctransit.util.AppLanguage
@@ -179,7 +180,8 @@ object TransitData {
         deviceCode: String?,
         declaredCityCode: String?,
         lineId: Long? = null,
-        standard: String = "TU"
+        standard: String = "TU",
+        institutionCity: String? = null
     ): ActualLocation {
         ensureLoaded()
         val resolution = stationId?.let { byStationId[it] }
@@ -202,7 +204,7 @@ object TransitData {
         if (!deviceCity.isNullOrBlank()) {
             return ActualLocation(deviceCity, cityInfos[deviceCity]?.zh ?: deviceCity, LocationSource.PARENT_DIRECTORY)
         }
-        val fallback = declaredCityCode?.takeIf { it.isNotBlank() }?.let { canonicalCityCode(it, standard) }
+        val fallback = declaredCityCode?.takeIf { it.isNotBlank() }?.let { canonicalCityCode(it, standard, institutionCity) }
         return ActualLocation(fallback, fallback?.let { cityInfos[it]?.zh ?: it }.orEmpty(), LocationSource.DECLARED_CITY_FALLBACK)
     }
 
@@ -237,13 +239,44 @@ object TransitData {
     }
 
     /** 城市码 -> 中文城市名（如 "广州"），未知时返回原城市码 */
-    fun cityZh(cityCode: String, standard: String = "TU"): String {
+    fun cityZh(cityCode: String, standard: String = "TU", institutionCity: String? = null): String {
         ensureLoaded()
-        return cityInfos[canonicalCityCode(cityCode, standard)]?.zh ?: cityCode
+        return cityInfos[canonicalCityCode(cityCode, standard, institutionCity)]?.zh ?: cityCode
     }
 
-    private fun canonicalCityCode(code: String, standard: String): String =
-        protocolCityCodes[cityProtocol(standard) to code] ?: code
+    private fun canonicalCityCode(code: String, standard: String, institutionCity: String? = null): String {
+        val protocol = cityProtocol(standard)
+        return resolveCityCode(protocol, code, protocolCityCodes[protocol to code], code in cityInfos, institutionCity)
+    }
+
+    /**
+     * 协议城市码 → 标准城市码。TU 例外代码同时是另一城市的标准代码时（冲突，如 TU 1730 既是吕梁标准码、
+     * 又被太原设备使用）：两城都是候选，按交易记录机构码城市（[tuInstitutionCity]）二选一；
+     * 机构城市不属于两者或未知时沿用库中映射。设备匹配按原始前缀分桶，两城设备始终同为候选，不受此影响。
+     * CU 等协议的代码自成体系，与 TU 标准码同值不算冲突。
+     */
+    internal fun resolveCityCode(
+        protocol: String,
+        code: String,
+        mapped: String?,
+        codeIsStandard: Boolean,
+        institutionCity: String?
+    ): String {
+        if (mapped == null || mapped == code) return code
+        if (protocol != "TU" || !codeIsStandard) return mapped
+        return institutionCity?.takeIf { it == code || it == mapped } ?: mapped
+    }
+
+    /**
+     * TU 1E 记录的机构码 byte 34–41，其第 3–4 字节（record byte 36–37）为机构城市码：
+     * 大同 …8040 12981620FFFFFFFF… → 1620。仅当第 5–6 字节（record byte 38–39）为 FFFF 时可用，
+     * 否则（或缺失 / 非 BCD）返回 null，由调用方按区域城市码（byte 32–33）处理。
+     */
+    fun tuInstitutionCity(record: ByteArray): String? {
+        if (record.size < 40) return null
+        if (ApduUtil.bytesToHex(record.copyOfRange(38, 40)) != "FFFF") return null
+        return ApduUtil.bytesToHex(record.copyOfRange(36, 38)).takeIf { code -> code.all(Char::isDigit) }
+    }
 
     enum class TuTransitFamily { RAIL, BUS }
 

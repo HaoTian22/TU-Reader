@@ -603,14 +603,21 @@ def main():
     for (protocol, code), cities in prefix_cities.items():
         if cities == {code}:
             continue
+        others = cities - {code}
         if len(cities) == 1:
             actual = next(iter(cities))
         elif protocol == "YCT" and code == "0100":
             actual = "5810"
+        elif protocol == "TU" and code in loader.city_by_code and len(others) == 1:
+            actual = next(iter(others))  # 标准码所属城市 + 一个例外城市：同样记为冲突映射，见下
         elif code in loader.city_by_code:
             continue  # 标准代码跨城共用，实际城市仅由设备 city_id 确定。
         else:
             raise ValueError(f"例外代码对应多个城市，需明确网络归属：{protocol}/{code}: {cities}")
+        if protocol == "TU" and code in loader.city_by_code and actual != code:
+            # 冲突：例外码同时是另一城市的标准码。App 两城设备同为匹配候选，城市名按 1E 机构码第 3–4 字节二选一。
+            print(f"冲突城市码：TU/{code} 是 {loader.city_by_code[code]['city_name']} 的标准码，"
+                  f"同时映射到 {loader.city_by_code[actual]['city_name']}({actual})；App 按记录机构码城市区分")
         city_id = ensure_city(actual)
         old = db.execute("SELECT city_id FROM protocol_city_code WHERE protocol=? AND code=?", (protocol, code)).fetchone()
         if old is None or old[0] != city_id:

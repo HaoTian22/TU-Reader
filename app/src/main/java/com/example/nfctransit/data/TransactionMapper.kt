@@ -108,7 +108,8 @@ object TransactionMapper {
         val actualLocation = if (effRecharge) {
             ActualLocation(null, "", LocationSource.DECLARED_CITY_FALLBACK)
         } else {
-            TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode, resolved.lineId, protocol)
+            TransitData.actualLocation(resolved.stationId, deviceCode, declaredCityCode, resolved.lineId, protocol,
+                tuJourneyRecord()?.let(TransitData::tuInstitutionCity))
         }
 
         return UiTransaction(
@@ -158,6 +159,13 @@ object TransactionMapper {
         return data.size >= 10 &&
             (data[0].toInt() and 0xFF) == 0x08 &&
             (data[9].toInt() and 0xFF) == 0x01
+    }
+
+    /** TU 1E 原始记录（本身或合并进 18 的 1E）；非 TU 交易为 null。 */
+    private fun CanonicalTransaction.tuJourneyRecord(): ByteArray? {
+        if (protocol != "TU" && !protocols.contains("TU")) return null
+        val raw = (if (sfi == 0x1E) hex else journeyHex) ?: return null
+        return runCatching { ApduUtil.hexToBytes(raw) }.getOrNull()
     }
 
     /** TU 1E（或合并进 18 的 1E）公交记录的规则命中，与 RecordDecoder.buildTuMap 的兜底口径一致。 */
