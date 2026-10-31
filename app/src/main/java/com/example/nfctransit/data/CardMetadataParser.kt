@@ -20,21 +20,13 @@ data class ApplicationMetadata(
 )
 
 object CardMetadataParser {
-    /** @param allowBlankFallback 无精确协议记录时使用空协议记录（无 selected_aid 的旧槽位）；双协议卡的第二应用不回退。 */
-    fun parse(
-        protocol: String, records: List<RawRecord>, ecSelectHex: String? = null,
-        allowBlankFallback: Boolean = true
-    ): ApplicationMetadata {
+    fun parse(protocol: String, records: List<RawRecord>, ecSelectHex: String? = null): ApplicationMetadata {
         @Suppress("NAME_SHADOWING")
         val records = records.filterNot { CardProfiles.isUnknownApp(it.selectedAid) }
         fun bytes(sfi: Int, aid: String? = null): ByteArray? {
-            val exact = records.filter {
+            return records.filter {
                 it.sfi == sfi && it.protocol == protocol && (aid == null || it.selectedAid.equals(aid, true))
-            }
-            val candidates = if (exact.isEmpty() && aid == null && allowBlankFallback && protocol.isNotEmpty()) {
-                records.filter { it.sfi == sfi && it.protocol.isBlank() }
-            } else exact
-            return candidates.maxByOrNull { it.hex.length }?.hex
+            }.maxByOrNull { it.hex.length }?.hex
                 ?.let { runCatching { ApduUtil.hexToBytes(it) }.getOrNull() }
         }
         fun hex(data: ByteArray?, start: Int, length: Int): String? = data

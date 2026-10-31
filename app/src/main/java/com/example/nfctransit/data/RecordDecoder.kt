@@ -24,10 +24,10 @@ object RecordDecoder {
     data class ZoneRecord(
         val sfi: Int,
         val recNo: Int,
-        val protocol: String,  // "LNT"/"SZT"/"TU"/"" — 双协议卡区分钱包
+        val protocol: String,  // 由 selectedAid 推出的协议标签（LNT/TU/CU/SZT/TFT…）— 双协议卡区分钱包
         val hex: String,
         val logFormat: String? = null,
-        val selectedAid: String = ""  // 读出该记录的应用；无读卡来源（TripReader 导入）时为空
+        val selectedAid: String = ""  // 读出该记录的应用 AID
     )
 
     /**
@@ -51,8 +51,7 @@ object RecordDecoder {
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
         // 未知卡只有原始数据；八达通交易记录加密不可读，卡内仅余额块
         if (cardType == CardProfiles.UNKNOWN.cardType || cardType == CardProfiles.OCTOPUS.cardType) return emptyList()
-        // 交易 SFI 按记录所属应用确定；只有缺 AID 的旧记录退回按卡型
-        val cardTypeSfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
+        // 交易 SFI 按记录所属应用确定
         val formats = ecLogFormats(records)
         return records.mapNotNull { raw ->
             if (CardProfiles.isUnknownApp(raw.selectedAid)) {
@@ -63,8 +62,7 @@ object RecordDecoder {
                 val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
                 ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format, raw.selectedAid)
             } else {
-                val sfis = if (raw.selectedAid.isBlank()) cardTypeSfis else CardProfiles.transactionSfisForAid(raw.selectedAid)
-                if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
+                if (raw.sfi in CardProfiles.transactionSfisForAid(raw.selectedAid) && raw.sfi !in setOf(0x0B, 0x0C)) {
                     ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex, selectedAid = raw.selectedAid)
                 } else null
             }
@@ -190,11 +188,10 @@ object RecordDecoder {
                 DecodeResult(display, lnt + tu.journey + tuFare)
             }
             "CU", "MPASS" -> {
-                // CU 历史归档用空协议标签；MPASS 主钱包始终带协议标签（金额单位/城市按协议区分）
-                val cuRecords = records.filter { it.protocol == cardType || (cardType == "CU" && it.protocol.isBlank()) }
+                val cuRecords = records.filter { it.protocol == cardType }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, if (cardType == "MPASS") "MPASS" else "",
+                    cardType, cuRecords, cardType,
                     TuMap(emptyMap(), emptyList()), currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
@@ -208,10 +205,7 @@ object RecordDecoder {
                 DecodeResult(display, cu + tu.journey + tuFare)
             }
             "SZT" -> {
-                val hasSztProtocol = records.any { it.protocol == "SZT" }
-                val sztRecords = records.filter {
-                    it.protocol == "SZT" || (!hasSztProtocol && it.protocol.isBlank())
-                }
+                val sztRecords = records.filter { it.protocol == "SZT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val szt = parseFareRecords(
                     cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()),
@@ -229,7 +223,7 @@ object RecordDecoder {
             }
             else -> {
                 // 通用（CU/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
-                val fare = parseFareRecords(cardType, records, "", TuMap(emptyMap(), emptyList()), currentYear, null)
+                val fare = parseFareRecords(cardType, records, cardType, TuMap(emptyMap(), emptyList()), currentYear, null)
                 val display = mergeForDisplay(fare).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
@@ -279,10 +273,10 @@ object RecordDecoder {
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             "CU", "MPASS" -> {
-                val cuRecords = records.filter { it.protocol == cardType || (cardType == "CU" && it.protocol.isBlank()) }
+                val cuRecords = records.filter { it.protocol == cardType }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val cu = parseFareRecords(
-                    cardType, cuRecords, if (cardType == "MPASS") "MPASS" else "",
+                    cardType, cuRecords, cardType,
                     TuMap(emptyMap(), emptyList()), 0, null, storedDate
                 )
                 val tu = buildTuMap(tuRecords)
@@ -292,10 +286,7 @@ object RecordDecoder {
                 cu + mergeJourneyAndFare(tu.journey, tuFare)
             }
             "SZT" -> {
-                val hasSztProtocol = records.any { it.protocol == "SZT" }
-                val sztRecords = records.filter {
-                    it.protocol == "SZT" || (!hasSztProtocol && it.protocol.isBlank())
-                }
+                val sztRecords = records.filter { it.protocol == "SZT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val szt = parseFareRecords(
                     cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()), 0, null,
@@ -308,7 +299,7 @@ object RecordDecoder {
                 szt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             else -> parseFareRecords(
-                cardType, records, "", TuMap(emptyMap(), emptyList()), 0, null, storedDate
+                cardType, records, cardType, TuMap(emptyMap(), emptyList()), 0, null, storedDate
             )
         }
         return mergeForDisplay(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
@@ -612,7 +603,7 @@ object RecordDecoder {
 
             results.add(
                 buildTransaction(
-                    sfi = rec.sfi, protocol = rec.protocol.ifBlank { protocol }, hex = rec.hex,
+                    sfi = rec.sfi, protocol = rec.protocol, hex = rec.hex,
                     selectedAid = rec.selectedAid,
                     sequence = seq, amountFen = amountFen, typeHex = effectiveTypeHex,
                     terminal = terminal,

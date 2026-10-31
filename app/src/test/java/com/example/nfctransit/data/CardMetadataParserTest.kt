@@ -54,15 +54,6 @@ class CardMetadataParserTest {
         assertEquals("0001", metadata.interoperabilityCode)
     }
 
-    @Test fun legacyInfoWithoutAidFallsBackOnlyForPrimaryApplication() {
-        val info = ByteArray(30)
-        ApduUtil.hexToBytes("2025010120351231").copyInto(info, 20)
-        val records = listOf(RawRecord(0x15, 0, "", ApduUtil.bytesToHex(info), ""))
-        assertEquals("2025-01-01", CardMetadataParser.parse("SZT", records).issueDate)
-        assertEquals("2035-12-31", CardMetadataParser.parse("TU", records).validUntil)
-        assertNull(CardMetadataParser.parse("TU", records, allowBlankFallback = false).issueDate)
-    }
-
     @Test fun malformedDatesRemainUnknown() {
         assertNull(CardMetadataParser.date(ApduUtil.hexToBytes("20250230"), 0))
         assertNull(CardMetadataParser.date(ApduUtil.hexToBytes("20250A01"), 0))

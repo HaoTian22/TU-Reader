@@ -1160,10 +1160,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     prefix.trim(), code.trim(), type.trim(),
                     line.trim(), station.trim()
                 )
-                // 按记录所在钱包标记（双钱包卡的 TU 钱包记录按 TU 匹配，标卡型会被 TU 路径拒绝）；
-                // 两钱包合并的记录（CU+TU 等）只要含 TU 就标 TU
-                val standard = "TU".takeIf { it == transaction.protocol || it in transaction.protocols }
-                    ?: transaction.protocol.ifBlank { transaction.cardType.ifBlank { "OVERRIDE" } }
+                val standard = transaction.overrideStandard.ifBlank { "OVERRIDE" }
                 // 上传时写明全部来源协议及 AID；本地覆盖仍按 standard 匹配
                 val uploadStandard = uploadStandard(transaction, standard)
                 val startedAt = SystemClock.elapsedRealtime()
@@ -1817,7 +1814,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val hasTuApp = records.any { it.protocol == "TU" } ||
             apps.any { CardProfiles.protocolForAid(it.selectedAid) == "TU" }
         val second = if (cardType in CardProfiles.DUAL_TU_TYPES && hasTuApp) {
-            com.example.nfctransit.data.CardMetadataParser.parse("TU", records, ecSelect, allowBlankFallback = false)
+            com.example.nfctransit.data.CardMetadataParser.parse("TU", records, ecSelect)
         } else null
         // TU 卡号：单协议 TU 为主卡号，双协议卡（YCT/SZT/CU）为第二卡号；其 IIN 可定位发卡机构。
         val tuCardNumber = (if (primaryProtocol == "TU") card.cardNumber else card.secondCardNumber)

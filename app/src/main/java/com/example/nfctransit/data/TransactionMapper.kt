@@ -142,8 +142,7 @@ object TransactionMapper {
             balanceAfterText = balanceAfterFen?.let { L10n.str(R.string.balance_after_format, String.format("%.2f", it / 100.0)) },
             icon = icon,
             iconBgColor = ICON_BG,
-            protocols = if (protocols.isNotEmpty()) protocols.sorted()
-                else if (protocol.isBlank()) emptyList() else listOf(protocol),
+            protocols = protocols.ifEmpty { setOf(protocol) }.sorted(),
             deviceCode = deviceCode,
             spRule = spRule,
             actualCityCode = actualLocation.cityCode,

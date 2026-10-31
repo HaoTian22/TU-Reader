@@ -84,6 +84,12 @@ data class UiTransaction(
     /** 组成该交易的全部原始记录（各带来源应用），详情页原始数据逐条展示 */
     val sources: List<RawHexBlock> = emptyList()
 ) {
+    /**
+     * 站名纠错按哪个协议匹配：双钱包卡的 TU 钱包记录按 TU 匹配（标卡型会被 TU 路径拒绝），
+     * 两钱包合并的记录（CU+TU 等）只要含 TU 就标 TU；其余为记录自身协议。
+     */
+    val overrideStandard: String get() = "TU".takeIf { it in protocols } ?: protocol.ifBlank { cardType }
+
     /** 与本交易合并的 TU 1E 旅程记录（本交易自身为 1E 时为 null） */
     val journeyHex: String? get() = sources.firstOrNull { it.sfi == 0x1E && it.hex != hex }?.hex
 }
