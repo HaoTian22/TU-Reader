@@ -78,7 +78,7 @@ data class UiTransaction(
     val iconBgColor: Long,         // background color for icon circle
     val protocols: List<String> = emptyList(),  // 该记录被哪些协议写入（LNT/TU），排序后展示
     val deviceCode: String? = null,  // 站名解析命中的 device_code（如 581000140019）；null=未命中
-    val spRule: String? = null,      // 特殊匹配规则标记（广佛跨城/深圳），详情页 Match 行附加展示；null=普通命中
+    val spRule: String? = null,      // 特殊匹配规则标记（广佛跨城/深圳/line_rules 线路规则），详情页 Match 行附加展示；null=普通命中
     val actualCityCode: String? = null,
     val locationSource: LocationSource = LocationSource.DECLARED_CITY_FALLBACK,
     /** 组成该交易的全部原始记录（各带来源应用），详情页原始数据逐条展示 */

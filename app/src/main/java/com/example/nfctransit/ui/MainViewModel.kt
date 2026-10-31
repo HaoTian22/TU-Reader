@@ -23,6 +23,7 @@ import com.example.nfctransit.OctopusReader
 import com.example.nfctransit.TransitCardReader
 import com.example.nfctransit.R
 import com.example.nfctransit.data.CardUiCache
+import com.example.nfctransit.data.LineRulesStore
 import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.RecordDecoder
 import com.example.nfctransit.data.StationDbUpdater
@@ -1655,6 +1656,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         toast(StatusMessage(L10n.str(R.string.station_db_updating), AppToast.Kind.PROGRESS))
         viewModelScope.launch {
             try {
+                // 线路规则独立发布：尽力更新，失败保留现有规则、不影响站名库更新
+                withContext(Dispatchers.IO) {
+                    try {
+                        LineRulesStore.update(getApplication())
+                    } catch (e: Exception) {
+                        Log.w("MainViewModel", "line_rules update failed", e)
+                    }
+                }
                 val downloaded = withContext(Dispatchers.IO) {
                     StationDbUpdater.download(getApplication()) { _stationDbProgress.postValue(it) }
                 }

@@ -610,6 +610,39 @@ class RecordDecoderTest {
         standard = "YCT", transitType = type, deviceCode = "99000018"
     )
 
+    @Test
+    fun dongguanBusLineComesFromCityRuleWhenMappingIsMissing() = withDeviceMappings(emptyList(), prefix = "6020") {
+        // 东莞实卡 TU 1E 记录（byte 10–15 = 0/1 + 线路号 + 0101 + …），新解码与存档重解码一致
+        val cases = listOf(
+            "04000041310085482602074701015930090000000000001A4A20251127162215602011616020FFFFFFFF018018004700" to
+                Triple("747", "20251127", "162215"),
+            "06000041310085566202007501016020092C0100000000113A20260103103516602011616020FFFFFFFF015709000100" to
+                Triple("75", "20260103", "103516")
+        )
+        TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+        try {
+            for ((hex, expected) in cases) {
+                val (line, date, time) = expected
+                val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hex)
+                val fresh = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+                val saved = RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EP_AID, hex, fresh.date)
+                for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
+                    assertEquals(hex, line, tx.lineName)
+                    assertEquals(hex, line, tx.stationName)
+                    assertEquals("公交", tx.transitType)
+                    assertEquals("6020", tx.cityCode)
+                    assertNull(tx.deviceCode)
+                    assertNull(tx.lineId)
+                    assertEquals("(Line Rule: 6020 #1)", tx.spRule)
+                    assertEquals(date, tx.date)
+                    assertEquals(time, tx.time)
+                }
+            }
+        } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
     private fun tuJourneyRecord(type: Int, subtype: Int, lineStation: String = "00180000"): RecordDecoder.ZoneRecord {
         val data = ByteArray(48)
         data[0] = type.toByte()

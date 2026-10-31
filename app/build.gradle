@@ -145,3 +145,8 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }
+
+// TuLineRulesTest 直接读取内置 line_rules.json：声明为测试输入，只改规则文件时测试不会被判为 up-to-date 而跳过
+tasks.withType(Test).configureEach {
+    inputs.file("src/main/assets/data/line_rules.json")
+}

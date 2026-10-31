@@ -144,7 +144,7 @@ object TransactionMapper {
             iconBgColor = ICON_BG,
             protocols = protocols.ifEmpty { setOf(protocol) }.sorted(),
             deviceCode = deviceCode,
-            spRule = spRule,
+            spRule = resolved.spRule ?: spRule,
             actualCityCode = actualLocation.cityCode,
             locationSource = actualLocation.source,
             sources = sources.ifEmpty { listOf(RawHexBlock(sfi, protocol, hex)) }
@@ -160,6 +160,13 @@ object TransactionMapper {
             (data[9].toInt() and 0xFF) == 0x01
     }
 
+    /** TU 1E（或合并进 18 的 1E）公交记录的规则命中，与 RecordDecoder.buildTuMap 的兜底口径一致。 */
+    private fun CanonicalTransaction.tuRuleMatch(): TuLineRules.Match? {
+        if (!TransitData.matchesTuTransitFamily(transitType, TransitData.TuTransitFamily.BUS)) return null
+        val raw = (if (sfi == 0x1E) hex else journeyHex) ?: return null
+        return TransitData.tuRuleMatch(ApduUtil.hexToBytes(raw))
+    }
+
     /** 按 ID（或旧数据反查）优先解析匹配记录；命中后站名、线路、城市和类型均以记录为准。 */
     private fun CanonicalTransaction.resolveDisplayNames(): ResolvedNames {
         if (typeHex == "02" || (amountFen ?: 0L) < 0) {  // 充值无站点
@@ -172,6 +179,12 @@ object TransactionMapper {
         } else if (stationId != null) {
             TransitData.entryOf(null, stationId)
         } else null
+        // 无库 ID 的公交记录：按当前 line_rules.json 重算（先于按名反查，避免纯线路号误配他城站名）
+        if (entry == null && lineId == null && stationId == null) {
+            tuRuleMatch()?.let { m ->
+                return ResolvedNames(m.line, m.line, lineColor, transitType, cityCode, null, null, spRule = m.tag)
+            }
+        }
         if (entry == null && base.contains(" ")) entry = TransitData.resolveByCombined(base)
         if (entry == null) entry = TransitData.resolveByCombined("${lineName} $base".trim())
         if (entry == null) entry = TransitData.resolveByStationName(base)
@@ -211,7 +224,9 @@ object TransactionMapper {
         val lineId: Long?,
         val stationId: Long?,
         /** 数据库命中的原始 Type 列（未命中/充值早退为 null），用于大分类外类型的统一展示 */
-        val dbType: String? = null
+        val dbType: String? = null,
+        /** 线路规则命中标记（line_rules.json），覆盖存档里的 spRule */
+        val spRule: String? = null
     )
 
     /** 归并到"公交"大类的类型：含解码侧兜底串"公共交通"与 CSV 里的公交族 */

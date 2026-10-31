@@ -412,15 +412,19 @@ object RecordDecoder {
             val fallbackStation = if (railFallback) "轨道交通" else "公共交通"
             val fallbackTransitType = if (railFallback) "地铁" else "公交"
             val mappedRef = entry
+            val resolvedType = mappedRef?.type ?: fallbackTransitType
             // 方向判断使用数据库原始类型或 subtype 兜底类型，不受显示语言影响。
-            val direction = tuDirectionForType(
-                data[0].toInt() and 0xFF,
-                mappedRef?.type ?: fallbackTransitType
-            )
+            val direction = tuDirectionForType(data[0].toInt() and 0xFF, resolvedType)
+            // 映射未给出线路名的公交记录，按 line_rules.json 城市规则兜底（仅显示，见 TuLineRules）。
+            val ruleMatch = if (mappedRef?.line.isNullOrEmpty() &&
+                TransitData.matchesTuTransitFamily(resolvedType, TransitData.TuTransitFamily.BUS)
+            ) TransitData.tuRuleMatch(data) else null
+            val ruleLine = ruleMatch?.line
             val ref = StationRef(
-                station = mappedRef?.station ?: fallbackStation,
-                line = mappedRef?.line ?: "",
-                transitType = mappedRef?.type ?: fallbackTransitType,
+                // 规则命中时与数据库「仅线路」行一致：站名位显示线路号（见 TransitData.toEntry）。
+                station = mappedRef?.station ?: ruleLine ?: fallbackStation,
+                line = mappedRef?.line?.takeIf { it.isNotEmpty() } ?: ruleLine ?: "",
+                transitType = resolvedType,
                 direction = direction,
                 mappingTransitType = mappedRef?.type,
                 lineColor = mappedRef?.lineColor,
@@ -428,7 +432,7 @@ object RecordDecoder {
                 stationId = mappedRef?.stationId,
                 cityCode = mappedRef?.cityCode,
                 deviceCode = mappedRef?.code,
-                spRule = mappedRef?.spRule
+                spRule = mappedRef?.spRule ?: ruleMatch?.tag
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(17, 21)) else 0L

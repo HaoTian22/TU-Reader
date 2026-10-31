@@ -780,6 +780,12 @@ object TransitData {
     /** 站点/线路名跟随界面语言：中文界面用中文名，其他语言优先英文名 */
     private fun useEnglish(): Boolean = !AppLanguage.isChinese()
 
+    /** TU 1E 记录按 line_rules.json 推算的公交线路号及命中标记；无规则或不命中返回 null。 */
+    internal fun tuRuleMatch(record: ByteArray): TuLineRules.Match? {
+        ensureLoaded()
+        return TuLineRules.match(record)
+    }
+
     /** DB 解析结果 -> 对外 StationEntry，线路/站点名按显示语言回退，并携带 ID。
      *  空站名/空线路名的大类 fallback 设备 → 站名回退到线路名或交通类型（空串也要兜底，不能用 ?: 只对 null 生效） */
     private fun StationResolution.toEntry(spRule: String? = null): StationEntry {
@@ -852,6 +858,12 @@ object TransitData {
                 if (!boundariesLoaded) {
                     loadBoundaries(ctx)
                     boundariesLoaded = true
+                }
+                // 线路规则与 transit.db 同周期载入（reload 时一并刷新，独立文件不受库加载失败影响）
+                try {
+                    LineRulesStore.load(ctx)
+                } catch (e: Exception) {
+                    Log.w("TransitData", "line_rules load failed", e)
                 }
                 runBlocking {
                     val dao = AppDatabase.get(ctx).transitDao()
