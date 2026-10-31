@@ -387,7 +387,7 @@ object RecordDecoder {
             if (data.size < 22) continue
             if (data.all { it.toInt() == 0 }) continue  // 空槽
 
-            val terminal = ApduUtil.bcdToString(data.copyOfRange(3, 9))
+            val terminal = ApduUtil.bytesToHex(data.copyOfRange(3, 9))  // 终端号可含 FF 填充，按 hex 保留
             val lineCode = ApduUtil.bcdToString(data.copyOfRange(10, 12))
             val stationCode = ApduUtil.bcdToString(data.copyOfRange(12, 14))
             val cityCode = if (data.size >= 34) ApduUtil.bcdToString(data.copyOfRange(32, 34)) else ""
@@ -506,7 +506,7 @@ object RecordDecoder {
                 CardProfiles.centsPerUnit(protocol)
             val typeHex = ApduUtil.bytesToHex(byteArrayOf(data[9]))
             val typeByte = data[9].toInt() and 0xFF
-            val terminal = ApduUtil.bcdToString(data.copyOfRange(10, 16))
+            val terminal = ApduUtil.bytesToHex(data.copyOfRange(10, 16))  // 终端号可含 FF 填充，按 hex 保留
             val posHex = ApduUtil.bytesToHex(data.copyOfRange(10, 16))
             val isSubtype18 = rec.sfi == 0x18 && hasSubtype18
 

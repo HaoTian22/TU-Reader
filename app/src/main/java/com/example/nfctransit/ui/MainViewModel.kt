@@ -659,7 +659,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** UI 磁盘缓存键：站名库版本 + 城市边界版本 + 界面语言（缓存里的站名/文案按语言生成） */
     private suspend fun uiCacheVersion(): String =
         AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion() +
-            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src|lntIssue|aidLabel"
+            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src|lntIssue|aidLabel|hexTerm"
 
     private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()

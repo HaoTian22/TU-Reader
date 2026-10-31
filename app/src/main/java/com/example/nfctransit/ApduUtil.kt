@@ -60,6 +60,10 @@ object ApduUtil {
     }
 
     /** BCD 转十进制字符串 */
+    /**
+     * BCD → 数字串。非 BCD 半字节按十进制写出（F → "15"）：旧版 CU 卡号依赖这一输出，不能改；
+     * 终端号等可能含 A-F 的字段改用 [bytesToHex]。
+     */
     fun bcdToString(bytes: ByteArray): String {
         val sb = StringBuilder()
         for (b in bytes) {

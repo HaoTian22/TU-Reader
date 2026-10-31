@@ -104,17 +104,21 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
 
     private fun showFeedbackDialog() {
         val txn = viewModel.getTransactionById(args.transactionId) ?: return
-        val fullCode = txn.deviceCode.orEmpty()
         val isLnt = txn.protocol == "LNT"
         val isTu = txn.protocol == "TU"
         val tuLineStationCode = txn.journeyHex
             ?.takeIf { it.isNotBlank() }
             ?.let { hexRange(it, 10, 17) }
             .orEmpty()
+        // 默认填记录里的纯编号（TU 为 Line & Station，其余为 Terminal），不论是否已命中设备：
+        // 命中的 device_code 已含前缀，再拼前缀会变成另一台设备（0446 + 0446000000011476）。
+        // Terminal 取记录原始 hex（[10..16)），与查找用的编码一致；BCD 解码会把 FF 变成 "1515"
+        val recordTerminal = txn.hex.takeIf { txn.sfi in setOf(0x18, 0x10, 0x06, 0x1A) && it.length >= 32 }
+            ?.let { hexRange(it, 10, 16) }
         val rawCode = when {
-            isLnt -> txn.terminal
             isTu -> tuLineStationCode
-            else -> fullCode.ifBlank { txn.terminal }
+            isLnt -> txn.terminal
+            else -> recordTerminal ?: txn.terminal
         }
         val prefix = when {
             isLnt -> "0100"
@@ -134,7 +138,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 sfi in setOf(0x18, 0x10, 0x06, 0x1A) -> hexRange(hex, 10, 16)
                 else -> null
             }
-        } + txn.terminal
+        } + listOfNotNull(txn.terminal.takeIf { isLnt || recordTerminal == null })
         val codeOptions = (
             (if (isTu) journeyHexes.map { hexRange(it, 10, 17) } else emptyList()) +
                 terminals.map { if (isLnt) it.trim().removePrefix(prefix) else it.trim() }
