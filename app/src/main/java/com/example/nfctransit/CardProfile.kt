@@ -44,6 +44,7 @@ object CardProfiles {
     const val TU_EC_AID = "A000000632010106"
     const val CU_AID = "A00000000386980701"
     const val MPASS_AID = "B0C4C3C5CDA8C7AEB0FC" // GBK「澳门通钱包」
+    const val PHONE_OCTOPUS_AID = "A0000005500011" // 手机八达通 HCE：私有协议，SELECT 外全部 6E00，不可读
 
     /** 双协议卡：主钱包之外还带 TU 钱包的卡型（TU 钱包另行读取/解码）。 */
     val DUAL_TU_TYPES = setOf("YCT", "CU", "SZT", "MPASS")

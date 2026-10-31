@@ -123,7 +123,8 @@ class TransitCardReader internal constructor(
         val rawRecords: List<RawRecord> = emptyList(),  // 各交易区原始记录（带 protocol 标签）
         val rawLog: List<String> = emptyList(),
         val appReads: List<AppRead> = emptyList(),     // 卡上各应用 SELECT/BALANCE（含 PSE）
-        val readError: String? = null                  // 核心通信中断，已读部分仍保留
+        val readError: String? = null,                 // 核心通信中断，已读部分仍保留
+        val phoneOctopus: Boolean = false              // 手机 HCE 八达通：可识别但不可读
     )
 
     fun read(): ReadResult {
@@ -148,6 +149,10 @@ class TransitCardReader internal constructor(
                     return result.copy(rawRecords = result.rawRecords + discovered,
                         appReads = applicationReads.values.toList(), rawLog = log.toList(), readError = readError)
                 }
+            }
+            // 手机八达通：不进入未知卡枚举（PSE 会落到手机默认支付卡），直接提示不支持。
+            if (connectionError == null && selectApplication(CardProfiles.PHONE_OCTOPUS_AID, log) != null) {
+                return ReadResult(null, null, rawLog = log.toList(), phoneOctopus = true)
             }
             // 无已知应用：仍枚举并探测卡上全部应用/文件，作为「未知卡」只保存原始数据，供发现新应用与调试。
             if (connectionError == null) {

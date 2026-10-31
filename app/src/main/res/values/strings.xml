@@ -355,6 +355,7 @@
     <string name="nfc_no_isodep">This card supports neither ISO-DEP nor FeliCa</string>
     <string name="nfc_interrupted">Read interrupted. Remove the card and retry.</string>
     <string name="nfc_unsupported_card">Card type not supported</string>
+    <string name="nfc_phone_octopus_unsupported">Android Octopus is unsupported</string>
     <string name="nfc_saving">Read done. Remove the card, saving…</string>
     <string name="nfc_nothing_saved">Nothing to save. Remove the card and retry.</string>
     <plurals name="nfc_partial_saved">

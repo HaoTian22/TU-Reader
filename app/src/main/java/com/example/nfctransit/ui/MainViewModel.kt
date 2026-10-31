@@ -180,8 +180,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _nfcLog.value = result.rawLog
                 if (result.matchedProfile == null) {
                     _nfcReadMessage.value = StatusMessage(
-                        if (result.readError != null) L10n.str(R.string.nfc_interrupted)
-                        else L10n.str(R.string.nfc_unsupported_card),
+                        when {
+                            result.phoneOctopus -> L10n.str(R.string.nfc_phone_octopus_unsupported)
+                            result.readError != null -> L10n.str(R.string.nfc_interrupted)
+                            else -> L10n.str(R.string.nfc_unsupported_card)
+                        },
                         AppToast.Kind.ERROR
                     )
                     return@launch
