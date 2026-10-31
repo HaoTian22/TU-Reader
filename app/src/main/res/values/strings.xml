@@ -55,11 +55,10 @@
     <!-- Home -->
     <string name="my_cards">My cards</string>
     <string name="settings">Settings</string>
-    <string name="nfc_scan_hint">Hold the back of your phone against a transit card</string>
-    <string name="home_supported_cards">Supports 交通联合卡, 深圳通, 岭南通 and 城市一卡通</string>
+    <string name="nfc_scan_hint">Tap your card</string>
+    <string name="home_supported_cards">Supports T-Union, Shenzhen Tong, Lingnan Pass / Yang Cheng Tong, Octopus, Macau Pass, Suzhou Tong, Tianfu Tong and City Union cards</string>
     <string name="home_has_history">Already have data?</string>
     <string name="home_import_old">Import old data</string>
-    <string name="home_import_backup">Import database backup</string>
     <string name="home_total_balance">Total balance</string>
     <string name="home_cards_label">Cards</string>
     <string name="home_add_card">+  Tap a card to add it</string>

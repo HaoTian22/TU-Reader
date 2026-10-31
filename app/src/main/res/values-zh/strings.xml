@@ -52,10 +52,9 @@
     <string name="my_cards">我的卡片</string>
     <string name="settings">设置</string>
     <string name="nfc_scan_hint">请将手机背面靠近交通卡</string>
-    <string name="home_supported_cards">支持交通联合卡、深圳通、岭南通、城市一卡通</string>
+    <string name="home_supported_cards">支持交通联合卡、深圳通、岭南通/羊城通、八达通、澳门通、苏州通、天府通、住建部城市一卡通</string>
     <string name="home_has_history">已有历史数据？</string>
     <string name="home_import_old">导入旧数据</string>
-    <string name="home_import_backup">导入数据库备份</string>
     <string name="home_total_balance">总余额</string>
     <string name="home_cards_label">卡片</string>
     <string name="home_add_card">+  贴卡读取新卡片</string>

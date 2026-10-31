@@ -34,6 +34,8 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
         android:visibility="gone">
 
         <TextView
@@ -59,6 +61,8 @@
             android:layout_marginTop="6dp"
             android:layout_marginBottom="20dp"
             android:text="@string/app_slogan"
+            android:gravity="center"
+            android:textAlignment="center"
             android:textColor="@color/ink_3"
             android:textSize="14sp" />
 
@@ -75,6 +79,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/nfc_scan_hint"
+            android:gravity="center"
+            android:textAlignment="center"
             android:textColor="@color/ink_3"
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
@@ -83,6 +89,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/home_supported_cards"
+            android:gravity="center"
+            android:textAlignment="center"
             android:textColor="@color/ink_disabled"
             android:textSize="12sp" />
 
@@ -91,6 +99,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:text="@string/home_has_history"
+            android:gravity="center"
+            android:textAlignment="center"
             android:textColor="@color/ink_3"
             android:textSize="13sp" />
 
@@ -112,13 +122,6 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/home_import_backup"
-            android:textColor="@color/ink_disabled"
-            android:textSize="11sp" />
     </LinearLayout>
 
     <!-- Content: 卡包 —— 标题 + 总余额/卡片数 + 叠放卡片 + 贴卡读取新卡片 -->
