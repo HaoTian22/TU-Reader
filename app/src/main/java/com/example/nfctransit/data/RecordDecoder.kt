@@ -420,7 +420,7 @@ object RecordDecoder {
             val rawCode = if (data.size >= 17) ApduUtil.bytesToHex(data.copyOfRange(10, 17)) else ""
 
             // TU 1E：byte 0 是记录类型，byte 9 是交通 subtype。
-            // subtype 01/02 先决定轨道/公交，再约束设备映射候选；未知 subtype 不限制匹配。
+            // subtype 01 为轨道，02/13 为公交，先约束设备映射候选；未知 subtype 不限制匹配。
             val subtype = data[9].toInt() and 0xFF
             val expectedFamily = TransitData.tuTransitFamilyForSubtype(subtype)
             val entry = TransitData.resolveTuStation(

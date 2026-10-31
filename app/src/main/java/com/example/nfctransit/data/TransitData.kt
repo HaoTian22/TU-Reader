@@ -520,7 +520,7 @@ object TransitData {
     /** 根据 TU subtype 决定设备映射允许的交通类型；未知 subtype 不限制候选。 */
     internal fun tuTransitFamilyForSubtype(subtype: Int): TuTransitFamily? = when (subtype) {
         0x01 -> TuTransitFamily.RAIL
-        0x02 -> TuTransitFamily.BUS
+        0x02, 0x13 -> TuTransitFamily.BUS
         else -> null
     }
 
