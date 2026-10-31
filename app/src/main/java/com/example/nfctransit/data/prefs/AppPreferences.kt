@@ -77,8 +77,8 @@ object AppPreferences {
     suspend fun getCardSortAscending(context: Context): Boolean? =
         context.dataStore.data.first()[KEY_CARD_SORT_ASCENDING]?.toBooleanStrictOrNull()
 
-    suspend fun isKeepDebugLogs(context: Context): Boolean =
-        context.dataStore.data.first()[KEY_KEEP_DEBUG_LOGS] != "false"  // 默认 true
+    suspend fun isDebugMode(context: Context): Boolean =
+        context.dataStore.data.first()[KEY_KEEP_DEBUG_LOGS] == "true"  // 调试模式（沿用旧键 keep_debug_logs），默认关闭
 
     suspend fun isPlaybackHaptics(context: Context): Boolean =
         context.dataStore.data.first()[KEY_PLAYBACK_HAPTICS] != "false"  // 默认 true
@@ -161,9 +161,9 @@ object AppPreferences {
         }
     }
 
-    suspend fun setKeepDebugLogs(context: Context, keep: Boolean) {
+    suspend fun setDebugMode(context: Context, enabled: Boolean) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_KEEP_DEBUG_LOGS] = keep.toString()
+            prefs[KEY_KEEP_DEBUG_LOGS] = enabled.toString()
         }
     }
 

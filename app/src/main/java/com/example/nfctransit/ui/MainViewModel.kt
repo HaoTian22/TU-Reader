@@ -163,7 +163,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 activeIsoDep = null
                 Log.d("TransitReader", "NFC disconnected after ${SystemClock.elapsedRealtime() - startedAt} ms; raw=${result.rawRecords.size}; interrupted=${result.readError != null}")
                 if (result.readError != null) Log.w("TransitReader", "NFC core interrupted: ${result.readError}")
-                if (_keepDebugLogs.value == true) Log.d("TransitReader", result.rawLog.joinToString("\n"))
+                if (_debugMode.value == true) Log.d("TransitReader", result.rawLog.joinToString("\n"))
                 val fromIso = isoDep != null
                 val pending = comboPending
                 if (pending != null) {
@@ -442,8 +442,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val cardSortAscending: LiveData<Boolean> = _cardSortAscending
 
     /** 是否保留调试日志（关闭时不写会话日志文件，避免隐私与存储膨胀） */
-    private val _keepDebugLogs = MutableLiveData(true)
-    val keepDebugLogs: LiveData<Boolean> = _keepDebugLogs
+    private val _debugMode = MutableLiveData(false)
+    val debugMode: LiveData<Boolean> = _debugMode
 
     // 轨迹回放触感反馈（默认开）
     private val _playbackHaptics = MutableLiveData(true)
@@ -557,7 +557,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) { TransitOverrideImporter.import(app) }
             // 预热站名索引（2.7 万行）到内存：后台加载，避免首次读卡/首屏渲染时才在主线程加载
             withContext(Dispatchers.Default) { TransitData.warmup() }
-            _keepDebugLogs.value = repo.isKeepDebugLogs()
+            _debugMode.value = repo.isDebugMode()
             _playbackHaptics.value = repo.isPlaybackHaptics()
             _playbackSound.value = repo.isPlaybackSound()
             _currentTripRouteDisplayMode.value = repo.getCurrentTripRouteDisplayMode()
@@ -1072,9 +1072,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.setPlaybackSound(enabled) }
     }
 
-    fun setKeepDebugLogs(keep: Boolean) {
-        _keepDebugLogs.value = keep
-        viewModelScope.launch(Dispatchers.IO) { repo.setKeepDebugLogs(keep) }
+    fun setDebugMode(enabled: Boolean) {
+        _debugMode.value = enabled
+        viewModelScope.launch(Dispatchers.IO) { repo.setDebugMode(enabled) }
     }
 
     /** 设置地图页顶部当前行程的路线展示粒度 */
@@ -1513,7 +1513,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _homeWeeklySpending.value = emptyList()
         _homeWeekTotals.value = emptyMap()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
-        _keepDebugLogs.value = true  // DataStore 清空后恢复默认
+        _debugMode.value = false  // DataStore 清空后恢复默认
         _cardSortMode.value = CardSortMode.MANUAL
         _cardSortAscending.value = false
         _playbackHaptics.value = true

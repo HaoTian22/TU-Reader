@@ -18,9 +18,11 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.databinding.FragmentTransactionListBinding
+import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.formatCurrencyTotals
 import com.example.nfctransit.model.spendingByCurrency
@@ -90,6 +92,9 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 binding.tvCardBadge.setTextColor(Palette.accentFor(card.gradientStartColor))
             }
         }
+
+        // 调试模式：每条交易下方展示全部原始记录
+        viewModel.debugMode.observe(viewLifecycleOwner) { adapter.setShowRaw(it == true) }
 
         setupSearchAndFilter()
         viewModel.filteredTransactions.observe(viewLifecycleOwner) { txns ->
@@ -396,6 +401,15 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             notifyDataSetChanged()
         }
 
+        /** 调试模式开关：切换时整表重绑，行下方显示/隐藏原始数据 */
+        private var showRaw = false
+
+        fun setShowRaw(show: Boolean) {
+            if (show == showRaw) return
+            showRaw = show
+            notifyDataSetChanged()
+        }
+
         fun positionOf(id: Int): Int = entries.indexOfFirst { it is Entry.Row && it.txn.id == id }
 
         /** 该位置是组内非首行（顶部留分段间隙） */
@@ -487,6 +501,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             private val dirIcon = itemView.findViewById<TextView>(R.id.txnDirIcon)
             private val station = itemView.findViewById<TextView>(R.id.txnStation)
             private val line = itemView.findViewById<TextView>(R.id.txnLine)
+            private val rawPanel = itemView.findViewById<LinearLayout>(R.id.txnRawPanel)
 
             fun bind(txn: UiTransaction) {
                 // 方向由交易字段统一提供，站名始终保持无标记文本。
@@ -534,13 +549,51 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
                 }
 
                 amount.setTextColor(Palette.amountColor(txn.amountText))
-
+                bindRaw(txn)
 
                 itemView.setOnClickListener { openDetail(txn) }
                 itemView.setOnLongClickListener {
                     showTransactionActions(txn)
                     true
                 }
+            }
+
+            /** 调试模式原始数据：与详情页同款（记录标题 + 按字段着色 hex + Match），字号更小、无字段图例 */
+            private fun bindRaw(txn: UiTransaction) {
+                rawPanel.removeAllViews()
+                if (!showRaw) {
+                    rawPanel.visibility = View.GONE
+                    return
+                }
+                rawPanel.visibility = View.VISIBLE
+                val blocks = txn.sources.filter { it.hex.isNotBlank() }.distinct()
+                if (blocks.isEmpty()) {
+                    addRawLine(getString(R.string.txn_no_raw), RawHexFormatter.DIM)
+                    return
+                }
+                for (block in blocks) {
+                    addRawLine(RawHexFormatter.blockTitle(block.sfi, block.protocol, block.selectedAid), RawHexFormatter.DIM)
+                    addRawLine(RawHexFormatter.colorizeHex(block.hex, rawFields(block)), RawHexFormatter.RAW)
+                }
+                addRawLine("Match", RawHexFormatter.DIM)
+                val matchCode = txn.deviceCode ?: "Null"
+                addRawLine(if (txn.spRule != null) "$matchCode ${txn.spRule}" else matchCode, RawHexFormatter.RAW)
+            }
+
+            private fun rawFields(block: RawHexBlock) = RawHexFormatter.fieldsFor(
+                block.sfi, ApduUtil.hexToBytes(block.hex).size, block.protocol, block.hex, block.logFormat
+            )
+
+            private fun addRawLine(text: CharSequence, color: Int) {
+                rawPanel.addView(TextView(itemView.context).apply {
+                    this.text = text
+                    textSize = 8f
+                    typeface = RawFont.get(itemView.context)
+                    setTextColor(color)
+                    // 紧凑行距：去掉字体内边距，行高收紧
+                    includeFontPadding = false
+                    setLineSpacing(0f, 0.9f)
+                })
             }
         }
     }

@@ -762,9 +762,9 @@ class TransitRepository(private val context: Context) {
 
     fun combinedCardLog(cardId: String) = SessionLogStore.combinedLog(context, cardId)
 
-    /** 保留调试日志开启时才写入会话文件（关闭时不写，避免隐私与存储膨胀） */
+    /** 调试模式开启时才写入会话文件（关闭时不写，避免隐私与存储膨胀） */
     suspend fun writeSessionLog(cardId: String, lines: List<String>) {
-        if (AppPreferences.isKeepDebugLogs(context)) {
+        if (AppPreferences.isDebugMode(context)) {
             SessionLogStore.write(context, cardId, System.currentTimeMillis(), lines)
         }
     }
@@ -779,8 +779,8 @@ class TransitRepository(private val context: Context) {
     suspend fun getCardSortAscending(): Boolean? = AppPreferences.getCardSortAscending(context)
     suspend fun setCardSortMode(mode: CardSortMode, ascending: Boolean) =
         AppPreferences.setCardSortMode(context, mode, ascending)
-    suspend fun isKeepDebugLogs(): Boolean = AppPreferences.isKeepDebugLogs(context)
-    suspend fun setKeepDebugLogs(keep: Boolean) = AppPreferences.setKeepDebugLogs(context, keep)
+    suspend fun isDebugMode(): Boolean = AppPreferences.isDebugMode(context)
+    suspend fun setDebugMode(enabled: Boolean) = AppPreferences.setDebugMode(context, enabled)
     suspend fun isPlaybackHaptics(): Boolean = AppPreferences.isPlaybackHaptics(context)
     suspend fun setPlaybackHaptics(enabled: Boolean) = AppPreferences.setPlaybackHaptics(context, enabled)
     suspend fun getStatsCustomChart(): String? = AppPreferences.getStatsCustomChart(context)

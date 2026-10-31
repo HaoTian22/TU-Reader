@@ -409,16 +409,16 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             }
         }
 
-        // 保留调试日志开关：MaterialSwitch，开启时轨道跟随卡片主题色
-        binding.switchKeepDebugLogs.let { toggle ->
-            toggle.isChecked = viewModel.keepDebugLogs.value ?: true
+        // 调试模式开关（保留会话日志 + 交易列表显示原始数据）：MaterialSwitch，开启时轨道跟随卡片主题色
+        binding.switchDebugMode.let { toggle ->
+            toggle.isChecked = viewModel.debugMode.value ?: false
             toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
-            viewModel.keepDebugLogs.observe(viewLifecycleOwner) { v ->
+            viewModel.debugMode.observe(viewLifecycleOwner) { v ->
                 if (v != toggle.isChecked) toggle.isChecked = v
             }
             viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
             toggle.setOnCheckedChangeListener { _, checked ->
-                if (checked != viewModel.keepDebugLogs.value) viewModel.setKeepDebugLogs(checked)
+                if (checked != viewModel.debugMode.value) viewModel.setDebugMode(checked)
             }
         }
 
@@ -428,17 +428,11 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         // 真实线路：关闭时轨迹地图只画示意飞线，不调用腾讯路线服务
         binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchRealRoute)?.let { toggle ->
-            val summary = binding.root.findViewById<TextView>(R.id.tvRealRouteSummary)
-            fun renderSummary(on: Boolean) {
-                summary?.setText(if (on) R.string.real_route_on else R.string.real_route_off)
-            }
             toggle.isChecked = TencentCredentials.isRealRoutes(requireContext())
-            renderSummary(toggle.isChecked)
             toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
             viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
             toggle.setOnCheckedChangeListener { _, checked ->
                 TencentCredentials.setRealRoutes(requireContext(), checked)
-                renderSummary(checked)
             }
             binding.root.findViewById<View>(R.id.rowRealRoute)?.setOnClickListener { toggle.toggle() }
         }

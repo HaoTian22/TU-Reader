@@ -197,7 +197,8 @@
     <string name="settings_debug_tools">调试工具</string>
     <string name="settings_export_read_data">导出读取数据 (TXT)</string>
     <string name="settings_export_apdu">导出 APDU 日志 (TXT)</string>
-    <string name="settings_keep_debug_log">保留调试日志</string>
+    <string name="settings_debug_mode">调试模式</string>
+    <string name="settings_debug_mode_desc">保留读卡日志，并在交易列表显示原始数据</string>
     <string name="card_management">卡片管理</string>
     <string name="bound_cards">已绑定卡片</string>
     <string name="station_map_update">站名映射表更新</string>
@@ -217,8 +218,7 @@
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
     <string name="real_route">真实线路</string>
-    <string name="real_route_on">在轨迹地图上绘制实际公交/地铁线路</string>
-    <string name="real_route_off">已关闭，使用默认飞线</string>
+    <string name="real_route_desc">在轨迹地图上绘制实际公交/地铁线路</string>
     <string name="tencent_keys">腾讯地图 Key</string>
     <string name="tencent_keys_builtin">内置</string>
     <string name="tencent_keys_custom">自定义</string>

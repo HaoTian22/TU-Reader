@@ -18,7 +18,7 @@ object SessionLogStore {
     private fun cardDir(context: Context, cardId: String): File =
         File(root(context), cardId)
 
-    /** 写入一个会话日志文件（调用方负责在 keepDebugLogs=false 时不调用） */
+    /** 写入一个会话日志文件（调用方负责在 debugMode=false 时不调用） */
     fun write(context: Context, cardId: String, sessionTimestamp: Long, lines: List<String>) {
         val dir = cardDir(context, cardId)
         if (!dir.exists()) dir.mkdirs()

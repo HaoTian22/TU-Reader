@@ -187,16 +187,31 @@
                             android:textSize="14sp"
                             android:tag="fa" />
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/settings_keep_debug_log"
-                            android:textColor="@color/ink"
-                            android:textSize="14sp" />
+                            android:layout_marginEnd="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_debug_mode"
+                                android:textColor="@color/ink"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/settings_debug_mode_desc"
+                                android:textColor="@color/ink_3"
+                                android:textSize="12sp" />
+                        </LinearLayout>
 
                         <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/switchKeepDebugLogs"
+                            android:id="@+id/switchDebugMode"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:minHeight="0dp" />

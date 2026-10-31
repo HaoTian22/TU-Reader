@@ -202,7 +202,8 @@
     <string name="settings_debug_tools">Debug tools</string>
     <string name="settings_export_read_data">Export read data (TXT)</string>
     <string name="settings_export_apdu">Export APDU log (TXT)</string>
-    <string name="settings_keep_debug_log">Keep debug logs</string>
+    <string name="settings_debug_mode">Debug mode</string>
+    <string name="settings_debug_mode_desc">Keep read logs and show raw data in the transaction list</string>
     <string name="card_management">Cards</string>
     <string name="bound_cards">Saved cards</string>
     <string name="station_map_update">Update station database</string>
@@ -222,8 +223,7 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="real_route">Real routes</string>
-    <string name="real_route_on">Draw actual transit lines on the trip map</string>
-    <string name="real_route_off">Off: default flyover lines</string>
+    <string name="real_route_desc">Draw actual transit lines on the trip map</string>
     <string name="tencent_keys">Tencent Map API key</string>
     <string name="tencent_keys_builtin">Built-in</string>
     <string name="tencent_keys_custom">Your key</string>

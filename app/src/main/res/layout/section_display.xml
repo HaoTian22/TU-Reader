@@ -138,11 +138,10 @@
                     android:textSize="14sp" />
 
                 <TextView
-                    android:id="@+id/tvRealRouteSummary"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    tools:text="关闭时使用默认飞线"
+                    android:text="@string/real_route_desc"
                     android:textColor="@color/ink_3"
                     android:textSize="12sp" />
             </LinearLayout>
