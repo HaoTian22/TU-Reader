@@ -113,6 +113,12 @@ def parent_city_code(loader, rel):
     candidates = [row for row in loader.city_catalog
                   if normalize_city_name(row["cityEn"]) in parts
                   or normalize_city_name(row["cityZh"]) in parts]
+    if len(candidates) > 1 and parts:
+        # 省名与市名同名（Jilin/Siping 里的 Jilin）：优先取最内层目录名对应的城市
+        innermost = [row for row in candidates
+                     if parts[-1] in (normalize_city_name(row["cityEn"]), normalize_city_name(row["cityZh"]))]
+        if len(innermost) == 1:
+            candidates = innermost
     if len(candidates) > 1:
         candidates = [row for row in candidates if normalize_city_name(row["province"]) in parts]
     if len(candidates) == 1 and loader.city_id(candidates[0]["code"]) is not None:
