@@ -146,6 +146,23 @@ object AppToast {
         return null
     }
 
+    /**
+     * Android 13 及以下没有 setCanPlayMoveAnimation：它在 34+ 只是设置隐藏的
+     * PRIVATE_FLAG_NO_MOVE_ANIMATION（0x40，系统窗口策略早就支持），这里直接写 privateFlags。
+     * 不设置的话（如 Android 8）小圆缩完后窗口左边界移动，会从旧位置滑回来。反射失败时忽略。
+     */
+    @SuppressLint("DiscouragedPrivateApi", "SoonBlockedPrivateApi")
+    private fun disableMoveAnimationLegacy(params: WindowManager.LayoutParams) {
+        try {
+            val field = WindowManager.LayoutParams::class.java.getDeclaredField("privateFlags")
+            field.isAccessible = true
+            field.setInt(params, field.getInt(params) or PRIVATE_FLAG_NO_MOVE_ANIMATION)
+        } catch (_: Throwable) {
+        }
+    }
+
+    private const val PRIVATE_FLAG_NO_MOVE_ANIMATION = 0x00000040
+
     private fun tintFor(kind: Kind): Int = when (kind) {
         Kind.SUCCESS -> Palette.SUCCESS
         Kind.ERROR -> Palette.DANGER
@@ -210,6 +227,7 @@ object AppToast {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) setFitInsetsTypes(0)
                 // 缩成小圆/展开后窗口左边界会移动：关掉系统的窗口移动动画，否则小圆会从旧位置再滑一次
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) setCanPlayMoveAnimation(false)
+                else disableMoveAnimationLegacy(this)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     layoutInDisplayCutoutMode =
                         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
