@@ -334,7 +334,8 @@ class TransitRepository(private val context: Context) {
         val statsMonth = RecordDecoder.parseMonthAccumulation(
             rawRecords, DiscountRegistry.walletMonthStats
         )?.month
-        val decoded = RecordDecoder.decodeCard(cardType, records, statsMonth, currentYear)
+        val issueDate = RecordDecoder.lntIssueDate(rawRecords)
+        val decoded = RecordDecoder.decodeCard(cardType, records, statsMonth, currentYear, issueDate)
         val aidOf = aidResolver(records, cardType)
         val missing = decoded.archive.filter {
             ArchiveKey(aidOf(it), it.sfi.toSfiHex(), it.identity) !in existingKeys
@@ -349,7 +350,7 @@ class TransitRepository(private val context: Context) {
             if (pending.isEmpty()) {
                 false
             } else {
-                archiveTransactions(cardId, cardType, records, orderForArchive(cardId, records, pending))
+                archiveTransactions(cardId, cardType, records, orderForArchive(cardId, records, pending, issueDate))
                 true
             }
         }
@@ -366,7 +367,8 @@ class TransitRepository(private val context: Context) {
         syncRawRecords(card.cardId, rawRecords)
         val records = RecordDecoder.transactionRecords(card.cardType, rawRecords)
         archiveTransactions(
-            card.cardId, card.cardType, records, orderForArchive(card.cardId, records, transactions)
+            card.cardId, card.cardType, records,
+            orderForArchive(card.cardId, records, transactions, RecordDecoder.lntIssueDate(rawRecords))
         ) > 0
     }
 
@@ -378,7 +380,8 @@ class TransitRepository(private val context: Context) {
     private suspend fun orderForArchive(
         cardId: String,
         records: List<RecordDecoder.ZoneRecord>,
-        transactions: List<CanonicalTransaction>
+        transactions: List<CanonicalTransaction>,
+        lntIssueDate: String?
     ): List<CanonicalTransaction> {
         val recNoByContent = records.associate { (it.sfi to RecordDecoder.contentHash(it.hex)) to it.recNo }
         val aids = dao.getCardApps(cardId).associate { it.appId to it.selectedAid }
@@ -389,7 +392,7 @@ class TransitRepository(private val context: Context) {
         val latestLnt = archive.filter {
             CardProfiles.decodeProtocol(aids[it.appId].orEmpty(), it.sfi.toSfiInt()) == "LNT"
         }.maxByOrNull { it.rowId }?.resolvedDate
-        return existing + RecordDecoder.alignLntYears(fresh, latestLnt)
+        return existing + RecordDecoder.alignLntYears(fresh, latestLnt, lntIssueDate = lntIssueDate)
     }
 
     /** 归档行 + 所属应用 AID；EC 日志附带该应用该文件的 DOL（原始记录 rec_no=0）。 */

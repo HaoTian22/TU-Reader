@@ -89,4 +89,46 @@ class YctRealCardTest {
         assertEquals(14, decoded.archive.size)
         assertNull(decoded.archive.firstOrNull { it.protocol == "TU" && it.sfi == 0x18 && it.amountFen != 100L })
     }
+
+    /**
+     * 实卡统计记录 0x08 #1 = 18140024080100…（2024-08）：统计月份只表示该月有广州交易，
+     * 10 月外地交易不刷新它。旧算法以它为最新交易的上界回推得 2023-10-27（早于发卡日期 2024-06-21）；
+     * 现在要求至少一条记录落在统计月份：8 月记录 = 2024-08，10 月在其后 = 2024-10。
+     * TU 侧同一晚的记录 20241027 212555 证实应为 2024。
+     */
+    @Test fun lntYearPutsATransactionInTheStatsMonth() {
+        val raw = records()
+        assertEquals("20240621", RecordDecoder.lntIssueDate(raw))
+        val zone = RecordDecoder.transactionRecords("YCT", raw)
+        val expected = setOf("20241027", "20240823", "20240816", "20240812")
+
+        val withoutIssue = RecordDecoder.decodeCard("YCT", zone, statsMonth = 202408, currentYear = 2026)
+        assertEquals(expected, withoutIssue.display.filter { it.protocol == "LNT" }.map { it.date }.toSet())
+
+        val decoded = RecordDecoder.decodeCard(
+            "YCT", zone, statsMonth = 202408, currentYear = 2026,
+            lntIssueDate = RecordDecoder.lntIssueDate(raw)
+        )
+        val lnt = decoded.display.filter { it.protocol == "LNT" }
+        assertEquals(setOf("20241027", "20240823", "20240816", "20240812"), lnt.map { it.date }.toSet())
+    }
+
+    /** 手机归档里旧版推断落库的 2023 日期，按发卡日期上调后展示。 */
+    @Test fun archivedLntDatesBeforeIssueDateAreRaised() {
+        val rows = lntFares.map { hex ->
+            RecordDecoder.ArchivedRecord(0x18, ticl, hex, "2023" + hex.substring(36, 40))
+        }
+        val decoded = RecordDecoder.decodeArchive("YCT", rows, "20240621")
+        assertEquals(setOf("20241027", "20240823", "20240816", "20240812"), decoded.map { it.date }.toSet())
+    }
+
+    @Test fun alignmentLowerBoundIsRaisedToTheIssueDate() {
+        val zone = RecordDecoder.transactionRecords("YCT", records())
+        val fresh = RecordDecoder.decodeCard(
+            "YCT", zone, statsMonth = 202408, currentYear = 2026, lntIssueDate = "20240621"
+        ).archive.filter { it.protocol == "LNT" && it.date == "20241027" }
+        // 已归档最新 LNT 行为旧版推断的 20231027：下界上调为 20241027，新记录不被拉回 2023。
+        val aligned = RecordDecoder.alignLntYears(fresh, "20231027", today = "20261031", lntIssueDate = "20240621")
+        assertTrue(aligned.all { it.date == "20241027" })
+    }
 }

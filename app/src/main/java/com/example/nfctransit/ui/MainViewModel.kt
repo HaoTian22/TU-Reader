@@ -659,7 +659,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** UI 磁盘缓存键：站名库版本 + 城市边界版本 + 界面语言（缓存里的站名/文案按语言生成） */
     private suspend fun uiCacheVersion(): String =
         AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion() +
-            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src"
+            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src|lntIssue"
 
     private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()
@@ -678,7 +678,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             BuiltCardState(cached.canonicals, cached.txns, rawRecs, appRows)
         } else {
             val archive = repo.loadArchive(cardId, rawRecs)
-            val canonicals = RecordDecoder.decodeArchive(card.cardType, archive)
+            val canonicals = RecordDecoder.decodeArchive(card.cardType, archive, RecordDecoder.lntIssueDate(rawRecs))
             val txns = enrichProtocols(canonicals, rawRecs).toUiTransactions(card.cardType)
             UiCache.save(ctx, cardId, CardUiCache(archiveRowId, canonicals, txns, dbVersion))
             BuiltCardState(canonicals, txns, rawRecs, appRows)
@@ -755,7 +755,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val decodeStartedAt = SystemClock.elapsedRealtime()
         val decoded = withContext(Dispatchers.Default) {
-            RecordDecoder.decodeCard(profile.cardType, records, result.statsMonth, currentYear)
+            RecordDecoder.decodeCard(
+                profile.cardType, records, result.statsMonth, currentYear,
+                RecordDecoder.lntIssueDate(result.rawRecords)
+            )
         }
         Log.d("TransitReader", "Decode: ${SystemClock.elapsedRealtime() - decodeStartedAt} ms")
         if (decoded.display.isEmpty() && appNumbers.isEmpty() && chipUid == null) return false
@@ -843,7 +846,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     val archive = repo.loadArchive(cardId, rawRecs)
                     withContext(Dispatchers.Default) {
-                        val canon = RecordDecoder.decodeArchive(effectiveCardType, archive)
+                        val canon = RecordDecoder.decodeArchive(effectiveCardType, archive, RecordDecoder.lntIssueDate(rawRecs))
                         BuiltCardState(canon, enrichProtocols(canon, rawRecs).toUiTransactions(effectiveCardType), rawRecs, appRecs)
                     }
                 }

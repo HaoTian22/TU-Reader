@@ -148,12 +148,14 @@ object RecordDecoder {
     /**
      * 读卡时解码：从本次读到的原始记录生成交易（含 LNT 年份推断与余额匹配）。
      * @param statsMonth LNT 统计月份 YYYYMM（SFI 08 rec1），年份锚点
+     * @param lntIssueDate LNT 发卡日期 yyyyMMdd（见 [lntIssueDate]），推断年份的下界
      */
     fun decodeCard(
         cardType: String,
         records: List<ZoneRecord>,
         statsMonth: Int?,
-        currentYear: Int
+        currentYear: Int,
+        lntIssueDate: String? = null
     ): DecodeResult {
         return when (cardType) {
             "TU" -> {
@@ -172,7 +174,7 @@ object RecordDecoder {
                 // LNT 交易（无年份，年份用统计月份/连续性推断）
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
                     cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()),
-                    currentYear, statsMonth
+                    currentYear, statsMonth, lntIssueDate = lntIssueDate
                 )
 
                 // TU 钱包：1E 映射表 + 18 主交易 + 旅程合并
@@ -240,8 +242,13 @@ object RecordDecoder {
      * 启动渲染：从交易归档重建交易。
      * resolved_date 保留 LNT 推断年份；余额只取原始记录中实际存在的字段，
      * 不沿用旧版本归档时填充的余额。其余字段从 hex 解析。
+     * @param lntIssueDate LNT 发卡日期 yyyyMMdd：早于它的已归档推断日期按年上调（修正旧版推断）
      */
-    fun decodeArchive(cardType: String, rows: List<ArchivedRecord>): List<CanonicalTransaction> {
+    fun decodeArchive(
+        cardType: String,
+        rows: List<ArchivedRecord>,
+        lntIssueDate: String? = null
+    ): List<CanonicalTransaction> {
         if (rows.isEmpty()) return emptyList()
         // EC 日志缺少 DOL 时无法按字段解码，与读卡路径一致只作原始数据保留
         val decodable = rows.filter {
@@ -262,7 +269,8 @@ object RecordDecoder {
                 val lntRecords = records.filter { it.protocol == "LNT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
                 val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()), 0, null, storedDate
+                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()), 0, null, storedDate,
+                    lntIssueDate
                 )
                 val tu = buildTuMap(tuRecords)
                 val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
@@ -479,8 +487,9 @@ object RecordDecoder {
 
     /**
      * 解析 18（+附加区）主交易记录。
-     * @param lntStatsMonth  LNT 统计月份锚点（年份推断起点）
+     * @param lntStatsMonth  LNT 统计月份 YYYYMM（见 [inferLntYears]）
      * @param storedDateByHash 归档：contentHash → 已解析日期（yyyyMMdd），覆盖 hex 内日期（decodeArchive 用）
+     * @param lntIssueDate LNT 发卡日期 yyyyMMdd：交易不可能早于发卡，推断年份不得低于它。
      */
     private fun parseFareRecords(
         cardType: String,
@@ -489,19 +498,20 @@ object RecordDecoder {
         tu: TuMap,
         currentYear: Int,
         lntStatsMonth: Int?,
-        storedDateByHash: Map<String, String>? = null
+        storedDateByHash: Map<String, String>? = null,
+        lntIssueDate: String? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
         val hasSubtype18 = cardType == "YCT" && isLnt
         val today = todayDate()
-        val todayMonth = today.substring(4, 6).toInt()
-        var relYear: Int? = if (isLnt) lntStatsMonth?.div(100) ?: currentYear else null
-        var lastMonth: Int? = if (isLnt) lntStatsMonth?.mod(100) ?: todayMonth else null
         // LNT content sequence counters are independent across transaction types; only recNo is chronological.
         val orderedRecords = records.sortedBy { it.recNo }
+        val lntYears = if (isLnt) {
+            inferLntYears(orderedRecords.map(::lntFareMmdd), lntStatsMonth, currentYear, lntIssueDate, today)
+        } else emptyList()
         val results = mutableListOf<CanonicalTransaction>()
 
-        for (rec in orderedRecords) {
+        for ((index, rec) in orderedRecords.withIndex()) {
             if (rec.logFormat != null) {
                 parseEcLog(rec, tu)?.let(results::add)
                 continue
@@ -524,19 +534,12 @@ object RecordDecoder {
             // CU 有完整日期，直接重读 hex，修复旧解码器错误推断年份留下的归档日期。
             // LNT 仍优先使用归档中保存的推断年份。
             val hash = contentHash(rec.hex)
-            val date = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" || cardType == "MPASS" } ?: run {
+            val stored = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" || cardType == "MPASS" }
+            val date = stored?.let { if (isLnt || isSubtype18) floorToIssueDate(it, lntIssueDate) else it } ?: run {
                 if (isLnt || isSubtype18) {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
-                    val thisMonth = mmdd.take(2).toIntOrNull()
-                    var year: String? = null
-                    if (relYear != null && thisMonth != null && lastMonth != null) {
-                        if (thisMonth > lastMonth) relYear = relYear!! - 1
-                        year = relYear.toString()
-                        lastMonth = thisMonth
-                    }
-                    val resolvedYear = year?.toIntOrNull() ?: currentYear
-                    val boundedYear = boundYearNotAfterToday(resolvedYear, mmdd, today)
-                    boundedYear.toString().padStart(4, '0') + mmdd
+                    val year = lntYears.getOrNull(index) ?: boundYearNotAfterToday(currentYear, mmdd, today)
+                    year.toString().padStart(4, '0') + mmdd
                 } else {
                     ApduUtil.bcdToString(data.copyOfRange(16, 20))
                 }
@@ -811,13 +814,16 @@ object RecordDecoder {
      * LNT 年份按归档先后校正。chronological：尚未归档的交易，按写卡先后（旧→新）；
      * notBefore：归档中 row_id 最大（最后落库，即已知最新）的 LNT 日期。
      * 新记录必晚于已归档记录：取不早于前一条、不晚于今天的最早年份；无下界或矛盾时保留原推断。
+     * lntIssueDate：旧版推断可能把归档日期放在发卡前，下界先按发卡日期上调年份。
      */
     fun alignLntYears(
         chronological: List<CanonicalTransaction>,
         notBefore: String?,
-        today: String = todayDate()
+        today: String = todayDate(),
+        lntIssueDate: String? = null
     ): List<CanonicalTransaction> {
-        var prev = notBefore?.takeIf { it.length == 8 } ?: return chronological
+        var prev = notBefore?.takeIf { it.length == 8 }?.let { floorToIssueDate(it, lntIssueDate) }
+            ?: return chronological
         return chronological.map { t ->
             if (t.protocol != "LNT" || t.date.length != 8) return@map t
             val mmdd = t.date.substring(4)
@@ -828,6 +834,92 @@ object RecordDecoder {
             prev = date
             if (date == t.date) t else t.copy(date = date)
         }
+    }
+
+    /** LNT 发卡日期 yyyyMMdd（PAY.APPY 0x15 [23..27)）；缺失或非法为 null。 */
+    fun lntIssueDate(records: List<RawRecord>): String? =
+        CardMetadataParser.parse("LNT", records).issueDate?.replace("-", "")
+
+    /** 与 parseFareRecords 相同的交易槽过滤；返回合法 MMDD，非交易槽/空槽/非法日期为 null。 */
+    private fun lntFareMmdd(rec: ZoneRecord): String? {
+        if (rec.logFormat != null || rec.sfi == 0x1E || rec.sfi in setOf(0x0B, 0x0C)) return null
+        val data = ApduUtil.hexToBytes(rec.hex)
+        if (data.size < 0x17 || data.all { it.toInt() == 0 }) return null
+        val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
+        val month = mmdd.take(2).toIntOrNull()
+        val day = mmdd.takeLast(2).toIntOrNull()
+        return mmdd.takeIf { mmdd.length == 4 && month in 1..12 && day in 1..31 }
+    }
+
+    /**
+     * LNT 交易年份推断（交易只有 MMDD）。mmdds 按写卡先后从新到旧排列，null 项不参与。
+     *  1. 相对年份：更旧的记录 MMDD 反而更晚 ⇒ 跨了一个年界。
+     *  2. 统计月份（0x08 #1）= 最近一笔广州交易所在月份；外地交易不刷新它，因此它不是最新交易的上界，
+     *     而是记录序列必须经过的一点：取使至少一条记录落在统计月份的年份（从最新的匹配记录起试）。
+     *  3. 没有记录能落在统计月份（该笔广州交易已被循环槽挤出）⇒ 可见记录全晚于统计月份，取满足此条件的最早年份。
+     *  4. 无统计月份或以上都不满足边界：最新记录不晚于今天的最晚年份。
+     * 边界：最新记录不晚于今天；最旧记录不早于发卡日期（与今天冲突时以今天为准）。
+     */
+    internal fun inferLntYears(
+        mmdds: List<String?>,
+        statsMonth: Int?,
+        currentYear: Int,
+        issueDate: String?,
+        today: String
+    ): List<Int?> {
+        val rel = arrayOfNulls<Int>(mmdds.size)
+        var wraps = 0
+        var newer: String? = null
+        mmdds.forEachIndexed { i, mmdd ->
+            if (mmdd == null) return@forEachIndexed
+            if (newer != null && mmdd > newer!!) wraps--
+            rel[i] = wraps
+            newer = mmdd
+        }
+        val valid = mmdds.indices.filter { rel[it] != null }
+        if (valid.isEmpty()) return List(mmdds.size) { null }
+        val newest = valid.first()
+        val oldest = valid.last()
+        fun date(i: Int, base: Int) = (base + rel[i]!!).toString().padStart(4, '0') + mmdds[i]
+        fun notAfterToday(base: Int) = date(newest, base) <= today
+        fun inBounds(base: Int) = notAfterToday(base) && (issueDate == null || date(oldest, base) >= issueDate)
+
+        var todayBase = currentYear
+        while (todayBase > 0 && !notAfterToday(todayBase)) todayBase--
+
+        val statsBase = statsMonth?.takeIf { it % 100 in 1..12 }?.let { sm ->
+            val month = String.format("%02d", sm % 100)
+            valid.filter { mmdds[it]!!.startsWith(month) }
+                .map { sm / 100 - rel[it]!! }.distinct()
+                .firstOrNull(::inBounds)
+                ?: run {
+                    var base = sm / 100 - rel[oldest]!!
+                    if (date(oldest, base).take(6).toInt() <= sm) base++
+                    while (issueDate != null && date(oldest, base) < issueDate) base++
+                    base.takeIf(::notAfterToday)
+                }
+        }
+        val base = statsBase ?: run {
+            var b = todayBase
+            while (issueDate != null && date(oldest, b) < issueDate) b++
+            if (notAfterToday(b)) b else todayBase
+        }
+        return mmdds.indices.map { i -> rel[i]?.let { base + it } }
+    }
+
+    /** 交易不可能早于发卡：year+mmdd 早于发卡日期时取不早于它的最早年份。 */
+    private fun raiseYearToIssueDate(year: Int, mmdd: String, issueDate: String?): Int {
+        val issue = issueDate?.takeIf { it.length == 8 } ?: return year
+        val issueYear = issue.take(4).toIntOrNull() ?: return year
+        if (year > issueYear) return year
+        return if (mmdd >= issue.substring(4)) issueYear else issueYear + 1
+    }
+
+    private fun floorToIssueDate(date: String, issueDate: String?): String {
+        if (date.length != 8) return date
+        val year = date.take(4).toIntOrNull() ?: return date
+        val raised = raiseYearToIssueDate(year, date.substring(4), issueDate)
+        return if (raised == year) date else raised.toString().padStart(4, '0') + date.substring(4)
     }
 
     private fun boundYearNotAfterToday(year: Int, mmdd: String, today: String): Int {
