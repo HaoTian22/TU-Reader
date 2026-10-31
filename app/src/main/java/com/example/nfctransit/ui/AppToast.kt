@@ -11,6 +11,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RectF
+import android.graphics.Region
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -146,6 +147,23 @@ object AppToast {
         return null
     }
 
+    /**
+     * Android 13 及以下没有 setCanPlayMoveAnimation：它在 34+ 只是设置隐藏的
+     * PRIVATE_FLAG_NO_MOVE_ANIMATION（0x40，系统窗口策略早就支持），这里直接写 privateFlags。
+     * 不设置的话（如 Android 8）小圆缩完后窗口左边界移动，会从旧位置滑回来。反射失败时忽略。
+     */
+    @SuppressLint("DiscouragedPrivateApi", "SoonBlockedPrivateApi")
+    private fun disableMoveAnimationLegacy(params: WindowManager.LayoutParams) {
+        try {
+            val field = WindowManager.LayoutParams::class.java.getDeclaredField("privateFlags")
+            field.isAccessible = true
+            field.setInt(params, field.getInt(params) or PRIVATE_FLAG_NO_MOVE_ANIMATION)
+        } catch (_: Throwable) {
+        }
+    }
+
+    private const val PRIVATE_FLAG_NO_MOVE_ANIMATION = 0x00000040
+
     private fun tintFor(kind: Kind): Int = when (kind) {
         Kind.SUCCESS -> Palette.SUCCESS
         Kind.ERROR -> Palette.DANGER
@@ -173,6 +191,13 @@ object AppToast {
         private var hiding = false
         private val progressTimeout = Runnable { hide() }
         private val minimizeLater = Runnable { setMinimized(true) }
+
+        /**
+         * Android 13 及以下：窗口宽度固定为展开宽度，缩成小圆/展开时窗口不改尺寸，
+         * 只把可点区域收到卡片上。否则窗口改宽时左边界立即移动、内容还是旧帧，
+         * 小圆会闪一下（缩小时消失一帧、展开时出现在左边一帧）。设置不了可点区域时退回改窗口尺寸。
+         */
+        private var pinnedWidth = false
 
         /** 每次 [update] 递增：旧句柄关不掉形变后的新提示 */
         var generation = 0
@@ -210,6 +235,7 @@ object AppToast {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) setFitInsetsTypes(0)
                 // 缩成小圆/展开后窗口左边界会移动：关掉系统的窗口移动动画，否则小圆会从旧位置再滑一次
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) setCanPlayMoveAnimation(false)
+                else disableMoveAnimationLegacy(this)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     layoutInDisplayCutoutMode =
                         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -223,6 +249,11 @@ object AppToast {
             try {
                 windowManager.addView(root, params)
                 attached = true
+                // 首次布局在下一帧，这里固定宽度仍赶得上
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE && limitTouchToCardLegacy()) {
+                    pinnedWidth = true
+                    root.minimumWidth = expandedWidth + 2 * shadowPad
+                }
             } catch (e: Exception) {
                 // Activity 窗口令牌已失效（正在销毁等）
                 if (current === this) current = null
@@ -390,7 +421,7 @@ object AppToast {
             val toW = if (toExpanded) expandedWidth else pillSize
             val toH = if (toExpanded) expandedHeight() else pillSize
             applyShape(fromP)
-            root.minimumWidth = max(fromW, toW) + root.paddingLeft + root.paddingRight
+            if (!pinnedWidth) root.minimumWidth = max(fromW, toW) + root.paddingLeft + root.paddingRight
             root.minimumHeight = max(fromH, toH) + root.paddingTop + root.paddingBottom
             // 文案固定为展开时的宽度：形变中由卡片边缘裁切/露出，不随宽度逐帧重新换行（否则缩小时闪动）
             val textLp = messageView.layoutParams as LinearLayout.LayoutParams
@@ -420,13 +451,48 @@ object AppToast {
                         textLp.width = 0
                         textLp.weight = 1f
                         messageView.layoutParams = textLp
-                        root.minimumWidth = 0
+                        if (!pinnedWidth) root.minimumWidth = 0
                         root.minimumHeight = 0
                         onEnd()
                     }
                 })
                 start()
             }
+        }
+
+        /**
+         * 通过隐藏的 ViewTreeObserver.OnComputeInternalInsetsListener 把窗口可点区域限定为卡片
+         * （API 34 起的公开替代是 AttachedSurfaceControl.setTouchableRegion）。反射失败返回 false。
+         */
+        @SuppressLint("PrivateApi", "DiscouragedPrivateApi")
+        private fun limitTouchToCardLegacy(): Boolean = try {
+            val observerClass = android.view.ViewTreeObserver::class.java
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val infoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val regionField = infoClass.getDeclaredField("touchableRegion")
+            val setInsets = infoClass.getDeclaredMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableInsetsRegion = infoClass.getDeclaredField("TOUCHABLE_INSETS_REGION").getInt(null)
+            val listener = java.lang.reflect.Proxy.newProxyInstance(
+                listenerClass.classLoader, arrayOf(listenerClass)
+            ) { proxy, method, args ->
+                when (method.name) {
+                    "onComputeInternalInsets" -> {
+                        val info = args!![0]
+                        (regionField.get(info) as Region).set(card.left, card.top, card.right, card.bottom)
+                        setInsets.invoke(info, touchableInsetsRegion)
+                        null
+                    }
+                    "equals" -> proxy === args?.get(0)
+                    "hashCode" -> System.identityHashCode(proxy)
+                    "toString" -> "AppToastTouchRegion"
+                    else -> null
+                }
+            }
+            observerClass.getDeclaredMethod("addOnComputeInternalInsetsListener", listenerClass)
+                .invoke(root.viewTreeObserver, listener)
+            true
+        } catch (_: Throwable) {
+            false
         }
 
         /** 在原卡片上形变成新提示（如转圈 → ✓ 结果），缩小状态下同时展开 */
