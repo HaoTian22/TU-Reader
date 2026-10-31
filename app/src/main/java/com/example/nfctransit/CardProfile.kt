@@ -1,7 +1,9 @@
 package com.example.nfctransit
 
 /**
- * 交通卡卡种档案：AID / 关键 SFI / 交易记录字段布局
+ * 卡上应用档案：AID / 关键 SFI / 交易记录字段布局，以及选中该应用即判定的卡型。
+ * [cardType] 是实体卡的卡型（卡片层面）；[protocol] 是该应用自身的协议（应用层面），
+ * 记录标签、金额单位、站点解析等应用属性一律用 [protocol]。
  * 数据来源：NFC Wiki 智能卡手册 (wiki.nfc.im) 交通卡章节
  * 覆盖：岭南通(YCT1/PAY.APPY、YCT2/PAY.TICL)、深圳通(SZT)、苏州(SUXIN/SZTK)、
  *       成都天府通(TFT)、数字城市一卡通(CU)、澳门通(MPASS)、交通联合卡(TU)
@@ -14,11 +16,12 @@ data class CardProfile(
     val tradeSfi: Int,         // 电子钱包交易明细记录文件 SFI
     val tradeRecordLen: Int = 0x17,
     val stationSfi: Int? = null,  // 线路+站点信息文件 SFI (TU 卡用 0x1E)
-    val cardType: String = "YCT"  // "TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"/"MPASS"
+    val cardType: String = "YCT",  // 卡型："TU"/"CU"/"YCT"/"SZT"/"SUXIN"/"SZTK"/"TFT"/"MPASS"
+    val protocol: String = cardType  // 应用协议：岭南通两个应用为 "LNT"，其余与卡型同名
 ) {
-    /** 各卡附加交易区 SFI（CU/TFT 专有），与主交易区一样参与交易解析 */
+    /** 该应用的附加交易区 SFI（CU/TFT 专有），与主交易区一样参与交易解析 */
     val extraTradeSfis: List<Int>
-        get() = when (cardType) {
+        get() = when (protocol) {
             "CU" -> listOf(0x10, 0x06, 0x1A)
             "TFT" -> listOf(0x10, 0x09)
             else -> emptyList()
@@ -83,7 +86,7 @@ object CardProfiles {
      */
     fun protocolForAid(aid: String): String = (known + OCTOPUS).firstOrNull { profile ->
         profile.aidCandidates.any { it.equals(aid, ignoreCase = true) }
-    }?.cardType?.let { if (it == "YCT") "LNT" else it }.orEmpty()
+    }?.protocol.orEmpty()
 
     /**
      * 应用内参与交易解析与归档的循环记录 SFI：主交易区 + 附加交易区（TU 钱包另含 0x1E 旅程区）。
@@ -97,7 +100,8 @@ object CardProfiles {
     }
 
     /** 卡型的主应用协议（YCT 主钱包为 LNT）。 */
-    fun primaryProtocol(cardType: String): String = if (cardType == "YCT") "LNT" else cardType
+    fun primaryProtocol(cardType: String): String =
+        known.firstOrNull { it.cardType == cardType }?.protocol ?: cardType
 
     const val YCT_APPY_AID = "5041592E41505059"  // PAY.APPY：岭南通信息文件（卡号）所在应用
     const val YCT_TICL_AID = "5041592E5449434C"  // PAY.TICL：岭南通钱包（交易/余额）
@@ -155,14 +159,16 @@ object CardProfiles {
             aidCandidates = listOf("5041592E41505059"), // PAY.APPY
             infoSfi = 0x15,
             tradeSfi = 0x18,
-            cardType = "YCT"
+            cardType = "YCT",
+            protocol = "LNT"
         ),
         CardProfile(
             name = "岭南通/羊城通 (YCT2)",
             aidCandidates = listOf("5041592E5449434C"), // PAY.TICL
             infoSfi = 0x15,
             tradeSfi = 0x18,
-            cardType = "YCT"
+            cardType = "YCT",
+            protocol = "LNT"
         ),
         CardProfile(
             name = "深圳通 (SZT)",

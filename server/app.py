@@ -33,6 +33,13 @@ MAX_RAW_RECORD_BYTES = 32 * 1024
 MAX_BODY_BYTES = 256 * 1024
 DRAIN_CHUNK = 64 * 1024
 LOCATION_SOURCES = {"AUTO", "MANUAL"}
+# standard: 记录来源应用，"协议:AID" 以 + 连接（如 CU:A00000000386980701+TU:A000000632010105）；
+# 旧版 App 只发协议名（TU/CU/YCT…），仍接受。
+STANDARD_PROTOCOL = r"[A-Z][A-Z0-9]{0,15}"
+STANDARD_PATTERN = re.compile(
+    rf"{STANDARD_PROTOCOL}|{STANDARD_PROTOCOL}:[0-9A-F]{{2,32}}(?:\+{STANDARD_PROTOCOL}:[0-9A-F]{{2,32}})*"
+)
+STANDARD_LIMIT = 256
 CODE_PATTERN = re.compile(r"[0-9A-Za-z]+")
 
 LOGGER = logging.getLogger("tu_reader.server")
@@ -75,6 +82,13 @@ def _validate_code(value: str, field: str, limit: int) -> str:
     value = value.strip()
     if not CODE_PATTERN.fullmatch(value):
         raise PayloadError(f"{field}: must contain only ASCII letters and digits")
+    return value
+
+
+def _validate_standard(value: str) -> str:
+    value = _validate_required_text(value, "standard", STANDARD_LIMIT)
+    if not STANDARD_PATTERN.fullmatch(value):
+        raise PayloadError("standard: expected PROTOCOL or PROTOCOL:AID joined by +")
     return value
 
 
@@ -181,9 +195,7 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
         "Station": _validate_optional_text(_required_str(payload, "station"), "station", 128),
     }
     metadata = {
-        "standard": _validate_required_text(
-            _required_str(payload, "standard"), "standard", 16
-        ),
+        "standard": _validate_standard(_required_str(payload, "standard")),
         "locationCityCode": _validate_location_code(
             _optional_str(payload, "locationCityCode")
         ),

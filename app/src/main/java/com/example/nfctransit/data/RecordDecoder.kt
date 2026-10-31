@@ -158,7 +158,7 @@ object RecordDecoder {
         return when (cardType) {
             "TU" -> {
                 val tu = buildTuMap(records)
-                val fare = parseFareRecords(cardType, records, "TU", tu, currentYear, null)
+                val fare = parseFareRecords(records, "TU", tu, currentYear, null)
                 val display = mergeForDisplay(mergeJourneyAndFare(tu.journey, fare)).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
@@ -170,15 +170,13 @@ object RecordDecoder {
                 val tuRecords = records.filter { it.protocol == "TU" }
 
                 // LNT 交易（无年份，年份用统计月份/连续性推断）
-                val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()),
+                val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(lntRecords, "LNT", TuMap(emptyMap(), emptyList()),
                     currentYear, statsMonth, lntIssueDate = lntIssueDate
                 )
 
                 // TU 钱包：1E 映射表 + 18 主交易 + 旅程合并
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    "TU", tuRecords, "TU", tu, currentYear, null
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
 
@@ -188,15 +186,13 @@ object RecordDecoder {
                 DecodeResult(display, lnt + tu.journey + tuFare)
             }
             "CU", "MPASS" -> {
-                val cuRecords = records.filter { it.protocol == cardType }
+                val cuRecords = records.filter { it.protocol == CardProfiles.primaryProtocol(cardType) }
                 val tuRecords = records.filter { it.protocol == "TU" }
-                val cu = parseFareRecords(
-                    cardType, cuRecords, cardType,
+                val cu = parseFareRecords(cuRecords, CardProfiles.primaryProtocol(cardType),
                     TuMap(emptyMap(), emptyList()), currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    "TU", tuRecords, "TU", tu, currentYear, null
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
                 val display = mergeForDisplay(cu + tuMerged).sortedWith(
@@ -207,13 +203,11 @@ object RecordDecoder {
             "SZT" -> {
                 val sztRecords = records.filter { it.protocol == "SZT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
-                val szt = parseFareRecords(
-                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()),
+                val szt = parseFareRecords(sztRecords, "SZT", TuMap(emptyMap(), emptyList()),
                     currentYear, null
                 )
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    "TU", tuRecords, "TU", tu, currentYear, null
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, currentYear, null
                 )
                 val tuMerged = mergeJourneyAndFare(tu.journey, tuFare)
                 val display = mergeForDisplay(szt + tuMerged).sortedWith(
@@ -223,7 +217,7 @@ object RecordDecoder {
             }
             else -> {
                 // 通用（CU/TFT/SUXIN/SZTK）：18 + 附加区，按内容去重后按时间倒序
-                val fare = parseFareRecords(cardType, records, cardType, TuMap(emptyMap(), emptyList()), currentYear, null)
+                val fare = parseFareRecords(records, CardProfiles.primaryProtocol(cardType), TuMap(emptyMap(), emptyList()), currentYear, null)
                 val display = mergeForDisplay(fare).sortedWith(
                     compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence }
                 )
@@ -256,50 +250,43 @@ object RecordDecoder {
         val base = when (cardType) {
             "TU" -> {
                 val tu = buildTuMap(records)
-                val fare = parseFareRecords(cardType, records, "TU", tu, 0, null, storedDate)
+                val fare = parseFareRecords(records, "TU", tu, 0, null, storedDate)
                 mergeJourneyAndFare(tu.journey, fare)
             }
             "YCT" -> {
                 val lntRecords = records.filter { it.protocol == "LNT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
-                val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, lntRecords, "LNT", TuMap(emptyMap(), emptyList()), 0, null, storedDate,
+                val lnt = if (lntRecords.isEmpty()) emptyList() else parseFareRecords(lntRecords, "LNT", TuMap(emptyMap(), emptyList()), 0, null, storedDate,
                     lntIssueDate
                 )
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, 0, null, storedDate
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, 0, null, storedDate
                 )
                 lnt + mergeJourneyAndFare(tu.journey, tuFare)
             }
             "CU", "MPASS" -> {
-                val cuRecords = records.filter { it.protocol == cardType }
+                val cuRecords = records.filter { it.protocol == CardProfiles.primaryProtocol(cardType) }
                 val tuRecords = records.filter { it.protocol == "TU" }
-                val cu = parseFareRecords(
-                    cardType, cuRecords, cardType,
+                val cu = parseFareRecords(cuRecords, CardProfiles.primaryProtocol(cardType),
                     TuMap(emptyMap(), emptyList()), 0, null, storedDate
                 )
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    "TU", tuRecords, "TU", tu, 0, null, storedDate
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, 0, null, storedDate
                 )
                 cu + mergeJourneyAndFare(tu.journey, tuFare)
             }
             "SZT" -> {
                 val sztRecords = records.filter { it.protocol == "SZT" }
                 val tuRecords = records.filter { it.protocol == "TU" }
-                val szt = parseFareRecords(
-                    cardType, sztRecords, "SZT", TuMap(emptyMap(), emptyList()), 0, null,
+                val szt = parseFareRecords(sztRecords, "SZT", TuMap(emptyMap(), emptyList()), 0, null,
                     storedDate
                 )
                 val tu = buildTuMap(tuRecords)
-                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(
-                    cardType, tuRecords, "TU", tu, 0, null, storedDate
+                val tuFare = if (tuRecords.isEmpty()) emptyList() else parseFareRecords(tuRecords, "TU", tu, 0, null, storedDate
                 )
                 szt + mergeJourneyAndFare(tu.journey, tuFare)
             }
-            else -> parseFareRecords(
-                cardType, records, cardType, TuMap(emptyMap(), emptyList()), 0, null, storedDate
+            else -> parseFareRecords(records, CardProfiles.primaryProtocol(cardType), TuMap(emptyMap(), emptyList()), 0, null, storedDate
             )
         }
         return mergeForDisplay(base).sortedWith(compareByDescending<CanonicalTransaction> { it.date + it.time }.thenByDescending { it.sequence })
@@ -477,13 +464,14 @@ object RecordDecoder {
     }
 
     /**
-     * 解析 18（+附加区）主交易记录。
+     * 解析 18（+附加区）主交易记录。字段布局、站点解析与日期规则只看记录所属应用的协议，不看卡型
+     * （双钱包卡上 TU 钱包的记录与单协议 TU 卡完全一样处理）。
+     * @param protocol 记录所属应用的协议标签（LNT/TU/CU/SZT/MPASS/TFT…）
      * @param lntStatsMonth  LNT 统计月份 YYYYMM（见 [inferLntYears]）
      * @param storedDateByHash 归档：contentHash → 已解析日期（yyyyMMdd），覆盖 hex 内日期（decodeArchive 用）
      * @param lntIssueDate LNT 发卡日期 yyyyMMdd：交易不可能早于发卡，推断年份不得低于它。
      */
     private fun parseFareRecords(
-        cardType: String,
         records: List<ZoneRecord>,
         protocol: String,
         tu: TuMap,
@@ -493,7 +481,7 @@ object RecordDecoder {
         lntIssueDate: String? = null
     ): List<CanonicalTransaction> {
         val isLnt = protocol == "LNT"
-        val hasSubtype18 = cardType == "YCT" && isLnt
+        val hasSubtype18 = isLnt
         val today = todayDate()
         // LNT content sequence counters are independent across transaction types; only recNo is chronological.
         val orderedRecords = records.sortedBy { it.recNo }
@@ -525,7 +513,7 @@ object RecordDecoder {
             // CU 有完整日期，直接重读 hex，修复旧解码器错误推断年份留下的归档日期。
             // LNT 仍优先使用归档中保存的推断年份。
             val hash = contentHash(rec.hex)
-            val stored = storedDateByHash?.get(hash)?.takeUnless { cardType == "CU" || cardType == "MPASS" }
+            val stored = storedDateByHash?.get(hash)?.takeUnless { protocol == "CU" || protocol == "MPASS" }
             val date = stored?.let { if (isLnt || isSubtype18) floorToIssueDate(it, lntIssueDate) else it } ?: run {
                 if (isLnt || isSubtype18) {
                     val mmdd = ApduUtil.bcdToString(data.copyOfRange(18, 20))
@@ -552,7 +540,7 @@ object RecordDecoder {
             // 非 "02" 视为退款/扣款，显示 "-" 并计入消费）。
             val resolvedRef =
                 if (posIsRecharge || typeHex == "02") null
-                else resolveStation(cardType, cityCode18, posHex, terminal, tu)
+                else resolveStation(protocol, cityCode18, posHex, terminal, tu)
             val isRecharge = resolvedRef == null ||
                 resolvedRef.mappingTransitType?.contains("充值") == true
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
@@ -586,7 +574,7 @@ object RecordDecoder {
             val cityForTx = when {
                 isRecharge -> null
                 ref.cityCode != null -> ref.cityCode
-                cardType == "YCT" && protocol == "LNT" && ref.deviceCode == null -> null
+                isLnt && ref.deviceCode == null -> null
                 else -> displayCityCode
             }
 
@@ -751,13 +739,13 @@ object RecordDecoder {
 
     /** 解析站点名称与交通类型（TU 用 1E 映射表，其余按 城市码+位置码/终端号 查 DB） */
     private fun resolveStation(
-        cardType: String,
+        protocol: String,
         cityCode: String,
         posHex: String,
         terminal: String,
         tu: TuMap
     ): StationRef {
-        if (cardType == "TU") {
+        if (protocol == "TU") {
             tu.stationMap[terminal]?.let { return it }
             for ((key, value) in tu.stationMap) {
                 if (terminal.endsWith(key) || key.endsWith(terminal)) return value
@@ -766,7 +754,7 @@ object RecordDecoder {
             if (fallback != null) return fallback.toStationRef()
             return UNMATCHED_STATION
         }
-        val entry = TransitData.resolveByStandard(cardType, cityCode, posHex, terminal)
+        val entry = TransitData.resolveByStandard(protocol, cityCode, posHex, terminal)
         if (entry != null) return entry.toStationRef()
         return UNMATCHED_STATION
     }

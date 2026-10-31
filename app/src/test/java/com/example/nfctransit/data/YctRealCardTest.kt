@@ -53,7 +53,7 @@ class YctRealCardTest {
     }
 
     @Test fun tuApplicationMetadataCombinesEpInfoAndEcDf11() {
-        val tu = CardMetadataParser.parse("TU", records(), ecSelect, allowBlankFallback = false)
+        val tu = CardMetadataParser.parse("TU", records(), ecSelect)
         assertEquals("02205810FFFFFFFF", tu.issuer)
         assertEquals("2024-07-15", tu.issueDate)
         assertEquals("2040-12-15", tu.validUntil)

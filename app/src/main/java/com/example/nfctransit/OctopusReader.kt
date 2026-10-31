@@ -58,8 +58,8 @@ class OctopusReader internal constructor(private val channel: FelicaChannel) {
                 log.add("FELICA READ 0118 异常: ${e.message}"); null
             }
             val raw = listOfNotNull(
-                blockHex?.let { RawRecord(BALANCE_SERVICE, 0, profile.cardType, it, SYSTEM_CODE) },
-                sztBlock?.let { RawRecord(SZT_SERVICE, 0, profile.cardType, ApduUtil.bytesToHex(it), SYSTEM_CODE) }
+                blockHex?.let { RawRecord(BALANCE_SERVICE, 0, profile.protocol, it, SYSTEM_CODE) },
+                sztBlock?.let { RawRecord(SZT_SERVICE, 0, profile.protocol, ApduUtil.bytesToHex(it), SYSTEM_CODE) }
             )
             val app = TransitCardReader.AppRead(SYSTEM_CODE, ApduUtil.bytesToHex(pollResp), balanceFen, blockHex, idmHex)
             log.add("八达通: IDm=$idmHex, 余额=${balanceFen ?: "未知"}")

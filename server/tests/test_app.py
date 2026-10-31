@@ -345,3 +345,30 @@ def test_rejects_invalid_submitted_at(api, submitted_at):
     status, response = api("POST", "/v1/overrides", {**raw_record_payload(), "submittedAt": submitted_at})
     assert status == 422
     assert "submittedAt" in response["detail"]
+
+
+@pytest.mark.parametrize("standard", [
+    "TU",
+    "TU:A000000632010105",
+    "CU:A00000000386980701+TU:A000000632010105",
+    "LNT:5041592E5449434C+TU:A000000632010105",
+    "TFT:D156000015B9ABB9B2D3A6D3C3",
+])
+def test_accepts_standard_with_application_aids(api, standard):
+    payload = {
+        "prefix": "6020", "code": "0010101", "type": "公交", "standard": standard,
+        "line": "1", "station": "", "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    assert stored_entries()["60200010101|公交"]["standard"] == standard
+
+
+@pytest.mark.parametrize("standard", [
+    "", "tu", "TU:", "TU:XYZ", "CU:A00000000386980701+", "CU:A00000000386980701 TU:A000000632010105",
+])
+def test_rejects_malformed_standard(api, standard):
+    payload = {
+        "prefix": "6020", "code": "0010101", "type": "公交", "standard": standard,
+        "line": "1", "station": "", "locationSource": "AUTO",
+    }
+    assert api("POST", "/v1/overrides", payload)[0] == 422
