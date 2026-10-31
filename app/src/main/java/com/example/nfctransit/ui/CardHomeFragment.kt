@@ -413,27 +413,17 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
 
     private fun showMoreMenu() {
         val card = viewModel.selectedCard.value ?: return
-        AppDialogs.options(
-            context = requireContext(),
+        showCardMenu(
+            fragment = this,
             title = card.name,
-            options = listOf(getString(R.string.card_info_title), getString(R.string.delete_card)),
             accentColor = accentColor,
-            dangerIndices = setOf(1)
-        ) { which ->
-            when (which) {
-                0 -> go(R.id.action_cardHome_to_cardInfo)
-                1 -> AppDialogs.confirm(
-                    context = requireContext(),
-                    title = getString(R.string.delete_card),
-                    message = getText(R.string.delete_card_message),
-                    confirmLabel = getString(R.string.action_delete)
-                ) {
-                    val index = viewModel.selectedIndex.value ?: return@confirm
-                    viewModel.deleteCard(index)
-                    findNavController().popBackStack(R.id.homeFragment, false)
-                }
+            onInfo = { go(R.id.action_cardHome_to_cardInfo) },
+            onDelete = {
+                val index = viewModel.selectedIndex.value ?: return@showCardMenu
+                viewModel.deleteCard(index)
+                findNavController().popBackStack(R.id.homeFragment, false)
             }
-        }
+        )
     }
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
@@ -442,5 +432,33 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+}
+
+/** 单卡菜单（查看卡片信息 / 删除卡片）：卡片页「…」与首页长按卡片共用 */
+internal fun showCardMenu(
+    fragment: Fragment,
+    title: String,
+    accentColor: Int,
+    onInfo: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val ctx = fragment.requireContext()
+    AppDialogs.options(
+        context = ctx,
+        title = title,
+        options = listOf(fragment.getString(R.string.card_info_title), fragment.getString(R.string.delete_card)),
+        accentColor = accentColor,
+        dangerIndices = setOf(1)
+    ) { which ->
+        when (which) {
+            0 -> onInfo()
+            1 -> AppDialogs.confirm(
+                context = ctx,
+                title = fragment.getString(R.string.delete_card),
+                message = fragment.getText(R.string.delete_card_message),
+                confirmLabel = fragment.getString(R.string.action_delete)
+            ) { onDelete() }
+        }
     }
 }

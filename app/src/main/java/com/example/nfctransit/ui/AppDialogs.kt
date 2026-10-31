@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import com.example.nfctransit.data.prefs.CardSortMode
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
@@ -907,12 +908,18 @@ object AppDialogs {
         dialog.show()
     }
 
-    /** 卡片排序弹窗：每张卡一行（主题色圆点 + 行名 + 拖动手柄），拖动手柄或长按整行调整顺序，完成后回调新顺序的 cardId 列表 */
+    /**
+     * 卡片排序弹窗：顶部选择排序方式（手动 / 最近读取 / 卡名 / 余额）；
+     * 手动时每张卡一行（主题色圆点 + 行名 + 拖动手柄），拖动手柄或长按整行调整顺序；
+     * 自动方式只预览排序结果，再点已选中的方式切换升降序。完成后回调排序方式、升降序与手动顺序的 cardId 列表
+     */
     fun reorder(
         context: Context,
         cards: List<UiCard>,
+        sortMode: CardSortMode,
+        sortAscending: Boolean,
         accentColor: Int = Palette.ACCENT,
-        onDone: (List<String>) -> Unit
+        onDone: (CardSortMode, Boolean, List<String>) -> Unit
     ) {
         val dialog = Dialog(context)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -927,7 +934,11 @@ object AppDialogs {
         val list = view.findViewById<RecyclerView>(R.id.dialogReorderList) ?: return
         val density = context.resources.displayMetrics.density
         val fa = Typeface.createFromAsset(context.assets, "fonts/fa-solid-900.otf")
-        val order = cards.toMutableList()
+        var mode = sortMode
+        var ascending = sortAscending
+        // 手动顺序单独保存：切到自动方式预览后再切回手动，恢复之前拖好的顺序
+        val manualOrder = cards.toMutableList()
+        val order = cards.sortedByMode(mode, ascending).toMutableList()
         lateinit var touchHelper: ItemTouchHelper
 
         class RowHolder(val row: LinearLayout, val dot: View, val label: TextView, val handle: TextView) :
@@ -975,7 +986,7 @@ object AppDialogs {
                 return RowHolder(row, dot, label, handle).also { holder ->
                     @Suppress("ClickableViewAccessibility")
                     handle.setOnTouchListener { _, event ->
-                        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                        if (mode == CardSortMode.MANUAL && event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
                             touchHelper.startDrag(holder)
                         }
                         false
@@ -994,11 +1005,16 @@ object AppDialogs {
                     shape = android.graphics.drawable.GradientDrawable.OVAL
                     setColor(Palette.cardFace(card.gradientStartColor))
                 }
+                holder.handle.visibility = if (mode == CardSortMode.MANUAL) View.VISIBLE else View.INVISIBLE
                 // 读屏用户无法拖动：提供上移 / 下移无障碍操作
                 (holder.row.getTag(R.id.dialogReorderList) as? IntArray)?.forEach {
                     ViewCompat.removeAccessibilityAction(holder.row, it)
                 }
                 val actionIds = mutableListOf<Int>()
+                if (mode != CardSortMode.MANUAL) {
+                    holder.row.setTag(R.id.dialogReorderList, null)
+                    return
+                }
                 if (position > 0) {
                     actionIds += ViewCompat.addAccessibilityAction(holder.row, holder.row.context.getString(R.string.reorder_move_up)) { _, _ ->
                         move(holder.bindingAdapterPosition, holder.bindingAdapterPosition - 1); true
@@ -1037,6 +1053,8 @@ object AppDialogs {
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
 
+            override fun isLongPressDragEnabled() = mode == CardSortMode.MANUAL
+
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
                 if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
@@ -1060,12 +1078,89 @@ object AppDialogs {
             list.layoutParams = list.layoutParams.apply { height = maxHeightPx }
         }
 
+        // 排序方式胶囊（2×2）：选中项主题色填充，自动方式在按钮内显示升降序图标
+        val modes = CardSortMode.entries
+        val modeGrid = view.findViewById<LinearLayout>(R.id.dialogReorderModes)
+        val gap = (8 * density).toInt()
+        val modeRows = List(2) { r ->
+            LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }.also {
+                modeGrid?.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    if (r > 0) topMargin = gap
+                })
+            }
+        }
+        var refreshModes: () -> Unit = {}
+        val chips = modes.mapIndexed { i, m ->
+            TextView(context, null, 0, R.style.StatsPeriodChip).apply {
+                maxLines = 1
+                setOnClickListener {
+                    if (mode == m) {
+                        // 再点已选中的自动方式：切换升降序
+                        if (m == CardSortMode.MANUAL) return@setOnClickListener
+                        ascending = !ascending
+                    } else {
+                        if (mode == CardSortMode.MANUAL) {
+                            manualOrder.clear()
+                            manualOrder.addAll(order)
+                        }
+                        mode = m
+                        ascending = m.defaultAscending
+                    }
+                    order.clear()
+                    order.addAll(manualOrder.sortedByMode(mode, ascending))
+                    @Suppress("NotifyDataSetChanged")
+                    adapter.notifyDataSetChanged()
+                    refreshModes()
+                }
+            }.also {
+                modeRows[i / 2].addView(it, LinearLayout.LayoutParams(0, (40 * density).toInt(), 1f).apply {
+                    if (i % 2 > 0) marginStart = gap
+                })
+            }
+        }
+        refreshModes = {
+            chips.forEachIndexed { i, chip ->
+                val m = modes[i]
+                val selected = m == mode
+                chip.isSelected = selected
+                val name = context.getString(m.nameRes())
+                chip.text = if (selected && m != CardSortMode.MANUAL) {
+                    // fa-arrow-up-wide-short / fa-arrow-down-wide-short
+                    val icon = if (ascending) "" else ""
+                    android.text.SpannableStringBuilder(name).append("  ").apply {
+                        val start = length
+                        append(icon)
+                        setSpan(FaSpan(fa), start, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                } else name
+                chip.contentDescription = if (selected && m != CardSortMode.MANUAL) {
+                    context.getString(
+                        if (ascending) R.string.card_sort_ascending_cd else R.string.card_sort_descending_cd,
+                        context.getString(m.nameRes())
+                    )
+                } else null
+                if (selected) {
+                    chip.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = 999 * density
+                        setColor(accentColor)
+                    }
+                    chip.setTextColor(Palette.ON_ACCENT)
+                    chip.typeface = Typeface.DEFAULT_BOLD
+                } else {
+                    chip.setBackgroundResource(R.drawable.bg_chip_default)
+                    chip.setTextColor(Palette.INK_2)
+                    chip.typeface = Typeface.DEFAULT
+                }
+            }
+        }
+        refreshModes()
+
         view.findViewById<TextView>(R.id.dialogReorderCancel)?.setOnClickListener { dialog.dismiss() }
         view.findViewById<TextView>(R.id.dialogReorderDone)?.apply {
             setTextColor(accentColor)
             setOnClickListener {
                 dialog.dismiss()
-                onDone(order.map { it.id })
+                onDone(mode, ascending, (if (mode == CardSortMode.MANUAL) order else manualOrder).map { it.id })
             }
         }
         view.applyTouchFeedback()

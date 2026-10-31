@@ -172,6 +172,22 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
+    /** 长按卡片：与卡片页「…」相同的菜单 */
+    private fun onCardLongPress(index: Int, card: UiCard) {
+        showCardMenu(
+            fragment = this,
+            title = card.name,
+            accentColor = Palette.accentFor(card.gradientStartColor),
+            onInfo = {
+                if (findNavController().currentDestination?.id != R.id.homeFragment) return@showCardMenu
+                viewModel.selectCardByIndex(index)
+                capturePredictiveBackSnapshot()
+                findNavController().navigate(R.id.action_home_to_cardInfo)
+            },
+            onDelete = { viewModel.deleteCard(index) }
+        )
+    }
+
     private var walletRendered = false
 
     private fun renderWallet(cards: List<UiCard>) {
@@ -231,6 +247,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             isFocusableInTouchMode = false
             contentDescription = getString(R.string.card_cd, card.name, String.format("%.2f", card.balanceYuan))
             setOnClickListener { openCard(index) }
+            setOnLongClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                onCardLongPress(index, card)
+                true
+            }
         }
 
         val titleRow = LinearLayout(ctx).apply {

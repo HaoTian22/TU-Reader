@@ -20,6 +20,7 @@ import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.db.RawRecordEntity
 import com.example.nfctransit.data.db.UserDatabase
 import com.example.nfctransit.data.prefs.AppPreferences
+import com.example.nfctransit.data.prefs.CardSortMode
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.model.CanonicalTransaction
 import com.example.nfctransit.model.DiscountRegistry
@@ -774,6 +775,10 @@ class TransitRepository(private val context: Context) {
     suspend fun setSelectedCardId(cardId: String?) = AppPreferences.setSelectedCardId(context, cardId)
     suspend fun getCardOrder(): List<String> = AppPreferences.getCardOrder(context)
     suspend fun setCardOrder(cardIds: List<String>) = AppPreferences.setCardOrder(context, cardIds)
+    suspend fun getCardSortMode(): CardSortMode = AppPreferences.getCardSortMode(context)
+    suspend fun getCardSortAscending(): Boolean? = AppPreferences.getCardSortAscending(context)
+    suspend fun setCardSortMode(mode: CardSortMode, ascending: Boolean) =
+        AppPreferences.setCardSortMode(context, mode, ascending)
     suspend fun isKeepDebugLogs(): Boolean = AppPreferences.isKeepDebugLogs(context)
     suspend fun setKeepDebugLogs(keep: Boolean) = AppPreferences.setKeepDebugLogs(context, keep)
     suspend fun isPlaybackHaptics(): Boolean = AppPreferences.isPlaybackHaptics(context)

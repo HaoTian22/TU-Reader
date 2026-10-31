@@ -21,6 +21,7 @@ import com.example.nfctransit.R
 import com.example.nfctransit.data.TransitDbVersion
 import com.example.nfctransit.data.AppUpdateResult
 import com.example.nfctransit.data.db.DatabaseQuerySpec
+import com.example.nfctransit.data.prefs.CardSortMode
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.route.TencentCredentials
 import com.example.nfctransit.databinding.FragmentSettingsBinding
@@ -162,9 +163,19 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             AppDialogs.reorder(
                 context = requireContext(),
                 cards = cards,
+                sortMode = viewModel.cardSortMode.value ?: CardSortMode.MANUAL,
+                sortAscending = viewModel.cardSortAscending.value ?: false,
                 accentColor = viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT,
-                onDone = { orderedIds -> viewModel.applyCardOrder(orderedIds) }
+                onDone = { mode, ascending, orderedIds -> viewModel.setCardSortMode(mode, ascending, orderedIds) }
             )
+        }
+        binding.root.findViewById<TextView>(R.id.tvCardSortMode)?.let { tv ->
+            val render = {
+                val mode = viewModel.cardSortMode.value ?: CardSortMode.MANUAL
+                tv.text = mode.label(requireContext(), viewModel.cardSortAscending.value ?: false)
+            }
+            viewModel.cardSortMode.observe(viewLifecycleOwner) { render() }
+            viewModel.cardSortAscending.observe(viewLifecycleOwner) { render() }
         }
 
         binding.root.findViewById<View>(R.id.rowDatabaseViewer)?.setOnClickListener {

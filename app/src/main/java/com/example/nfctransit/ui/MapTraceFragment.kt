@@ -2083,7 +2083,7 @@ class MapTraceFragment : Fragment(R.layout.fragment_map_trace) {
 }
 
 /** 在普通文字中嵌入 FontAwesome 图标（TypefaceSpan(Typeface) 需 API 28） */
-private class FaSpan(private val face: Typeface) : MetricAffectingSpan() {
+internal class FaSpan(private val face: Typeface) : MetricAffectingSpan() {
     override fun updateDrawState(tp: TextPaint) { tp.typeface = face }
     override fun updateMeasureState(tp: TextPaint) { tp.typeface = face }
 }

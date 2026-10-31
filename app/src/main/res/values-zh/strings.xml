@@ -276,6 +276,12 @@
     <string name="importing">正在导入…</string>
     <string name="no_data">暂无数据</string>
     <string name="card_sort_need_two">至少需要 2 张卡片</string>
+    <string name="card_sort_manual">手动</string>
+    <string name="card_sort_read_time">最近读取</string>
+    <string name="card_sort_name">卡名</string>
+    <string name="card_sort_balance">余额</string>
+    <string name="card_sort_ascending_cd">%1$s，升序，点按切换为降序</string>
+    <string name="card_sort_descending_cd">%1$s，降序，点按切换为升序</string>
     <string name="db_select_title">选择数据库</string>
     <string name="route_mode_endpoints">仅起终点</string>
     <string name="route_mode_full">完整换乘</string>

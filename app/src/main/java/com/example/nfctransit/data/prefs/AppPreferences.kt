@@ -19,6 +19,22 @@ enum class CurrentTripRouteDisplayMode {
     }
 }
 
+/** 卡片排序方式：手动拖动，或按最近读取 / 卡名 / 余额自动排序 */
+enum class CardSortMode {
+    MANUAL,
+    READ_TIME,
+    NAME,
+    BALANCE;
+
+    /** 首次选中时的默认方向：卡名 A→Z，读取时间/余额从新到旧、从高到低 */
+    val defaultAscending: Boolean get() = this == NAME
+
+    companion object {
+        fun fromPersistedValue(value: String?): CardSortMode =
+            entries.firstOrNull { it.name == value } ?: MANUAL
+    }
+}
+
 /**
  * 轻量 UI/设置状态（Preferences DataStore "transit_preferences"）。
  * 卡片/交易等业务数据不在此处——它们在 Room 用户库（UserDatabase）。
@@ -29,6 +45,8 @@ object AppPreferences {
 
     private val KEY_SELECTED_CARD_ID = stringPreferencesKey("selected_card_id")
     private val KEY_CARD_ORDER = stringPreferencesKey("card_order")          // 逗号连接的 cardId 列表
+    private val KEY_CARD_SORT_MODE = stringPreferencesKey("card_sort_mode")  // CardSortMode.name
+    private val KEY_CARD_SORT_ASCENDING = stringPreferencesKey("card_sort_ascending") // "true"/"false"
     private val KEY_KEEP_DEBUG_LOGS = stringPreferencesKey("keep_debug_logs") // "true"/"false"
     private val KEY_PLAYBACK_HAPTICS = stringPreferencesKey("playback_haptics") // "true"/"false"
     private val KEY_PLAYBACK_SOUND = stringPreferencesKey("playback_sound")       // "true"/"false"
@@ -51,6 +69,13 @@ object AppPreferences {
         val raw = context.dataStore.data.first()[KEY_CARD_ORDER] ?: return emptyList()
         return raw.split(",").filter { it.isNotEmpty() }
     }
+
+    suspend fun getCardSortMode(context: Context): CardSortMode =
+        CardSortMode.fromPersistedValue(context.dataStore.data.first()[KEY_CARD_SORT_MODE])
+
+    /** 未保存过时返回 null，由调用方取排序方式的默认方向 */
+    suspend fun getCardSortAscending(context: Context): Boolean? =
+        context.dataStore.data.first()[KEY_CARD_SORT_ASCENDING]?.toBooleanStrictOrNull()
 
     suspend fun isKeepDebugLogs(context: Context): Boolean =
         context.dataStore.data.first()[KEY_KEEP_DEBUG_LOGS] != "false"  // 默认 true
@@ -126,6 +151,13 @@ object AppPreferences {
     suspend fun setCardOrder(context: Context, cardIds: List<String>) {
         context.dataStore.edit { prefs ->
             prefs[KEY_CARD_ORDER] = cardIds.joinToString(",")
+        }
+    }
+
+    suspend fun setCardSortMode(context: Context, mode: CardSortMode, ascending: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CARD_SORT_MODE] = mode.name
+            prefs[KEY_CARD_SORT_ASCENDING] = ascending.toString()
         }
     }
 

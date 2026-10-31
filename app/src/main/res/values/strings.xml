@@ -208,7 +208,7 @@
     <string name="station_map_update">Update station database</string>
     <string name="station_db_version">Current version %s</string>
     <string name="station_db_version_unknown">Current version unknown</string>
-    <string name="card_sorting">Reorder cards</string>
+    <string name="card_sorting">Card order</string>
     <string name="data_and_privacy">Data &amp; privacy</string>
     <string name="local_data_storage">Local data storage</string>
     <string name="manage_overrides">Manage local mappings</string>
@@ -281,6 +281,12 @@
     <string name="importing">Importing…</string>
     <string name="no_data">No data</string>
     <string name="card_sort_need_two">Need at least 2 cards</string>
+    <string name="card_sort_manual">Manual</string>
+    <string name="card_sort_read_time">Last read</string>
+    <string name="card_sort_name">Name</string>
+    <string name="card_sort_balance">Balance</string>
+    <string name="card_sort_ascending_cd">%1$s, ascending. Tap to switch to descending</string>
+    <string name="card_sort_descending_cd">%1$s, descending. Tap to switch to ascending</string>
     <string name="db_select_title">Choose a database</string>
     <string name="route_mode_endpoints">Endpoints only</string>
     <string name="route_mode_full">Full transfers</string>

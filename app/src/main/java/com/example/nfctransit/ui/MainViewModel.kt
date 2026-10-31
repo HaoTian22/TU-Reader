@@ -48,6 +48,7 @@ import com.example.nfctransit.data.db.CardEntity
 import com.example.nfctransit.data.db.ReaderDeviceEntity
 import com.example.nfctransit.data.db.UserDatabase
 import com.example.nfctransit.data.prefs.AppPreferences
+import com.example.nfctransit.data.prefs.CardSortMode
 import com.example.nfctransit.data.prefs.CurrentTripRouteDisplayMode
 import com.example.nfctransit.data.repo.TransitRepository
 import com.example.nfctransit.data.repo.cardIdentityNumbers
@@ -428,6 +429,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _mainAccent = MutableLiveData<Long>(Palette.ACCENT_ARGB)
     val mainAccent: LiveData<Long> = _mainAccent
 
+    /** 卡片排序方式：手动，或按最近读取 / 卡名 / 余额自动排序 */
+    private val _cardSortMode = MutableLiveData(CardSortMode.MANUAL)
+    val cardSortMode: LiveData<CardSortMode> = _cardSortMode
+    private val _cardSortAscending = MutableLiveData(false)
+    val cardSortAscending: LiveData<Boolean> = _cardSortAscending
+
     /** 是否保留调试日志（关闭时不写会话日志文件，避免隐私与存储膨胀） */
     private val _keepDebugLogs = MutableLiveData(true)
     val keepDebugLogs: LiveData<Boolean> = _keepDebugLogs
@@ -581,6 +588,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (cards.isEmpty()) return
             val order = repo.getCardOrder()
             val selectedId = repo.getSelectedCardId()
+            val sortMode = repo.getCardSortMode()
+            _cardSortAscending.value = repo.getCardSortAscending() ?: sortMode.defaultAscending
+            _cardSortMode.value = sortMode
 
             // 按 cardOrder 排序（不在顺序里的放后面）
             cardEntities.clear()
@@ -603,6 +613,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (state != null) applyCardState(card.cardId, state)
             }
 
+            sortCardsByMode()
             val uiCards = cardEntities.map(::uiCard)
             _cards.value = uiCards
             _hasData.value = true
@@ -850,6 +861,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val listIndex = cardEntities.indexOfFirst { it.cardId == cardId }
             if (listIndex >= 0) cardEntities[listIndex] = entity else cardEntities.add(entity)
             applyCardState(cardId, state)
+            sortCardsByMode()
             val updatedCards = cardEntities.map(::uiCard)
             _cards.value = updatedCards
             _hasData.value = true
@@ -900,6 +912,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val updated = current.copy(name = normalized)
         cardEntities[index] = updated
+        sortCardsByMode()
         _cards.value = cardEntities.map(::uiCard)
         emitCardData(updated.cardId)
         viewModelScope.launch(Dispatchers.IO) {
@@ -952,6 +965,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (newIndex >= 0) _selectedIndex.value = newIndex
         _cards.value = reordered.map(::uiCard)
         viewModelScope.launch(Dispatchers.IO) { repo.setCardOrder(reordered.map { it.cardId }) }
+    }
+
+    /** 设置排序方式与升降序：手动时按给定顺序重排；自动时立即按新方式排序并持久化顺序 */
+    fun setCardSortMode(mode: CardSortMode, ascending: Boolean, manualOrder: List<String>) {
+        _cardSortMode.value = mode
+        _cardSortAscending.value = ascending
+        viewModelScope.launch(Dispatchers.IO) { repo.setCardSortMode(mode, ascending) }
+        if (mode == CardSortMode.MANUAL) {
+            applyCardOrder(manualOrder)
+            return
+        }
+        sortCardsByMode()
+        _cards.value = cardEntities.map(::uiCard)
+        val ids = cardEntities.map { it.cardId }
+        viewModelScope.launch(Dispatchers.IO) { repo.setCardOrder(ids) }
+    }
+
+    /** 自动排序模式下按当前方式重排 cardEntities（调用方随后发布 _cards），选中卡跟随移动 */
+    private fun sortCardsByMode() {
+        val mode = _cardSortMode.value ?: CardSortMode.MANUAL
+        if (mode == CardSortMode.MANUAL || cardEntities.size < 2) return
+        val selectedId = cardEntities.getOrNull(_selectedIndex.value ?: -1)?.cardId
+        val byId = cardEntities.associateBy { it.cardId }
+        val ascending = _cardSortAscending.value ?: mode.defaultAscending
+        val sorted = cardEntities.map(::uiCard).sortedByMode(mode, ascending).mapNotNull { byId[it.id] }
+        cardEntities.clear()
+        cardEntities.addAll(sorted)
+        val newIndex = sorted.indexOfFirst { it.cardId == selectedId }
+        if (newIndex >= 0) _selectedIndex.value = newIndex
     }
 
     fun setFilter(selected: Set<String>) {
@@ -1466,6 +1508,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _homeWeekTotals.value = emptyMap()
         _statsSummary.value = StatsSummary(0.0, 0, 0.0)
         _keepDebugLogs.value = true  // DataStore 清空后恢复默认
+        _cardSortMode.value = CardSortMode.MANUAL
+        _cardSortAscending.value = false
         _playbackHaptics.value = true
         _playbackSound.value = true
         _currentTripRouteDisplayMode.value = CurrentTripRouteDisplayMode.ENDPOINTS_ONLY

@@ -16,6 +16,9 @@
         <action
             android:id="@+id/action_home_to_settings"
             app:destination="@id/settingsFragment" />
+        <action
+            android:id="@+id/action_home_to_cardInfo"
+            app:destination="@id/cardInfoFragment" />
     </fragment>
 
     <!-- 单卡概览：从首页卡包点卡进入；交易/统计/轨迹/卡片信息都从这里进入 -->
