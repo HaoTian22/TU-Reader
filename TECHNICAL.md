@@ -82,7 +82,11 @@ CI 构建使用同名环境变量 `TENCENT_MAP_WEB_SERVICE_KEY` 和 `TENCENT_MAP
 | 数据库 | Room 版本 | 内容 | 存储位置 |
 |---|---|---|---|
 | `transit.db` | v5 (AppDatabase) | 城市/协议代码映射/线路/站点/读卡器设备 | assets/data/ → 应用私有目录 |
-| `user_data.db` | v6 (UserDatabase) | 卡片/原始记录/交易归档/应用快照 | 应用私有目录 |
+| `user_data.db` | v8 (UserDatabase) | 卡片/原始记录/交易归档/应用快照 | 应用私有目录 |
+
+用户库 v7→v8 起 `raw_records` 保留每个槽位的历史版本：唯一键为 `(app_id, sfi, rec_no, content_hash)`，同槽同内容再次读到只更新 `last_seen_at`，内容变化则新增一行，旧内容不再被覆盖。槽位当前内容取该槽 `last_seen_at` 最新的版本；数据库导入与重复卡合并并入全部版本并保留原读取时间。定槽文件（TU `0x19` 统计、TU `0x1A` 各交通方式槽位、`0x17` 管理等）的历史只在这里保存。
+
+`transactions_archive` 只收循环交易文件，并按记录所属应用确定 SFI：TU 应用 `0x18`/`0x1E`（EC 另含按 DOL 解码的日志），CU 应用 `0x18`/`0x10`/`0x06`/`0x1A`，TFT 应用 `0x18`/`0x10`/`0x09`，其余钱包 `0x18`。双协议卡的 `0x1E` 只来自 TU 应用；TU 应用的 `0x1A` 与 CU 的同号交易区无关，不参与解析。
 
 用户库 v5→v6 为交易归档增加可空 `log_format`，保存 EC 日志读取时的 DOL 格式；原有卡片、槽位及交易均保留。站名映射库仍为 v5。
 

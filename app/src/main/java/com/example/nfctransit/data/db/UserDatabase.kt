@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * 用户数据数据库（与映射库 AppDatabase（assets/transit.db，createFromAsset）完全分离）。
- * 版本迁移见 MIGRATIONS：当前 v7，原始记录与交易归档挂在卡上应用（card_app.app_id）下，卡号与余额存各应用。
+ * 版本迁移见 MIGRATIONS：当前 v8，原始记录与交易归档挂在卡上应用（card_app.app_id）下，卡号与余额存各应用；原始记录保留槽位历史版本。
  */
 @Database(
     entities = [
@@ -27,7 +27,7 @@ abstract class UserDatabase : RoomDatabase() {
 
     companion object {
         const val DB_NAME = "user_data.db"
-        const val VERSION = 7
+        const val VERSION = 8
 
         /** v1→v2：新增 card_app 表（卡上应用 SELECT/BALANCE 记录） */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -229,8 +229,21 @@ abstract class UserDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) = PerAppMigration.migrate(db)
         }
 
+        /** v7→v8：raw_records 保留槽位历史版本，唯一键加入 content_hash（现有每槽一行即当前版本）。 */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_raw_records_app_id_sfi_rec_no`")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_raw_records_app_id_sfi_rec_no_content_hash` " +
+                        "ON `raw_records` (`app_id`, `sfi`, `rec_no`, `content_hash`)"
+                )
+            }
+        }
+
         /** 全部迁移：主库打开与导入旧库共用 */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        val MIGRATIONS = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8
+        )
 
         @Volatile
         private var instance: UserDatabase? = null

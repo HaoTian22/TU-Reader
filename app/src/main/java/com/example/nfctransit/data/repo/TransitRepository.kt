@@ -50,6 +50,14 @@ private data class ArchiveKey(
     val contentHash: String
 )
 
+/** 原始记录版本键：同一应用、同一槽位、同一内容。 */
+private data class RawVersionKey(
+    val appId: Long,
+    val sfi: String,
+    val recNo: Int,
+    val contentHash: String
+)
+
 /** 卡号由协议字段产生，导入时忽略意外的首尾空白；空值不参与身份比较。 */
 internal fun cardIdentityNumbers(vararg values: String?): Set<String> =
     values.map { it.orEmpty().trim() }.filter { it.isNotEmpty() }.toSet()
@@ -210,23 +218,31 @@ class TransitRepository(private val context: Context) {
         dao.getAllCardApps().groupBy({ it.cardId }, { it.appCardNumber })
             .mapValuesTo(mutableMapOf()) { (_, numbers) -> cardIdentityNumbers(*numbers.toTypedArray()).toMutableSet() }
 
-    // ── raw_records（应用内当前槽位状态；不用于渲染）──
+    // ── raw_records（槽位历史版本；不用于渲染）──
 
+    /** 本次读到的槽位：已有同内容版本只刷新 last_seen_at；内容变了则新增版本，旧内容留作历史。 */
     suspend fun syncRawRecords(cardId: String, records: List<RawRecord>) {
         val now = System.currentTimeMillis()
         val appIds = mutableMapOf<String, Long>()
-        val existingSlots = dao.getRawRecords(cardId).associateBy { Triple(it.appId, it.sfi, it.recNo) }
-        val rows = records.associateBy { Triple(it.selectedAid, it.sfi.toSfiHex(), it.recNo) }.values.map { rec ->
+        val versions = dao.getRawHistory(cardId).associateBy { RawVersionKey(it.appId, it.sfi, it.recNo, it.contentHash) }
+        val seen = mutableListOf<Long>()
+        val added = mutableListOf<RawRecordEntity>()
+        for (rec in records.associateBy { Triple(it.selectedAid, it.sfi.toSfiHex(), it.recNo) }.values) {
             val appId = appIds.getOrPut(rec.selectedAid) { ensureApp(cardId, rec.selectedAid) }
-            val existing = existingSlots[Triple(appId, rec.sfi.toSfiHex(), rec.recNo)]
-            RawRecordEntity(
-                rowId = existing?.rowId ?: 0,
-                appId = appId, sfi = rec.sfi.toSfiHex(), recNo = rec.recNo,
-                hex = rec.hex, contentHash = RecordDecoder.contentHash(rec.hex),
-                firstSeenAt = existing?.firstSeenAt ?: now, lastSeenAt = now
-            )
+            val key = RawVersionKey(appId, rec.sfi.toSfiHex(), rec.recNo, RecordDecoder.contentHash(rec.hex))
+            val existing = versions[key]
+            if (existing != null) {
+                seen += existing.rowId
+            } else {
+                added += RawRecordEntity(
+                    appId = appId, sfi = key.sfi, recNo = key.recNo, hex = rec.hex, contentHash = key.contentHash,
+                    firstSeenAt = now, lastSeenAt = now
+                )
+            }
         }
-        dao.upsertRawRecords(rows)
+        // SQLite 绑定数量有上限，按小批次更新。
+        for (batch in seen.chunked(400)) dao.touchRawRecords(batch, now)
+        dao.insertRawRecords(added)
     }
 
     /** 原始记录（带所属应用 AID 与由 AID 推出的解码协议）。 */
@@ -421,8 +437,8 @@ class TransitRepository(private val context: Context) {
     /**
      * 导入另一份用户库（旧版本经 Room 迁移到当前结构）：卡片按任一应用卡号（未知卡按芯片 UID）匹配现有卡，
      * 已存在则复用其 card_id 并合并记录（不覆盖卡片元数据）；新卡分配新 UUID 并追加到卡序。
-     * 应用按 (card_id, selected_aid) 合并；原始记录按 (应用, sfi, rec_no)、交易按 (应用, sfi, content_hash) 去重，
-     * 只插入现有库中没有的行。
+     * 应用按 (card_id, selected_aid) 合并；原始记录按 (应用, sfi, rec_no, content_hash)、交易按 (应用, sfi, content_hash) 去重，
+     * 只插入现有库中没有的行。原始记录保留源库读取时间，各槽位当前内容仍取两库中最近读到的版本。
      */
     suspend fun importDatabase(importFile: File): ImportSummary {
         val src = Room.databaseBuilder(
@@ -477,11 +493,10 @@ class TransitRepository(private val context: Context) {
         var newRaw = 0
         for (raw in importedRaws) {
             val targetApp = appIdMap[raw.appId] ?: continue
-            if (dao.getRawSlot(targetApp, raw.sfi, raw.recNo) == null) {
-                dao.insertRawRecord(
-                    raw.copy(rowId = 0, appId = targetApp, firstSeenAt = now, lastSeenAt = now)
-                )
+            if (dao.insertRawRecord(raw.copy(rowId = 0, appId = targetApp)) != -1L) {
                 newRaw++
+            } else {
+                dao.mergeRawSeen(targetApp, raw.sfi, raw.recNo, raw.contentHash, raw.firstSeenAt, raw.lastSeenAt)
             }
         }
 
@@ -587,7 +602,7 @@ class TransitRepository(private val context: Context) {
             val seenAt = src.cdLastUpdateMs ?: now
             for ((aid, hex) in tripReaderInfoRecords(src)) {
                 val appId = ensureApp(cardId, aid)
-                if (dao.getRawSlot(appId, "0x15", 0) == null) {
+                if (!dao.hasRawSlot(appId, "0x15", 0)) {
                     dao.insertRawRecord(
                         RawRecordEntity(
                             appId = appId, sfi = "0x15", recNo = 0, hex = hex,
@@ -654,7 +669,7 @@ class TransitRepository(private val context: Context) {
                 }
 
                 val canonical = canonicalCards[canonicalIndex]
-                // 旧版本可能只有 raw_records；覆盖当前槽位前先把两张卡的历史交易补入归档。
+                // 旧版本可能只有 raw_records；合并后槽位当前内容可能换成另一张卡的版本，先把两张卡的历史交易补入归档。
                 for (card in listOf(canonical, candidate)) {
                     backfillArchiveFromRaw(
                         card.cardId,
@@ -687,19 +702,16 @@ class TransitRepository(private val context: Context) {
         return mergedCount
     }
 
-    /** 应用合并到目标卡，原始槽位保留较新的内容、归档补入缺失行，再由调用方删除冗余卡。 */
+    /** 应用合并到目标卡，原始记录并入全部历史版本、归档补入缺失行，再由调用方删除冗余卡。 */
     private suspend fun mergeDuplicateCardRows(targetCardId: String, duplicateCardId: String) {
         val appIds = mutableMapOf<Long, Long>()
         for (app in dao.getCardApps(duplicateCardId)) {
             appIds[app.appId] = dao.mergeCardApp(app.copy(appId = 0, cardId = targetCardId))
         }
-        for (raw in dao.getRawRecords(duplicateCardId)) {
+        for (raw in dao.getRawHistory(duplicateCardId)) {
             val targetApp = appIds[raw.appId] ?: continue
-            val existing = dao.getRawSlot(targetApp, raw.sfi, raw.recNo)
-            if (existing == null) {
-                dao.insertRawRecord(raw.copy(rowId = 0, appId = targetApp))
-            } else if (raw.lastSeenAt > existing.lastSeenAt) {
-                dao.overwriteRawSlot(targetApp, raw.sfi, raw.recNo, raw.hex, raw.contentHash, raw.lastSeenAt)
+            if (dao.insertRawRecord(raw.copy(rowId = 0, appId = targetApp)) == -1L) {
+                dao.mergeRawSeen(targetApp, raw.sfi, raw.recNo, raw.contentHash, raw.firstSeenAt, raw.lastSeenAt)
             }
         }
         for (archive in dao.getArchive(duplicateCardId)) {

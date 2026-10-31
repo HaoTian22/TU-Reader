@@ -10,10 +10,10 @@ import com.example.nfctransit.data.RawRecord
 import com.example.nfctransit.data.toSfiInt
 
 /**
- * 应用内当前 SFI 槽位状态（用户数据库）。
- * (app_id, sfi, rec_no) 唯一——记录属于读取它时选中的应用（card_app）；
- * rec_no 只是卡内循环记录槽位，会被新交易覆盖：
- *  槽不存在 → 插入；hex 相同 → 只更新 last_seen_at；hex 不同 → 覆盖。
+ * 应用内 SFI 槽位的全部历史版本（用户数据库）。
+ * (app_id, sfi, rec_no, content_hash) 唯一——记录属于读取它时选中的应用（card_app）；
+ * 每次读卡：同槽同内容 → 只更新 last_seen_at；内容不同 → 新增一个版本，旧版本保留为历史。
+ * 槽位当前内容 = 该槽 last_seen_at 最新的版本（UserDao.getRawRecords）。
  * EC 日志文件的 rec_no=0 保存 GET DATA 读到的日志格式（DOL），解析该文件的记录需要它。
  * 不用于渲染；渲染唯一来源是 transactions_archive。
  */
@@ -28,7 +28,7 @@ import com.example.nfctransit.data.toSfiInt
         )
     ],
     indices = [
-        Index(value = ["app_id", "sfi", "rec_no"], unique = true)
+        Index(value = ["app_id", "sfi", "rec_no", "content_hash"], unique = true)
     ]
 )
 data class RawRecordEntity(

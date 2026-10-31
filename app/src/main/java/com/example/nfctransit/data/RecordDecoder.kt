@@ -51,7 +51,8 @@ object RecordDecoder {
     fun transactionRecords(cardType: String, records: List<RawRecord>): List<ZoneRecord> {
         // 未知卡只有原始数据；八达通交易记录加密不可读，卡内仅余额块
         if (cardType == CardProfiles.UNKNOWN.cardType || cardType == CardProfiles.OCTOPUS.cardType) return emptyList()
-        val sfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
+        // 交易 SFI 按记录所属应用确定；只有缺 AID 的旧记录退回按卡型
+        val cardTypeSfis = CardProfiles.known.firstOrNull { it.cardType == cardType }?.transactionSfis ?: setOf(0x18)
         val formats = ecLogFormats(records)
         return records.mapNotNull { raw ->
             if (CardProfiles.isUnknownApp(raw.selectedAid)) {
@@ -61,9 +62,12 @@ object RecordDecoder {
                 if (raw.sfi == 0x1E) return@mapNotNull ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, selectedAid = raw.selectedAid)
                 val format = formats[raw.selectedAid.uppercase() to raw.sfi] ?: return@mapNotNull null
                 ZoneRecord(raw.sfi, raw.recNo, "TU", raw.hex, format, raw.selectedAid)
-            } else if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
-                ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex, selectedAid = raw.selectedAid)
-            } else null
+            } else {
+                val sfis = if (raw.selectedAid.isBlank()) cardTypeSfis else CardProfiles.transactionSfisForAid(raw.selectedAid)
+                if (raw.sfi in sfis && raw.sfi !in setOf(0x0B, 0x0C)) {
+                    ZoneRecord(raw.sfi, raw.recNo, raw.protocol, raw.hex, selectedAid = raw.selectedAid)
+                } else null
+            }
         }
     }
 

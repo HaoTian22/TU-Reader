@@ -675,4 +675,34 @@ class RecordDecoderTest {
         protocol = "TU",
         hex = identity
     )
+
+    // 实卡 TU 钱包（A000000632010105）同一次读卡的四个文件
+    private val tuFare18 = "051D000000000000640941310084760620261030215013"
+    private val tuJourney1E = "060000413100847606020000000000F1C300000064000006D020261030215013585011355850FFFFFFFF000000000000"
+    private val tuStats19 = "012E0026080B2F3A071C4B32524E00000000000000000000000000000000000000000000000000000000000000000000"
+    private val tuModeSlot1A = "27017D01010000000000000000780258105810122058100000000012205810000000000500000000000000030000000000000000004131" +
+        "017373610000413101330560202608292153072026082922010800000064010100000000000003B0000000640000000000000000000000000000000000000000000000000000000000"
+
+    private fun tuWalletRecords() = listOf(
+        RawRecord(0x18, 1, "TU", tuFare18, CardProfiles.TU_EP_AID),
+        RawRecord(0x1E, 1, "TU", tuJourney1E, CardProfiles.TU_EP_AID),
+        RawRecord(0x19, 1, "TU", tuStats19, CardProfiles.TU_EP_AID),
+        RawRecord(0x1A, 1, "TU", tuModeSlot1A, CardProfiles.TU_EP_AID)
+    )
+
+    @Test
+    fun tuWalletDecodesOnlyItsCyclicTransactionFiles() {
+        val zones = RecordDecoder.transactionRecords("TU", tuWalletRecords())
+        assertEquals(setOf(0x18, 0x1E), zones.map { it.sfi }.toSet())
+    }
+
+    @Test
+    fun transactionSfisFollowTheRecordsApplicationNotTheCardType() {
+        // 双协议 CU 卡上 CU 应用的 0x1A 是交易区，但 TU 应用的 0x1A 是各交通方式定槽文件
+        val zones = RecordDecoder.transactionRecords("CU", tuWalletRecords())
+        assertEquals(setOf(0x18, 0x1E), zones.map { it.sfi }.toSet())
+        assertEquals(setOf(0x18, 0x10, 0x06, 0x1A), CardProfiles.transactionSfisForAid(CardProfiles.CU_AID))
+        assertEquals(setOf(0x18, 0x1E), CardProfiles.transactionSfisForAid(CardProfiles.TU_EP_AID))
+        assertEquals(setOf(0x18), CardProfiles.transactionSfisForAid(CardProfiles.YCT_TICL_AID))
+    }
 }

@@ -25,8 +25,8 @@ data class CardProfile(
         }
 
     /**
-     * 参与交易解析的全部 SFI（主交易区 + TU 站点映射 + 附加交易区）。
-     * 信息/统计/管理扇区（0x15/0x19/0x08/0x17…）只存 raw_records，不在此列、不做交易解析。
+     * 读这张卡时已读取的交易相关 SFI（主交易区 + TU 站点映射 + 附加交易区），文件探测时跳过。
+     * 解析/归档按应用划分，见 [CardProfiles.transactionSfisForAid]。
      */
     val transactionSfis: Set<Int>
         get() {
@@ -88,6 +88,17 @@ object CardProfiles {
     fun decodeProtocol(aid: String, sfi: Int): String {
         val protocol = protocolForAid(aid)
         return protocol.takeIf { sfi == 0x15 || it in setOf("LNT", "TU", "CU", "SZT", "MPASS", "OCTOPUS") }.orEmpty()
+    }
+
+    /**
+     * 应用内参与交易解析与归档的循环记录 SFI：主交易区 + 附加交易区（TU 钱包另含 0x1E 旅程区）。
+     * 交易属于读出它的应用：0x1E 只来自 TU 应用，CU 的 0x10/0x06/0x1A 只来自 CU 应用。
+     * 定槽文件（TU 0x19 统计、TU 0x1A 各交通方式槽位、0x17 管理…）不在此列，其历史只存 raw_records。
+     */
+    fun transactionSfisForAid(aid: String): Set<Int> {
+        val profile = known.firstOrNull { p -> p.aidCandidates.any { it.equals(aid, ignoreCase = true) } }
+            ?: return emptySet()
+        return setOf(profile.tradeSfi) + listOfNotNull(profile.stationSfi) + profile.extraTradeSfis
     }
 
     /** 卡型的主应用协议（YCT 主钱包为 LNT）。 */

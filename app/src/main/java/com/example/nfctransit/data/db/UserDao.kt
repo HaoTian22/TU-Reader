@@ -75,28 +75,46 @@ interface UserDao {
     @Query("SELECT * FROM card_app ORDER BY app_id")
     suspend fun getAllCardApps(): List<CardAppEntity>
 
-    // ── raw_records（应用内当前槽位状态）──
+    // ── raw_records（槽位历史版本；同槽同内容一行）──
 
+    /** 各槽位当前内容：同一 (app_id, sfi, rec_no) 取 last_seen_at 最新（相同取 row_id 最大）的版本。 */
     @Query(
         "SELECT r.* FROM raw_records AS r INNER JOIN card_app AS a ON r.app_id = a.app_id " +
-            "WHERE a.card_id = :cardId ORDER BY r.sfi, r.rec_no"
+            "WHERE a.card_id = :cardId AND NOT EXISTS (SELECT 1 FROM raw_records AS n " +
+            "WHERE n.app_id = r.app_id AND n.sfi = r.sfi AND n.rec_no = r.rec_no " +
+            "AND (n.last_seen_at > r.last_seen_at OR (n.last_seen_at = r.last_seen_at AND n.row_id > r.row_id))) " +
+            "ORDER BY r.sfi, r.rec_no"
     )
     suspend fun getRawRecords(cardId: String): List<RawRecordEntity>
+
+    /** 卡上全部原始记录版本（含已被卡内覆盖的历史内容）。 */
+    @Query(
+        "SELECT r.* FROM raw_records AS r INNER JOIN card_app AS a ON r.app_id = a.app_id " +
+            "WHERE a.card_id = :cardId ORDER BY r.sfi, r.rec_no, r.last_seen_at"
+    )
+    suspend fun getRawHistory(cardId: String): List<RawRecordEntity>
 
     @Query("SELECT * FROM raw_records")
     suspend fun getAllRawRecords(): List<RawRecordEntity>
 
-    @Query("SELECT * FROM raw_records WHERE app_id = :appId AND sfi = :sfi AND rec_no = :recNo LIMIT 1")
-    suspend fun getRawSlot(appId: Long, sfi: String, recNo: Int): RawRecordEntity?
+    @Query("SELECT EXISTS(SELECT 1 FROM raw_records WHERE app_id = :appId AND sfi = :sfi AND rec_no = :recNo)")
+    suspend fun hasRawSlot(appId: Long, sfi: String, recNo: Int): Boolean
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRawRecord(record: RawRecordEntity): Long
 
-    @Upsert
-    suspend fun upsertRawRecords(records: List<RawRecordEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRawRecords(records: List<RawRecordEntity>): List<Long>
 
-    @Query("UPDATE raw_records SET hex = :hex, content_hash = :contentHash, last_seen_at = :lastSeenAt WHERE app_id = :appId AND sfi = :sfi AND rec_no = :recNo")
-    suspend fun overwriteRawSlot(appId: Long, sfi: String, recNo: Int, hex: String, contentHash: String, lastSeenAt: Long)
+    @Query("UPDATE raw_records SET last_seen_at = :lastSeenAt WHERE row_id IN (:rowIds)")
+    suspend fun touchRawRecords(rowIds: List<Long>, lastSeenAt: Long)
+
+    /** 合并来的版本已存在：只扩展它的首次/最近读取时间。 */
+    @Query(
+        "UPDATE raw_records SET first_seen_at = MIN(first_seen_at, :firstSeenAt), last_seen_at = MAX(last_seen_at, :lastSeenAt) " +
+            "WHERE app_id = :appId AND sfi = :sfi AND rec_no = :recNo AND content_hash = :contentHash"
+    )
+    suspend fun mergeRawSeen(appId: Long, sfi: String, recNo: Int, contentHash: String, firstSeenAt: Long, lastSeenAt: Long)
 
     // ── transactions_archive（渲染唯一来源，按内容去重）──
 
