@@ -255,7 +255,7 @@ object RecordDecoder {
             !it.selectedAid.equals(CardProfiles.TU_EC_AID, true) || it.sfi == 0x1E || it.logFormat != null
         }
         val records = decodable.map {
-            ZoneRecord(it.sfi, 0, CardProfiles.decodeProtocol(it.selectedAid, it.sfi), it.hex, it.logFormat, it.selectedAid)
+            ZoneRecord(it.sfi, 0, CardProfiles.protocolForAid(it.selectedAid), it.hex, it.logFormat, it.selectedAid)
         }
         val storedDate = decodable.associate { contentHash(it.hex) to it.resolvedDate }      // 归档：contentHash → 日期
 

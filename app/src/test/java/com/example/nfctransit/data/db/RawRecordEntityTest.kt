@@ -25,13 +25,13 @@ class RawRecordEntityTest {
         }
     }
 
-    @Test fun genericWalletsKeepExistingArchiveProtocolAndMetadataLabels() {
+    @Test fun genericWalletsLabelEveryRecordByAid() {
         val aids = mapOf(
             "535558494E2E4444463031" to "SUXIN", "535A504B5F5A5959" to "SZTK",
             "D156000015B9ABB9B2D3A6D3C3" to "TFT"
         )
         for ((aid, cardType) in aids) {
-            assertEquals("", row().toRawRecord(aid).protocol)
+            assertEquals(cardType, row().toRawRecord(aid).protocol)
             assertEquals(cardType, row("0x15").toRawRecord(aid).protocol)
         }
     }

@@ -659,7 +659,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** UI 磁盘缓存键：站名库版本 + 城市边界版本 + 界面语言（缓存里的站名/文案按语言生成） */
     private suspend fun uiCacheVersion(): String =
         AppPreferences.getDbVersion(getApplication()) + "|" + TransitData.locationDataVersion() +
-            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src|lntIssue"
+            "|" + AppLanguage.locale().toLanguageTag() + "|u" + UserDatabase.VERSION + "|src|lntIssue|aidLabel"
 
     private suspend fun loadCardState(card: CardEntity, forceRebuild: Boolean = false, dbVersion: String?): BuiltCardState {
         val ctx = getApplication<Application>()
@@ -1164,6 +1164,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 两钱包合并的记录（CU+TU 等）只要含 TU 就标 TU
                 val standard = "TU".takeIf { it == transaction.protocol || it in transaction.protocols }
                     ?: transaction.protocol.ifBlank { transaction.cardType.ifBlank { "OVERRIDE" } }
+                // 上传时写明全部来源协议及 AID；本地覆盖仍按 standard 匹配
+                val uploadStandard = uploadStandard(transaction, standard)
                 val startedAt = SystemClock.elapsedRealtime()
                 var mark = startedAt
                 fun lap(step: String) {
@@ -1195,7 +1197,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (publish) {
                         upload = viewModelScope.async(Dispatchers.IO) {
                             FeedbackUploader.upload(
-                                getApplication(), normalized, type.trim(), standard,
+                                getApplication(), normalized, type.trim(), uploadStandard,
                                 locationCityCode, locationCityName, locationSource, rawRecord
                             )
                         }
@@ -1225,6 +1227,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    /**
+     * 上传用 standard：每个来源协议都带读出它的 AID，如单协议 `TU:A000000632010105`，
+     * 多钱包合并记录（CU+TU 等）`CU:A00000000386980701+TU:A000000632010105`。
+     * 协议标签与 AID 均取自组成该交易的原始记录（每个已知 AID 都有标签）；没有来源时用 [fallback]。
+     */
+    private fun uploadStandard(transaction: UiTransaction, fallback: String): String =
+        transaction.sources
+            .mapNotNull { source ->
+                source.selectedAid?.takeIf { it.isNotBlank() && source.protocol.isNotBlank() }
+                    ?.let { "${source.protocol}:${it.uppercase(Locale.ROOT)}" }
+            }
+            .distinct().sorted()
+            .joinToString("+")
+            .ifEmpty { fallback }
 
     /** 只有勾选公开上传时才提示“上传” */
     private fun savingStatus(publish: Boolean) = StatusMessage(

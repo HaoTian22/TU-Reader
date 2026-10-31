@@ -266,7 +266,7 @@ class TransitRepository(private val context: Context) {
             .groupBy({ it.sfi to RecordDecoder.contentHash(it.hex) }, { it.selectedAid })
         return { t ->
             val candidates = aidsByContent[t.sfi to t.identity].orEmpty()
-            candidates.firstOrNull { CardProfiles.decodeProtocol(it, t.sfi) == t.protocol }
+            candidates.firstOrNull { CardProfiles.protocolForAid(it) == t.protocol }
                 ?: candidates.firstOrNull()
                 ?: CardProfiles.defaultAidForProtocol(t.protocol, cardType)
         }
@@ -390,7 +390,7 @@ class TransitRepository(private val context: Context) {
         val (existing, fresh) = transactions.sortedByDescending { recNoByContent[it.sfi to it.identity] ?: 0 }
             .partition { (it.sfi to it.identity) in existingContent }
         val latestLnt = archive.filter {
-            CardProfiles.decodeProtocol(aids[it.appId].orEmpty(), it.sfi.toSfiInt()) == "LNT"
+            CardProfiles.protocolForAid(aids[it.appId].orEmpty()) == "LNT"
         }.maxByOrNull { it.rowId }?.resolvedDate
         return existing + RecordDecoder.alignLntYears(fresh, latestLnt, lntIssueDate = lntIssueDate)
     }
@@ -544,7 +544,7 @@ class TransitRepository(private val context: Context) {
                 if (fareAid != null) {
                     val sfi = tx.sfi ?: 0x18
                     val record = RecordDecoder.ZoneRecord(
-                        sfi, recNo++, CardProfiles.decodeProtocol(fareAid, sfi), tx.cuHex, selectedAid = fareAid
+                        sfi, recNo++, CardProfiles.protocolForAid(fareAid), tx.cuHex, selectedAid = fareAid
                     )
                     when (fareAid) {
                         CardProfiles.YCT_TICL_AID -> lntRows.add(tx.cuHex to tx.dateMs)

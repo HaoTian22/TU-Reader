@@ -45,6 +45,6 @@ data class RawRecordEntity(
     /** 解码协议由所属应用的 AID 推出；数据库只保存应用身份。 */
     fun toRawRecord(selectedAid: String): RawRecord {
         val zone = sfi.toSfiInt()
-        return RawRecord(zone, recNo, CardProfiles.decodeProtocol(selectedAid, zone), hex, selectedAid)
+        return RawRecord(zone, recNo, CardProfiles.protocolForAid(selectedAid), hex, selectedAid)
     }
 }

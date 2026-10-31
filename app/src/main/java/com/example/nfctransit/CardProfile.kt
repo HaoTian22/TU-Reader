@@ -77,19 +77,13 @@ object CardProfiles {
         cardType = "OCTOPUS"
     )
 
-    /** 仅用于运行时解码，raw_records 使用实际 AID 定位应用。 */
+    /**
+     * 应用 AID → 协议标签（YCT 两个应用均为 LNT），运行时解码用（数据库只存 AID）。
+     * 每个已知 AID 都有标签，与文件无关；只有无 AID（旧版归档）或未知应用为空。
+     */
     fun protocolForAid(aid: String): String = (known + OCTOPUS).firstOrNull { profile ->
         profile.aidCandidates.any { it.equals(aid, ignoreCase = true) }
     }?.cardType?.let { if (it == "YCT") "LNT" else it }.orEmpty()
-
-    /**
-     * 解码器使用的协议标签，由应用 AID 与文件推出（数据库只存 AID）。
-     * 苏州/天府通交易沿用空解码标签；其信息/统计扇区 0x15 仍用卡型标签。
-     */
-    fun decodeProtocol(aid: String, sfi: Int): String {
-        val protocol = protocolForAid(aid)
-        return protocol.takeIf { sfi == 0x15 || it in setOf("LNT", "TU", "CU", "SZT", "MPASS", "OCTOPUS") }.orEmpty()
-    }
 
     /**
      * 应用内参与交易解析与归档的循环记录 SFI：主交易区 + 附加交易区（TU 钱包另含 0x1E 旅程区）。

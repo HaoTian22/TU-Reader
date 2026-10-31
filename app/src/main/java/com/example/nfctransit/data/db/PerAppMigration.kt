@@ -41,7 +41,7 @@ internal object PerAppMigration {
         rawAids: List<String>,
         importOnly: Boolean
     ): String {
-        rawAids.firstOrNull { CardProfiles.decodeProtocol(it, sfi) == protocol }?.let { return it }
+        rawAids.firstOrNull { CardProfiles.protocolForAid(it) == protocol }?.let { return it }
         rawAids.firstOrNull()?.let { return it }
         if (hasLogFormat) return CardProfiles.TU_EC_AID
         // 旧版 TripReader 导入曾把住建部卡的主交易标成 TU（原启动修复 repairImportedCuArchives）
