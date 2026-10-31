@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 本地映射页「与映射库重复」提示条：暖色浅底，与分段列表同为 16dp 外圆角 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#FFF4E0" />
+    <solid android:color="@color/warning_container" />
     <corners android:radius="16dp" />
 </shape>

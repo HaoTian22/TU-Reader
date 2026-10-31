@@ -98,7 +98,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
         // 主题色跟随卡片：快捷操作图标、优惠胶囊、迷你图一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
             accentColor = accent.toInt()
-            val tile = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f)
+            val tile = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
             listOf(binding.iconTransactions, binding.iconStats, binding.iconMapTrace).forEach {
                 it.setTextColor(accentColor)
                 it.background = GradientDrawable().apply {
@@ -137,18 +137,18 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
     // ── 头部 ──
 
     private fun bindHeader(card: UiCard) {
-        val onCard = if (isDarkColor(card.gradientStartColor.toInt())) Color.WHITE else Palette.INK
+        val onCard = Palette.onCardFace(card.gradientStartColor)
         fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
         val chip = onCardAlpha(0x1F)
 
         binding.header.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+            intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor, end = true))
         ).apply {
             val r = 24f.dpToPx()
             cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r)
         }
-        binding.statusScrim.setBackgroundColor(card.gradientStartColor.toInt())
+        binding.statusScrim.setBackgroundColor(Palette.cardFace(card.gradientStartColor))
         listOf(binding.btnBack, binding.btnMore).forEach {
             it.setTextColor(onCard)
             it.background = GradientDrawable().apply {
@@ -219,7 +219,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 textSize = 12f
                 background = GradientDrawable().apply {
                     cornerRadius = density * 20
-                    setColor(ColorUtils.blendARGB(Color.WHITE, accentColor, 0.12f))
+                    setColor(ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f))
                 }
                 setPadding((10 * density).toInt(), (3 * density).toInt(), (10 * density).toInt(), (3 * density).toInt())
             }
@@ -359,7 +359,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
                 .ifEmpty { "${week.first().currency}0.00" })
 
         val maxBar = 84f.dpToPx()
-        val lightAccent = ColorUtils.blendARGB(Color.WHITE, accentColor, 0.45f)
+        val lightAccent = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.45f)
 
         week.forEachIndexed { i, d ->
             val col = LinearLayout(requireContext()).apply {

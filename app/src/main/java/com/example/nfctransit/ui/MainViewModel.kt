@@ -1810,6 +1810,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         else -> null
     }
 
+    /** 深浅色切换后（Activity 重建、ViewModel 保留）按新色板重算卡片强调色 */
+    fun refreshThemeColors() {
+        val card = _selectedCard.value
+        _mainAccent.value = if (card != null) {
+            Palette.accentFor(card.gradientStartColor).toLong() and 0xFFFFFFFFL
+        } else {
+            Palette.ACCENT.toLong() and 0xFFFFFFFFL
+        }
+    }
+
     private fun emitCardData(cardId: String) {
         val card = cardEntities.firstOrNull { it.cardId == cardId }?.let(::uiCard) ?: return
         // 优先用已构建的 UI 交易（启动缓存命中/读卡后已回写），避免切卡/筛选/统计时重跑 toUiTransaction

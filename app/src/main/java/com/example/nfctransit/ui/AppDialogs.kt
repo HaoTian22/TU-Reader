@@ -215,6 +215,60 @@ object AppDialogs {
         return dialog
     }
 
+    /**
+     * 腾讯地图 WebService Key + SecretKey（BYOK）。保存时两项都要填；
+     * 「使用内置」清除用户凭据。
+     */
+    fun tencentKeys(
+        context: Context,
+        key: String,
+        secretKey: String,
+        accentColor: Int = Palette.ACCENT,
+        onSave: (key: String, secretKey: String) -> Unit,
+        onUseBuiltIn: () -> Unit
+    ): Dialog {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_tencent_keys, null)
+        dialog.setContentView(view)
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(dialogWidth(context), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        dialog.setCancelable(true)
+
+        val keyInput = view.findViewById<EditText>(R.id.dialogKeyInput)
+        val secretInput = view.findViewById<EditText>(R.id.dialogSecretInput)
+        keyInput.setText(key)
+        secretInput.setText(secretKey)
+        view.findViewById<TextView>(R.id.dialogKeysCancel)?.setOnClickListener { dialog.dismiss() }
+        view.findViewById<TextView>(R.id.dialogKeysReset)?.setOnClickListener {
+            dialog.dismiss()
+            onUseBuiltIn()
+        }
+        view.findViewById<TextView>(R.id.dialogKeysSave)?.apply {
+            setTextColor(accentColor)
+            setOnClickListener {
+                val newKey = keyInput.text.toString().trim()
+                val newSecret = secretInput.text.toString().trim()
+                if (newKey.isEmpty() || newSecret.isEmpty()) {
+                    AppToast.show(context, R.string.tencent_keys_incomplete, AppToast.Kind.ERROR)
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                onSave(newKey, newSecret)
+            }
+        }
+        dialog.setOnShowListener {
+            keyInput.requestFocus()
+            keyInput.setSelection(keyInput.text.length)
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        }
+        view.applyTouchFeedback()
+        dialog.show()
+        return dialog
+    }
+
     fun feedback(
         context: Context,
         prefix: String,
@@ -367,7 +421,7 @@ object AppDialogs {
                     cornerRadius = 999 * density
                     setColor(if (checked) accentColor else Palette.LINE)
                 }
-                chip.setTextColor(if (checked) Color.WHITE else Palette.INK_2)
+                chip.setTextColor(if (checked) Palette.ON_ACCENT else Palette.INK_2)
                 chip.typeface = if (checked) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             }
             typeCustomInput.visibility =
@@ -734,7 +788,7 @@ object AppDialogs {
 
     private fun styleCheckBox(box: MaterialCheckBox, accentColor: Int) {
         box.buttonTintList = selectionTint(accentColor)
-        box.buttonIconTintList = ColorStateList.valueOf(Color.WHITE)
+        box.buttonIconTintList = ColorStateList.valueOf(Palette.ON_ACCENT)
     }
 
     private fun selectionRadio(context: Context, accentColor: Int) =
@@ -938,7 +992,7 @@ object AppDialogs {
                 }
                 holder.dot.background = android.graphics.drawable.GradientDrawable().apply {
                     shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(card.gradientStartColor.toInt())
+                    setColor(Palette.cardFace(card.gradientStartColor))
                 }
                 // 读屏用户无法拖动：提供上移 / 下移无障碍操作
                 (holder.row.getTag(R.id.dialogReorderList) as? IntArray)?.forEach {

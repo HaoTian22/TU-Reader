@@ -145,7 +145,7 @@ class AxisChartView @JvmOverloads constructor(
                     if (p.value <= 0) return@forEachIndexed
                     val top = yOf(p.value).coerceAtMost(bottom - dp(2f))
                     barPaint.color = if (selected < 0 || selected == i) accent
-                        else ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accent, 0.35f)
+                        else ColorUtils.blendARGB(Palette.SURFACE, accent, 0.35f)
                     rect.set(xOf(i) - barW / 2f, top, xOf(i) + barW / 2f, bottom)
                     path.reset()
                     path.addRoundRect(rect, floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f), Path.Direction.CW)
@@ -186,7 +186,7 @@ class AxisChartView @JvmOverloads constructor(
             guidePaint.color = ColorUtils.setAlphaComponent(accent, 0x80)
             canvas.drawLine(x, topPad - dp(4f), x, bottom, guidePaint)
             if (style == Style.LINE) {
-                dotPaint.color = 0xFFFFFFFF.toInt()
+                dotPaint.color = Palette.SURFACE
                 canvas.drawCircle(x, yOf(p.value), dp(5f), dotPaint)
                 dotPaint.color = accent
                 canvas.drawCircle(x, yOf(p.value), dp(3.5f), dotPaint)

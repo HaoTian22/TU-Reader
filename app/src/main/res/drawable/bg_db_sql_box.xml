@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 数据库查询页 SQL 预览框：浅灰圆角块，可点击编辑 -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#1F1B1C1E">
+    android:color="@color/ripple">
     <item>
         <shape>
             <solid android:color="@color/fill" />

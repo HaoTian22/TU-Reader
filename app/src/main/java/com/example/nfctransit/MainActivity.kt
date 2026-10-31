@@ -26,9 +26,11 @@ import com.example.nfctransit.ui.AppUpdateViewModel
 import com.example.nfctransit.ui.PredictiveBackFragmentAnimator
 import com.example.nfctransit.ui.PredictiveBackLayout
 import com.example.nfctransit.util.AppLanguage
+import com.example.nfctransit.util.AppTheme
 import com.tencent.tencentmap.mapsdk.maps.TencentMapInitializer
 import kotlinx.coroutines.launch
 import com.example.nfctransit.ui.AppToast
+import com.example.nfctransit.ui.Palette
 
 class MainActivity : AppCompatActivity() {
 
@@ -39,7 +41,10 @@ class MainActivity : AppCompatActivity() {
     private var predictiveBackAnimator: PredictiveBackFragmentAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppTheme.apply(this)
         super.onCreate(savedInstanceState)
+        Palette.refresh(this)
+        viewModel.refreshThemeColors()
         // 腾讯地图 SDK 合规：本应用无独立隐私弹窗，进入即视为同意地图组件隐私政策
         TencentMapInitializer.setAgreePrivacy(true)
         setContentView(R.layout.activity_main)

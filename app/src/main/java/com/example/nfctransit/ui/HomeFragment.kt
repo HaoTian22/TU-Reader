@@ -217,13 +217,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     /** 一张卡面：标题行（卡名 / 城市·读取时间 + 余额）、左下卡面 logo、右下尾号 */
     private fun buildStackCard(card: UiCard, index: Int): View {
         val ctx = requireContext()
-        val onCard = if (isDarkColor(card.gradientStartColor.toInt())) Color.WHITE else Palette.INK
+        val onCard = Palette.onCardFace(card.gradientStartColor)
         fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
 
         val face = FrameLayout(ctx).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+                intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor, end = true))
             ).apply { cornerRadius = CARD_CORNER_DP.dpToPx().toFloat() }
             isClickable = true
             // 触屏模式下不抢焦点：避免 ScrollView 为「把焦点卡片滚进可视区」自动滚动，导致首屏位置偏移

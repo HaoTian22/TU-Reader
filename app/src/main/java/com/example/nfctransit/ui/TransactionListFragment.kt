@@ -248,7 +248,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
             BadgeUtils.attachBadgeDrawable(it, binding.filterIcon)
         }
         badge.backgroundColor = accentColor
-        badge.badgeTextColor = 0xFFFFFFFF.toInt()
+        badge.badgeTextColor = Palette.ON_ACCENT
         badge.number = selectedFilters.size
         badge.isVisible = active
     }
@@ -346,7 +346,7 @@ class TransactionListFragment : Fragment(R.layout.fragment_transaction_list) {
 
     private fun updateCardBadgeBg() {
         // 卡信息标签背景用主题色淡色填充（胶囊形）
-        val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
+        val bg = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
             cornerRadius = 999.dpToPx().toFloat()
             setColor(bg)

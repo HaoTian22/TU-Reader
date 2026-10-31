@@ -8,6 +8,6 @@ import com.google.android.material.materialswitch.MaterialSwitch
 fun MaterialSwitch.tintAccent(accent: Int) {
     val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
     trackTintList = ColorStateList(states, intArrayOf(accent, Palette.LINE))
-    thumbTintList = ColorStateList(states, intArrayOf(Color.WHITE, Palette.INK_3))
+    thumbTintList = ColorStateList(states, intArrayOf(Palette.ON_ACCENT, Palette.INK_3))
     trackDecorationTintList = ColorStateList(states, intArrayOf(accent, Palette.INK_3))
 }

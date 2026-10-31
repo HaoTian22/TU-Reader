@@ -248,7 +248,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                 contentDescription = getString(res)
                 setTextColor(
                     when {
-                        selected -> 0xFFFFFFFF.toInt()
+                        selected -> Palette.ON_ACCENT
                         available -> Palette.INK_2
                         else -> Palette.INK_DISABLED
                     }
@@ -538,7 +538,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                         cornerRadius = dpToPx(999).toFloat()
                         setColor(accentColor)
                     }
-                    setTextColor(0xFFFFFFFF.toInt())
+                    setTextColor(Palette.ON_ACCENT)
                     typeface = Typeface.DEFAULT_BOLD
                 } else {
                     setBackgroundResource(R.drawable.bg_chip_default)
@@ -572,7 +572,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
     private fun updateCardBadgeBg() {
         // 卡信息标签背景用主题色淡色填充（胶囊形）
-        val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
+        val bg = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         binding.cardBadge.background = GradientDrawable().apply {
             cornerRadius = dpToPx(999).toFloat()
             setColor(bg)
@@ -593,7 +593,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
                     cornerRadius = dpToPx(999).toFloat()
                     setColor(accentColor)
                 }
-                v.setTextColor(0xFFFFFFFF.toInt())
+                v.setTextColor(Palette.ON_ACCENT)
                 v.typeface = Typeface.DEFAULT_BOLD
             } else {
                 v.setBackgroundResource(R.drawable.bg_chip_default)
@@ -670,7 +670,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
 
             // 颜色随相对最大值的比例从淡主题色渐变到深主题色，今天的柱固定深主题色
-            val lightAccent = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.55f)
+            val lightAccent = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.55f)
             val barColor = if (d.isToday) accentColor
                 else ColorUtils.blendARGB(lightAccent, accentColor, d.barHeightPercent.coerceIn(0f, 1f))
             val bar = View(requireContext()).apply {
@@ -771,7 +771,7 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         trendSelected = next
         trendBars.forEachIndexed { i, (bar, color) ->
             (bar.background as? GradientDrawable)?.setColor(
-                if (next < 0 || i == next) color else ColorUtils.blendARGB(0xFFFFFFFF.toInt(), color, 0.35f)
+                if (next < 0 || i == next) color else ColorUtils.blendARGB(Palette.SURFACE, color, 0.35f)
             )
         }
         val d = trendData.getOrNull(next)

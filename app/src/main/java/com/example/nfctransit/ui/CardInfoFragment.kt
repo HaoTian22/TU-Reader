@@ -204,7 +204,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
 
     private fun cardGradient(card: UiCard, radius: Int) = android.graphics.drawable.GradientDrawable(
         android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-        intArrayOf(card.gradientStartColor.toInt(), card.gradientEndColor.toInt())
+        intArrayOf(Palette.cardFace(card.gradientStartColor), Palette.cardFace(card.gradientEndColor, end = true))
     ).apply { cornerRadius = radius.toFloat() }
 
     private fun bindRawData() {
@@ -438,7 +438,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     }
 
     private fun updateBadgeBackground() {
-        val bg = ColorUtils.blendARGB(0xFFFFFFFF.toInt(), accentColor, 0.12f)
+        val bg = ColorUtils.blendARGB(Palette.SURFACE, accentColor, 0.12f)
         binding.cardBadge.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = dpToPx(999).toFloat()
             setColor(bg)

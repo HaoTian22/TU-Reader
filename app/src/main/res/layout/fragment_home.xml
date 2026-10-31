@@ -108,7 +108,7 @@
             android:paddingEnd="20dp"
             android:text="@string/home_import_old"
             android:textAllCaps="false"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/on_accent"
             android:textSize="14sp"
             android:textStyle="bold" />
 

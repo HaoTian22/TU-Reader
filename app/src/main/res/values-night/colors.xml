@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色模式界面色板：与 values/colors.xml 同名覆盖；ui/Palette.kt 运行时从这里读取。
+     未列出的颜色（卡面、深色面板 night_*）深浅通用。 -->
+<resources>
+    <color name="paper">#111214</color>
+    <color name="surface">#1C1D20</color>
+    <color name="fill">#27292D</color>
+    <color name="line">#303237</color>
+    <color name="search_container">#25272B</color>
+    <color name="ink">#E6E7EA</color>
+    <color name="ink_2">#BEC1C7</color>
+    <color name="ink_3">#90949B</color>
+    <color name="ink_disabled">#4B4E54</color>
+    <color name="accent">#8FB0E6</color>
+    <color name="accent_container">#22304A</color>
+    <color name="danger">#F28B82</color>
+    <color name="success">#6DD58C</color>
+    <color name="warning">#F0B44C</color>
+    <color name="warning_container">#3A2F1A</color>
+    <color name="on_accent">#0F1B30</color>
+    <color name="amount_out">#FF6B6E</color>
+    <color name="amount_in">#3DD68C</color>
+    <color name="ripple">#29E6E7EA</color>
+    <color name="paper_fade_0">#00111214</color>
+    <color name="paper_fade_60">#99111214</color>
+    <color name="paper_fade_95">#F2111214</color>
+    <color name="map_hint_bg">#E61C1D20</color>
+</resources>

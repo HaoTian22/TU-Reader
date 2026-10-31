@@ -11,7 +11,7 @@
 
     <com.example.nfctransit.ui.SegmentedListLayout style="@style/SettingsSectionCard">
 
-        <!-- 深色模式尚未实现：整行置灰（半透明）且开关不可操作 -->
+        <!-- 深色模式：跟随系统 / 浅色 / 深色 -->
         <LinearLayout
             android:id="@+id/rowDarkMode"
             android:layout_width="match_parent"
@@ -22,7 +22,8 @@
             android:paddingEnd="16dp"
             android:paddingTop="14dp"
             android:paddingBottom="14dp"
-            android:alpha="0.4">
+            android:clickable="true"
+            android:focusable="true">
 
             <TextView
                 android:id="@+id/iconDarkMode"
@@ -45,12 +46,13 @@
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/switchDarkMode"
+            <TextView
+                android:id="@+id/tvDarkModeValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minHeight="0dp"
-                android:enabled="false" />
+                tools:text="跟随系统"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -96,7 +98,9 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- 轨迹地图真实线路：开 = 腾讯路线服务的实际线路；关 = 只画示意飞线 -->
         <LinearLayout
+            android:id="@+id/rowRealRoute"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -107,7 +111,7 @@
             android:paddingBottom="14dp">
 
             <TextView
-                android:id="@+id/iconMapSpeed"
+                android:id="@+id/iconRealRoute"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_gravity="center_vertical"
@@ -119,24 +123,40 @@
                 android:textSize="14sp"
                 android:tag="fa" />
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/map_animation_speed"
-                android:textColor="@color/ink"
-                android:textSize="14sp" />
-            <TextView
+                android:layout_marginEnd="12dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/real_route"
+                    android:textColor="@color/ink"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvRealRouteSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    tools:text="关闭时使用默认飞线"
+                    android:textColor="@color/ink_3"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchRealRoute"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="&#xf054;"
-                android:textColor="@color/ink_3"
-                android:textSize="14sp"
-                android:tag="fa" />
+                android:minHeight="0dp" />
         </LinearLayout>
 
-        <!-- 轨迹回放时在起飞/到站等节点给出轻柔触感 -->
+        <!-- 自带腾讯地图 WebService Key + SecretKey（BYOK） -->
         <LinearLayout
+            android:id="@+id/rowTencentKeys"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -144,33 +164,38 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
 
-            <ImageView
-                android:id="@+id/iconPlaybackHaptics"
+            <TextView
+                android:id="@+id/iconTencentKeys"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_gravity="center_vertical"
                 android:layout_marginEnd="12dp"
                 android:background="@drawable/bg_settings_icon"
-                android:padding="8dp"
-                android:src="@drawable/ic_vibration_on"
-                android:tint="@color/ink_3"
-                android:importantForAccessibility="no" />
+                android:gravity="center"
+                android:text="&#xf084;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/playback_haptics"
+                android:text="@string/tencent_keys"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/switchPlaybackHaptics"
+            <TextView
+                android:id="@+id/tvTencentKeysValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minHeight="0dp" />
+                tools:text="内置"
+                android:textColor="@color/ink_3"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <LinearLayout
