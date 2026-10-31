@@ -269,7 +269,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     /** 一张卡面：标题行（卡名 / 城市·读取时间 + 余额）、左下卡面 logo、右下尾号 */
     private fun buildStackCard(card: UiCard, index: Int): View {
         val ctx = requireContext()
-        val onCard = if (isDarkColor(Palette.cardFace(card.gradientStartColor))) Color.WHITE else Palette.CARD_INK
+        val onCard = Palette.onCardFace(card.gradientStartColor)
         fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
 
         val face = FrameLayout(ctx).apply {

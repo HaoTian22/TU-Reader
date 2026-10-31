@@ -137,7 +137,7 @@ class CardHomeFragment : Fragment(R.layout.fragment_card_home) {
     // ── 头部 ──
 
     private fun bindHeader(card: UiCard) {
-        val onCard = if (isDarkColor(Palette.cardFace(card.gradientStartColor))) Color.WHITE else Palette.CARD_INK
+        val onCard = Palette.onCardFace(card.gradientStartColor)
         fun onCardAlpha(alpha: Int) = ColorUtils.setAlphaComponent(onCard, alpha)
         val chip = onCardAlpha(0x1F)
 

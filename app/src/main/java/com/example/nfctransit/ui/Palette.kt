@@ -42,13 +42,24 @@ object Palette {
     const val CARD_INK_2 = 0xFF4A4D52.toInt()
 
     /**
-     * 卡面实际绘制色；卡面上文字颜色也应按此色判断深浅。
-     * 深色模式下与卡片页快捷操作圆底同一做法：深色底面混入卡片强调色（起点 28%、终点 18% 形成渐变），
-     * 得到带色相的柔和深色卡面（直接压暗马卡龙色会过深/发脏）。
+     * 卡面实际绘制色。深色模式下马卡龙卡面换成同色相的莫兰迪色：灰调低饱和（0.2）、中等亮度
+     * （起点 0.60、终点 0.54 形成渐变），在深色界面上柔和不刺眼。
      */
-    fun cardFace(color: Long, end: Boolean = false): Int =
-        if (!isDark) color.toInt()
-        else ColorUtils.blendARGB(SURFACE, accentFor(color), if (end) 0.18f else 0.28f)
+    fun cardFace(color: Long, end: Boolean = false): Int {
+        if (!isDark) return color.toInt()
+        val hsl = FloatArray(3)
+        ColorUtils.colorToHSL(color.toInt(), hsl)
+        hsl[1] = 0.20f
+        hsl[2] = if (end) 0.54f else 0.60f
+        return ColorUtils.HSLToColor(hsl)
+    }
+
+    /** 卡面上的主文字色：深色模式莫兰迪卡面统一深字；浅色模式按卡面深浅取白/深字 */
+    fun onCardFace(color: Long): Int = when {
+        isDark -> CARD_INK
+        isDarkColor(color.toInt()) -> android.graphics.Color.WHITE
+        else -> CARD_INK
+    }
 
     // 深色面板（轨迹回放 / 原始数据十六进制）：本身即深色，深浅模式通用
     const val NIGHT = 0xFF18191B.toInt()
