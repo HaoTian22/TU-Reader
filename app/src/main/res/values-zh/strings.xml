@@ -356,6 +356,7 @@
         <item quantity="other">读取中断，已保存 %d 条交易，可移开重试</item>
     </plurals>
     <string name="nfc_saved_no_txns">已保存卡片，无交易记录</string>
+    <string name="nfc_saved_octopus_balance_only">已保存卡片，八达通无法读取交易记录，仅显示余额</string>
     <plurals name="nfc_saved">
         <item quantity="other">%1$s：已保存 %2$d 条交易</item>
     </plurals>

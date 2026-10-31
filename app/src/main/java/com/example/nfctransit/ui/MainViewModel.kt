@@ -228,6 +228,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 result.readError != null -> StatusMessage(
                     L10n.plural(R.plurals.nfc_partial_saved, lastReadCount, lastReadCount), AppToast.Kind.INFO
                 )
+                // 八达通交易记录服务需密钥，只有余额可读
+                profile.cardType == CardProfiles.OCTOPUS.cardType ->
+                    StatusMessage(L10n.str(R.string.nfc_saved_octopus_balance_only), AppToast.Kind.SUCCESS)
                 lastReadCount == 0 -> StatusMessage(L10n.str(R.string.nfc_saved_no_txns), AppToast.Kind.SUCCESS)
                 else -> StatusMessage(
                     L10n.plural(R.plurals.nfc_saved, lastReadCount, profile.name, lastReadCount), AppToast.Kind.SUCCESS

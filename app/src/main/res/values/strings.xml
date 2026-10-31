@@ -363,6 +363,7 @@
         <item quantity="other">Interrupted. Saved %d transactions; remove the card and retry.</item>
     </plurals>
     <string name="nfc_saved_no_txns">Card saved. No transactions found.</string>
+    <string name="nfc_saved_octopus_balance_only">Card saved. Octopus transactions can\'t be read, only the balance.</string>
     <plurals name="nfc_saved">
         <item quantity="one">%1$s: %2$d transaction saved</item>
         <item quantity="other">%1$s: %2$d transactions saved</item>
