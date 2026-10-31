@@ -29,7 +29,7 @@ import com.google.gson.JsonParser
  * Sample = { "record": "<1E 完整 hex>" } 或 { "line": "<hex>", "city": "…", "city2": "…" }，加 "out": 期望线路号
  *          （line 样本的 city 缺省取规则的第一个城市）
  * ```
- * - `line` = 1E byte 10–15 hex（12 位，与 TripReader `txLine` 同位，其分支下标可直接移植）；
+ * - `line` = 1E byte 10–15 hex（12 位）；
  *   `city2` = byte 36–37 BCD；城市码 = byte 32–33 BCD。Value 只取 `line`。
  * - 条件：字段缺失或 slice 越界视为「不匹配」，因此加 `not` 的条件此时成立。
  * - 同城规则按文件顺序取第一条命中。任一数值不可解析 / 越出 min–max 视为不命中，继续下一条。
