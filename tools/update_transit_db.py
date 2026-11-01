@@ -13,7 +13,8 @@
   - city 表使用 assets/data/citylist.csv 中的标准 TU 城市目录（含州/地区、直辖市及港澳）。
   - device_code = CSV City/Prefix + Code，原始编号不改写。
   - reader_device.city_id、线路及站点城市按 CSV 来源目录确定。
-  - 非标准代码以 (protocol, code, city_id) 记录在 protocol_city_code，包括非标准 TU。
+  - 非标准代码以 (protocol, code, city_id) 记录在 protocol_city_code，包括非标准 TU；
+    assets/data/city_code_alias.csv 显式列出的别名优先（含与他城标准码同值的 TU 冲突码，如 8040→大同）。
   - standard = 文件名中协议标识段的大写（cu→CU, metro-tu→TU, metro-yct→YCT）；其它后缀（如 1E）不覆盖协议标识。
   - line_code：优先复用现有 (city_id, line_name) 对应的 line_code；否则取该线路组里
     「空站名的表头行 Code」中最长的、能作为全部站点码前缀的那个（北京 1号线表头 Code=0100，
@@ -49,6 +50,9 @@ DB = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "../app/schemas/com.example.nfctransit.data.db.AppDatabase/5.json")
 VERSION_FILE = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/transit.db.version"
+# 城市码别名表：显式 (protocol, code) → 标准城市码，导入 protocol_city_code，优先于按 CSV 来源目录推导
+ALIAS_FILE = os.path.dirname(os.path.abspath(__file__)) + "/../app/src/main/assets/data/city_code_alias.csv"
+ALIAS_PROTOCOLS = {"TU", "CU", "YCT"}
 
 
 def mapping_key(device_code, transit_type):
@@ -79,6 +83,36 @@ def read_csv(path):
                 continue
             rows.append([c.strip() for c in r])
         return hdr, rows
+
+
+def load_city_code_aliases(loader, path=None):
+    """读取城市码别名表 → {(protocol, code): 标准城市码}。
+
+    列：Protocol,Code,City,Note。City 必须在标准城市目录中；同一 (Protocol, Code) 只能出现一次。
+    Code 同时是另一城市的 TU 标准码时即「冲突码」：App 两城设备同为匹配候选，城市名按 1E 机构码第 3–4 字节区分。
+    """
+    path = path or ALIAS_FILE
+    if not os.path.isfile(path):
+        return {}
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for n, row in enumerate(csv.DictReader(f), start=2):
+            protocol = (row.get("Protocol") or "").strip().upper()
+            code = (row.get("Code") or "").strip()
+            city = (row.get("City") or "").strip()
+            where = f"{os.path.basename(path)}:{n}"
+            if protocol not in ALIAS_PROTOCOLS:
+                raise ValueError(f"{where} 未知协议 {protocol!r}（可用：{sorted(ALIAS_PROTOCOLS)}）")
+            if len(code) != 4 or not code.isdigit():
+                raise ValueError(f"{where} Code 须为 4 位数字：{code!r}")
+            if city not in loader.city_by_code:
+                raise ValueError(f"{where} City {city!r} 未列入标准城市目录")
+            if city == code:
+                raise ValueError(f"{where} {protocol}/{code} 指向自身，无需别名")
+            if (protocol, code) in out:
+                raise ValueError(f"{where} 重复别名 {protocol}/{code}")
+            out[(protocol, code)] = city
+    return out
 
 
 def standard_from(filename):
@@ -599,10 +633,11 @@ def main():
         for row in rows:
             if row[0] and row[1]:
                 prefix_cities[(protocol, row[0])].add(actual)
-    mapping_changed = False
+    aliases = load_city_code_aliases(loader)
+    mappings = dict(aliases)
     for (protocol, code), cities in prefix_cities.items():
-        if cities == {code}:
-            continue
+        if (protocol, code) in aliases or cities == {code}:
+            continue  # 别名表优先；别名表未列的才按 CSV 来源目录推导
         others = cities - {code}
         if len(cities) == 1:
             actual = next(iter(cities))
@@ -613,7 +648,11 @@ def main():
         elif code in loader.city_by_code:
             continue  # 标准代码跨城共用，实际城市仅由设备 city_id 确定。
         else:
-            raise ValueError(f"例外代码对应多个城市，需明确网络归属：{protocol}/{code}: {cities}")
+            raise ValueError(f"例外代码对应多个城市，需在 {os.path.basename(ALIAS_FILE)} 明确网络归属："
+                             f"{protocol}/{code}: {cities}")
+        mappings[(protocol, code)] = actual
+    mapping_changed = False
+    for (protocol, code), actual in sorted(mappings.items()):
         if protocol == "TU" and code in loader.city_by_code and actual != code:
             # 冲突：例外码同时是另一城市的标准码。App 两城设备同为匹配候选，城市名按 1E 机构码第 3–4 字节二选一。
             print(f"冲突城市码：TU/{code} 是 {loader.city_by_code[code]['city_name']} 的标准码，"

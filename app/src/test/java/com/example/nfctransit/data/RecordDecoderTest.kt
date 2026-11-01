@@ -73,7 +73,12 @@ class RecordDecoderTest {
             assertEquals("6110413106074451", TransitData.resolveByStandard(
                 "TU", "4131", "413106074451", "413106074451"
             )?.code)
-            assertNull(TransitData.resolveByStandard("CU", "4131", "413106074451", "413106074451"))
+            // 双钱包卡写进 CU 钱包的 TU 交易副本：CU 未命中时按完整 4131 终端号回落到 TU 映射
+            assertEquals("6110413106074451", TransitData.resolveByStandard(
+                "CU", "4131", "413106074451", "413106074451"
+            )?.code)
+            // 只限住建部 CU 钱包，其它归入 CU 命名空间的卡种不回落
+            assertNull(TransitData.resolveByStandard("TFT", "4131", "413106074451", "413106074451"))
         }
         withDeviceMappings(listOf(unrelatedCu), prefix = "3140") {
             assertNull(TransitData.resolveByStandard("TU", "4131", "413106074451", "413106074451"))

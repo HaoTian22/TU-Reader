@@ -26,6 +26,7 @@ object TransitData {
     // 特殊匹配规则标记（详情页 Match 行展示）：命中经特殊规则解析时附加到 device_code 之后
     private const val SP_RULE_GUANGZHOU_FOSHAN = "(SP Rule: Guangzhou/Foshan)"
     private const val SP_RULE_SHENZHEN = "(SP Rule: Shenzhen)"
+    private const val TU_TERMINAL_SERIES = "4131"
 
     /** 一条站点解析结果（名称已按界面语言回退；ID 用于跨页面传递与切换语言时重新解析） */
     data class StationEntry(
@@ -740,7 +741,11 @@ object TransitData {
         val body = if (code.length > 4) code.substring(4) else code
         if (body.isEmpty()) return null
         longestOverlap(prefix, body, standard)?.first?.let { return it.toEntry() }
-        return if (standard == "TU") byTuFullTerminal[code]?.toEntry() else null
+        if (standard == "TU") return byTuFullTerminal[code]?.toEntry()
+        // 双钱包卡会把同一笔 TU 交易同时写进 CU 钱包 0x18；TU 一侧轮换掉后只剩 CU 副本。
+        // 4131 是 TU 终端号系列（CU 设备无此号段），CU 未命中时只按完整 12 位终端号精确匹配 TU，不做前缀重叠。
+        if (standard == "CU" && code.startsWith(TU_TERMINAL_SERIES)) return byTuFullTerminal[code]?.toEntry()
+        return null
     }
 
     /**

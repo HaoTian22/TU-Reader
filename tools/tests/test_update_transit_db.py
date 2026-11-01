@@ -39,6 +39,7 @@ def dataset(tmp_path, monkeypatch):
     monkeypatch.setattr(update, "ROOT", str(source))
     monkeypatch.setattr(update, "DB", str(db_path))
     monkeypatch.setattr(update, "VERSION_FILE", str(tmp_path / "transit.db.version"))
+    monkeypatch.setattr(update, "ALIAS_FILE", str(tmp_path / "city_code_alias.csv"))
     monkeypatch.setattr(sys, "argv", ["update_transit_db.py"])
 
     def write(filename, rows):
@@ -308,3 +309,32 @@ def test_same_english_city_name_is_disambiguated_by_province(dataset, monkeypatc
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT r.device_code,c.city_name FROM reader_device r JOIN city c ON c.city_id=r.city_id "
                           "WHERE r.device_code IN ('305001','374001') ORDER BY r.device_code").fetchall() == [("305001", "苏州"), ("374001", "宿州")]
+
+
+def test_alias_table_imports_conflicting_tu_code(dataset, tmp_path):
+    path, _, _, _ = dataset
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO city VALUES (2,'8040','延安','Yan''an')")
+        db.execute("INSERT INTO city VALUES (3,'1620','大同','Datong')")
+    (tmp_path / "city_code_alias.csv").write_text(
+        "Protocol,Code,City,Note\nTU,8040,1620,大同\n", encoding="utf-8")
+    assert update.main() == 0
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT protocol,code,city_id FROM protocol_city_code WHERE code='8040'").fetchall() == [
+            ("TU", "8040", 3)]
+
+
+@pytest.mark.parametrize("row", [
+    "XX,8040,1620,", "TU,804,1620,", "TU,8040,9999,", "TU,1620,1620,",
+])
+def test_alias_table_rejects_invalid_rows(dataset, tmp_path, row):
+    path, _, _, _ = dataset
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO city VALUES (3,'1620','大同','Datong')")
+    (tmp_path / "city_code_alias.csv").write_text("Protocol,Code,City,Note\n" + row + "\n", encoding="utf-8")
+    loader = update.Loader(str(path))
+    try:
+        with pytest.raises(ValueError):
+            update.load_city_code_aliases(loader)
+    finally:
+        loader.db.close()
