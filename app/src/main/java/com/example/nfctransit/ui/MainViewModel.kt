@@ -316,6 +316,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedCardApps: LiveData<List<CardAppEntity>> = _selectedCardApps
 
     /**
+     * 当前卡从未实际读卡、全部数据来自外部库导入：导入的应用 read_at 为 0，读卡写入的应用 read_at 为读卡时间。
+     * 这类记录的解析可能有误，纠错不允许公开上传。
+     */
+    fun selectedCardImportOnly(): Boolean {
+        val apps = _selectedCardApps.value.orEmpty()
+        return apps.isNotEmpty() && apps.none { it.readAt > 0 }
+    }
+
+    /**
      * 读卡完成事件：[index] 为读到的卡在列表中的下标；[switchedCard] 表示读到的不是当前选中卡。
      * 换卡时 ViewModel 不切换选中卡，由界面在转场截图后再选中，避免当前页先被换成新卡数据。
      */

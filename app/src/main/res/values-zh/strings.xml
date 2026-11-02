@@ -190,6 +190,8 @@
     <string name="feedback_city_hint">输入中文/英文名或城市码</string>
     <string name="feedback_public_upload">公开上传纠错</string>
     <string name="feedback_public_upload_desc">帮助改进站名数据</string>
+    <string name="feedback_imported_use_github">导入的数据可能解析有误，不支持上传。点此到 GitHub 反馈</string>
+    <string name="feedback_terminal_mismatch_use_github">该记录终端号与钱包类型不符，可能解析有误，不支持上传。点此到 GitHub 反馈</string>
     <string name="feedback_more_info">提供更多信息</string>
     <string name="feedback_more_info_desc">附带原始数据上传（可能含余额、时间、金额）</string>
 

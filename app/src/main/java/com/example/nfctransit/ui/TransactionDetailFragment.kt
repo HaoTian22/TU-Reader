@@ -102,6 +102,24 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         binding.btnFeedbackHex.setOnClickListener { showFeedbackDialog() }
     }
 
+    /**
+     * 4131 是 TU 终端号系列（CU 设备无此号段）：只含 TU 的记录终端号不是 4131 开头、
+     * 或只含 CU 的记录终端号是 4131 开头，说明记录归属/解析可能有误。TU+CU 合并记录不检查；
+     * 没有终端号的记录（如只有 1E 旅程）不判定。
+     */
+    private fun terminalMismatchesWallet(txn: UiTransaction): Boolean {
+        val protocols = txn.protocols.ifEmpty { listOf(txn.protocol) }.toSet()
+        val terminals = txn.sources
+            .filter { it.sfi in setOf(0x18, 0x10, 0x06, 0x1A) && it.hex.length >= 32 }
+            .map { hexRange(it.hex, 10, 16).trim().uppercase() }
+            .filter { it.isNotBlank() }
+        return when (protocols) {
+            setOf("TU") -> terminals.any { !it.startsWith(TU_TERMINAL_SERIES) }
+            setOf("CU") -> terminals.any { it.startsWith(TU_TERMINAL_SERIES) }
+            else -> false
+        }
+    }
+
     private fun showFeedbackDialog() {
         val txn = viewModel.getTransactionById(args.transactionId) ?: return
         val isLnt = txn.protocol == "LNT"
@@ -175,6 +193,11 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 prefix, code, txn.transitType
             ) ?: txn.actualCityCode.takeIf { txn.locationSource != LocationSource.DECLARED_CITY_FALLBACK },
             hasRawRecord = rawRecord.isNotBlank(),
+            publishBlockedReason = when {
+                viewModel.selectedCardImportOnly() -> R.string.feedback_imported_use_github
+                terminalMismatchesWallet(txn) -> R.string.feedback_terminal_mismatch_use_github
+                else -> null
+            },
             accentColor = accentColor
         ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish, includeRawRecord ->
             val normalizedPrefix = enteredPrefix.trim()
@@ -418,6 +441,11 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         out.append("[Match] ")
             .append(if (txn.spRule != null) "$matchCode ${txn.spRule}" else matchCode)
         return out.toString()
+    }
+
+    private companion object {
+        /** TU 终端号系列（与 TransitData 一致） */
+        const val TU_TERMINAL_SERIES = "4131"
     }
 
     private fun hexRange(hex: String, start: Int, end: Int): String {

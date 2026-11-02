@@ -48,6 +48,7 @@ object AppDialogs {
     /** 反馈表单的常用交通类型（取自 transit.db 中数量最多的类型）；其余经「其他」手动输入。 */
     private val FEEDBACK_TYPES = listOf("公交", "地铁", "有轨电车", "城际", "BRT", "自行车")
     private const val FEEDBACK_TYPE_OTHER = "其他"
+    private const val GITHUB_ISSUES_URL = "https://github.com/HaoTian22/TU-Reader/issues"
     private fun dialogWidth(context: Context): Int {
         val dm = context.resources.displayMetrics
         return minOf((312 * dm.density).toInt(), dm.widthPixels - (48 * dm.density).toInt())
@@ -283,6 +284,8 @@ object AppDialogs {
         title: String = context.getString(R.string.feedback_title),
         showPublish: Boolean = true,
         hasRawRecord: Boolean = false,
+        /** 非空时禁止公开上传（导入数据、终端号与钱包不符等可能解析有误），说明文案引导到 GitHub 反馈 */
+        @androidx.annotation.StringRes publishBlockedReason: Int? = null,
         accentColor: Int = Palette.ACCENT,
         maxScrollHeightDp: Int? = null,
         onConfirm: (
@@ -341,26 +344,42 @@ object AppDialogs {
         val typeCustomInput = view.findViewById<EditText>(R.id.feedbackTypeCustom)
         val publishInput = view.findViewById<android.widget.CompoundButton>(R.id.feedbackPublish)
         view.findViewById<TextView>(R.id.feedbackTitle).text = title
-        publishInput.isEnabled = showPublish
-        if (!showPublish) publishInput.isChecked = false
+        val publishBlocked = showPublish && publishBlockedReason != null
+        val canPublish = showPublish && !publishBlocked
+        publishInput.isEnabled = canPublish
+        if (!canPublish) publishInput.isChecked = false
         view.findViewById<View>(R.id.feedbackPublishRow).apply {
-            alpha = if (showPublish) 1f else 0.5f
+            alpha = if (canPublish || publishBlocked) 1f else 0.5f
             // 整行可点：点说明文字也能切换开关
-            if (showPublish) setOnClickListener { publishInput.toggle() }
+            if (canPublish) setOnClickListener { publishInput.toggle() }
+            // 禁止上传：说明改为原因 + 引导到 GitHub，点整行打开 Issues
+            if (publishBlocked) {
+                publishInput.alpha = 0.5f
+                view.findViewById<TextView>(R.id.feedbackPublishDesc).apply {
+                    setText(publishBlockedReason!!)
+                    setTextColor(accentColor)
+                }
+                setOnClickListener {
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(GITHUB_ISSUES_URL)
+                            )
+                        )
+                    }
+                }
+            }
         }
         (publishInput as? com.google.android.material.materialswitch.MaterialSwitch)?.tintAccent(accentColor)
+        // 提供更多信息：随公开上传始终附带原始数据，不可单独关闭
         val moreInfoInput = view.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.feedbackMoreInfo)
         val moreInfoRow = view.findViewById<View>(R.id.feedbackMoreInfoRow)
-        moreInfoInput.isChecked = false
+        moreInfoInput.isChecked = true
         moreInfoInput.tintAccent(accentColor)
         fun updateMoreInfoAvailability() {
-            val enabled = showPublish && publishInput.isChecked && hasRawRecord
-            moreInfoInput.isEnabled = enabled
-            moreInfoRow.isEnabled = enabled
-            moreInfoRow.alpha = if (enabled) 1f else 0.5f
-            if (!enabled) moreInfoInput.isChecked = false
+            moreInfoRow.alpha = if (canPublish && publishInput.isChecked) 1f else 0.5f
         }
-        moreInfoRow.setOnClickListener { if (moreInfoInput.isEnabled) moreInfoInput.toggle() }
         publishInput.setOnCheckedChangeListener { _, _ -> updateMoreInfoAvailability() }
         updateMoreInfoAvailability()
         view.findViewById<TextView>(R.id.feedbackHelp).apply {
@@ -542,8 +561,8 @@ object AppDialogs {
                     city.code,
                     city.name,
                     citySource,
-                    publishInput.isChecked,
-                    publishInput.isChecked && moreInfoInput.isEnabled && moreInfoInput.isChecked
+                    canPublish && publishInput.isChecked,
+                    canPublish && publishInput.isChecked && hasRawRecord
                 )
                 if (accepted) dialog.dismiss()
             }
