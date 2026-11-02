@@ -741,7 +741,15 @@ object TransitData {
         val body = if (code.length > 4) code.substring(4) else code
         if (body.isEmpty()) return null
         longestOverlap(prefix, body, standard)?.first?.let { return it.toEntry() }
-        if (standard == "TU") return byTuFullTerminal[code]?.toEntry()
+        if (standard == "TU") {
+            byTuFullTerminal[code]?.let { return it.toEntry() }
+            // 非 4131 号段的 TU 0x18 终端号是当地 CU 体系设备（如上海地铁 2000…）：
+            // TU 映射未命中时按 CU 映射做同城最长重叠（与下方 CU→TU 4131 回落对称）。
+            if (!code.startsWith(TU_TERMINAL_SERIES)) {
+                longestOverlap(prefix, body, "CU")?.first?.let { return it.toEntry() }
+            }
+            return null
+        }
         // 双钱包卡会把同一笔 TU 交易同时写进 CU 钱包 0x18；TU 一侧轮换掉后只剩 CU 副本。
         // 4131 是 TU 终端号系列（CU 设备无此号段），CU 未命中时只按完整 12 位终端号精确匹配 TU，不做前缀重叠。
         if (standard == "CU" && code.startsWith(TU_TERMINAL_SERIES)) return byTuFullTerminal[code]?.toEntry()

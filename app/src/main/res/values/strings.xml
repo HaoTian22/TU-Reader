@@ -195,6 +195,7 @@
     <string name="feedback_city_hint">Type a Chinese/English name or code</string>
     <string name="feedback_public_upload">Upload correction publicly</string>
     <string name="feedback_public_upload_desc">Helps improve station data</string>
+    <string name="feedback_publish_closed_use_github">Public upload is currently closed. Tap to report on GitHub instead</string>
     <string name="feedback_imported_use_github">Imported data may be decoded incorrectly, so it can\'t be uploaded. Tap to report on GitHub instead</string>
     <string name="feedback_terminal_mismatch_use_github">This record\'s terminal doesn\'t match its wallet and may be decoded incorrectly, so it can\'t be uploaded. Tap to report on GitHub instead</string>
     <string name="feedback_more_info">Include more details</string>

@@ -25,6 +25,10 @@ from urllib.parse import urlsplit
 HEADER = ["Prefix", "Code", "Type", "Line", "Station"]
 DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).with_name("data")))
 JSON_FILE = DATA_DIR / "overrides.json"
+POLICY_FILE = DATA_DIR / "feedback_policy.json"
+# 反馈策略（App 打开交易详情时拉取）：publish 为公开上传总开关，其余键放行对应的受限类别。
+# 文件缺失/损坏时用默认值（与 App 内置默认一致）；每次请求重新读取，改文件即时生效。
+DEFAULT_POLICY = {"publish": True, "imported": False, "terminalMismatch": False}
 WRITE_LOCK = Lock()
 
 # Bound optional raw-record text and the JSON body (including JSON escapes)
@@ -215,6 +219,25 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
     return row, metadata, prefix + code
 
 
+def load_policy() -> dict[str, bool]:
+    """Current feedback policy: defaults overlaid with boolean keys from POLICY_FILE."""
+    policy = dict(DEFAULT_POLICY)
+    try:
+        value = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return policy
+    except (OSError, ValueError) as error:
+        LOGGER.error("invalid feedback policy, using defaults: %s", error)
+        return policy
+    if not isinstance(value, dict):
+        LOGGER.error("invalid feedback policy, using defaults: expected a JSON object")
+        return policy
+    for key in DEFAULT_POLICY:
+        if isinstance(value.get(key), bool):
+            policy[key] = value[key]
+    return policy
+
+
 def _mapping_key(device_code: str, transit_type: str) -> str:
     return f"{device_code}|{transit_type}"
 
@@ -260,8 +283,11 @@ class FeedbackHandler(BaseHTTPRequestHandler):
     timeout = 30  # drop connections that stall mid-request
 
     def do_GET(self) -> None:
-        if urlsplit(self.path).path == "/health":
+        path = urlsplit(self.path).path
+        if path == "/health":
             self._send_json(200, {"status": "ok"})
+        elif path == "/v1/feedback-policy":
+            self._send_json(200, load_policy())
         else:
             self._send_json(404, {"detail": "Not Found"})
 
@@ -273,6 +299,9 @@ class FeedbackHandler(BaseHTTPRequestHandler):
             # Chunked bodies would need unbounded buffering; the app client
             # always sends Content-Length.
             self._send_json(411, {"detail": "Content-Length required"}, close=True)
+            return
+        if not load_policy()["publish"]:
+            self._send_json(403, {"detail": "public feedback upload is closed"}, close=True)
             return
         try:
             length = int(self.headers.get("Content-Length", 0))

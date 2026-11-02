@@ -137,6 +137,29 @@ class RecordDecoderTest {
         }
     }
 
+    @Test
+    fun shanghaiTuFareWithoutJourneyFallsBackToLocalCuMapping() {
+        // 实卡：TU 钱包 0x18（无 1E），终端号 200011083617 为上海地铁 CU 体系设备
+        val hex = "09C2002829000000000920001108361720261030195738"
+        val mapping = lntMapping("地铁").copy(
+            cityCode = "2900", cityName = "上海", standard = "CU", deviceCode = "2000110836",
+            lineName = "8号线", stationName = "曲阜路"
+        )
+        withDeviceMappings(listOf(mapping), prefix = "2000") {
+            val record = RecordDecoder.ZoneRecord(0x18, 1, "TU", hex)
+            val fresh = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+            val saved = RecordDecoder.ArchivedRecord(0x18, CardProfiles.TU_EP_AID, hex, fresh.date)
+            for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
+                assertEquals("2000110836", tx.deviceCode)
+                assertEquals("2900", tx.cityCode)
+                assertEquals("8号线", tx.lineName)
+                assertEquals("曲阜路", tx.stationName)
+                assertEquals("20261030", tx.date)
+                assertEquals("195738", tx.time)
+            }
+        }
+    }
+
 
     @Test
     fun lntNonZeroFifthTerminalDigitWithoutMetroMappingUsesSeconds() {

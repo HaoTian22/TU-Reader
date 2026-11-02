@@ -15,11 +15,13 @@ import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import com.example.nfctransit.ApduUtil
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.CardProfiles
+import com.example.nfctransit.data.FeedbackPolicy
 import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
@@ -27,6 +29,8 @@ import com.example.nfctransit.databinding.FragmentTransactionDetailBinding
 import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.UiTransaction
 import com.example.nfctransit.model.TransitDirection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail) {
 
@@ -57,6 +61,10 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
+
+        // 反馈策略由服务端控制：进入详情页后台刷新，打开反馈表单时读取最新缓存
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) { FeedbackPolicy.refresh(appContext) }
 
         // 主题色跟随卡片：返回按钮、badge、复制按钮一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
@@ -193,10 +201,14 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                 prefix, code, txn.transitType
             ) ?: txn.actualCityCode.takeIf { txn.locationSource != LocationSource.DECLARED_CITY_FALLBACK },
             hasRawRecord = rawRecord.isNotBlank(),
-            publishBlockedReason = when {
-                viewModel.selectedCardImportOnly() -> R.string.feedback_imported_use_github
-                terminalMismatchesWallet(txn) -> R.string.feedback_terminal_mismatch_use_github
-                else -> null
+            publishBlockedReason = FeedbackPolicy.current(requireContext()).let { policy ->
+                when {
+                    !policy.publish -> R.string.feedback_publish_closed_use_github
+                    !policy.imported && viewModel.selectedCardImportOnly() -> R.string.feedback_imported_use_github
+                    !policy.terminalMismatch && terminalMismatchesWallet(txn) ->
+                        R.string.feedback_terminal_mismatch_use_github
+                    else -> null
+                }
             },
             accentColor = accentColor
         ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish, includeRawRecord ->

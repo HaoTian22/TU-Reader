@@ -1,7 +1,24 @@
 # 公开纠错服务
 
 服务使用 Python 标准库，启动命令为 `python app.py`；Docker 部署继续使用
-`docker compose up -d --build`。端点为 `GET /health` 和 `POST /v1/overrides`。
+`docker compose up -d --build`。端点为 `GET /health`、`GET /v1/feedback-policy` 和 `POST /v1/overrides`。
+
+## 反馈策略（服务端控制）
+
+App 打开交易详情页时拉取 `GET /v1/feedback-policy`，据此决定反馈表单能否公开上传：
+
+```json
+{ "publish": true, "imported": false, "terminalMismatch": false }
+```
+
+| 键 | 含义 | 默认 |
+| --- | --- | --- |
+| `publish` | 公开上传总开关；`false` 时 App 全部改为引导 GitHub，服务端 `POST /v1/overrides` 同时返回 403 | `true` |
+| `imported` | 是否允许导入卡片的记录公开上传 | `false` |
+| `terminalMismatch` | 是否允许终端号与钱包类型不符的记录公开上传 | `false` |
+
+策略存于数据目录 `feedback_policy.json`，只写需要覆盖的键；每次请求重新读取，修改即时生效，
+无需重启。文件缺失、损坏或值非布尔时按默认值处理。App 拉取失败时沿用上次缓存，从未拉到时用同一组默认值。
 
 ## 单文件存储
 

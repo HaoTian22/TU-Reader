@@ -15,6 +15,7 @@ import server.app as app
 def api(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "DATA_DIR", tmp_path)
     monkeypatch.setattr(app, "JSON_FILE", tmp_path / "overrides.json")
+    monkeypatch.setattr(app, "POLICY_FILE", tmp_path / "feedback_policy.json")
     server = ThreadingHTTPServer(("127.0.0.1", 0), app.FeedbackHandler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -372,3 +373,27 @@ def test_rejects_malformed_standard(api, standard):
         "line": "1", "station": "", "locationSource": "AUTO",
     }
     assert api("POST", "/v1/overrides", payload)[0] == 422
+
+
+def test_feedback_policy_defaults_without_file(api):
+    status, payload = api("GET", "/v1/feedback-policy")
+    assert status == 200
+    assert payload == {"publish": True, "imported": False, "terminalMismatch": False}
+
+
+def test_feedback_policy_reads_file_live_and_ignores_bad_values(api):
+    app.POLICY_FILE.write_text(
+        json.dumps({"imported": True, "terminalMismatch": "yes", "extra": 1}), encoding="utf-8"
+    )
+    assert api("GET", "/v1/feedback-policy")[1] == {
+        "publish": True, "imported": True, "terminalMismatch": False
+    }
+    app.POLICY_FILE.write_text("not json", encoding="utf-8")
+    assert api("GET", "/v1/feedback-policy")[1] == app.DEFAULT_POLICY
+
+
+def test_closed_policy_rejects_uploads(api):
+    app.POLICY_FILE.write_text(json.dumps({"publish": False}), encoding="utf-8")
+    status, payload = api("POST", "/v1/overrides", {"prefix": "6020"})
+    assert status == 403
+    assert not app.JSON_FILE.exists()
