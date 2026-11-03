@@ -169,4 +169,95 @@ class AppUpdateCheckerTest {
         }.check("0.4.0")
         assertEquals(AppUpdateResult.UpToDate, result)
     }
+
+    // 结构取自 data.jsdelivr.com 对本仓库的真实响应（标签去掉 v 前缀，含非版本号标签）。
+    private val mirrorTags = """{"type":"gh","name":"HaoTian22/TU-Reader","tags":{},"versions":[
+        {"version":"prerelease"},{"version":"0.2.6"},{"version":"0.2.5"},{"version":"0.2.4"}]}"""
+
+    @Test fun mirrorConfirmsUpToDateWithoutGithubRequest() {
+        for (current in listOf("0.2.6", "0.3.0")) {
+            val result = AppUpdateChecker(fetchTags = { url ->
+                assertEquals(AppUpdateChecker.TAGS_MIRROR_URL, url)
+                mirrorTags
+            }) { error("GitHub must not be queried") }.check(current)
+            assertEquals(AppUpdateResult.UpToDate, result)
+        }
+    }
+
+    // 取自仓库 0.2.6 标签的 CHANGELOG.md 开头（经 jsDelivr 实际获取）。
+    private val changelog = """# 更新日志
+
+## 0.2.6 — 2026-11-03
+
+- 修复 TU 公交线路规则覆盖已匹配站点的问题，已命中线路或站点时优先使用站名映射库结果。
+
+[完整变更](https://github.com/HaoTian22/TU-Reader/compare/0.2.5...0.2.6)
+
+## 0.2.5 — 2026-11-03
+
+- 修复部分双钱包卡的 TU 交易缺少旅程记录时无法识别站点的问题，支持使用当地 CU 终端映射补充识别，如上海地铁。
+
+[完整变更](https://github.com/HaoTian22/TU-Reader/compare/0.2.4...0.2.5)
+
+## 0.2.4 — 2026-11-02
+
+- 新增淮南 TU 公交线路号解析规则，并保留具名线路的映射优先级。
+"""
+
+    private fun mirror(changelogResponse: () -> String?) = { url: String ->
+        when (url) {
+            AppUpdateChecker.TAGS_MIRROR_URL -> mirrorTags
+            "${AppUpdateChecker.CHANGELOG_MIRROR_URL}@0.2.6/CHANGELOG.md" -> changelogResponse()
+            else -> error("Unexpected URL $url")
+        }
+    }
+
+    @Test fun mirrorUpdateLinksToTagPageWithChangelogNotes() {
+        val result = AppUpdateChecker(fetchTags = mirror { changelog }) {
+            error("GitHub must not be queried")
+        }.check("0.2.4") as AppUpdateResult.Available
+        assertEquals("0.2.6", result.release.version)
+        assertEquals("${AppUpdateChecker.RELEASES_URL}/tag/0.2.6", result.release.pageUrl)
+        assertNull(result.release.apkUrl)
+        assertEquals(listOf("0.2.6", "0.2.5"), result.releaseNotes.map { it.version })
+        assertEquals("- 修复 TU 公交线路规则覆盖已匹配站点的问题，已命中线路或站点时优先使用站名映射库结果。\n\n" +
+            "[完整变更](https://github.com/HaoTian22/TU-Reader/compare/0.2.5...0.2.6)", result.release.notes)
+        assertFalse(result.testingBuild)
+        assertFalse(result.historyUnavailable)
+    }
+
+    @Test fun mirrorTestingBuildAtOrAboveLatestShowsOnlyLatestNotes() {
+        val result = AppUpdateChecker(fetchTags = mirror { changelog }) { error("GitHub must not be queried") }
+            .check("0.3.0", isTestingBuild = true) as AppUpdateResult.Available
+        assertEquals(listOf("0.2.6"), result.releaseNotes.map { it.version })
+    }
+
+    @Test fun missingChangelogStillOffersReleasePage() {
+        for (response in listOf<() -> String?>({ null }, { throw IOException("timeout") }, { "no sections" })) {
+            val result = AppUpdateChecker(fetchTags = mirror(response)) { error("GitHub must not be queried") }
+                .check("0.2.5") as AppUpdateResult.Available
+            assertTrue(result.releaseNotes.isEmpty())
+            assertEquals("${AppUpdateChecker.RELEASES_URL}/tag/0.2.6", result.release.pageUrl)
+        }
+    }
+
+    @Test fun mirrorFailureFallsBackToGithub() {
+        for (mirror in listOf<(String) -> String?>({ null }, { "invalid" }, { "{}" },
+                { """{"versions":[]}""" }, { throw IOException("timeout") })) {
+            val result = AppUpdateChecker(fetchTags = mirror) { release("0.2.6") }.check("0.2.6")
+            assertEquals(AppUpdateResult.UpToDate, result)
+            assertTrue(AppUpdateChecker(fetchTags = mirror) { url ->
+                if (url == AppUpdateChecker.API_URL) release("0.2.6") else "[]"
+            }.check("0.2.5") is AppUpdateResult.Available)
+        }
+    }
+
+    @Test fun testingBuildsAlwaysGetOfficialReleaseFromMirror() {
+        val checker = AppUpdateChecker(fetchTags = mirror { changelog }) { error("GitHub must not be queried") }
+        for ((current, flag) in listOf("0.2.6" to true, "0.3.0" to true, "0.3.0-beta.1" to false)) {
+            val result = checker.check(current, isTestingBuild = flag) as AppUpdateResult.Available
+            assertTrue(result.testingBuild)
+            assertEquals("0.2.6", result.release.version)
+        }
+    }
 }

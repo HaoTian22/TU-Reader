@@ -19,7 +19,7 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
     private val controller = AppUpdateController(
         checkForUpdate = {
             withContext(Dispatchers.IO) {
-                AppUpdateChecker().check(BuildConfig.VERSION_NAME,
+                AppUpdateChecker.withMirror().check(BuildConfig.VERSION_NAME,
                     BuildConfig.DEBUG || BuildConfig.IS_PRERELEASE_BUILD)
             }
         },

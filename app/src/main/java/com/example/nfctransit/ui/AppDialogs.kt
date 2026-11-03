@@ -135,6 +135,8 @@ object AppDialogs {
         }
         view.findViewById<TextView>(R.id.updateNotes).text = notesText.trimEnd()
         val scroll = view.findViewById<android.widget.ScrollView>(R.id.updateNotesScroll)
+        // 镜像检查只知道版本号，没有说明可展示：收起说明区，由按钮跳转发布页。
+        if (notesText.isEmpty()) scroll.visibility = View.GONE
         val dm = context.resources.displayMetrics
         scroll.getChildAt(0).measure(
             View.MeasureSpec.makeMeasureSpec(
