@@ -13,6 +13,11 @@ import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
+import androidx.lifecycle.lifecycleScope
+import com.example.nfctransit.data.FeedbackPolicy
+import com.example.nfctransit.data.PublishedVersions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.data.OverrideDuplicate
@@ -43,6 +48,10 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         super.onViewCreated(view, savedInstanceState)
         fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         binding.btnBack.setOnClickListener { (activity as? MainActivity)?.animatePredictiveBack() }
+        // 已发布站名库 / 线路规则版本：本机落后时编辑表单禁止公开上传
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) { PublishedVersions.refresh(appContext) }
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) { FeedbackPolicy.refresh(appContext) }
         binding.searchInput.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -228,7 +237,8 @@ class TransitOverridesFragment : Fragment(R.layout.fragment_transit_overrides) {
         AppDialogs.overrideEditor(
             context = requireContext(),
             row = row,
-            accentColor = accentColor
+            accentColor = accentColor,
+            onUpdateData = { viewModel.updateStationDatabase() }
         ) { prefix, code, type, line, station, cityCode, _, locationSource, publish ->
             val updated = TransitOverrideRow(
                 prefix.trim(), code.trim(), type.trim(), line.trim(), station.trim(),

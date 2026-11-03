@@ -348,6 +348,33 @@ def test_rejects_invalid_submitted_at(api, submitted_at):
     assert "submittedAt" in response["detail"]
 
 
+VERSIONS = {"appVersion": "0.2.5(6)", "dbVersion": "20261101190145", "rulesVersion": "20261101190210"}
+
+
+def test_stores_and_logs_client_versions(api):
+    payload = {**raw_record_payload(), **VERSIONS}
+    assert api("POST", "/v1/overrides", payload)[0] == 201
+    entry = stored_entries()["33200120|公交"]
+    assert {key: entry[key] for key in VERSIONS} == VERSIONS
+    row, metadata, _ = app.parse_override(payload)
+    log = app.FeedbackHandler._log_content(row, metadata)
+    assert {key: log[key] for key in VERSIONS} == VERSIONS
+
+
+@pytest.mark.parametrize("optional", [{}, {"dbVersion": None}])
+def test_versions_are_optional_for_old_clients(api, optional):
+    assert api("POST", "/v1/overrides", {**raw_record_payload(), **optional})[0] == 201
+    assert not set(VERSIONS) & set(stored_entries()["33200120|公交"])
+
+
+@pytest.mark.parametrize("field", list(VERSIONS))
+@pytest.mark.parametrize("value", ["", "1 0", "9" * 65, 1], ids=["empty", "space", "oversize", "number"])
+def test_rejects_invalid_versions(api, field, value):
+    status, response = api("POST", "/v1/overrides", {**raw_record_payload(), field: value})
+    assert status == 422
+    assert field in response["detail"]
+
+
 @pytest.mark.parametrize("standard", [
     "TU",
     "TU:A000000632010105",
@@ -378,15 +405,16 @@ def test_rejects_malformed_standard(api, standard):
 def test_feedback_policy_defaults_without_file(api):
     status, payload = api("GET", "/v1/feedback-policy")
     assert status == 200
-    assert payload == {"publish": True, "imported": False, "terminalMismatch": False}
+    assert payload == {"publish": True, "imported": False, "terminalMismatch": False, "outdated": False}
 
 
 def test_feedback_policy_reads_file_live_and_ignores_bad_values(api):
     app.POLICY_FILE.write_text(
-        json.dumps({"imported": True, "terminalMismatch": "yes", "extra": 1}), encoding="utf-8"
+        json.dumps({"imported": True, "terminalMismatch": "yes", "outdated": True, "extra": 1}),
+        encoding="utf-8",
     )
     assert api("GET", "/v1/feedback-policy")[1] == {
-        "publish": True, "imported": True, "terminalMismatch": False
+        "publish": True, "imported": True, "terminalMismatch": False, "outdated": True
     }
     app.POLICY_FILE.write_text("not json", encoding="utf-8")
     assert api("GET", "/v1/feedback-policy")[1] == app.DEFAULT_POLICY

@@ -60,6 +60,9 @@ internal object TuLineRules {
         installed = set
     }
 
+    /** 当前生效规则的 version（yyyyMMddHHmmss）；未安装为空串。 */
+    fun installedVersion(): String = installed.version
+
     /** 规则命中结果：[line] 线路号，[tag] 详情页 Match 行标记（城市码 + 规则在文件中的序号）。 */
     class Match(val line: String, val tag: String)
 

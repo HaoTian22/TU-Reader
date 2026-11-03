@@ -9,8 +9,8 @@ class FeedbackPolicyTest {
     fun parseOverlaysBooleanKeysOnDefaults() {
         assertEquals(FeedbackPolicy.DEFAULT, FeedbackPolicy.parse("{}"))
         assertEquals(
-            FeedbackPolicy(publish = false, imported = true, terminalMismatch = false),
-            FeedbackPolicy.parse("""{"publish":false,"imported":true,"terminalMismatch":"yes","extra":1}""")
+            FeedbackPolicy(publish = false, imported = true, terminalMismatch = false, outdated = true),
+            FeedbackPolicy.parse("""{"publish":false,"imported":true,"terminalMismatch":"yes","outdated":true,"extra":1}""")
         )
     }
 

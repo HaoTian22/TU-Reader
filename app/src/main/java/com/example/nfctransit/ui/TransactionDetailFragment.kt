@@ -22,6 +22,7 @@ import com.example.nfctransit.MainActivity
 import com.example.nfctransit.R
 import com.example.nfctransit.CardProfiles
 import com.example.nfctransit.data.FeedbackPolicy
+import com.example.nfctransit.data.PublishedVersions
 import com.example.nfctransit.data.LocationSource
 import com.example.nfctransit.data.TransitData
 import com.example.nfctransit.data.toSfiHex
@@ -65,6 +66,8 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         // 反馈策略由服务端控制：进入详情页后台刷新，打开反馈表单时读取最新缓存
         val appContext = requireContext().applicationContext
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) { FeedbackPolicy.refresh(appContext) }
+        // 已发布站名库 / 线路规则版本：本机落后时反馈表单禁止公开上传
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) { PublishedVersions.refresh(appContext) }
 
         // 主题色跟随卡片：返回按钮、badge、复制按钮一起变
         viewModel.mainAccent.observe(viewLifecycleOwner) { accent ->
@@ -210,6 +213,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
                     else -> null
                 }
             },
+            onUpdateData = { viewModel.updateStationDatabase() },
             accentColor = accentColor
         ) { enteredPrefix, enteredCode, enteredType, enteredLine, enteredStation, enteredCityCode, enteredCityName, locationSource, publish, includeRawRecord ->
             val normalizedPrefix = enteredPrefix.trim()

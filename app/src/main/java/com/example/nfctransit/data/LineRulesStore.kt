@@ -42,6 +42,16 @@ object LineRulesStore {
         load(context)
     }
 
+    /**
+     * 已发布规则的 version；下载失败或本 App 不支持其 format（无法更新到它）时返回 null。
+     */
+    fun remoteVersion(url: String = DOWNLOAD_URL): String? = try {
+        TuLineRules.parse(download(url)).version.takeIf { it.isNotEmpty() }
+    } catch (e: Exception) {
+        Log.w(TAG, "remote line_rules version unavailable", e)
+        null
+    }
+
     private fun parseOrNull(text: String, source: String): TuLineRules.RuleSet? = try {
         TuLineRules.parse(text)
     } catch (e: Exception) {

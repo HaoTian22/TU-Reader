@@ -12,15 +12,17 @@ import java.net.URL
  * - [publish]：公开上传总开关，false 时所有交易都只能本地保存 / 去 GitHub 反馈
  * - [imported]：是否允许导入卡片的记录公开上传
  * - [terminalMismatch]：是否允许终端号与钱包类型不符的记录公开上传
+ * - [outdated]：是否允许本机站名库 / 线路规则落后于已发布版本时公开上传（见 [PublishedVersions]）
  * 拉取失败时沿用上次缓存，从未拉到时用 [DEFAULT]（与服务端默认一致）。
  */
 data class FeedbackPolicy(
     val publish: Boolean,
     val imported: Boolean,
-    val terminalMismatch: Boolean
+    val terminalMismatch: Boolean,
+    val outdated: Boolean = false
 ) {
     companion object {
-        val DEFAULT = FeedbackPolicy(publish = true, imported = false, terminalMismatch = false)
+        val DEFAULT = FeedbackPolicy(publish = true, imported = false, terminalMismatch = false, outdated = false)
 
         private const val PREFS = "feedback_policy"
         private const val KEY_JSON = "json"
@@ -69,7 +71,8 @@ data class FeedbackPolicy(
             return FeedbackPolicy(
                 publish = flag("publish", DEFAULT.publish),
                 imported = flag("imported", DEFAULT.imported),
-                terminalMismatch = flag("terminalMismatch", DEFAULT.terminalMismatch)
+                terminalMismatch = flag("terminalMismatch", DEFAULT.terminalMismatch),
+                outdated = flag("outdated", DEFAULT.outdated)
             )
         }
 

@@ -114,6 +114,7 @@ object AppPreferences {
 
     suspend fun setDbVersion(context: Context, version: String) {
         context.dataStore.edit { it[KEY_DB_VERSION] = version }
+        com.example.nfctransit.data.PublishedVersions.noteLocalDb(version)
     }
 
     /** 返回 true 表示本次启动检测到新安装/升级，需要清理一次 UI 缓存。 */

@@ -8,7 +8,7 @@
 App 打开交易详情页时拉取 `GET /v1/feedback-policy`，据此决定反馈表单能否公开上传：
 
 ```json
-{ "publish": true, "imported": false, "terminalMismatch": false }
+{ "publish": true, "imported": false, "terminalMismatch": false, "outdated": false }
 ```
 
 | 键 | 含义 | 默认 |
@@ -16,6 +16,7 @@ App 打开交易详情页时拉取 `GET /v1/feedback-policy`，据此决定反�
 | `publish` | 公开上传总开关；`false` 时 App 全部改为引导 GitHub，服务端 `POST /v1/overrides` 同时返回 403 | `true` |
 | `imported` | 是否允许导入卡片的记录公开上传 | `false` |
 | `terminalMismatch` | 是否允许终端号与钱包类型不符的记录公开上传 | `false` |
+| `outdated` | 是否允许本机站名映射表 / 公交线路规则落后于已发布版本时公开上传（`false` 时上传开关处提示并可一键更新） | `false` |
 
 策略存于数据目录 `feedback_policy.json`，只写需要覆盖的键；每次请求重新读取，修改即时生效，
 无需重启。文件缺失、损坏或值非布尔时按默认值处理。App 拉取失败时沿用上次缓存，从未拉到时用同一组默认值。
@@ -89,6 +90,18 @@ App 打开交易详情页时拉取 `GET /v1/feedback-policy`，据此决定反�
 例如 `2026-10-25T10:42:00+08:00`，界面不显示。服务端允许省略或传 `null`（旧客户端）；
 有值时必须可解析且带时区偏移，否则返回 HTTP 422。原偏移保留写入记录的 `submittedAt`
 字段，同键再次提交随整条记录替换。
+
+## 版本信息
+
+客户端每次提交自动附带三个版本字段，界面不显示，用于判断反馈时设备上的数据是否已过期
+（策略 `outdated` 为 `false` 时，App 已在表单处禁止落后数据上传）：
+
+- `appVersion`：App `versionName(versionCode)`，如 `0.2.5(6)`
+- `dbVersion`：设备当前 transit.db 版本（`yyyyMMddHHmmss`，UTC+8）；`0` 表示未知（旧版本升级而来）
+- `rulesVersion`：设备当前生效的 line_rules.json 版本（内置与在线取较新者）
+
+均可省略或传 `null`（旧客户端）；有值时须为 1–64 个 `[0-9A-Za-z._+()-]` 字符，否则 HTTP 422。
+写入记录同名字段并出现在日志中，同键再次提交随整条记录替换。
 
 ## 测试
 

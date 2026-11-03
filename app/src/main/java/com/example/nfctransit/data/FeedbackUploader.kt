@@ -12,6 +12,7 @@ import java.util.Date
 import java.util.Locale
 import com.example.nfctransit.R
 import com.example.nfctransit.util.L10n
+import com.example.nfctransit.data.prefs.AppPreferences
 
 /** 上传结果：提示文案 + 是否成功（决定提示条样式） */
 data class UploadResult(val message: String, val ok: Boolean)
@@ -31,10 +32,17 @@ object FeedbackUploader {
         val locationSource: FeedbackLocationSource,
         val rawRecord: String? = null,
         /** 提交时间：手机本地时间 + 时区偏移（ISO-8601，如 2026-10-25T10:42:00+08:00） */
-        val submittedAt: String
+        val submittedAt: String,
+        /** App versionName(versionCode) */
+        val appVersion: String,
+        /** 当前 transit.db 版本（yyyyMMddHHmmss，UTC+8；"0" 为未知） */
+        val dbVersion: String,
+        /** 当前生效的 line_rules.json 版本；无规则时不发送 */
+        val rulesVersion: String?
     )
 
-    fun upload(
+    /** 版本信息自动采集；本地数据是否落后由反馈表单（[PublishedVersions]）在上传开关处拦截。 */
+    suspend fun upload(
         context: Context,
         row: TransitOverrideRow,
         type: String,
@@ -46,6 +54,9 @@ object FeedbackUploader {
     ): UploadResult {
         val endpoint = BuildConfig.FEEDBACK_UPLOAD_URL.trim()
         if (endpoint.isEmpty()) return UploadResult(L10n.str(R.string.upload_not_configured), false)
+        val appVersion = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
+        val dbVersion = AppPreferences.getDbVersion(context)
+        val rulesVersion = TuLineRules.installedVersion().takeIf { it.isNotEmpty() }
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -67,7 +78,10 @@ object FeedbackUploader {
                     locationCityName,
                     locationSource,
                     rawRecord,
-                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
+                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date()),
+                    appVersion,
+                    dbVersion,
+                    rulesVersion
                 )
             )
             val startedAt = SystemClock.elapsedRealtime()

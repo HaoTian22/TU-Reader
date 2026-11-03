@@ -28,7 +28,7 @@ JSON_FILE = DATA_DIR / "overrides.json"
 POLICY_FILE = DATA_DIR / "feedback_policy.json"
 # 反馈策略（App 打开交易详情时拉取）：publish 为公开上传总开关，其余键放行对应的受限类别。
 # 文件缺失/损坏时用默认值（与 App 内置默认一致）；每次请求重新读取，改文件即时生效。
-DEFAULT_POLICY = {"publish": True, "imported": False, "terminalMismatch": False}
+DEFAULT_POLICY = {"publish": True, "imported": False, "terminalMismatch": False, "outdated": False}
 WRITE_LOCK = Lock()
 
 # Bound optional raw-record text and the JSON body (including JSON escapes)
@@ -45,6 +45,9 @@ STANDARD_PATTERN = re.compile(
 )
 STANDARD_LIMIT = 256
 CODE_PATTERN = re.compile(r"[0-9A-Za-z]+")
+# 客户端自动附带的版本信息：App versionName(versionCode)、transit.db 版本、line_rules.json 版本。
+VERSION_FIELDS = ("appVersion", "dbVersion", "rulesVersion")
+VERSION_PATTERN = re.compile(r"[0-9A-Za-z._+()-]{1,64}")
 
 LOGGER = logging.getLogger("tu_reader.server")
 LOGGER.setLevel(logging.INFO)
@@ -169,6 +172,14 @@ def _validate_submitted_at(value: str | None) -> str | None:
     return parsed.isoformat()
 
 
+def _validate_version(value: str | None, field: str) -> str | None:
+    if value is None:
+        return None
+    if not VERSION_PATTERN.fullmatch(value):
+        raise PayloadError(f"{field}: 1-64 characters of [0-9A-Za-z._+()-]")
+    return value
+
+
 def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | None], str]:
     """Validate one submission, returning (csv row, metadata, device_code)."""
     if not isinstance(payload, dict):
@@ -185,6 +196,7 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
         "locationSource",
         "rawRecord",
         "submittedAt",
+        *VERSION_FIELDS,
     }
     if unknown:
         raise PayloadError(f"unexpected fields: {', '.join(sorted(unknown))}")
@@ -216,6 +228,10 @@ def parse_override(payload: object) -> tuple[dict[str, str], dict[str, str | Non
     submitted_at = _validate_submitted_at(_optional_str(payload, "submittedAt"))
     if submitted_at is not None:
         metadata["submittedAt"] = submitted_at
+    for field in VERSION_FIELDS:
+        version = _validate_version(_optional_str(payload, field), field)
+        if version is not None:
+            metadata[field] = version
     return row, metadata, prefix + code
 
 
@@ -369,7 +385,7 @@ class FeedbackHandler(BaseHTTPRequestHandler):
             "line": row["Line"],
             "station": row["Station"],
         }
-        for name in ("locationCityCode", "locationCityName", "locationSource", "submittedAt"):
+        for name in ("locationCityCode", "locationCityName", "locationSource", "submittedAt", *VERSION_FIELDS):
             if metadata.get(name) is not None:
                 content[name] = metadata[name]
         return content

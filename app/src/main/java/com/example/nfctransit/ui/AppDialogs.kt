@@ -1,5 +1,6 @@
 package com.example.nfctransit.ui
 
+import com.example.nfctransit.data.PublishedVersions
 import android.app.Dialog
 import android.content.Context
 import android.content.res.ColorStateList
@@ -286,6 +287,8 @@ object AppDialogs {
         hasRawRecord: Boolean = false,
         /** 非空时禁止公开上传（导入数据、终端号与钱包不符等可能解析有误），说明文案引导到 GitHub 反馈 */
         @androidx.annotation.StringRes publishBlockedReason: Int? = null,
+        /** 本机站名库 / 线路规则落后时，点上传开关行的提示触发更新（关闭表单后调用） */
+        onUpdateData: (() -> Unit)? = null,
         accentColor: Int = Palette.ACCENT,
         maxScrollHeightDp: Int? = null,
         onConfirm: (
@@ -344,7 +347,11 @@ object AppDialogs {
         val typeCustomInput = view.findViewById<EditText>(R.id.feedbackTypeCustom)
         val publishInput = view.findViewById<android.widget.CompoundButton>(R.id.feedbackPublish)
         view.findViewById<TextView>(R.id.feedbackTitle).text = title
-        val publishBlocked = showPublish && publishBlockedReason != null
+        // 本机数据落后于已发布版本：禁止上传（策略 outdated 可放行），提示放在开关说明处，点击立即更新
+        val outdated = if (showPublish && publishBlockedReason == null &&
+            !com.example.nfctransit.data.FeedbackPolicy.current(context).outdated
+        ) PublishedVersions.outdated() else null
+        val publishBlocked = showPublish && (publishBlockedReason != null || outdated != null)
         val canPublish = showPublish && !publishBlocked
         publishInput.isEnabled = canPublish
         if (!canPublish) publishInput.isChecked = false
@@ -356,10 +363,28 @@ object AppDialogs {
             if (publishBlocked) {
                 publishInput.alpha = 0.5f
                 view.findViewById<TextView>(R.id.feedbackPublishDesc).apply {
-                    setText(publishBlockedReason!!)
+                    text = if (outdated != null) {
+                        context.getString(
+                            R.string.feedback_publish_outdated,
+                            context.getString(
+                                when (outdated) {
+                                    PublishedVersions.Outdated.DB -> R.string.feedback_outdated_db
+                                    PublishedVersions.Outdated.RULES -> R.string.feedback_outdated_rules
+                                    PublishedVersions.Outdated.BOTH -> R.string.feedback_outdated_both
+                                }
+                            )
+                        )
+                    } else {
+                        context.getString(publishBlockedReason!!)
+                    }
                     setTextColor(accentColor)
                 }
                 setOnClickListener {
+                    if (outdated != null) {
+                        dialog.dismiss()
+                        onUpdateData?.invoke()
+                        return@setOnClickListener
+                    }
                     runCatching {
                         context.startActivity(
                             android.content.Intent(
@@ -587,6 +612,7 @@ object AppDialogs {
         context: Context,
         row: TransitOverrideRow,
         accentColor: Int = Palette.ACCENT,
+        onUpdateData: (() -> Unit)? = null,
         onSave: (
             prefix: String,
             code: String,
@@ -613,6 +639,7 @@ object AppDialogs {
             actualCityCode = cityCode,
             title = context.getString(R.string.override_edit_title),
             showPublish = true,
+            onUpdateData = onUpdateData,
             accentColor = accentColor,
             maxScrollHeightDp = 480
         ) { prefix, code, type, line, station, cityCode, cityName, locationSource, publish, _ ->
