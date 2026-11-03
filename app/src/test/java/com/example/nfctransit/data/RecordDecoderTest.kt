@@ -671,6 +671,35 @@ class RecordDecoderTest {
         }
     }
 
+    @Test
+    fun matchedStationWithoutLineIsNotOverriddenByCityRule() = withDeviceMappings(
+        listOf(
+            StationResolution(
+                cityId = 118, cityCode = "3930", cityName = "厦门", cityNameEn = "Xiamen",
+                lineId = null, lineName = null, lineNameEn = null, lineColor = null,
+                stationId = 1, stationName = "开禾路口", stationNameEn = null,
+                standard = "TU", transitType = "BRT", deviceCode = "39302102"
+            )
+        ),
+        prefix = "3930",
+        family = TransitData.TuTransitFamily.BUS
+    ) {
+        // 厦门实卡 TU 1E：库中 39302102 = BRT 开禾路口（无线路名），不能被 3930 线路号公式改写成「2102」
+        val hex = "0300004131014245020221020203000000000000000000006F20260723181328393011343930FFFFFFFF000000000000"
+        TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+        try {
+            val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hex)
+            val tx = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+            assertEquals("开禾路口", tx.stationName)
+            assertEquals("", tx.lineName)
+            assertEquals("BRT", tx.transitType)
+            assertEquals("39302102", tx.deviceCode)
+            assertNull(tx.spRule)
+        } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
     private fun tuJourneyRecord(type: Int, subtype: Int, lineStation: String = "00180000"): RecordDecoder.ZoneRecord {
         val data = ByteArray(48)
         data[0] = type.toByte()
@@ -683,12 +712,17 @@ class RecordDecoderTest {
         return RecordDecoder.ZoneRecord(0x1E, 1, "TU", ApduUtil.bytesToHex(data))
     }
 
-    private fun withDeviceMappings(mappings: List<StationResolution>, prefix: String = "9900", block: () -> Unit) {
+    private fun withDeviceMappings(
+        mappings: List<StationResolution>,
+        prefix: String = "9900",
+        family: TransitData.TuTransitFamily? = null,
+        block: () -> Unit
+    ) {
         val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
         val candidates = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")
         val index = candidates.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
-        val key = prefix to null
+        val key = prefix to family
         val previous = index[key]
         val rawBuckets = TransitData::class.java.getDeclaredField("resolutionsByCity").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")

@@ -415,8 +415,11 @@ object RecordDecoder {
             val resolvedType = mappedRef?.type ?: fallbackTransitType
             // 方向判断使用数据库原始类型或 subtype 兜底类型，不受显示语言影响。
             val direction = tuDirectionForType(data[0].toInt() and 0xFF, resolvedType)
-            // 映射未给出线路名的公交记录，按 line_rules.json 城市规则兜底（仅显示，见 TuLineRules）。
+            // 映射未命中具体线路/站点的公交记录，按 line_rules.json 城市规则兜底（仅显示，见 TuLineRules）。
+            // 已命中站点（即使该行无线路名，如厦门 BRT 39302102 开禾路口）以库为准，不再用规则覆盖线路；
+            // 与 TransactionMapper.resolveDisplayNames 的「无库 ID 才重算」口径一致。
             val ruleMatch = if (mappedRef?.line.isNullOrEmpty() &&
+                mappedRef?.lineId == null && mappedRef?.stationId == null &&
                 TransitData.matchesTuTransitFamily(resolvedType, TransitData.TuTransitFamily.BUS)
             ) TransitData.tuRuleMatch(data) else null
             val ruleLine = ruleMatch?.line
