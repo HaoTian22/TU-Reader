@@ -26,6 +26,7 @@ object TransitData {
     // 特殊匹配规则标记（详情页 Match 行展示）：命中经特殊规则解析时附加到 device_code 之后
     private const val SP_RULE_GUANGZHOU_FOSHAN = "(SP Rule: Guangzhou/Foshan)"
     private const val SP_RULE_SHENZHEN = "(SP Rule: Shenzhen)"
+    private const val SP_RULE_SHAOXING_INTERCITY = "(SP Rule: Shaoxing Intercity)"
     private const val TU_TERMINAL_SERIES = "4131"
 
     /** 一条站点解析结果（名称已按界面语言回退；ID 用于跨页面传递与切换语言时重新解析） */
@@ -302,7 +303,8 @@ object TransitData {
         stationCode: String,
         terminal: String,
         rawCode: String? = null,
-        expectedFamily: TuTransitFamily? = null
+        expectedFamily: TuTransitFamily? = null,
+        journeyRecord: ByteArray? = null
     ): StationEntry? {
         ensureLoaded()
         // 深圳 TU：标准城市码 5840，CU/TU 共用的终端号映射使用原始编号前缀 5180。
@@ -317,9 +319,21 @@ object TransitData {
             // 5810 记录一律经广州/佛山双城联查解析（命中 5880 佛山数据即跨城乘车）→ 打联查规则标记
             return best.resolution.toEntry(SP_RULE_GUANGZHOU_FOSHAN)
         }
-        val m = matchInCity(baseCity, lineCode, stationCode, terminal, rawCode, expectedFamily) ?: return null
+        val m = matchInCity(baseCity, lineCode, stationCode, terminal, rawCode, expectedFamily)
+        if (cityCode == "3320" && rawCode != null && (m?.matchedLength ?: 0) < TU_LINE_STATION_LENGTH &&
+            journeyRecord != null && journeyRecord.size >= 42 && journeyRecord[9] == 0x0A.toByte() &&
+            ApduUtil.bytesToHex(journeyRecord.copyOfRange(34, 42)) == "03473320FFFFFFFF"
+        ) {
+            // 绍兴城际异地卡 1E 写宁波的城市和收单码，站码仍沿用 3370 的城际短码。
+            // 只在站码段开头匹配，避免宁波短码误命中，也避免把普通绍兴地铁纳入回退。
+            val stationCodePrefix = rawCode.take(TU_LINE_STATION_LENGTH)
+            candidatesByCityAndFamily["3370" to TuTransitFamily.RAIL].orEmpty()
+                .filter { it.transitType == "城际" && stationCodePrefix.startsWith(it.deviceCode.drop(4)) }
+                .maxByOrNull { it.deviceCode.length }
+                ?.let { return it.toEntry(SP_RULE_SHAOXING_INTERCITY) }
+        }
         // 5840 重定向命中 → 深圳特殊规则标记（终端号派生命中已在 matchInCity 内打标）
-        return m.resolution.toEntry(if (shenzhenRedirect) SP_RULE_SHENZHEN else m.spRule)
+        return m?.resolution?.toEntry(if (shenzhenRedirect) SP_RULE_SHENZHEN else m.spRule)
     }
 
     internal data class CityMatch(

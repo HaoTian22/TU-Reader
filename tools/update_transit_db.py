@@ -414,7 +414,7 @@ def main():
     print(f"=== CSV 查重 ===  共 {total} 条设备记录（含线路/类别 fallback）")
     if issues:
         print(f"device_code + transit_type 冲突（{len(issues)} 条）：")
-        for i in issues[:50]:
+        for i in issues:
             print(i)
     else:
         print("device_code + transit_type 无冲突")
@@ -431,10 +431,23 @@ def main():
     print(f"新 reader_device：{len(add_device)}  需更新映射：{len(upd_device)}  英文名同步：{len(upd_station_en)}  跳过空站名行：{skipped}")
     if args.only:
         print(f"（仅处理：{args.only}）")
-    for dev, city, lc, lname, stn, en, type_, std in add_device[:25]:
-        print(f"  + {dev:16} {type_:6} {lname or '':10} {stn or '':12} lc={lc or '-':4}")
-    if len(add_device) > 25:
-        print(f"  ... 共 {len(add_device)} 条新设备")
+    def city_label(city):
+        return loader.city_name_by_id.get(loader.city_id(city)) or city or "-"
+
+    for dev, city, lc, lname, stn, en, type_, std in add_device:
+        print(f"  + {dev:16} {type_:6} {city_label(city):6} {lname or '':10} {stn or '':12} lc={lc or '-':4}")
+
+    if upd_device:
+        print()
+        print(f"=== 映射更新（旧 -> 新，共 {len(upd_device)} 条）===")
+        for dev, city, lc, lname, stn, type_, std in upd_device:
+            old = loader.device_by_key[mapping_key(dev, type_)]
+            ol = loader.db.execute("SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
+            os_ = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
+            old_city = loader.city_name_by_id.get(old["city_id"]) or "-"
+            old_desc = f"{old['standard']}/{old_city}/{(ol[0] if ol else None) or '-'}/{(os_[0] if os_ else None) or '-'}"
+            new_desc = f"{std}/{city_label(city)}/{lname or '-'}/{stn or '-'}"
+            print(f"  ~ {dev:16} {type_:6} {old_desc} -> {new_desc}")
 
     if conflict_msgs:
         print()
@@ -445,36 +458,28 @@ def main():
     if line_code_syncs:
         print()
         print(f"=== line_code 同步（历史 name-as-code → CSV 头行码，共 {len(line_code_syncs)} 条）===")
-        for city, lname, lc in line_code_syncs[:15]:
+        for city, lname, lc in line_code_syncs:
             print(f"  ~ {city}/{lname}  {lname!r} -> {lc!r}")
-        if len(line_code_syncs) > 15:
-            print(f"  ... 共 {len(line_code_syncs)} 条")
 
     print()
     print(f"=== 英文名同步（CSV 英文名与库中不同，共 {len(upd_station_en)} 条）===")
     if upd_station_en:
-        shown = 0
         for sid, en in dict(upd_station_en).items():
-            if shown >= 25:
-                print(f"  ... 共 {len(dict(upd_station_en))} 个站点")
-                break
-            row = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (sid,)).fetchone()
-            print(f"  ~ {row[0] if row else sid} -> {en}")
-            shown += 1
+            row = loader.db.execute("SELECT station_name, station_name_en FROM station WHERE station_id=?", (sid,)).fetchone()
+            name, old_en = (row[0], row[1]) if row else (sid, None)
+            print(f"  ~ {name}: {old_en or '-'} -> {en}")
     else:
         print("  无英文名变化")
 
     print()
     print(f"=== 待删除检测（CSV 中已不存在，共 {len(stale_device)} 条）===")
     if stale_device:
-        for key in stale_device[:25]:
+        for key in stale_device:
             dev, type_ = key
             old = loader.device_by_key[key]
             ln = loader.db.execute("SELECT line_name FROM line WHERE line_id=?", (old["line_id"],)).fetchone()
             st = loader.db.execute("SELECT station_name FROM station WHERE station_id=?", (old["station_id"],)).fetchone()
             print(f"  - {dev:16} type={type_} line={ln[0] if ln else '-':16} stn={st[0] if st else '-':14} updated={old['updated_at']}")
-        if len(stale_device) > 25:
-            print(f"  ... 共 {len(stale_device)} 条，请人工核对后再删除")
         print("（人工核对后运行 --delete-stale 才真正删除）")
     else:
         print("无过期设备")
@@ -482,10 +487,8 @@ def main():
     print()
     print(f"=== 孤儿站检测（最终无 reader_device，共 {len(orphan_stations)} 条）===")
     if orphan_stations:
-        for s in orphan_stations[:25]:
+        for s in orphan_stations:
             print(f"  - {s['city_name']:6s} id={s['station_id']} {s['station_name']} lon={s['longitude']}")
-        if len(orphan_stations) > 25:
-            print(f"  ... 共 {len(orphan_stations)} 条，请人工核对后再删除")
         print("（--delete-stale 时一并删除）")
     else:
         print("无孤儿站")
@@ -493,10 +496,8 @@ def main():
     print()
     print(f"=== 孤儿线路检测（最终无 reader_device 引用，共 {len(orphan_lines)} 条）===")
     if orphan_lines:
-        for l in orphan_lines[:25]:
+        for l in orphan_lines:
             print(f"  - {l['city_name']:6s} id={l['line_id']} {l['line_name'] or ''} code={l['line_code']}")
-        if len(orphan_lines) > 25:
-            print(f"  ... 共 {len(orphan_lines)} 条，请人工核对后再删除")
         print("（--delete-stale 时一并删除）")
     else:
         print("无孤儿线路")

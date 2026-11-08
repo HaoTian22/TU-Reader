@@ -2,6 +2,7 @@ package com.example.nfctransit
 
 import android.nfc.tech.IsoDep
 import com.example.nfctransit.data.RawRecord
+import com.example.nfctransit.data.RecordDecoder
 import java.math.BigInteger
 import java.util.Calendar
 
@@ -300,7 +301,7 @@ class TransitCardReader internal constructor(
                 collector.add(rawRecord(profile.stationSfi, recordNo, ApduUtil.bytesToHex(data)))
                 if (data.all { it.toInt() == 0 }) continue  // 空槽
                 val balance = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
-                val ts = if (data.size >= 32) ApduUtil.bcdToString(data.copyOfRange(25, 32)) else ""
+                val ts = RecordDecoder.tuJourneyTimestamp(data)
                 if (ts > latestTs) {
                     latestTs = ts
                     latestBalance = balance

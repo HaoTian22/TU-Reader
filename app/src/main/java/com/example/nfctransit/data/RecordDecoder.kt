@@ -8,7 +8,12 @@ import com.example.nfctransit.model.MonthAccumSpec
 import com.example.nfctransit.model.RawHexBlock
 import com.example.nfctransit.model.TransitDirection
 import java.security.MessageDigest
+import java.text.ParseException
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * 交易解码器（纯函数）：从原始 hex 记录解码交易。
@@ -373,6 +378,33 @@ object RecordDecoder {
         else -> null
     }
 
+    /** 合肥地铁部分闸机写入的 1E：城市码 3610 且时间戳世纪字节为 0x19。 */
+    private fun isHefeiMetroClockRecord(data: ByteArray): Boolean =
+        data.size >= 34 && data[25] == 0x19.toByte() && data[32] == 0x36.toByte() && data[33] == 0x10.toByte()
+
+    /**
+     * TU 1E 时间戳（yyyyMMddHHmmss）。合肥地铁异常记录把「2000-01-01 00:00 北京时间起的秒数」
+     * 当作 Unix 时间格式化写卡，表现为 19xx 年且时钟偏 8 小时，这里加回固定偏移，与 0x18 时间一致。
+     * 非法 BCD 保留原值。
+     */
+    internal fun tuJourneyTimestamp(data: ByteArray): String {
+        if (data.size < 32) return ""
+        val raw = ApduUtil.bcdToString(data.copyOfRange(25, 32))
+        if (!isHefeiMetroClockRecord(data) || raw.length != 14 || !raw.all { it.isDigit() }) return raw
+        // 只做墙上时钟平移，用 UTC 计算以避开设备时区与夏令时。
+        val format = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+            isLenient = false
+        }
+        return try {
+            format.format(Date(format.parse(raw)!!.time + HEFEI_METRO_CLOCK_OFFSET_MS))
+        } catch (_: ParseException) {
+            raw
+        }
+    }
+
+    private const val HEFEI_METRO_CLOCK_OFFSET_MS = 946_656_000_000L
+
     /**
      * 从 SFI 0x1E 循环记录建立终端→站点映射表及旅程交易（进站/出站事件）。
      * 空槽（整条全 0）跳过。返回按物理 recNo 顺序处理后的结果。
@@ -400,10 +432,12 @@ object RecordDecoder {
             // TU 1E：byte 0 是记录类型，byte 9 是交通 subtype。
             // subtype 01 为轨道，02/13 为公交，先约束设备映射候选；未知 subtype 不限制匹配。
             val subtype = data[9].toInt() and 0xFF
-            val expectedFamily = TransitData.tuTransitFamilyForSubtype(subtype)
+            // 合肥地铁闸机时钟异常的记录 subtype 为 00，以时钟特征判定为轨道。
+            val expectedFamily = if (isHefeiMetroClockRecord(data)) TransitData.TuTransitFamily.RAIL
+                else TransitData.tuTransitFamilyForSubtype(subtype)
             val entry = TransitData.resolveTuStation(
                 cityCode, lineCode, stationCode, terminal, rawCode,
-                expectedFamily = expectedFamily
+                expectedFamily = expectedFamily, journeyRecord = data
             )
             // 未命中映射时，subtype=轨道 仍需 line 与 station 各自非全 0 才兜底为地铁
             // （01000000 / 00001011 → 公交）。用原始 hex 片段，避免 bcd 展开 hex 字母造成错位。
@@ -439,7 +473,7 @@ object RecordDecoder {
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(17, 21)) else 0L
-            val timestamp = if (data.size >= 32) ApduUtil.bcdToString(data.copyOfRange(25, 32)) else ""
+            val timestamp = tuJourneyTimestamp(data)
 
             stationMap[terminal] = ref
             // 卡所在城市：取时间戳最新记录的城市码（TU 0x18 记录自身城市码无效）

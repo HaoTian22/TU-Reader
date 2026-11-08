@@ -638,6 +638,81 @@ class RecordDecoderTest {
         standard = "YCT", transitType = type, deviceCode = "99000018"
     )
 
+    private val hefeiJourney = "04000000000111070200000101110001000000010E0000060E19961024192554361012273610FFFFFFFF000000000000"
+    private val hefeiFare = "01C20000000000010E0941310184772820261024112554"
+
+    @Test
+    fun hefeiMetroClockRecordMergesWithFareAtCorrectedTime() {
+        val hefeiSouth = StationResolution(
+            cityId = 1, cityCode = "3610", cityName = "合肥", cityNameEn = "Hefei",
+            lineId = 1, lineName = "1号线", lineNameEn = null, lineColor = null,
+            stationId = 1, stationName = "合肥南站", stationNameEn = null,
+            standard = "TU", transitType = "地铁", deviceCode = "361000010111"
+        )
+        withDeviceMappings(listOf(hefeiSouth), prefix = "3610", family = TransitData.TuTransitFamily.RAIL) {
+            val records = listOf(
+                RecordDecoder.ZoneRecord(0x18, 1, "TU", hefeiFare),
+                RecordDecoder.ZoneRecord(0x1E, 1, "TU", hefeiJourney)
+            )
+            val tx = RecordDecoder.decodeCard("TU", records, null, 2026).display.single()
+            assertEquals("20261024", tx.date)
+            assertEquals("112554", tx.time)
+            assertEquals(270L, tx.amountFen)
+            assertEquals(1550L, tx.balanceAfterFen)
+            assertEquals("合肥南站", tx.stationName)
+            assertEquals("地铁", tx.transitType)
+            assertEquals(TransitDirection.EXIT, tx.direction)
+        }
+    }
+
+    @Test
+    fun hefeiMetroClockRecordFallsBackToRailWithoutMapping() = withDeviceMappings(emptyList(), prefix = "3610") {
+        val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hefeiJourney)
+        val tx = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+        assertEquals("20261024", tx.date)
+        assertEquals("112554", tx.time)
+        assertEquals("地铁", tx.transitType)
+    }
+
+    @Test
+    fun shaoxingIntercityWithNingboAcquirerUsesExistingShaoxingMappings() {
+        val shaoxing = StationResolution(
+            cityId = 95, cityCode = "3370", cityName = "绍兴", cityNameEn = "Shaoxing",
+            lineId = 292, lineName = "绍兴城际", lineNameEn = null, lineColor = null,
+            stationId = 6458, stationName = "绍兴", stationNameEn = null,
+            standard = "TU", transitType = "城际", deviceCode = "33700122"
+        )
+        val hangzhouSouth = shaoxing.copy(deviceCode = "33700111", stationId = 6457, stationName = "杭州南")
+        val wuxiang = shaoxing.copy(
+            cityId = 91, cityCode = "3320", cityName = "宁波", cityNameEn = "Ningbo",
+            lineId = 280, lineName = "1号线", stationId = 6325, stationName = "五乡",
+            transitType = "地铁", deviceCode = "33200122"
+        )
+        val dongmenkou = wuxiang.copy(deviceCode = "33200111", stationId = 6314, stationName = "东门口")
+        val samples = listOf(
+            "0441310135748500000A012215010000000000032000000BE020260621105644332003473320FFFFFFFF000000000000" to shaoxing,
+            "0341310612930400000A01111A040000000000000000000F0020260621100002332003473320FFFFFFFF000000000000" to hangzhouSouth
+        )
+        withDeviceMappings(listOf(wuxiang, dongmenkou), prefix = "3320") {
+            withDeviceMappings(listOf(shaoxing, hangzhouSouth), prefix = "3370", family = TransitData.TuTransitFamily.RAIL) {
+                for ((hex, expected) in samples) {
+                    val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hex)
+                    val fresh = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+                    val saved = RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EP_AID, hex, fresh.date)
+                    for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
+                        assertEquals(expected.stationName, tx.stationName)
+                        assertEquals(expected.stationId, tx.stationId)
+                        assertEquals(expected.deviceCode, tx.deviceCode)
+                        assertEquals("绍兴城际", tx.lineName)
+                        assertEquals("城际", tx.transitType)
+                        assertEquals("3370", tx.cityCode)
+                        assertEquals("3320", tx.rawCityCode)
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun dongguanBusLineComesFromCityRuleWhenMappingIsMissing() = withDeviceMappings(emptyList(), prefix = "6020") {
         // 东莞实卡 TU 1E 记录（byte 10–15 = 0/1 + 线路号 + 0101 + …），新解码与存档重解码一致
