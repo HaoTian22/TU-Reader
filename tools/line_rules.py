@@ -32,8 +32,9 @@ PUBLIC_URL = "https://assets2.haotian22.top/line_rules.json"
 FORMAT = 1
 
 RULE_KEYS = {"city", "type", "note", "when", "value", "samples"}
+CITY_OVERRIDE_KEYS = {"city", "to", "note", "when"}
 COND_KEYS = {"field", "slice", "eq", "in", "regex", "range", "radix", "not"}
-FIELDS = {"line", "city2"}
+FIELDS = {"line", "city2", "acquirer"}
 VALUE_KEYS = {"slice", "radix", "ops", "min", "max"}
 OPS = {"mod", "div", "add", "sub", "mul"}
 
@@ -144,7 +145,7 @@ def parse_value(o):
 
 
 def evaluate(rules, inp):
-    """inp = {"city", "line", "city2"}；同城规则按顺序取第一条命中。"""
+    """线路样本使用查表城市；同城规则按顺序取第一条命中。"""
     for r in rules:
         if inp["city"] not in r["cities"] or not all(c(inp) for c in r["conds"]):
             continue
@@ -154,33 +155,65 @@ def evaluate(rules, inp):
     return None
 
 
+def parse_cities(o):
+    cities = o["city"] if isinstance(o["city"], list) else [o["city"]]
+    if not cities or not all(isinstance(c, str) and c.strip() for c in cities):
+        raise ValueError("bad city")
+    return cities
+
+
+def validate_city_overrides(root):
+    overrides = root.get("cityOverrides", [])
+    if not isinstance(overrides, list):
+        return ["cityOverrides must be an array"]
+    problems = []
+    for i, o in enumerate(overrides):
+        try:
+            check_keys(o, CITY_OVERRIDE_KEYS, "city override")
+            dest = o["to"]
+            if not isinstance(dest, str) or not re.fullmatch(r"[0-9]{4}", dest):
+                raise ValueError("bad destination city")
+            if not all(re.fullmatch(r"[0-9]{4}", c) and c != dest for c in parse_cities(o)):
+                raise ValueError("bad source city")
+            conditions = o.get("when")
+            if not isinstance(conditions, list) or not conditions:
+                raise ValueError("city override needs conditions")
+            for condition in conditions:
+                parse_cond(condition)
+        except Exception as e:
+            problems.append(f"cityOverride #{i}: {e}")
+    return problems
+
+
 def load(path):
     with open(path, encoding="utf-8") as f:
         root = json.load(f)
     if root.get("format", 0) > FORMAT:
         raise ValueError(f"unsupported format {root.get('format')}")
-    rules, problems = [], []
+    rules, problems = [], validate_city_overrides(root)
     for i, o in enumerate(root.get("rules", [])):
         label = f"#{i} {o.get('note', '')}".strip()
         try:
             check_keys(o, RULE_KEYS, "rule")
             if o.get("type", "公交") != "公交":
                 raise ValueError(f"unsupported type {o['type']}")
-            cities = o["city"] if isinstance(o["city"], list) else [o["city"]]
-            if not cities or not all(isinstance(c, str) and c for c in cities):
-                raise ValueError("bad city")
+            cities = parse_cities(o)
             samples = []
             for s in o.get("samples", []):
-                check_keys(s, {"record", "line", "city", "city2", "out"}, "sample")
+                check_keys(s, {"record", "line", "city", "city2", "acquirer", "out"}, "sample")
                 if "record" in s:
                     data = bytes.fromhex(s["record"])
+                    if len(data) < 38:
+                        raise ValueError("sample record too short")
                     if bcd(data[32:34]) not in cities:
                         raise ValueError(f"sample record city {bcd(data[32:34])} not in {cities}")
-                    inp = {"city": bcd(data[32:34]), "line": data[10:16].hex().upper(), "city2": bcd(data[36:38])}
+                    inp = {"city": bcd(data[32:34]), "line": data[10:16].hex().upper(),
+                           "city2": bcd(data[36:38]), "acquirer": data[34:42].hex().upper()}
                 else:
                     if s.get("city", cities[0]) not in cities:
                         raise ValueError(f"sample city {s['city']} not in {cities}")
-                    inp = {"city": s.get("city", cities[0]), "line": s["line"], "city2": s.get("city2")}
+                    inp = {"city": s.get("city", cities[0]), "line": s["line"], "city2": s.get("city2"),
+                           "acquirer": s.get("acquirer")}
                 samples.append((inp, s["out"]))
             rules.append({"cities": set(cities), "label": label, "samples": samples, "value": parse_value(o["value"]),
                           "conds": [parse_cond(c) for c in o.get("when", [])]})

@@ -435,8 +435,10 @@ object RecordDecoder {
             // 合肥地铁闸机时钟异常的记录 subtype 为 00，以时钟特征判定为轨道。
             val expectedFamily = if (isHefeiMetroClockRecord(data)) TransitData.TuTransitFamily.RAIL
                 else TransitData.tuTransitFamilyForSubtype(subtype)
+            val correctedCity = TuLineRules.correctedBusCity(data)
+            val lookupCity = correctedCity ?: cityCode
             val entry = TransitData.resolveTuStation(
-                cityCode, lineCode, stationCode, terminal, rawCode,
+                lookupCity, lineCode, stationCode, terminal, rawCode,
                 expectedFamily = expectedFamily, journeyRecord = data
             )
             // 未命中映射时，subtype=轨道 仍需 line 与 station 各自非全 0 才兜底为地铁
@@ -467,7 +469,7 @@ object RecordDecoder {
                 lineColor = mappedRef?.lineColor,
                 lineId = mappedRef?.lineId,
                 stationId = mappedRef?.stationId,
-                cityCode = mappedRef?.cityCode,
+                cityCode = mappedRef?.cityCode ?: correctedCity,
                 deviceCode = mappedRef?.code,
                 spRule = mappedRef?.spRule ?: ruleMatch?.tag
             )
@@ -479,7 +481,7 @@ object RecordDecoder {
             // 卡所在城市：取时间戳最新记录的城市码（TU 0x18 记录自身城市码无效）
             if (timestamp > latestTs) {
                 latestTs = timestamp
-                if (cityCode.isNotEmpty()) latestCity = cityCode
+                if (lookupCity.isNotEmpty()) latestCity = lookupCity
             }
             if (timestamp.length >= 14) {
                 journey.add(
@@ -491,7 +493,7 @@ object RecordDecoder {
                         lineName = ref.line, lineColor = ref.lineColor,
                         lineId = ref.lineId, stationId = ref.stationId,
                         transitType = ref.transitType,
-                        cityCode = entry?.cityCode ?: if (cityCode.isNotEmpty()) cityCode else null,
+                        cityCode = ref.cityCode ?: cityCode.ifEmpty { null },
                         rawCityCode = cityCode,
                         date = timestamp.substring(0, 8), time = timestamp.substring(8, 14),
                         balanceAfterFen = balanceFen,

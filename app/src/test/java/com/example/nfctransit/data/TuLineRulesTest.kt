@@ -42,6 +42,41 @@ class TuLineRulesTest {
     }
 
     @Test
+    fun cityCorrectionRequiresMatchingAcquirerAndBusSubtype() {
+        TuLineRules.install(TuLineRules.parse(bundled.readText()))
+
+        // 按用户提供的字段构造记录，验证城市纠正与线路规则的组合。
+        fun journey(city: String, acquirer: String, line: String, subtype: Int = 0x02) =
+            dongguanRecord.copyOf().also {
+                it[9] = subtype.toByte()
+                ApduUtil.hexToBytes(line).copyInto(it, 10)
+                ApduUtil.hexToBytes(city + acquirer).copyInto(it, 32)
+            }
+
+        for (city in listOf("2300", "3180", "0000")) {
+            for (acquirer in listOf("12273610FFFFFFFF", "0227361000000000")) {
+                val record = journey(city, acquirer, "0128")
+                assertEquals("3610", TuLineRules.correctedBusCity(record))
+                assertEquals("128", TuLineRules.match(record)?.line)
+            }
+        }
+        val taian = journey("0199", "11994630FFFFFFFF", "0933", subtype = 0x13)
+        assertEquals("4630", TuLineRules.correctedBusCity(taian))
+        assertEquals("33", TuLineRules.match(taian)?.line)
+        assertNull(TuLineRules.correctedBusCity(taian.copyOf(41)))
+        assertNull(TuLineRules.correctedBusCity(journey("3180", "12273180FFFFFFFF", "0128")))
+        assertNull(TuLineRules.correctedBusCity(journey("3180", "12273610FFFFFFFF", "0128", subtype = 0x01)))
+        assertEquals("128", TuLineRules.match(journey("3630", "12293630FFFFFFFF", "0128"))?.line)
+
+        val jining = journey("3630", "13694610FFFFFFFF", "026B")
+        assertEquals("4610", TuLineRules.correctedBusCity(jining))
+        assertNull(TuLineRules.match(jining)?.line)
+        for (named in listOf("5E2C", "5E54", "32D3", "F247")) {
+            assertNull(TuLineRules.match(journey("1000", "11001000FFFFFFFF", named))?.line)
+        }
+    }
+
+    @Test
     fun ruleWithUnknownKeyOrOpIsSkippedOthersKept() {
         val set = TuLineRules.parse(ruleFile(
             """{"city": "6020", "future": true, "value": {"slice": [1, 4]}}""",

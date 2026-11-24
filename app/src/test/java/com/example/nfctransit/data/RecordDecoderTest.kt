@@ -747,6 +747,37 @@ class RecordDecoderTest {
     }
 
     @Test
+    fun jiningBusWithWrongCityUsesJiningMappingOnReadAndArchive() {
+        // 用已有济宁线路编码和用户提供的误写城市、收单机构字段拼装测试记录。
+        val mapping = StationResolution(
+            cityId = 1, cityCode = "4610", cityName = "济宁", cityNameEn = "Jining",
+            lineId = 1, lineName = "C619", lineNameEn = null, lineColor = null,
+            stationId = null, stationName = null, stationNameEn = null,
+            standard = "TU", transitType = "公交", deviceCode = "4610026B0101088200"
+        )
+        val data = ApduUtil.hexToBytes(tuJourneyRecord(0x04, 0x02, "026B0101").hex)
+        ApduUtil.hexToBytes("026B0101088200").copyInto(data, 10)
+        ApduUtil.hexToBytes("363013694610FFFFFFFF").copyInto(data, 32)
+        val hex = ApduUtil.bytesToHex(data)
+        TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+        try {
+            withDeviceMappings(listOf(mapping), prefix = "4610", family = TransitData.TuTransitFamily.BUS) {
+                val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hex)
+                val fresh = RecordDecoder.decodeCard("TU", listOf(record), null, 2026).display.single()
+                val saved = RecordDecoder.ArchivedRecord(0x1E, CardProfiles.TU_EP_AID, hex, fresh.date)
+                for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", listOf(saved)).single())) {
+                    assertEquals("4610", tx.cityCode)
+                    assertEquals("3630", tx.rawCityCode)
+                    assertEquals("C619", tx.lineName)
+                    assertEquals(mapping.deviceCode, tx.deviceCode)
+                }
+            }
+        } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
+    @Test
     fun matchedStationWithoutLineIsNotOverriddenByCityRule() = withDeviceMappings(
         listOf(
             StationResolution(
