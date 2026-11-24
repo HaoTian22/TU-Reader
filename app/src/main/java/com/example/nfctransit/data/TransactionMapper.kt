@@ -197,7 +197,10 @@ object TransactionMapper {
         if (entry == null) entry = TransitData.resolveByCombined("${lineName} $base".trim())
         if (entry == null) entry = TransitData.resolveByStationName(base)
         if (entry == null) {
-            return ResolvedNames(stationName, lineName, lineColor, transitType, cityCode, lineId, stationId)
+            // 解码时已命中设备映射（deviceCode 非空）但该行无线路/站点 ID（如纠错只填类型「出租车」），
+            // 类型仍是数据库确证类型，须按 dbType 展示，否则大分类外的类型会被兜底成公交。
+            return ResolvedNames(stationName, lineName, lineColor, transitType, cityCode, lineId, stationId,
+                dbType = transitType.takeIf { deviceCode != null })
         }
         val line = entry.line
         val station = entry.station

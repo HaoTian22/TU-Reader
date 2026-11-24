@@ -1839,10 +1839,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?.takeIf { it.isNotBlank() }
         val tuIssuer = tuCardNumber?.let(TransitData::cardIssuerCode)
 
-        /** 城市码候选按可靠性排列，只取映射库能识别的城市。 */
+        /**
+         * 城市码候选按可靠性排列，只取映射库能识别的城市。
+         * 发卡城市码本身是标准城市码时直接取该城市，不走冲突别名（如 TU 2900 被佛山数据引用为别名）：
+         * institutionCity 传入代码本身，[TransitData.resolveCityCode] 即保留标准码。
+         */
+        fun issuerCityZh(code: String, protocol: String): String =
+            TransitData.cityZh(code, protocol, institutionCity = code)
         fun cityOf(vararg candidates: Pair<String, String>?): String? = candidates.filterNotNull()
-            .firstOrNull { (code, protocol) -> code.length == 4 && TransitData.cityZh(code, protocol) != code }
-            ?.let { (code, protocol) -> TransitLabels.city(TransitData.cityZh(code, protocol)) }
+            .firstOrNull { (code, protocol) -> code.length == 4 && issuerCityZh(code, protocol) != code }
+            ?.let { (code, protocol) -> TransitLabels.city(issuerCityZh(code, protocol)) }
 
         fun appInfo(protocol: String, metadata: ApplicationMetadata, cardNumber: String?): UiApplicationInfo {
             val issuer = metadata.issuer ?: tuIssuer.takeIf { protocol == "TU" }
