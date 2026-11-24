@@ -42,6 +42,21 @@ class TuLineRulesTest {
     }
 
     @Test
+    fun optionalAppendFollowsTheComputedNumber() {
+        val cases = listOf(
+            """{"slice": [1, 4], "prefix": "专", "append": "路"}""" to "专747路",
+            """{"slice": [1, 4], "append": "路"}""" to "747路"
+        )
+        for ((value, expected) in cases) {
+            val rule = """{"city": "6020", "value": $value}"""
+            val set = TuLineRules.parse(ruleFile(rule))
+            assertTrue(set.dropped.isEmpty())
+            TuLineRules.install(set)
+            assertEquals(expected, TuLineRules.match(dongguanRecord)?.line)
+        }
+    }
+
+    @Test
     fun cityCorrectionRequiresMatchingAcquirerAndBusSubtype() {
         TuLineRules.install(TuLineRules.parse(bundled.readText()))
 
@@ -71,9 +86,6 @@ class TuLineRulesTest {
         val jining = journey("3630", "13694610FFFFFFFF", "026B")
         assertEquals("4610", TuLineRules.correctedBusCity(jining))
         assertNull(TuLineRules.match(jining)?.line)
-        for (named in listOf("5E2C", "5E54", "32D3", "F247")) {
-            assertNull(TuLineRules.match(journey("1000", "11001000FFFFFFFF", named))?.line)
-        }
     }
 
     @Test

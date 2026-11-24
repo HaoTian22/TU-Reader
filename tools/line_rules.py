@@ -5,7 +5,7 @@ line_rules.json（公交线路号公式规则，App 端见 data/TuLineRules.kt�
 
 规则文件与 transit.db 并列：内置 app/src/main/assets/data/line_rules.json，
 线上 https://assets2.haotian22.top/line_rules.json（对象键 line_rules.json），独立于 transit.db 发布，
-无需改 Room schema。具名线路请写 tripreader-data CSV（进 transit.db），这里只放库装不下的公式。
+无需改 Room schema。规则可用公式生成数字线路号，并为结果拼接固定前后缀。
 
 用法：
   python tools/line_rules.py              # 校验：结构 + 每条规则的实卡样本（与 App 同一求值逻辑）
@@ -35,7 +35,7 @@ RULE_KEYS = {"city", "type", "note", "when", "value", "samples"}
 CITY_OVERRIDE_KEYS = {"city", "to", "note", "when"}
 COND_KEYS = {"field", "slice", "eq", "in", "regex", "range", "radix", "not"}
 FIELDS = {"line", "city2", "acquirer"}
-VALUE_KEYS = {"slice", "radix", "ops", "min", "max"}
+VALUE_KEYS = {"slice", "radix", "ops", "min", "max", "prefix", "append"}
 OPS = {"mod", "div", "add", "sub", "mul"}
 
 
@@ -120,6 +120,12 @@ def parse_value(o):
             raise ValueError(f"{name} by zero")
         ops.append((name, n))
     lo, hi = o.get("min"), o.get("max")
+    prefix = o.get("prefix", "")
+    if not isinstance(prefix, str):
+        raise ValueError("prefix must be a string")
+    append = o.get("append", "")
+    if not isinstance(append, str):
+        raise ValueError("append must be a string")
 
     def run(line):
         if b > len(line):
@@ -140,7 +146,7 @@ def parse_value(o):
                 v *= n
         if (lo is not None and v < lo) or (hi is not None and v > hi):
             return None
-        return v
+        return f"{prefix}{v}{append}"
     return run
 
 
@@ -151,7 +157,7 @@ def evaluate(rules, inp):
             continue
         v = r["value"](inp["line"])
         if v is not None:
-            return str(v)
+            return v
     return None
 
 

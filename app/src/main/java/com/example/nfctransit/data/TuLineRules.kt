@@ -10,9 +10,8 @@ import com.google.gson.JsonParser
  * `line_rules.json` 的解析与求值：transit.db 未给出线路名时，按文件描述的计算步骤从 TU 1E 记录推算
  * 公交线路号（仅显示：无 lineId / stationId / 配色，不写库）。
  *
- * 分工：具名线路、少量编码一律进 transit.db（tripreader-data CSV）；规则文件只放库装不下的
- * 「整段编码 → 线路号」公式（如东莞 999 条、宁波主线 504 条）。输出是纯数字线路号，与界面语言无关；
- * 需要拼接/命名的（如宁波支线 703-4）留在库里。
+ * 规则文件按编码公式生成线路号，例如东莞的数字线路和北京带固定字头的线路。
+ * 具体设备、站点及单独命名的线路由 transit.db（tripreader-data CSV）提供。
  * 文件与 transit.db 并列、独立发布（[LineRulesStore]）；App 只执行固定步骤，不执行代码。
  *
  * ## 文件格式（format = 1）
@@ -26,7 +25,8 @@ import com.google.gson.JsonParser
  * Cond   = { "field": "line" | "city2" | "acquirer", "slice": [a, b], 以下之一: "eq": "0101" | "in": ["0","1"]
  *            | "regex": "^[01]" | "range": [lo, hi], "radix": 10, "not": false }
  * Value  = { "slice": [a, b], "radix": 10 | 16,
- *            "ops": [["mod", 1000], ["div", n], ["add", n], ["sub", n], ["mul", n]], "min": 1, "max": n }
+ *            "ops": [["mod", 1000], ["div", n], ["add", n], ["sub", n], ["mul", n]], "min": 1, "max": n,
+ *            "prefix": "专", "append": "路" }  // 数值检查通过后，拼接可选的前后缀
  * Sample = { "record": "<1E 完整 hex>" } 或 { "line": "<hex>", "city": "…", "city2": "…" }，加 "out": 期望线路号
  *          （line 样本的 city 缺省取规则的第一个城市）
  * ```
@@ -141,9 +141,11 @@ internal object TuLineRules {
         private val radix: Int,
         private val ops: List<Pair<String, Long>>,
         private val min: Long?,
-        private val max: Long?
+        private val max: Long?,
+        private val prefix: String,
+        private val append: String
     ) {
-        fun compute(line: String): Long? {
+        fun compute(line: String): String? {
             var v = line.sliceOrNull(range)?.toLongOrNull(radix) ?: return null
             for ((op, n) in ops) {
                 v = when (op) {
@@ -156,7 +158,7 @@ internal object TuLineRules {
             }
             if (min != null && v < min) return null
             if (max != null && v > max) return null
-            return v
+            return "$prefix$v$append"
         }
     }
 
@@ -164,7 +166,7 @@ internal object TuLineRules {
     private fun find(rules: List<Rule>, input: Input): Pair<Rule, String>? {
         for (rule in rules) {
             if (input.city !in rule.cities || rule.conditions.any { !it.test(input) }) continue
-            rule.value.compute(input.line)?.let { return rule to it.toString() }
+            rule.value.compute(input.line)?.let { return rule to it }
         }
         return null
     }
@@ -229,7 +231,7 @@ internal object TuLineRules {
     private val CITY_OVERRIDE_KEYS = setOf("city", "to", "note", "when")
     private val CITY_CODE = Regex("[0-9]{4}")
     private val COND_KEYS = setOf("field", "slice", "eq", "in", "regex", "range", "radix", "not")
-    private val VALUE_KEYS = setOf("slice", "radix", "ops", "min", "max")
+    private val VALUE_KEYS = setOf("slice", "radix", "ops", "min", "max", "prefix", "append")
     private val FIELDS = setOf("line", "city2", "acquirer")
     private val OPS = setOf("mod", "div", "add", "sub", "mul")
 
@@ -292,7 +294,14 @@ internal object TuLineRules {
             require(!(name == "mod" || name == "div") || n != 0L) { "$name by zero" }
             name to n
         }.orEmpty()
-        return ValueSpec(parseSlice(o), parseRadix(o), ops, o.get("min")?.asLong, o.get("max")?.asLong)
+        val prefix = o.str("prefix")
+        require(prefix != null || !o.has("prefix")) { "prefix must be a string" }
+        val append = o.str("append")
+        require(append != null || !o.has("append")) { "append must be a string" }
+        return ValueSpec(
+            parseSlice(o), parseRadix(o), ops, o.get("min")?.asLong, o.get("max")?.asLong,
+            prefix.orEmpty(), append.orEmpty()
+        )
     }
 
     private fun parseSample(o: JsonObject, cities: List<String>): Pair<Input, String> {
