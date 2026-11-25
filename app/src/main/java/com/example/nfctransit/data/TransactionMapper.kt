@@ -108,10 +108,10 @@ object TransactionMapper {
         val actualLocation = if (effRecharge) {
             ActualLocation(null, "", LocationSource.DECLARED_CITY_FALLBACK)
         } else {
-            val journey = tuJourneyRecord()
-            val correctedCity = journey?.let(TuLineRules::correctedBusCity)
-            TransitData.actualLocation(resolved.stationId, deviceCode, correctedCity ?: declaredCityCode,
-                resolved.lineId, protocol, journey?.let(TransitData::tuInstitutionCity))
+            // 规则给出的实际城市（合肥误写城市码、大同/延安冲突码等）为最终城市，不再经库别名
+            val ruleCity = tuPlan()?.city
+            TransitData.actualLocation(resolved.stationId, deviceCode, ruleCity ?: declaredCityCode,
+                resolved.lineId, protocol, institutionCity = ruleCity)
         }
 
         return UiTransaction(
@@ -170,11 +170,25 @@ object TransactionMapper {
         return runCatching { ApduUtil.hexToBytes(raw) }.getOrNull()
     }
 
+    /** 合并进本交易的 TU 钱包 0x18 原始记录；没有则为 null。 */
+    private fun CanonicalTransaction.tuFareRecord(): ByteArray? {
+        val raw = sources.firstOrNull { it.sfi == 0x18 && it.protocol == "TU" && it.logFormat == null }?.hex
+            ?: hex.takeIf { sfi == 0x18 && protocol == "TU" }
+            ?: return null
+        return runCatching { ApduUtil.hexToBytes(raw) }.getOrNull()
+    }
+
+    /** TU 交易的查找计划（line_rules.json 求解），与 RecordDecoder.buildTuMap 同口径；无 1E 时为 null。 */
+    private fun CanonicalTransaction.tuPlan(): TuLineRules.Plan? {
+        val journey = tuJourneyRecord() ?: return null
+        return TransitData.tuPlan(journey, tuFareRecord())
+    }
+
     /** TU 1E（或合并进 18 的 1E）公交记录的规则命中，与 RecordDecoder.buildTuMap 的兜底口径一致。 */
     private fun CanonicalTransaction.tuRuleMatch(): TuLineRules.Match? {
         if (!TransitData.matchesTuTransitFamily(transitType, TransitData.TuTransitFamily.BUS)) return null
-        val raw = (if (sfi == 0x1E) hex else journeyHex) ?: return null
-        return TransitData.tuRuleMatch(ApduUtil.hexToBytes(raw))
+        val journey = tuJourneyRecord() ?: return null
+        return TransitData.tuRuleMatch(journey, fare = tuFareRecord())
     }
 
     /** 按 ID（或旧数据反查）优先解析匹配记录；命中后站名、线路、城市和类型均以记录为准。 */
@@ -192,7 +206,8 @@ object TransactionMapper {
         // 无库 ID 的公交记录：按当前 line_rules.json 重算（先于按名反查，避免纯线路号误配他城站名）
         if (entry == null && lineId == null && stationId == null) {
             tuRuleMatch()?.let { m ->
-                return ResolvedNames(m.line, m.line, lineColor, transitType, cityCode, null, null, spRule = m.tag)
+                val label = TuLineRules.label(tuPlan(), m)
+                return ResolvedNames(m.line, m.line, lineColor, transitType, cityCode, null, null, spRule = label)
             }
         }
         if (entry == null && base.contains(" ")) entry = TransitData.resolveByCombined(base)

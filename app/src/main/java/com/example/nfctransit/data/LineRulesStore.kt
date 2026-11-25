@@ -9,7 +9,8 @@ import java.net.URL
 
 /**
  * `line_rules.json`（[TuLineRules] 的声明式线路规则）的加载与在线更新，与 transit.db 并列但独立发布：
- * 内置 `assets/data/line_rules.json`，在线版下载到 filesDir；加载时取 version 较新且可解析的一份。
+ * 内置 `assets/data/line_rules.json`，在线版下载到 filesDir；加载时取 version 较新且可解析的一份，
+ * 其中被丢弃的规则按 id 用内置版补回（[TuLineRules.RuleSet.withFallback]）；format 不符的文件整体忽略。
  */
 object LineRulesStore {
 
@@ -21,9 +22,12 @@ object LineRulesStore {
     /** 载入并安装规则（内置与已下载取较新者）；均不可用时安装空规则。 */
     fun load(context: Context) {
         val bundled = readAsset(context)?.let { parseOrNull(it, "asset") }
+        // 已下载的文件不可用（旧版 format 等）时删除，之后只用内置版，直到下载到受支持的新文件
         val downloaded = File(context.filesDir, FILE_NAME).takeIf { it.isFile }
-            ?.let { parseOrNull(it.readText(), "downloaded") }
-        val chosen = listOfNotNull(bundled, downloaded).maxByOrNull { it.version } ?: TuLineRules.RuleSet.EMPTY
+            ?.let { file -> parseOrNull(file.readText(), "downloaded") ?: null.also { file.delete() } }
+        // 在线版样本不符被丢弃的规则按 id 回退到内置同 id 规则，坏的在线规则不会让广佛/深圳等整体失效
+        val chosen = (listOfNotNull(bundled, downloaded).maxByOrNull { it.version } ?: TuLineRules.RuleSet.EMPTY)
+            .withFallback(bundled)
         chosen.dropped.forEach { Log.w(TAG, "rule skipped: $it") }
         TuLineRules.install(chosen)
     }

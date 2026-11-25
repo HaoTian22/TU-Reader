@@ -58,9 +58,8 @@ class TransitDataMatchingTest {
             }
             for (mapping in buckets.getValue("5180")) devices[mapping.deviceCode] = mutableListOf(mapping)
             fullTerminals["CU"] = TransitData.uniqueFullTerminals("CU", buckets.getValue("5180"))
-            for (city in listOf("5840", "5180")) {
-                val entry = TransitData.resolveTuStation(city, "0000", "0000", "000040011001",
-                    expectedFamily = TransitData.TuTransitFamily.RAIL)
+            for (plan in listOf(shenzhenPlan, defaultPlan("5180"))) {
+                val entry = TransitData.resolveTuPlan(plan, "000040011001", null, TransitData.TuTransitFamily.RAIL)
                 assertEquals("福田口岸", entry?.station)
                 assertEquals("5840", entry?.cityCode)
             }
@@ -69,10 +68,11 @@ class TransitDataMatchingTest {
             val terminal = record.substring(20, 32)
             assertEquals("358快线", TransitData.resolveByStandard("SZT", "5180", terminal, terminal)?.line)
             assertEquals("福田口岸", TransitData.resolveByStandard("TU", "5180", "518040011001", "518040011001")?.station)
-            assertEquals("M337", TransitData.resolveTuStation("5840", "0000", "0000", "",
-                rawCode = "0D310000000000", expectedFamily = TransitData.TuTransitFamily.BUS)?.line)
-            assertEquals("东部公交", TransitData.resolveTuStation("5840", "0000", "0000", "002099990001",
-                expectedFamily = TransitData.TuTransitFamily.BUS)?.line)
+            assertEquals("M337", TransitData.resolveTuPlan(shenzhenPlan, "", "0D310000000000",
+                TransitData.TuTransitFamily.BUS)?.line)
+            val generic = TransitData.resolveTuPlan(shenzhenPlan, "002099990001", null, TransitData.TuTransitFamily.BUS)
+            assertEquals("东部公交", generic?.line)
+            assertEquals("(SP Rule: shenzhen)", generic?.spRule)
             val location = TransitData.actualLocation(metro.stationId, metro.deviceCode, "5840", metro.lineId, "TU")
             assertEquals("5840", location.cityCode)
             assertEquals(LocationSource.PARENT_DIRECTORY, location.source)
@@ -81,6 +81,87 @@ class TransitDataMatchingTest {
             cached.clear(); cached.putAll(oldCached)
             devices.clear(); devices.putAll(oldDevices)
             fullTerminals.clear(); fullTerminals.putAll(oldFullTerminals)
+            loaded.setBoolean(TransitData, wasLoaded)
+        }
+    }
+
+    @Test
+    fun bundledRulesRouteRealShenzhenRecordTo5180() {
+        // 深圳实卡 TU 1E（城市码 5840）+ 同一时间戳 TU 0x18
+        TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+        try {
+            val plan = TuLineRules.solve(
+                ApduUtil.hexToBytes("040000000263033114010000000000001600000190000000C820260606194202584012215840FFFF"),
+                ApduUtil.hexToBytes("0007000320000001900941310088943720260606194202")
+            )
+            assertEquals(listOf("5180"), plan?.targets?.map { it.code })
+            assertEquals("(SP Rule: shenzhen)", plan?.label)
+            assertEquals(null, plan?.city)
+        } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
+    @Test
+    fun multiTargetPlanPicksMorePreciseCityAndPrefersFirstOnTie() {
+        val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
+        val cachedField = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val cached = cachedField.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
+        val oldCached = cached.toMap()
+        val wasLoaded = loaded.getBoolean(TransitData)
+        // 广佛双城计划：同一 raw 码在两桶各有候选；更长的重叠胜出，同等时取第一个目标（广州）
+        val gzLine = resolution("0101", "地铁", "广州线路", null).copy(cityCode = "5810", deviceCode = "58100101")
+        val fsStation = resolution("010105", "地铁", "佛山线路", "佛山站点").copy(cityCode = "5880", deviceCode = "5880010105")
+        val fsLine = fsStation.copy(deviceCode = "58800101", stationName = null, stationId = null)
+        val plan = TuLineRules.Plan("5810", null, null,
+            listOf(TuLineRules.Target("5810"), TuLineRules.Target("5880")), listOf("guangzhou-foshan"))
+        try {
+            loaded.setBoolean(TransitData, true)
+            cached["5810" to null] = listOf(gzLine)
+            cached["5880" to null] = listOf(fsStation)
+            val precise = TransitData.resolveTuPlan(plan, "", "01010500000000", null)
+            assertEquals("5880010105", precise?.code)
+            assertEquals("(SP Rule: guangzhou-foshan)", precise?.spRule)
+            cached["5880" to null] = listOf(fsLine)
+            assertEquals("58100101", TransitData.resolveTuPlan(plan, "", "01010500000000", null)?.code)
+        } finally {
+            cached.clear(); cached.putAll(oldCached)
+            loaded.setBoolean(TransitData, wasLoaded)
+        }
+    }
+
+    @Test
+    fun cityTargetSearchesEveryPrefixHoldingThatCitysDevicesOnly() {
+        val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
+        val cachedField = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
+        val prefixesField = TransitData::class.java.getDeclaredField("tuPrefixesByCity").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val cached = cachedField.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
+        @Suppress("UNCHECKED_CAST")
+        val prefixes = prefixesField.get(TransitData) as MutableMap<String, MutableSet<String>>
+        val oldCached = cached.toMap()
+        val oldPrefixes = prefixes.toMap()
+        val wasLoaded = loaded.getBoolean(TransitData)
+        // 库中济宁有 TU 设备落在 3000 前缀（前缀 ≠ 城市）；同桶另有他城设备，按城市查时不得命中
+        val jiningInOtherPrefix = resolution("026B", "公交", "济宁线路", null).copy(cityCode = "4610", deviceCode = "3000026B")
+        val otherCityLonger = jiningInOtherPrefix.copy(cityCode = "3000", deviceCode = "3000026B01", lineName = "他城线路")
+        val jiningOwnPrefix = jiningInOtherPrefix.copy(deviceCode = "461002", lineName = "济宁短码")
+        val byCity = TuLineRules.Plan("3630", "4610", null, listOf(TuLineRules.Target("4610", byCity = true)), emptyList())
+        val byPrefix = TuLineRules.Plan("3630", "4610", null, listOf(TuLineRules.Target("4610")), emptyList())
+        try {
+            loaded.setBoolean(TransitData, true)
+            cached["3000" to null] = listOf(jiningInOtherPrefix, otherCityLonger)
+            cached["4610" to null] = listOf(jiningOwnPrefix)
+            prefixes["4610"] = mutableSetOf("3000", "4610")
+            val hit = TransitData.resolveTuPlan(byCity, "", "026B0101000000", null)
+            assertEquals("3000026B", hit?.code)
+            assertEquals("4610", hit?.cityCode)
+            // 按前缀只查 4610 桶：只能命中较短的本前缀设备
+            assertEquals("461002", TransitData.resolveTuPlan(byPrefix, "", "026B0101000000", null)?.code)
+        } finally {
+            cached.clear(); cached.putAll(oldCached)
+            prefixes.clear(); prefixes.putAll(oldPrefixes)
             loaded.setBoolean(TransitData, wasLoaded)
         }
     }
@@ -158,6 +239,10 @@ class TransitDataMatchingTest {
         )
         assertEquals("东环南路", match(candidates, "01200406000000", TransitData.TuTransitFamily.RAIL)?.stationName)
     }
+
+    private val shenzhenPlan = TuLineRules.Plan("5840", null, null, listOf(TuLineRules.Target("5180")), listOf("shenzhen"))
+
+    private fun defaultPlan(city: String) = TuLineRules.Plan(city, null, null, listOf(TuLineRules.Target(city)), emptyList())
 
     private fun match(
         candidates: List<StationResolution>,

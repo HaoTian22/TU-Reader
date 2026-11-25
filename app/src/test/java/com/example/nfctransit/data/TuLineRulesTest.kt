@@ -11,17 +11,19 @@ import org.junit.Test
 class TuLineRulesTest {
     private val bundled = File("src/main/assets/data/line_rules.json")
 
-    /** 东莞实卡 TU 1E 记录（line = 0747 0101 5930 → 747） */
-    private val dongguanRecord = ApduUtil.hexToBytes(
+    /** 东莞实卡 TU 1E 记录（线路站点字段 = 0747 0101 5930 → 747） */
+    private val dongguanHex =
         "04000041310085482602074701015930090000000000001A4A20251127162215602011616020FFFFFFFF018018004700"
-    )
+    private val dongguanRecord = ApduUtil.hexToBytes(dongguanHex)
 
-    private val dongguanRule =
-        """{"city": "6020", "when": [{"slice": [0, 1], "in": ["0", "1"]}, {"slice": [4, 8], "eq": "0101"}],
-            "value": {"slice": [1, 4], "radix": 10, "min": 1}"""
+    private val dongguanWhen = """{"target": "6020"},
+        {"rec": "1E", "nibbles": [20, 21], "in": ["0", "1"]}, {"rec": "1E", "nibbles": [24, 28], "eq": "0101"}"""
 
-    private fun ruleFile(vararg rules: String, format: Int = 1) =
-        """{"format": $format, "version": "20260101000000", "rules": [${rules.joinToString(",")}]}"""
+    private fun dongguanLine(id: String = "dg", line: String = """{"rec": "1E", "nibbles": [21, 24], "radix": 10, "min": 1}""") =
+        """{"id": "$id", "when": [$dongguanWhen], "then": {"line": $line}}"""
+
+    private fun ruleFile(vararg rules: String, format: Int = TuLineRules.FORMAT, version: String = "20260101000000") =
+        """{"format": $format, "version": "$version", "rules": [${rules.joinToString(",")}]}"""
 
     @After
     fun reset() = TuLineRules.install(TuLineRules.RuleSet.EMPTY)
@@ -38,18 +40,19 @@ class TuLineRulesTest {
         TuLineRules.install(TuLineRules.parse(bundled.readText()))
         val match = TuLineRules.match(dongguanRecord)
         assertEquals("747", match?.line)
-        assertEquals("(Line Rule: 6020 #1)", match?.tag)
+        assertEquals("dongguan-line", match?.ruleId)
+        assertEquals("(SP Rule: dongguan-line)", TuLineRules.label(TuLineRules.solve(dongguanRecord, null), match))
     }
 
     @Test
-    fun optionalAppendFollowsTheComputedNumber() {
+    fun lineValueAppendsOptionalPrefixAndSuffix() {
         val cases = listOf(
-            """{"slice": [1, 4], "prefix": "专", "append": "路"}""" to "专747路",
-            """{"slice": [1, 4], "append": "路"}""" to "747路"
+            """{"rec": "1E", "nibbles": [21, 24], "prefix": "专", "append": "路"}""" to "专747路",
+            """{"rec": "1E", "nibbles": [21, 24], "append": "路"}""" to "747路",
+            "\"固定名称\"" to "固定名称"
         )
-        for ((value, expected) in cases) {
-            val rule = """{"city": "6020", "value": $value}"""
-            val set = TuLineRules.parse(ruleFile(rule))
+        for ((line, expected) in cases) {
+            val set = TuLineRules.parse(ruleFile(dongguanLine(line = line)))
             assertTrue(set.dropped.isEmpty())
             TuLineRules.install(set)
             assertEquals(expected, TuLineRules.match(dongguanRecord)?.line)
@@ -71,77 +74,145 @@ class TuLineRulesTest {
         for (city in listOf("2300", "3180", "0000")) {
             for (acquirer in listOf("12273610FFFFFFFF", "0227361000000000")) {
                 val record = journey(city, acquirer, "0128")
-                assertEquals("3610", TuLineRules.correctedBusCity(record))
+                assertEquals("3610", TuLineRules.solve(record, null)?.city)
                 assertEquals("128", TuLineRules.match(record)?.line)
             }
         }
         val taian = journey("0199", "11994630FFFFFFFF", "0933", subtype = 0x13)
-        assertEquals("4630", TuLineRules.correctedBusCity(taian))
+        assertEquals("4630", TuLineRules.solve(taian, null)?.city)
         assertEquals("33", TuLineRules.match(taian)?.line)
-        assertNull(TuLineRules.correctedBusCity(taian.copyOf(41)))
-        assertNull(TuLineRules.correctedBusCity(journey("3180", "12273180FFFFFFFF", "0128")))
-        assertNull(TuLineRules.correctedBusCity(journey("3180", "12273610FFFFFFFF", "0128", subtype = 0x01)))
+        assertNull(TuLineRules.solve(taian.copyOf(41), null)?.city)
+        assertNull(TuLineRules.solve(journey("3180", "12273180FFFFFFFF", "0128"), null)?.city)
+        assertNull(TuLineRules.solve(journey("3180", "12273610FFFFFFFF", "0128", subtype = 0x01), null)?.city)
         assertEquals("128", TuLineRules.match(journey("3630", "12293630FFFFFFFF", "0128"))?.line)
 
         val jining = journey("3630", "13694610FFFFFFFF", "026B")
-        assertEquals("4610", TuLineRules.correctedBusCity(jining))
+        assertEquals("4610", TuLineRules.solve(jining, null)?.city)
         assertNull(TuLineRules.match(jining)?.line)
     }
 
     @Test
-    fun ruleWithUnknownKeyOrOpIsSkippedOthersKept() {
+    fun ruleWithUnknownKeyOrOpIsDroppedOthersKept() {
         val set = TuLineRules.parse(ruleFile(
-            """{"city": "6020", "future": true, "value": {"slice": [1, 4]}}""",
-            """{"city": "6020", "value": {"slice": [1, 4], "ops": [["pow", 2]]}}""",
-            "$dongguanRule}"
+            """{"id": "a", "future": true, "when": [{"target": "6020"}], "then": {"line": "x"}}""",
+            dongguanLine("b", """{"rec": "1E", "nibbles": [21, 24], "ops": [["pow", 2]]}"""),
+            dongguanLine("c")
         ))
-        assertEquals(2, set.dropped.size)
+        assertEquals(setOf("a", "b"), set.droppedIds.keys)
         TuLineRules.install(set)
         assertEquals("747", TuLineRules.match(dongguanRecord)?.line)
     }
 
     @Test
     fun ruleWhoseSampleFailsIsDropped() {
-        val set = TuLineRules.parse(ruleFile("""$dongguanRule, "samples": [{"line": "074701015930", "out": "74"}]}"""))
+        val rule = """{"id": "dg", "when": [$dongguanWhen],
+            "then": {"line": {"rec": "1E", "nibbles": [21, 24], "radix": 10}},
+            "samples": [{"1E": "$dongguanHex", "expect": {"line": "74"}}]}"""
+        val set = TuLineRules.parse(ruleFile(rule))
         assertTrue(set.dropped.single().endsWith("sample mismatch"))
         TuLineRules.install(set)
-        assertNull(TuLineRules.match(dongguanRecord)?.line)
+        assertNull(TuLineRules.match(dongguanRecord))
     }
 
     @Test
-    fun multiCityRuleMatchesEachCityAndTagsTheRecordCity() {
-        val rule = dongguanRule.replace("\"city\": \"6020\"", "\"city\": [\"5180\", \"6020\"]") +
-            """, "samples": [{"line": "074701015930", "city": "6020", "out": "747"}]}"""
-        val set = TuLineRules.parse(ruleFile(rule))
-        assertEquals(emptyList<String>(), set.dropped)
-        TuLineRules.install(set)
-        assertEquals("(Line Rule: 6020 #0)", TuLineRules.match(dongguanRecord)?.tag)
-        val otherCity = dongguanRecord.copyOf().also { it[32] = 0x51; it[33] = 0x80.toByte() }
-        assertEquals("(Line Rule: 5180 #0)", TuLineRules.match(otherCity)?.tag)
+    fun partialSampleUsesOnlyKnownNibbles() {
+        // 只知线路字段与城市码的样本：其余半字节为 '?'，读到未知半字节的条件不成立
+        val partial = "?".repeat(20) + "074701015930" + "?".repeat(32) + "6020" + "?".repeat(28)
+        val ok = """{"id": "dg", "when": [$dongguanWhen],
+            "then": {"line": {"rec": "1E", "nibbles": [21, 24], "radix": 10}},
+            "samples": [{"1E": "$partial", "expect": {"line": "747"}}]}"""
+        assertEquals(emptyList<String>(), TuLineRules.parse(ruleFile(ok)).dropped)
+        val readsUnknown = ok.replace(""""eq": "0101"}""", """"eq": "0101"}, {"rec": "1E", "bytes": [0, 1], "eq": "04"}""")
+        assertTrue(TuLineRules.parse(ruleFile(readsUnknown)).dropped.single().endsWith("sample mismatch"))
     }
 
     @Test
-    fun city2GuardAndNegatedMissingSlice() {
-        // not 条件：city2 = 3052 时不命中；slice 越界（line 只有 12 位）视为不匹配 → not 成立
-        val rule = """{"city": "6020", "when": [{"field": "city2", "eq": "3052", "not": true},
-            {"slice": [10, 14], "eq": "0000", "not": true}], "value": {"slice": [1, 4], "radix": 10}}"""
+    fun lineRulesTryTargetsInPlanOrder() {
+        // 求解规则把目标改为 5180 → 6020：线路号按目标顺序查，命中 6020 的规则
+        val route = """{"id": "route", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "6020"}],
+            "then": {"targets": [{"prefix": "5180"}, {"prefix": "6020"}]}}"""
+        TuLineRules.install(TuLineRules.parse(ruleFile(route, dongguanLine())))
+        val match = TuLineRules.match(dongguanRecord)
+        assertEquals("dg", match?.ruleId)
+        assertEquals("(SP Rule: route, dg)", TuLineRules.label(TuLineRules.solve(dongguanRecord, null), match))
+    }
+
+    @Test
+    fun negatedConditionHoldsWhenSliceIsMissing() {
+        // byte 36–37 = 3052 时不成立；nibbles 越界（记录只有 96 位 hex）视为不匹配 → not 成立
+        val rule = """{"id": "dg", "when": [{"target": "6020"},
+            {"rec": "1E", "bytes": [36, 38], "eq": "3052", "not": true},
+            {"rec": "1E", "nibbles": [200, 204], "eq": "0000", "not": true}],
+            "then": {"line": {"rec": "1E", "nibbles": [21, 24], "radix": 10}}}"""
         TuLineRules.install(TuLineRules.parse(ruleFile(rule)))
         assertEquals("747", TuLineRules.match(dongguanRecord)?.line)
         val wujiang = dongguanRecord.copyOf().also { it[36] = 0x30; it[37] = 0x52 }
         assertNull(TuLineRules.match(wujiang))
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun newerFormatIsRejectedWhole() {
-        TuLineRules.parse(ruleFile("$dongguanRule}", format = TuLineRules.FORMAT + 1))
+    @Test
+    fun rawSliceConditionsReadBytesNibblesAndMissingFare() {
+        val rule = """{"id": "dg", "when": [
+            {"rec": "1E", "bytes": [32, 34], "eq": "6020"},
+            {"rec": "1E", "nibbles": [21, 22], "eq": "7"},
+            {"rec": "18", "bytes": [0, 1], "regex": ".", "not": true}], "then": {"family": "bus"}}"""
+        TuLineRules.install(TuLineRules.parse(ruleFile(rule)))
+        assertEquals("(SP Rule: dg)", TuLineRules.solve(dongguanRecord, null)?.label)
+        // 有配对 0x18 时 not 条件不再成立
+        assertNull(TuLineRules.solve(dongguanRecord, ByteArray(23) { 1 })?.label)
+        // 只有 0x18：1E 条件不成立，且无 targets → 无计划
+        assertNull(TuLineRules.solve(null, ByteArray(23) { 1 }))
     }
 
     @Test
-    fun otherCityOrUnmatchedLayoutGivesNothing() {
-        TuLineRules.install(TuLineRules.parse(ruleFile("$dongguanRule}")))
-        val otherCity = dongguanRecord.copyOf().also { it[32] = 0x51; it[33] = 0x80.toByte() }
-        assertNull(TuLineRules.match(otherCity)?.line)
-        val not0101 = dongguanRecord.copyOf().also { it[13] = 0x02 }
-        assertNull(TuLineRules.match(not0101)?.line)
+    fun matchingRulesLayerFieldByField() {
+        val targets = """{"id": "t", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "6020"}],
+            "then": {"targets": [{"prefix": "6020"}, {"prefix": "5180"}], "family": "rail"}}"""
+        val city = """{"id": "c", "when": [{"rec": "1E", "bytes": [36, 38], "eq": "6020"}],
+            "then": {"city": "6020", "family": "bus"},
+            "samples": [{"1E": "$dongguanHex", "expect": {"city": "6020", "targets": ["6020", "5180"]}}]}"""
+        val set = TuLineRules.parse(ruleFile(targets, city))
+        assertEquals(emptyList<String>(), set.dropped)
+        TuLineRules.install(set)
+        val plan = TuLineRules.solve(dongguanRecord, null)!!
+        assertEquals(listOf("t", "c"), plan.ruleIds)
+        assertEquals(listOf("6020", "5180"), plan.targets.map { it.code })
+        assertEquals("6020", plan.city)
+        assertEquals(TransitData.TuTransitFamily.RAIL, plan.family)
+        assertEquals("(SP Rule: t, c)", plan.label)
+    }
+
+    @Test
+    fun droppedRuleFallsBackToBundledRuleWithSameIdInPlace() {
+        val a = """{"id": "a", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "6020"}], "then": {"city": "1001"}}"""
+        val b = """{"id": "b", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "6020"}], "then": {"city": "1002"}}"""
+        val badA = """{"id": "a", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "6020"}], "then": {"city": "1003"},
+            "samples": [{"1E": "$dongguanHex", "expect": {"city": "9999"}}]}"""
+        val bundledSet = TuLineRules.parse(ruleFile(a, b, version = "1"))
+        val downloaded = TuLineRules.parse(ruleFile(badA, b, version = "2"))
+        assertEquals(listOf("b"), downloaded.rules.map { it.id })
+        TuLineRules.install(downloaded.withFallback(bundledSet))
+        assertEquals(listOf("a", "b"), TuLineRules.solve(dongguanRecord, null)?.ruleIds)
+        assertEquals("1001", TuLineRules.solve(dongguanRecord, null)?.city)
+    }
+
+    @Test
+    fun malformedRulesAreDropped() {
+        val set = TuLineRules.parse(ruleFile(
+            """{"id": "a", "when": [{"rec": "1F", "bytes": [0, 1], "eq": "00"}], "then": {"family": "bus"}}""",
+            """{"id": "b", "when": [{"rec": "1E", "slice": [0, 1], "eq": "00"}], "then": {"family": "bus"}}""",
+            """{"id": "c", "when": [{"rec": "1E", "bytes": [0, 1], "eq": "00"}], "then": {}}""",
+            """{"id": "d", "when": [{"rec": "1E", "bytes": [0, 1], "eq": "00"}], "then": {"targets": [{"prefix": "6020", "fallbackBelow": 8}]}}""",
+            """{"id": "e", "when": [{"target": "6020"}], "then": {"city": "6020"}}""",
+            """{"id": "f", "when": [{"rec": "1E", "bytes": [0, 1], "eq": "00"}], "then": {"targets": [{"prefix": "6020", "city": "6020"}]}}""",
+            """{"id": "a", "when": [{"rec": "1E", "bytes": [0, 1], "eq": "00"}], "then": {"family": "bus"}}"""
+        ))
+        assertEquals(7, set.dropped.size)
+        assertEquals(setOf("a", "b", "c", "d", "e", "f"), set.droppedIds.keys)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun otherFormatIsRejectedWhole() {
+        TuLineRules.parse(ruleFile(dongguanLine(), format = 1))
     }
 }

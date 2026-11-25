@@ -693,7 +693,8 @@ class RecordDecoderTest {
             "0441310135748500000A012215010000000000032000000BE020260621105644332003473320FFFFFFFF000000000000" to shaoxing,
             "0341310612930400000A01111A040000000000000000000F0020260621100002332003473320FFFFFFFF000000000000" to hangzhouSouth
         )
-        withDeviceMappings(listOf(wuxiang, dongmenkou), prefix = "3320") {
+        TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+        try { withDeviceMappings(listOf(wuxiang, dongmenkou), prefix = "3320") {
             withDeviceMappings(listOf(shaoxing, hangzhouSouth), prefix = "3370", family = TransitData.TuTransitFamily.RAIL) {
                 for ((hex, expected) in samples) {
                     val record = RecordDecoder.ZoneRecord(0x1E, 1, "TU", hex)
@@ -707,8 +708,64 @@ class RecordDecoderTest {
                         assertEquals("城际", tx.transitType)
                         assertEquals("3370", tx.cityCode)
                         assertEquals("3320", tx.rawCityCode)
+                        assertEquals("(SP Rule: shaoxing-intercity)", tx.spRule)
                     }
                 }
+            }
+        } } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
+    @Test
+    fun rulesSeeTheFarePairedByCorrectedJourneyTimestamp() {
+        // 合肥地铁实卡：1E 时钟异常（1996…）校正后与 0x18 时间戳一致，0x18 条件才可命中
+        val hefeiSouth = StationResolution(
+            cityId = 1, cityCode = "3610", cityName = "合肥", cityNameEn = "Hefei",
+            lineId = 1, lineName = "1号线", lineNameEn = null, lineColor = null,
+            stationId = 1, stationName = "合肥南站", stationNameEn = null,
+            standard = "TU", transitType = "地铁", deviceCode = "361000010111"
+        )
+        val rules = """{"format": 2, "version": "1", "rules": [{"id": "paired",
+            "when": [{"rec": "18", "bytes": [10, 16], "eq": "413101847728"}], "then": {"targets": [{"prefix": "3610"}]}}]}"""
+        TuLineRules.install(TuLineRules.parse(rules))
+        try {
+            withDeviceMappings(listOf(hefeiSouth), prefix = "3610", family = TransitData.TuTransitFamily.RAIL) {
+                val paired = RecordDecoder.decodeCard("TU", listOf(
+                    RecordDecoder.ZoneRecord(0x18, 1, "TU", hefeiFare),
+                    RecordDecoder.ZoneRecord(0x1E, 1, "TU", hefeiJourney)
+                ), null, 2026).display.single()
+                assertEquals("(SP Rule: paired)", paired.spRule)
+                val journeyOnly = RecordDecoder.decodeCard("TU", listOf(
+                    RecordDecoder.ZoneRecord(0x1E, 1, "TU", hefeiJourney)
+                ), null, 2026).display.single()
+                assertEquals("合肥南站", journeyOnly.stationName)
+                assertNull(journeyOnly.spRule)
+            }
+        } finally {
+            TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+        }
+    }
+
+    @Test
+    fun fareOnlyRuleResolvesAmbiguousFullTerminal() {
+        // 南宁实卡 0x18：完整终端号在两城重码时终端号兜底不猜；规则按 0x18 字段指定 6110 桶后可解析
+        val mapping = nanningMapping()
+        val conflict = mapping.copy(deviceCode = "3320413106074451", cityCode = "3320", cityId = 1)
+        val rules = """{"format": 2, "version": "1", "rules": [{"id": "nanning-terminal",
+            "when": [{"rec": "18", "bytes": [10, 16], "eq": "413106074451"}], "then": {"targets": [{"prefix": "6110"}]},
+            "samples": [{"18": "${nanningFare.hex}", "expect": {"targets": ["6110"]}}]}]}"""
+        withDeviceMappings(listOf(mapping, conflict), prefix = "6110") {
+            assertNull(RecordDecoder.decodeCard("TU", listOf(nanningFare), null, 2026).display.single().deviceCode)
+            val set = TuLineRules.parse(rules)
+            assertEquals(emptyList<String>(), set.dropped)
+            TuLineRules.install(set)
+            try {
+                val tx = RecordDecoder.decodeCard("TU", listOf(nanningFare), null, 2026).display.single()
+                assertEquals("6110413106074451", tx.deviceCode)
+                assertEquals("青秀山", tx.stationName)
+            } finally {
+                TuLineRules.install(TuLineRules.RuleSet.EMPTY)
             }
         }
     }
@@ -736,7 +793,7 @@ class RecordDecoderTest {
                     assertEquals("6020", tx.cityCode)
                     assertNull(tx.deviceCode)
                     assertNull(tx.lineId)
-                    assertEquals("(Line Rule: 6020 #1)", tx.spRule)
+                    assertEquals("(SP Rule: dongguan-line)", tx.spRule)
                     assertEquals(date, tx.date)
                     assertEquals(time, tx.time)
                 }
@@ -776,6 +833,51 @@ class RecordDecoderTest {
             TuLineRules.install(TuLineRules.RuleSet.EMPTY)
         }
     }
+
+    @Test
+    fun hefeiCountyAndBrtFeedbackRecordsRecognizeBusLabels() =
+        withDeviceMappings(emptyList(), prefix = "3610", family = TransitData.TuTransitFamily.BUS) {
+            val cases = listOf(
+                Triple(
+                    "012E000000000000C80941310184682620260516152221",
+                    "0600000000000000000100000000000000000000C8000001A42026051615222131800227361000000000000000000000",
+                    "公交（长丰、肥西等下辖县）"
+                ),
+                Triple(
+                    "01C60000000000008C0941310608483620261024171849",
+                    "06000041310608483602000009990000000000008C000001D62026102417184900001227361031049902000000000000",
+                    "合肥公交（BRT站点）"
+                )
+            )
+            TuLineRules.install(TuLineRules.parse(java.io.File("src/main/assets/data/line_rules.json").readText()))
+            try {
+                for ((fare, journey, expected) in cases) {
+                    val records = listOf(
+                        RecordDecoder.ZoneRecord(0x18, 1, "TU", fare),
+                        RecordDecoder.ZoneRecord(0x1E, 1, "TU", journey)
+                    )
+                    val fresh = RecordDecoder.decodeCard("TU", records, null, 2026).display.single()
+                    val saved = records.map {
+                        RecordDecoder.ArchivedRecord(it.sfi, CardProfiles.TU_EP_AID, it.hex, fresh.date)
+                    }
+                    val rawCity = journey.substring(64, 68)
+                    for (tx in listOf(fresh, RecordDecoder.decodeArchive("TU", saved).single())) {
+                        assertEquals("3610", tx.cityCode)
+                        assertEquals(rawCity, tx.rawCityCode)
+                        assertEquals("公交", tx.transitType)
+                        assertEquals(expected, tx.lineName)
+                        assertEquals(2, tx.sources.size)
+                    }
+                }
+                val railLayout = ApduUtil.hexToBytes(cases.first().second).also {
+                    it[11] = 1
+                    it[13] = 1
+                }
+                assertNull(TuLineRules.solve(railLayout, null)?.city)
+            } finally {
+                TuLineRules.install(TuLineRules.RuleSet.EMPTY)
+            }
+        }
 
     @Test
     fun matchedStationWithoutLineIsNotOverriddenByCityRule() = withDeviceMappings(

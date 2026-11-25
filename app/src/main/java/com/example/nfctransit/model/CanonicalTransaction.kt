@@ -42,7 +42,7 @@ data class CanonicalTransaction(
     val hex: String,
     /** 命中的 device_code（站名解析匹配到的数据字符串，如 581000140019）；仅内存，不落库 */
     val deviceCode: String? = null,
-    /** 特殊匹配规则标记（广佛跨城/深圳终端号派生，如 "(SP Rule: Guangzhou/Foshan)"）；详情页 Match 行展示；仅内存，不落库 */
+    /** 特殊匹配规则标记（命中的 line_rules.json 规则 id，如 "(SP Rule: guangzhou-foshan)"）；详情页 Match 行展示；仅内存，不落库 */
     val spRule: String? = null,
     /** 展示用协议并集（双协议卡同一笔在 LNT+TU 钱包都有时）；仅内存，不落库 */
     val protocols: Set<String> = emptySet(),

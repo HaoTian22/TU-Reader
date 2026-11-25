@@ -7,52 +7,83 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
 /**
- * `line_rules.json` 的解析与求值：transit.db 未给出线路名时，按文件描述的计算步骤从 TU 1E 记录推算
- * 公交线路号（仅显示：无 lineId / stationId / 配色，不写库）。
+ * `line_rules.json`：TU 交易的声明式规则。一条交易按三步解析：
  *
- * 规则文件按编码公式生成线路号，例如东莞的数字线路和北京带固定字头的线路。
- * 具体设备、站点及单独命名的线路由 transit.db（tripreader-data CSV）提供。
- * 文件与 transit.db 并列、独立发布（[LineRulesStore]）；App 只执行固定步骤，不执行代码。
+ * 1. **求解**：按原始记录（1E 旅程，及按时间戳配对的 TU 0x18）求查找计划 [Plan]：查哪些目标、交易实际城市、
+ *    交通族。命中的规则全部叠加，每项取第一条给出它的规则；都没给出时只查记录自身城市码。
+ * 2. **设备匹配**：TransitData 在计划各目标内按最长重叠评分取优（评分算法在代码里，不在规则里）。
+ * 3. **线路号**：库未给出线路/站点的公交 1E 记录，按计划目标依次套 `line` 规则（仅显示）。
  *
- * ## 文件格式（format = 1）
+ * 具体设备、站点及单独命名的线路由 transit.db 提供；规则只描述库装不下的城市级规律。文件与 transit.db 并列、
+ * 独立发布（[LineRulesStore]）；App 只执行固定步骤，不执行代码。
+ *
+ * ## 文件格式（format = 2）
  * ```
- * { "format": 1, "version": "yyyyMMddHHmmss", "cityOverrides": [CityOverride, ...], "rules": [Rule, ...] }
- * CityOverride = { "city": "0199" | ["2300", "3180", …], "to": "4630", "note": "来源说明", "when": [Cond, ...] }
- * Rule   = { "city": "6020" | ["1270", "1410", …], "type": "公交", "note": "来源说明",   // 多城共用同一规则可写数组
- *            "when": [Cond, ...],          // 全部成立才应用；可省略
- *            "value": Value,
- *            "samples": [Sample, ...] }    // 样本，加载时校验
- * Cond   = { "field": "line" | "city2" | "acquirer", "slice": [a, b], 以下之一: "eq": "0101" | "in": ["0","1"]
- *            | "regex": "^[01]" | "range": [lo, hi], "radix": 10, "not": false }
- * Value  = { "slice": [a, b], "radix": 10 | 16,
+ * { "format": 2, "version": "yyyyMMddHHmmss", "rules": [Rule, ...] }
+ * Rule   = { "id": "guangzhou-foshan",          // 唯一；详情页标记 "(SP Rule: id, …)"；在线版样本不符时回退内置同 id 规则
+ *            "note": "来源说明",
+ *            "when": [Cond, ...],                // 全部成立
+ *            "any": [[Cond, ...], ...],          // 可选：至少一组全部成立
+ *            "then": Then,
+ *            "samples": [Sample, ...] }          // 实卡样本，加载时校验
+ * Then   = { "targets": [Target, ...],           // 求解：查找目标，按序
+ *            "city": "1620",                     // 求解：交易实际城市（标准码，显示/统计，不再经库别名）；不影响查找
+ *            "family": "bus" | "rail",           // 求解：覆盖 subtype 推断的交通族
+ *            "line": Line }                      // 线路号：库未给出线路/站点的公交记录显示的线路号
+ * Target = { "prefix": "5880" | "city": "4610",  // prefix = 设备前缀桶（device_code 前 4 位 = 卡上写的码）；
+ *                                                // city = 按 city_id 查所有含该城市 TU 设备的前缀桶，只取该城市设备
+ *            "family": "bus" | "rail",           // 可选：覆盖本目标的交通族
+ *            "mode": "overlap" | "stationPrefix",// 缺省 overlap（最长重叠评分）；stationPrefix = 设备码去前缀后须为
+ *                                                //   line+station 段（8 位）的前缀，取最长
+ *            "types": ["城际"],                  // 仅 stationPrefix：限定 transit_type（精确）
+ *            "fallbackBelow": 8 }                // 可选：前面目标最佳重叠 < n 才查，命中即取代
+ * Cond   = { "rec": "1E" | "18", "bytes": [a, b] | "nibbles": [a, b],
+ *            以下之一: "eq": "0101" | "in": ["0", "1"] | "regex": "^[01]" | "range": [lo, hi], "radix": 10,
+ *            "not": false }
+ *          | { "target": "6020" | ["1270", …] }  // 仅 line 规则：当前套用的目标码（前缀或城市码）
+ * Line   = "固定线路名称" | { "rec": "1E", "nibbles": [a, b], "radix": 10 | 16,
  *            "ops": [["mod", 1000], ["div", n], ["add", n], ["sub", n], ["mul", n]], "min": 1, "max": n,
- *            "prefix": "专", "append": "路" }  // 数值检查通过后，拼接可选的前后缀
- * Sample = { "record": "<1E 完整 hex>" } 或 { "line": "<hex>", "city": "…", "city2": "…" }，加 "out": 期望线路号
- *          （line 样本的 city 缺省取规则的第一个城市）
+ *            "prefix": "专", "append": "路" }   // 数值检查通过后拼接可选的前后缀
+ * Sample = { "1E": "<hex>", "18": "<hex>",      // 至少其一；实卡记录，未知半字节写 '?'（如只知线路字段的样本）
+ *            "expect": { "city": "1620", "targets": ["8040"], "line": "747",
+ *                        "device": "8040…" } }   // 均可选；device 只由 tools/line_rules.py 对库校验
  * ```
- * - `line` = 1E byte 10–15 hex（12 位）；
- *   `city2` = byte 36–37 BCD，`acquirer` = byte 34–41 hex；城市码 = byte 32–33 BCD。Value 只取 `line`。
- * - `cityOverrides` 只用于 subtype 02/13 的公交记录。第一条命中决定查表和计算线路所用的城市。
- * - 条件：字段缺失或 slice 越界视为「不匹配」，因此加 `not` 的条件此时成立。
- * - 同城规则按文件顺序取第一条命中。任一数值不可解析 / 越出 min–max 视为不命中，继续下一条。
- * - 兼容：`format` 高于 [FORMAT] 的文件整体忽略；规则含未知键 / 未知运算 / 非「公交」类型只跳过该条
- *   （新能力按「新增键」扩展，语义不兼容才升 format）。
- * - 样本按同城全部规则整体求值并比对；不符的规则被丢弃（坏规则上线也不会显示错名）。
+ * - 切片：`bytes` 为记录字节下标 [a, b)，取大写 hex（BCD 城市码 5810 即 "5810"）；`nibbles` 为记录 hex 串的
+ *   字符下标 [a, b)。常用位置：1E 城市码 bytes [32, 34]，收单机构 [34, 42]，线路站点字段 [10, 16]（nibbles 20–32）。
+ *   `18` 指与 1E 同一时间戳配对的 TU 钱包 0x18 记录；只有 0x18（1E 已轮换掉）时 `1E` 缺失。
+ * - 记录缺失、切片越界或含未知半字节视为「不匹配」，因此加 `not` 的条件此时成立。
+ * - 求解：按文件顺序，命中且 then 含 targets / city / family 的规则全部叠加，各项取第一条给出者；
+ *   只有 0x18 时没有记录城市，须有命中规则给出 `targets`。多目标按序评分，同等时取靠前的目标；
+ *   命中设备的城市一律取其 city_id。
+ * - 线路号：按计划目标依次，取文件中第一条成立且数值有效的 line 规则；数值不可解析 / 越出 min–max 视为不成立。
+ * - 兼容：`format` 不等于 [FORMAT] 的文件整体忽略；规则含未知键 / 未知运算只丢弃该条。
+ * - 样本按全部规则整体求值并比对；不符的规则被丢弃（坏规则上线也不会显示错名）。
  */
 internal object TuLineRules {
 
-    const val FORMAT = 1
-    private const val BUS = "公交"
+    const val FORMAT = 2
 
     class RuleSet(
         val version: String,
         internal val rules: List<Rule>,
-        internal val cityOverrides: List<CityOverride>,
-        /** 被跳过/丢弃的规则说明（未知键、样本不符等），供日志与测试检查 */
+        /** 解析失败 / 样本不符被丢弃的规则：id → 文件中的位置 */
+        internal val droppedIds: Map<String, Int>,
+        /** 被丢弃规则的说明，供日志与测试检查 */
         val dropped: List<String>
     ) {
+        /** 本文件丢弃的规则按 id 用 [bundled] 中的同 id 规则补回（原位置）。 */
+        fun withFallback(bundled: RuleSet?): RuleSet {
+            if (bundled == null || bundled === this || droppedIds.isEmpty()) return this
+            val present = rules.map { it.id }.toSet()
+            val restored = bundled.rules
+                .filter { it.id in droppedIds && it.id !in present }
+                .map { it.at(droppedIds.getValue(it.id)) }
+            if (restored.isEmpty()) return this
+            return RuleSet(version, (rules + restored).sortedBy { it.position }, emptyMap(), dropped)
+        }
+
         companion object {
-            val EMPTY = RuleSet("", emptyList(), emptyList(), emptyList())
+            val EMPTY = RuleSet("", emptyList(), emptyMap(), emptyList())
         }
     }
 
@@ -66,78 +97,154 @@ internal object TuLineRules {
     /** 当前生效规则的 version（yyyyMMddHHmmss）；未安装为空串。 */
     fun installedVersion(): String = installed.version
 
-    /** 规则命中结果：[line] 线路号，[tag] 详情页 Match 行标记（城市码 + 规则在文件中的序号）。 */
-    class Match(val line: String, val tag: String)
+    /**
+     * 一个查找目标，交给 TransitData 的评分器。
+     * [byCity] = false：[code] 是设备前缀桶（device_code 前 4 位，即卡上写的码），查桶内全部设备；
+     * [byCity] = true：[code] 是城市（city_id 对应的城市码），查所有含该城市 TU 设备的前缀桶，只取该城市的设备
+     * （前缀不可靠：如济宁设备也在 3000 前缀，佛山设备也在 5810/2900 前缀）。
+     */
+    class Target(
+        val code: String,
+        val byCity: Boolean = false,
+        val family: TransitData.TuTransitFamily? = null,
+        val stationPrefix: Boolean = false,
+        val types: Set<String>? = null,
+        val fallbackBelow: Int? = null
+    )
 
-    /** 记录所在城市的规则推算线路号；无规则 / 不命中返回 null。 */
-    fun match(record: ByteArray): Match? {
-        if (record.size < 34) return null
-        val rules = installed
-        val input = recordInput(record).let { raw ->
-            rules.correctedBusCity(record, raw)?.let { raw.copy(city = it) } ?: raw
-        }
-        val (rule, line) = find(rules.rules, input) ?: return null
-        return Match(line, "(Line Rule: ${input.city} #${rule.index})")
+    /**
+     * 一条交易的查找计划。
+     * @param recordCity 1E 记录城市码（byte 32–33）；只有 0x18 时为 null
+     * @param city       规则声明的实际城市（标准码）；null = 沿用记录城市并经库别名解析
+     * @param family     规则覆盖的交通族；null = 按 subtype 推断
+     * @param ruleIds    参与求解的规则 id（文件顺序）；空 = 默认计划
+     */
+    class Plan(
+        val recordCity: String?,
+        val city: String?,
+        val family: TransitData.TuTransitFamily?,
+        val targets: List<Target>,
+        val ruleIds: List<String>
+    ) {
+        /** 详情页 Match 行标记；默认计划为 null。 */
+        val label: String? get() = label(ruleIds)
     }
 
-    /** 返回规则纠正后的城市码，保留卡片声明的原始城市码供详情展示。 */
-    fun correctedBusCity(record: ByteArray): String? {
-        val rules = installed
-        if (record.size < 38 || rules.cityOverrides.isEmpty()) return null
-        return rules.correctedBusCity(record, recordInput(record))
-    }
+    /** 线路号命中：[line] 线路号，[ruleId] 给出它的规则。 */
+    class Match(val line: String, val ruleId: String)
 
-    private fun RuleSet.correctedBusCity(record: ByteArray, input: Input): String? {
-        if (TransitData.tuTransitFamilyForSubtype(record[9].toInt() and 0xFF) != TransitData.TuTransitFamily.BUS) return null
-        return cityOverrides.firstOrNull { rule ->
-            input.city in rule.cities && rule.conditions.all { it.test(input) }
-        }?.destination
-    }
+    /** 详情页 Match 行标记：求解规则与线路号规则的 id，去重；都没有为 null。 */
+    fun label(plan: Plan?, match: Match?): String? =
+        label(plan?.ruleIds.orEmpty() + listOfNotNull(match?.ruleId))
 
-    private fun recordInput(record: ByteArray): Input =
-        Input(
-            city = ApduUtil.bcdToString(record.copyOfRange(32, 34)),
-            line = ApduUtil.bytesToHex(record.copyOfRange(10, 16)),
-            city2 = if (record.size >= 38) ApduUtil.bcdToString(record.copyOfRange(36, 38)) else null,
-            acquirer = if (record.size >= 38) ApduUtil.bytesToHex(record.copyOfRange(34, minOf(record.size, 42))) else null
-        )
+    private fun label(ids: List<String>): String? =
+        ids.distinct().takeIf { it.isNotEmpty() }?.joinToString(", ", "(SP Rule: ", ")")
 
     // ---------------------------------------------------------------- 求值
 
-    internal data class Input(val city: String, val line: String, val city2: String?, val acquirer: String?) {
-        fun field(name: String): String? = when (name) {
-            "city2" -> city2
-            "acquirer" -> acquirer
-            else -> line
+    /**
+     * 按原始记录求查找计划。[journey] = TU 1E，[fare] = 同一笔交易的 TU 0x18（可缺）。
+     * 有 1E 时总有计划（无规则命中即默认计划）；只有 0x18 且无命中规则给出 targets 时返回 null。
+     */
+    fun solve(journey: ByteArray?, fare: ByteArray?): Plan? = solveWith(installed.rules, Records.of(journey, fare))
+
+    /** 1E 记录（及配对的 0x18）求解后推算线路号；无规则 / 不命中返回 null。 */
+    fun match(record: ByteArray, fare: ByteArray? = null): Match? {
+        val records = Records.of(record, fare)
+        val plan = solveWith(installed.rules, records) ?: return null
+        return lineWith(installed.rules, plan, records)
+    }
+
+    /** 按已求得的计划，在各目标依次套线路号规则。 */
+    fun match(plan: Plan, record: ByteArray, fare: ByteArray? = null): Match? =
+        lineWith(installed.rules, plan, Records.of(record, fare))
+
+    private fun solveWith(rules: List<Rule>, records: Records): Plan? {
+        var targets: List<Target>? = null
+        var city: String? = null
+        var family: TransitData.TuTransitFamily? = null
+        val fired = mutableListOf<String>()
+        for (rule in rules) {
+            if (!rule.solves || !rule.matches(records, null)) continue
+            fired += rule.id
+            targets = targets ?: rule.targets
+            city = city ?: rule.city
+            family = family ?: rule.family
+        }
+        val recordCity = records.recordCity
+        val searched = targets ?: recordCity?.let { listOf(Target(it)) } ?: return null
+        return Plan(recordCity, city, family, searched, fired)
+    }
+
+    private fun lineWith(rules: List<Rule>, plan: Plan, records: Records): Match? {
+        val journey = records.journey ?: return null
+        for (code in plan.targets.map { it.code }.distinct()) {
+            for (rule in rules) {
+                val line = rule.line ?: continue
+                if (!rule.matches(records, code)) continue
+                line(journey)?.let { return Match(it, rule.id) }
+            }
+        }
+        return null
+    }
+
+    /** 1E / 0x18 原始记录的大写 hex；样本中未知半字节为 '?'。1E 不足 34 字节视为缺失。 */
+    internal class Records(val journey: String?, val fare: String?) {
+        val recordCity: String? = journey?.sliceKnown(64, 68)
+
+        fun get(rec: String): String? = if (rec == REC_FARE) fare else journey
+
+        companion object {
+            fun of(journey: ByteArray?, fare: ByteArray?) = Records(
+                journey?.takeIf { it.size >= 34 }?.let(ApduUtil::bytesToHex),
+                fare?.let(ApduUtil::bytesToHex)
+            )
         }
     }
 
-    internal class CityOverride(val cities: Set<String>, val destination: String, val conditions: List<Condition>)
-
     internal class Rule(
-        val cities: Set<String>,
-        /** 规则在文件 rules 数组中的下标，用于 Match 标记定位 */
-        val index: Int,
-        val label: String,
-        val conditions: List<Condition>,
-        val value: ValueSpec,
-        val samples: List<Pair<Input, String>>
+        val id: String,
+        val position: Int,
+        private val conditions: List<Condition>,
+        private val anyOf: List<List<Condition>>,
+        /** `target` 条件：仅 line 规则；null = 任一目标 */
+        private val targetCodes: Set<String>?,
+        val targets: List<Target>?,
+        val city: String?,
+        val family: TransitData.TuTransitFamily?,
+        val line: ((String) -> String?)?,
+        val samples: List<Sample>
+    ) {
+        /** 是否参与求解（给出 targets / city / family） */
+        val solves: Boolean get() = targets != null || city != null || family != null
+
+        fun matches(records: Records, target: String?): Boolean =
+            (targetCodes == null || (target != null && target in targetCodes)) &&
+                conditions.all { it.test(records) } &&
+                (anyOf.isEmpty() || anyOf.any { group -> group.all { it.test(records) } })
+
+        fun at(newPosition: Int) =
+            Rule(id, newPosition, conditions, anyOf, targetCodes, targets, city, family, line, samples)
+    }
+
+    internal class Sample(
+        val records: Records,
+        val city: String?,
+        val targets: List<String>?,
+        val line: String?
     )
 
     internal class Condition(
-        private val field: String,
-        private val range: IntRange?,
+        private val select: (Records) -> String?,
         private val negate: Boolean,
         private val check: (String) -> Boolean
     ) {
-        fun test(input: Input): Boolean {
-            val text = input.field(field)?.let { if (range == null) it else it.sliceOrNull(range) }
-            return (text != null && check(text)) != negate
-        }
+        fun test(records: Records): Boolean = (select(records)?.let(check) ?: false) != negate
     }
 
-    internal class ValueSpec(
-        private val range: IntRange,
+    private class LineSpec(
+        private val start: Int,
+        private val end: Int,
         private val radix: Int,
         private val ops: List<Pair<String, Long>>,
         private val min: Long?,
@@ -145,8 +252,8 @@ internal object TuLineRules {
         private val prefix: String,
         private val append: String
     ) {
-        fun compute(line: String): String? {
-            var v = line.sliceOrNull(range)?.toLongOrNull(radix) ?: return null
+        fun compute(journey: String): String? {
+            var v = journey.sliceKnown(start, end)?.toLongOrNull(radix) ?: return null
             for ((op, n) in ops) {
                 v = when (op) {
                     "mod" -> v % n
@@ -162,21 +269,13 @@ internal object TuLineRules {
         }
     }
 
-    /** 同城规则按顺序取第一条命中：返回 (命中规则, 线路号)。 */
-    private fun find(rules: List<Rule>, input: Input): Pair<Rule, String>? {
-        for (rule in rules) {
-            if (input.city !in rule.cities || rule.conditions.any { !it.test(input) }) continue
-            rule.value.compute(input.line)?.let { return rule to it }
-        }
-        return null
-    }
-
-    private fun String.sliceOrNull(range: IntRange): String? =
-        if (range.last < length) substring(range.first, range.last + 1) else null
+    /** hex 串字符 [start, end)；越界或含未知半字节为 null。 */
+    private fun String.sliceKnown(start: Int, end: Int): String? =
+        if (end <= length) substring(start, end).takeIf { '?' !in it } else null
 
     // ---------------------------------------------------------------- 解析
 
-    /** 解析规则文件。文件损坏 / format 不支持抛 [IllegalArgumentException]；单条规则问题只记入 dropped。 */
+    /** 解析规则文件。文件损坏 / format 不符抛 [IllegalArgumentException]；单条规则问题只记入 dropped。 */
     fun parse(json: String): RuleSet {
         val root = try {
             JsonParser.parseString(json).asJsonObject
@@ -185,87 +284,152 @@ internal object TuLineRules {
         }
         val format = root.get("format")?.takeIf { it.isJsonPrimitive }?.asInt
             ?: throw IllegalArgumentException("line_rules: missing format")
-        require(format <= FORMAT) { "line_rules: unsupported format $format (app supports $FORMAT)" }
+        require(format == FORMAT) { "line_rules: unsupported format $format (app supports $FORMAT)" }
         val version = root.str("version").orEmpty()
         val rulesJson = root.get("rules")?.takeIf { it.isJsonArray }?.asJsonArray
             ?: throw IllegalArgumentException("line_rules: missing rules")
 
         val dropped = mutableListOf<String>()
-        val cityOverrides = root.get("cityOverrides")?.arr("cityOverrides")?.mapIndexedNotNull { i, el ->
-            try {
-                val o = el.asJsonObject
-                checkKeys(o, CITY_OVERRIDE_KEYS, "city override")
-                val dest = o.str("to")?.takeIf { it.matches(CITY_CODE) } ?: error("bad destination city")
-                val cities = parseCities(o)
-                require(cities.all { it.matches(CITY_CODE) && it != dest }) { "bad source city" }
-                val conditions = o.get("when")?.arr("when")?.map { parseCondition(it.asJsonObject) }.orEmpty()
-                require(conditions.isNotEmpty()) { "city override needs conditions" }
-                CityOverride(cities.toSet(), dest, conditions)
-            } catch (e: Exception) {
-                dropped += "cityOverride #$i: ${e.message}"
-                null
-            }
-        }.orEmpty()
+        val droppedIds = mutableMapOf<String, Int>()
+        val seen = mutableSetOf<String>()
         var rules = rulesJson.mapIndexedNotNull { i, el ->
-            val note = el.takeIf { it.isJsonObject }?.asJsonObject?.str("note").orEmpty()
-            val label = "#$i $note".trim()
+            val id = el.takeIf { it.isJsonObject }?.asJsonObject?.str("id")
             try {
-                parseRule(el.asJsonObject, i, label)
+                require(!id.isNullOrBlank()) { "missing id" }
+                require(seen.add(id)) { "duplicate id" }
+                parseRule(el.asJsonObject, id, i)
             } catch (e: Exception) {
-                dropped += "$label: ${e.message}"
+                dropped += "#$i ${id.orEmpty()}: ${e.message}"
+                if (!id.isNullOrBlank() && id !in droppedIds) droppedIds[id] = i
                 null
             }
         }
-        // 样本校验：按同城全部规则整体求值；不符的规则丢弃后重验，直到稳定
+        // 样本按全部规则整体求值；不符的规则丢弃后重验，直到稳定
         while (true) {
-            val bad = rules.firstOrNull { rule ->
-                rule.samples.any { (input, out) -> find(rules, input)?.second != out }
-            } ?: break
-            dropped += "${bad.label}: sample mismatch"
+            val bad = rules.firstOrNull { rule -> rule.samples.any { !sampleHolds(rules, rule, it) } } ?: break
+            dropped += "#${bad.position} ${bad.id}: sample mismatch"
+            droppedIds[bad.id] = bad.position
             rules = rules - bad
         }
-        return RuleSet(version, rules, cityOverrides, dropped)
+        return RuleSet(version, rules, droppedIds, dropped)
     }
 
-    private val RULE_KEYS = setOf("city", "type", "note", "when", "value", "samples")
-    private val CITY_OVERRIDE_KEYS = setOf("city", "to", "note", "when")
+    private fun sampleHolds(rules: List<Rule>, rule: Rule, sample: Sample): Boolean {
+        val plan = solveWith(rules, sample.records) ?: return false
+        if (rule.solves && rule.id !in plan.ruleIds) return false
+        if (sample.city != null && sample.city != (plan.city ?: plan.recordCity)) return false
+        if (sample.targets != null && sample.targets != plan.targets.map { it.code }) return false
+        if (rule.line != null) {
+            val match = lineWith(rules, plan, sample.records)
+            if (sample.line != null && sample.line != match?.line) return false
+        }
+        return true
+    }
+
+    private const val REC_JOURNEY = "1E"
+    private const val REC_FARE = "18"
+    private val RULE_KEYS = setOf("id", "note", "when", "any", "then", "samples")
+    private val THEN_KEYS = setOf("targets", "city", "family", "line")
+    private val TARGET_KEYS = setOf("prefix", "city", "family", "mode", "types", "fallbackBelow")
+    private val COND_KEYS = setOf("rec", "bytes", "nibbles", "eq", "in", "regex", "range", "radix", "not")
+    private val LINE_KEYS = setOf("rec", "nibbles", "radix", "ops", "min", "max", "prefix", "append")
+    private val SAMPLE_KEYS = setOf(REC_JOURNEY, REC_FARE, "expect")
+    private val EXPECT_KEYS = setOf("city", "targets", "line", "device")
     private val CITY_CODE = Regex("[0-9]{4}")
-    private val COND_KEYS = setOf("field", "slice", "eq", "in", "regex", "range", "radix", "not")
-    private val VALUE_KEYS = setOf("slice", "radix", "ops", "min", "max", "prefix", "append")
-    private val FIELDS = setOf("line", "city2", "acquirer")
+    private val SAMPLE_HEX = Regex("(?:[0-9A-F?]{2})+")
     private val OPS = setOf("mod", "div", "add", "sub", "mul")
 
-    private fun parseRule(o: JsonObject, index: Int, label: String): Rule {
+    private fun parseRule(o: JsonObject, id: String, position: Int): Rule {
         checkKeys(o, RULE_KEYS, "rule")
-        val cities = parseCities(o)
-        val type = o.str("type") ?: BUS
-        require(type == BUS) { "unsupported type $type" }
-        val conditions = o.get("when")?.arr("when")?.map { parseCondition(it.asJsonObject) }.orEmpty()
-        val value = parseValue(o.get("value")?.asJsonObject ?: error("missing value"))
-        val samples = o.get("samples")?.arr("samples")?.map { parseSample(it.asJsonObject, cities) }.orEmpty()
-        return Rule(cities.toSet(), index, label, conditions, value, samples)
+        var targetCodes: Set<String>? = null
+        val conditions = o.get("when")?.arr("when")?.mapNotNull { el ->
+            val c = el.obj("condition")
+            if (!c.has("target")) return@mapNotNull parseCondition(c)
+            checkKeys(c, setOf("target"), "target condition")
+            require(targetCodes == null) { "only one target condition" }
+            val t = c.get("target")
+            targetCodes = (if (t.isJsonArray) t.asJsonArray.map { it.asString } else listOf(t.asString)).toSet()
+                .also { codes -> require(codes.isNotEmpty() && codes.all { it.matches(CITY_CODE) }) { "bad target condition" } }
+            null
+        }.orEmpty()
+        val anyOf = o.get("any")?.arr("any")?.map { group ->
+            group.arr("any group").map { parseCondition(it.obj("condition")) }.also {
+                require(it.isNotEmpty()) { "empty any group" }
+            }
+        }.orEmpty()
+        require(conditions.isNotEmpty() || anyOf.isNotEmpty() || targetCodes != null) { "rule needs conditions" }
+
+        val then = o.get("then")?.obj("then") ?: error("missing then")
+        checkKeys(then, THEN_KEYS, "then")
+        require(then.size() > 0) { "then sets nothing" }
+        val city = then.str("city")?.also { require(it.matches(CITY_CODE)) { "bad city $it" } }
+        require(city != null || !then.has("city")) { "city must be a string" }
+        val targets = then.get("targets")?.arr("targets")?.map { parseTarget(it.obj("target")) }
+        require(targets == null || targets.isNotEmpty()) { "targets must not be empty" }
+        require(targets?.firstOrNull()?.fallbackBelow == null) { "first target cannot be a fallback" }
+        val family = parseFamily(then)
+        val line = then.get("line")?.let(::parseLine)
+        require(targetCodes == null || (line != null && targets == null && city == null && family == null)) {
+            "target condition is only for line rules"
+        }
+        val samples = o.get("samples")?.arr("samples")?.map { parseSample(it.obj("sample")) }.orEmpty()
+        return Rule(id, position, conditions, anyOf, targetCodes, targets, city, family, line, samples)
     }
 
-    private fun parseCities(o: JsonObject): List<String> {
-        val city = o.get("city") ?: error("missing city")
-        val cities = if (city.isJsonArray) city.asJsonArray.map { it.asString } else listOf(city.asString)
-        require(cities.isNotEmpty() && cities.all { it.isNotBlank() }) { "bad city" }
-        return cities
+    private fun parseTarget(o: JsonObject): Target {
+        checkKeys(o, TARGET_KEYS, "target")
+        require(o.has("prefix") != o.has("city")) { "target needs exactly one of prefix / city" }
+        val byCity = o.has("city")
+        val code = o.str(if (byCity) "city" else "prefix")?.takeIf { it.matches(CITY_CODE) } ?: error("bad target code")
+        val stationPrefix = when (val mode = o.str("mode") ?: "overlap") {
+            "overlap" -> false
+            "stationPrefix" -> true
+            else -> error("unknown mode $mode")
+        }
+        val types = o.get("types")?.arr("types")?.map { it.asString }?.toSet()
+        require(types == null || (stationPrefix && types.isNotEmpty())) { "types needs mode stationPrefix" }
+        val fallbackBelow = o.get("fallbackBelow")?.asInt?.also { require(it > 0) { "bad fallbackBelow" } }
+        return Target(code, byCity, parseFamily(o), stationPrefix, types, fallbackBelow)
     }
 
-    private fun parseSlice(o: JsonObject): IntRange {
-        val a = o.get("slice")?.arr("slice") ?: error("missing slice")
-        require(a.size() == 2) { "slice needs [start, end]" }
+    private fun parseFamily(o: JsonObject): TransitData.TuTransitFamily? = when (val f = o.str("family")) {
+        null -> {
+            require(!o.has("family")) { "family must be a string" }
+            null
+        }
+        "bus" -> TransitData.TuTransitFamily.BUS
+        "rail" -> TransitData.TuTransitFamily.RAIL
+        else -> error("unknown family $f")
+    }
+
+    private fun parseSample(o: JsonObject): Sample {
+        checkKeys(o, SAMPLE_KEYS, "sample")
+        val journey = o.str(REC_JOURNEY)?.let(::sampleHex)
+        val fare = o.str(REC_FARE)?.let(::sampleHex)
+        require(journey != null || fare != null) { "sample needs 1E or 18" }
+        val expect = o.get("expect")?.obj("expect")
+        expect?.let { checkKeys(it, EXPECT_KEYS, "expect") }
+        val city = expect?.str("city")?.also { require(it.matches(CITY_CODE)) { "bad expected city" } }
+        val targets = expect?.get("targets")?.arr("targets")?.map { it.asString }
+        return Sample(Records(journey?.takeIf { it.length >= 68 }, fare), city, targets, expect?.str("line"))
+    }
+
+    private fun sampleHex(hex: String): String {
+        require(hex.matches(SAMPLE_HEX)) { "sample hex must be uppercase (unknown nibbles as '?')" }
+        return hex
+    }
+
+    private fun parseRange(o: JsonObject, key: String): IntRange {
+        val a = o.get(key)?.arr(key) ?: error("missing $key")
+        require(a.size() == 2) { "$key needs [start, end]" }
         val start = a[0].asInt
         val end = a[1].asInt
-        require(start in 0 until end) { "bad slice [$start, $end]" }
+        require(start in 0 until end) { "bad $key [$start, $end]" }
         return start until end
     }
 
     private fun parseCondition(o: JsonObject): Condition {
         checkKeys(o, COND_KEYS, "condition")
-        val field = o.str("field") ?: "line"
-        require(field in FIELDS) { "unknown field $field" }
         val radix = parseRadix(o)
         val tests = listOfNotNull(
             o.str("eq")?.let { eq -> { s: String -> s == eq } },
@@ -279,12 +443,28 @@ internal object TuLineRules {
             }
         )
         require(tests.size == 1) { "condition needs exactly one of eq / in / regex / range" }
-        val range = if (o.has("slice")) parseSlice(o) else null
-        return Condition(field, range, o.get("not")?.asBoolean ?: false, tests.single())
+        return Condition(parseSelector(o), o.get("not")?.asBoolean ?: false, tests.single())
     }
 
-    private fun parseValue(o: JsonObject): ValueSpec {
-        checkKeys(o, VALUE_KEYS, "value")
+    /** `rec` + `bytes` / `nibbles` → 记录 hex 切片（字节下标折算为 hex 字符下标）。 */
+    private fun parseSelector(o: JsonObject): (Records) -> String? {
+        val rec = o.str("rec") ?: error("condition needs rec")
+        require(rec == REC_JOURNEY || rec == REC_FARE) { "unknown rec $rec" }
+        require(o.has("bytes") != o.has("nibbles")) { "condition needs exactly one of bytes / nibbles" }
+        val range = if (o.has("bytes")) parseRange(o, "bytes").let { it.first * 2 until (it.last + 1) * 2 }
+            else parseRange(o, "nibbles")
+        return { records -> records.get(rec)?.sliceKnown(range.first, range.last + 1) }
+    }
+
+    private fun parseLine(element: JsonElement): (String) -> String? {
+        if (element.isJsonPrimitive && element.asJsonPrimitive.isString) {
+            val label = element.asString
+            require(label.isNotBlank()) { "fixed line name must not be blank" }
+            return { label }
+        }
+        val o = element.obj("line")
+        checkKeys(o, LINE_KEYS, "line")
+        require(o.str("rec") == REC_JOURNEY) { "line reads rec 1E" }
         val ops = o.get("ops")?.arr("ops")?.map { op ->
             val a = op.arr("op")
             require(a.size() == 2) { "op needs [name, n]" }
@@ -298,22 +478,11 @@ internal object TuLineRules {
         require(prefix != null || !o.has("prefix")) { "prefix must be a string" }
         val append = o.str("append")
         require(append != null || !o.has("append")) { "append must be a string" }
-        return ValueSpec(
-            parseSlice(o), parseRadix(o), ops, o.get("min")?.asLong, o.get("max")?.asLong,
+        val range = parseRange(o, "nibbles")
+        return LineSpec(
+            range.first, range.last + 1, parseRadix(o), ops, o.get("min")?.asLong, o.get("max")?.asLong,
             prefix.orEmpty(), append.orEmpty()
-        )
-    }
-
-    private fun parseSample(o: JsonObject, cities: List<String>): Pair<Input, String> {
-        checkKeys(o, setOf("record", "line", "city", "city2", "acquirer", "out"), "sample")
-        val input = o.str("record")?.let { hex ->
-            val bytes = ApduUtil.hexToBytes(hex)
-            require(bytes.size >= 38) { "sample record too short" }
-            recordInput(bytes).also { require(it.city in cities) { "sample record city ${it.city} not in $cities" } }
-        } ?: Input(
-            o.str("city")?.also { require(it in cities) { "sample city $it not in $cities" } } ?: cities.first(),
-            o.str("line") ?: error("sample needs record or line"), o.str("city2"), o.str("acquirer"))
-        return input to (o.str("out") ?: error("sample needs out"))
+        )::compute
     }
 
     private fun parseRadix(o: JsonObject): Int {
@@ -332,4 +501,7 @@ internal object TuLineRules {
 
     private fun JsonElement.arr(what: String): JsonArray =
         takeIf { it.isJsonArray }?.asJsonArray ?: error("$what must be an array")
+
+    private fun JsonElement.obj(what: String): JsonObject =
+        takeIf { it.isJsonObject }?.asJsonObject ?: error("$what must be an object")
 }

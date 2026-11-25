@@ -405,6 +405,18 @@ object RecordDecoder {
 
     private const val HEFEI_METRO_CLOCK_OFFSET_MS = 946_656_000_000L
 
+    /** TU 钱包 0x18 记录按完整时间戳（yyyyMMddHHmmss，byte 16–22）分组，供 1E 求解时配对。 */
+    private fun tuFaresByTimestamp(records: List<ZoneRecord>): Map<String, List<ByteArray>> =
+        records.asSequence()
+            .filter { it.sfi == 0x18 && it.protocol == "TU" && it.logFormat == null }
+            .map { ApduUtil.hexToBytes(it.hex) }
+            .filter { it.size >= 23 && !it.all { b -> b.toInt() == 0 } }
+            .groupBy { ApduUtil.bcdToString(it.copyOfRange(16, 23)) }
+
+    /** 与 [mergeJourneyAndFare] 同口径：同一时间戳中终端号相同者优先，否则取第一条。 */
+    private fun pairedTuFare(candidates: List<ByteArray>?, terminal: String): ByteArray? =
+        candidates?.firstOrNull { ApduUtil.bytesToHex(it.copyOfRange(10, 16)) == terminal } ?: candidates?.firstOrNull()
+
     /**
      * 从 SFI 0x1E 循环记录建立终端→站点映射表及旅程交易（进站/出站事件）。
      * 空槽（整条全 0）跳过。返回按物理 recNo 顺序处理后的结果。
@@ -414,14 +426,13 @@ object RecordDecoder {
         val journey = mutableListOf<CanonicalTransaction>()
         var latestTs = ""
         var latestCity = ""
+        val faresByTimestamp = tuFaresByTimestamp(records)
         for (rec in records.filter { it.sfi == 0x1E && it.logFormat == null }.distinctBy { it.hex }.sortedBy { it.recNo }) {
             val data = ApduUtil.hexToBytes(rec.hex)
             if (data.size < 22) continue
             if (data.all { it.toInt() == 0 }) continue  // 空槽
 
             val terminal = ApduUtil.bytesToHex(data.copyOfRange(3, 9))  // 终端号可含 FF 填充，按 hex 保留
-            val lineCode = ApduUtil.bcdToString(data.copyOfRange(10, 12))
-            val stationCode = ApduUtil.bcdToString(data.copyOfRange(12, 14))
             val cityCode = if (data.size >= 34) ApduUtil.bcdToString(data.copyOfRange(32, 34)) else ""
             // 原始代码切片 [10..17)：line+station+city+类型等连续片段，直接交给匹配层做最长重叠匹配，
             // 避免硬拆 line/station 位宽差异（如 16180101602009 → bus 618 / metro 01001B00 → 坝头）。
@@ -432,15 +443,18 @@ object RecordDecoder {
             // TU 1E：byte 0 是记录类型，byte 9 是交通 subtype。
             // subtype 01 为轨道，02/13 为公交，先约束设备映射候选；未知 subtype 不限制匹配。
             val subtype = data[9].toInt() and 0xFF
-            // 合肥地铁闸机时钟异常的记录 subtype 为 00，以时钟特征判定为轨道。
-            val expectedFamily = if (isHefeiMetroClockRecord(data)) TransitData.TuTransitFamily.RAIL
-                else TransitData.tuTransitFamilyForSubtype(subtype)
-            val correctedCity = TuLineRules.correctedBusCity(data)
-            val lookupCity = correctedCity ?: cityCode
-            val entry = TransitData.resolveTuStation(
-                lookupCity, lineCode, stationCode, terminal, rawCode,
-                expectedFamily = expectedFamily, journeyRecord = data
-            )
+            val timestamp = tuJourneyTimestamp(data)
+            // 求解查找计划：1E + 同一时间戳的 TU 0x18（line_rules.json 规则可按两条原始记录取条件）
+            val fare = pairedTuFare(faresByTimestamp[timestamp], terminal)
+            val plan = if (cityCode.isNotEmpty()) TransitData.tuPlan(data, fare) else null
+            val expectedFamily = when {
+                // 合肥地铁闸机时钟异常的记录 subtype 为 00，以时钟特征判定为轨道。
+                isHefeiMetroClockRecord(data) -> TransitData.TuTransitFamily.RAIL
+                else -> plan?.family ?: TransitData.tuTransitFamilyForSubtype(subtype)
+            }
+            val ruleCity = plan?.city
+            val lookupCity = ruleCity ?: cityCode
+            val entry = plan?.let { TransitData.resolveTuPlan(it, terminal, rawCode, expectedFamily) }
             // 未命中映射时，subtype=轨道 仍需 line 与 station 各自非全 0 才兜底为地铁
             // （01000000 / 00001011 → 公交）。用原始 hex 片段，避免 bcd 展开 hex 字母造成错位。
             val railFallback = expectedFamily == TransitData.TuTransitFamily.RAIL &&
@@ -457,7 +471,7 @@ object RecordDecoder {
             val ruleMatch = if (mappedRef?.line.isNullOrEmpty() &&
                 mappedRef?.lineId == null && mappedRef?.stationId == null &&
                 TransitData.matchesTuTransitFamily(resolvedType, TransitData.TuTransitFamily.BUS)
-            ) TransitData.tuRuleMatch(data) else null
+            ) plan?.let { TransitData.tuRuleMatch(data, it, fare) } else null
             val ruleLine = ruleMatch?.line
             val ref = StationRef(
                 // 规则命中时与数据库「仅线路」行一致：站名位显示线路号（见 TransitData.toEntry）。
@@ -469,13 +483,12 @@ object RecordDecoder {
                 lineColor = mappedRef?.lineColor,
                 lineId = mappedRef?.lineId,
                 stationId = mappedRef?.stationId,
-                cityCode = mappedRef?.cityCode ?: correctedCity,
+                cityCode = mappedRef?.cityCode ?: ruleCity,
                 deviceCode = mappedRef?.code,
-                spRule = mappedRef?.spRule ?: ruleMatch?.tag
+                spRule = mappedRef?.spRule ?: TuLineRules.label(plan, ruleMatch)
             )
             val balanceFen = if (data.size >= 25) ApduUtil.hexToLong(data.copyOfRange(21, 25)) else null
             val amountFen = if (data.size >= 21) ApduUtil.hexToLong(data.copyOfRange(17, 21)) else 0L
-            val timestamp = tuJourneyTimestamp(data)
 
             stationMap[terminal] = ref
             // 卡所在城市：取时间戳最新记录的城市码（TU 0x18 记录自身城市码无效）
@@ -583,7 +596,7 @@ object RecordDecoder {
             // 非 "02" 视为退款/扣款，显示 "-" 并计入消费）。
             val resolvedRef =
                 if (posIsRecharge || typeHex == "02") null
-                else resolveStation(protocol, cityCode18, posHex, terminal, tu)
+                else resolveStation(protocol, cityCode18, posHex, terminal, tu, data.takeIf { rec.sfi == 0x18 })
             val isRecharge = resolvedRef == null ||
                 resolvedRef.mappingTransitType?.contains("充值") == true
             val effectiveTypeHex = if (posIsRecharge) "02" else typeHex
@@ -786,12 +799,19 @@ object RecordDecoder {
         cityCode: String,
         posHex: String,
         terminal: String,
-        tu: TuMap
+        tu: TuMap,
+        fare: ByteArray? = null
     ): StationRef {
         if (protocol == "TU") {
             tu.stationMap[terminal]?.let { return it }
             for ((key, value) in tu.stationMap) {
                 if (terminal.endsWith(key) || key.endsWith(terminal)) return value
+            }
+            // 无 1E 对应的 0x18：规则只按 0x18 字段命中时，按其目标桶做终端号匹配
+            if (fare != null) {
+                TransitData.tuPlan(null, fare)?.let { plan ->
+                    TransitData.resolveTuPlan(plan, terminal, null, plan.family)?.let { return it.toStationRef() }
+                }
             }
             val fallback = TransitData.resolveByStandard("TU", cityCode, posHex, terminal)
             if (fallback != null) return fallback.toStationRef()
