@@ -8,11 +8,11 @@ class RawHexHeaderTest {
     // 5882 卡（岭南通 + TU 双协议）实际读到的应用
     @Test fun headerNamesTheApplicationAfterTheProtocol() {
         assertEquals(
-            "SFI 0x15  LNT (PAY.APPY)  Rec 0",
+            "SFI 0x15  LNP (PAY.APPY)  Rec 0",
             RawHexFormatter.header(RawRecord(0x15, 0, "LNT", "00", "5041592E41505059"))
         )
         assertEquals(
-            "SFI 0x18  LNT (PAY.TICL)  Rec 1",
+            "SFI 0x18  LNP (PAY.TICL)  Rec 1",
             RawHexFormatter.header(RawRecord(0x18, 1, "LNT", "00", "5041592E5449434C"))
         )
         assertEquals(
@@ -26,7 +26,7 @@ class RawHexHeaderTest {
     }
 
     @Test fun transactionDetailBlocksUseTheSameApplicationLabel() {
-        assertEquals("SFI 0x18  LNT (PAY.TICL)", RawHexFormatter.blockTitle(0x18, "LNT", "5041592E5449434C"))
+        assertEquals("SFI 0x18  LNP (PAY.TICL)", RawHexFormatter.blockTitle(0x18, "LNT", "5041592E5449434C"))
         assertEquals("SFI 0x1E  TU (A000000632010105)", RawHexFormatter.blockTitle(0x1E, "TU", "A000000632010105"))
         assertEquals("SFI 0x18  TU", RawHexFormatter.blockTitle(0x18, "TU", null))
         assertEquals("SFI 0x18", RawHexFormatter.blockTitle(0x18, "", null))
