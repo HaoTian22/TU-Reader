@@ -52,6 +52,63 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- 首页是否显示总余额 -->
+        <LinearLayout
+            android:id="@+id/rowShowTotalBalance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/iconShowTotalBalance"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_settings_icon"
+                android:gravity="center"
+                android:text="&#xf06e;"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:tag="fa" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/show_total_balance"
+                    android:textColor="@color/ink"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/show_total_balance_desc"
+                    android:textColor="@color/ink_3"
+                    android:textSize="10sp"
+                    android:lineSpacingMultiplier="0.9" />
+            </LinearLayout>
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchShowTotalBalance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="0dp" />
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/rowUpdateStationMap"
             android:layout_width="match_parent"

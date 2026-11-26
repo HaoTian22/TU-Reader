@@ -108,10 +108,10 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
         }
     }
 
-    /** 卡片类型：列出卡上全部可用应用（如 LNT / TU）；元数据未就绪时退回内部卡型。 */
+    /** 卡片类型：列出卡上全部可用应用（如 LNP / TU）；元数据未就绪时退回内部卡型。 */
     private fun bindCardType(card: UiCard) {
-        binding.tvCardType.text = appProtocols.joinToString(" / ")
-            .ifEmpty { card.protocolType.ifBlank { card.cardType } }
+        binding.tvCardType.text = appProtocols.joinToString(" / ") { TransitLabels.protocol(it) }
+            .ifEmpty { TransitLabels.protocol(card.protocolType.ifBlank { card.cardType }) }
     }
 
     /** 每个应用单独一个分区（如岭南通 / 交通联合）：卡号、发卡城市/机构、有效期及应用字段；无可展示字段的应用不显示。 */
@@ -125,7 +125,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
     private fun addApplicationSection(container: LinearLayout, info: UiApplicationInfo) {
         val app = info.metadata
         val section = ItemDetailSectionBinding.inflate(layoutInflater, container, false)
-        section.sectionTitle.text = (info.name ?: info.protocol.takeIf { it.isNotBlank() })
+        section.sectionTitle.text = (info.name ?: info.protocol.takeIf { it.isNotBlank() }?.let(TransitLabels::protocol))
             ?.let { getString(R.string.card_info_application_named, it) }
             ?: getString(R.string.card_info_application)
         val panel = section.sectionRows
@@ -173,7 +173,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
 
     /** 摘要副标题：卡片类型 发卡城市 */
     private fun updateHeroSubtitle(card: UiCard) {
-        binding.tvHeroSubtitle.text = MetaText.join(listOf(card.protocolType.ifBlank { card.cardType }, issuerCity))
+        binding.tvHeroSubtitle.text = MetaText.join(listOf(TransitLabels.protocol(card.protocolType.ifBlank { card.cardType }), issuerCity))
     }
 
     private fun bindCard(card: UiCard) {
@@ -272,7 +272,7 @@ class CardInfoFragment : Fragment(R.layout.fragment_card_info) {
                     previousSfi = sfi
                 }
                 for (fields in fieldVariants) {
-                    addMonospaceLine(panel, "SFI ${sfi.toSfiHex()}  $protocol fields", dim = true)
+                    addMonospaceLine(panel, "SFI ${sfi.toSfiHex()}  ${TransitLabels.protocol(protocol)} fields", dim = true)
                     fields.forEach { addLegendRow(panel, it) }
                 }
             }

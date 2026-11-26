@@ -355,7 +355,8 @@ object RawHexFormatter {
             record.selectedAid.takeIf { com.example.nfctransit.CardProfiles.isUnknownApp(it) } ?: "GEN"
         }
         val app = record.selectedAid.takeIf { it.isNotBlank() }?.let(::appLabel)
-        val source = if (app == null || app == protocol) protocol else "$protocol ($app)"
+        val shown = TransitLabels.protocol(protocol)
+        val source = if (app == null || app == protocol) shown else "$shown ($app)"
         return "SFI ${record.sfi.toSfiHex()}  $source  Rec ${record.recNo}"
     }
 
@@ -364,8 +365,8 @@ object RawHexFormatter {
         val app = selectedAid?.takeIf { it.isNotBlank() }?.let(::appLabel)
         val source = when {
             protocol.isBlank() -> app
-            app == null || app == protocol -> protocol
-            else -> "$protocol ($app)"
+            app == null || app == protocol -> TransitLabels.protocol(protocol)
+            else -> "${TransitLabels.protocol(protocol)} ($app)"
         }
         return if (source == null) "SFI ${sfi.toSfiHex()}" else "SFI ${sfi.toSfiHex()}  $source"
     }

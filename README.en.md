@@ -37,7 +37,7 @@ It is built on public transit-card protocol documentation (the NFC Wiki smart-ca
 |---|---|---|
 | T-Union (交通联合卡) | Nationwide interoperable card, 300+ cities | ✅ Supported |
 | Shenzhen Tong (SZT) | Shenzhen public transit card | ✅ Supported |
-| Lingnan Pass / Yang Cheng Tong (LNT/YCT) | Guangdong interoperable card | ⚠️ Partial: only some Guangzhou/Foshan metro lines; buses are misidentified |
+| Lingnan Pass / Yang Cheng Tong (LNP/YCT) | Guangdong interoperable card | ⚠️ Partial: only some Guangzhou/Foshan metro lines; buses are misidentified |
 | Octopus | Hong Kong | ⚠️ Balance only |
 | Macau Pass | Macau public transit card | ✅ Supported |
 | Suzhou Tong (SUZ) | Suzhou transit card | ❓ Unverified |

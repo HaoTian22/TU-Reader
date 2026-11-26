@@ -5,13 +5,13 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -21,7 +21,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 
 /**
- * 交易行长按后的底部抽屉：上方是这条交易的摘要（图标 / 站名 / 城市 类型 线路 / 日期时间 / 金额与余额），
+ * 交易行长按后的底部抽屉：上方是这条交易的摘要（信息不少于列表行，另有交易类型 / 协议 / 终端号列表），
  * 下方是操作列表。[actions] 依次排成带图标的行，点击后先收起抽屉再执行。
  */
 object TransactionActionSheet {
@@ -122,11 +122,16 @@ object TransactionActionSheet {
         dialog.show()
     }
 
-    /** 摘要：图标圆 + 站名（出入站箭头）/ 城市 类型 线路 / 日期时间，右侧金额与交易后余额 */
+    /**
+     * 摘要：信息量不少于列表行（长按是预览，不是缩略）。
+     * 图标圆 + 站名（出入站箭头，长名换行不截断）/ 城市、类型、着色线路药丸（放不下换行）/ 完整日期时间，
+     * 右侧金额与交易后余额；下方信息列表：交易类型 / 协议 / 终端号。
+     */
     private fun summary(context: Context, txn: UiTransaction, fa: Typeface, dp: (Int) -> Int): View {
+        val wrap = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.TOP
             setPadding(dp(20), 0, dp(20), 0)
         }
 
@@ -147,7 +152,7 @@ object TransactionActionSheet {
         val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val titleRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.TOP
         }
         when (txn.direction) {
             TransitDirection.ENTRY, TransitDirection.EXIT -> titleRow.addView(TextView(context).apply {
@@ -156,40 +161,49 @@ object TransactionActionSheet {
                 text = if (txn.direction == TransitDirection.ENTRY) "" else ""
                 textSize = 13f
                 setTextColor(Palette.INK_3)
-                setPadding(0, 0, dp(6), 0)
+                setPadding(0, dp(4), dp(6), 0)
             })
             else -> Unit
         }
+        // 站名占满剩余宽度并允许换行：长站名不再被省略或挤没
         titleRow.addView(TextView(context).apply {
             text = TransitLabels.station(txn.stationName.ifBlank { txn.transitType })
                 .ifBlank { context.getString(R.string.unknown) }
             textSize = 17f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Palette.INK)
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-        })
-        col.addView(titleRow)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        col.addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        val meta = listOf(txn.cityName, txn.transitType, txn.lineName)
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && it != "-" && it != "—" && it != txn.stationName }
-            .distinct()
-            .map { TransitLabels.type(TransitLabels.city(it)) }
-            .let(MetaText::join)
-        if (meta.isNotEmpty()) col.addView(TextView(context).apply {
-            text = meta
-            textSize = 13f
-            setTextColor(Palette.INK_2)
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(0, dp(3), 0, 0)
-        })
+        // 药丸：城市 / 类型 / 着色线路（协议在下方信息列表），放不下自动换行
+        fun known(v: String?) = v?.trim()?.takeIf { it.isNotEmpty() && it != "-" && it != "—" }
+        val pills = FlowLayout(context)
+        fun pill(text: String, isLine: Boolean = false) {
+            pills.addView(TextView(context).apply {
+                this.text = text
+                textSize = 11f
+                setSingleLine(true)
+                setPadding(dp(8), dp(2), dp(8), dp(2))
+                if (isLine) applyLinePill(txn.lineColor) else {
+                    background = ContextCompat.getDrawable(context, R.drawable.bg_chip_default)
+                    setTextColor(Palette.INK_2)
+                }
+            }, ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginEnd = dp(6)
+            })
+        }
+        known(txn.cityName)?.let { pill(TransitLabels.city(it)) }
+        known(txn.transitType)?.let { pill(TransitLabels.type(it)) }
+        known(txn.lineName)?.takeIf { it != txn.stationName }?.let { pill(it, isLine = true) }
+        if (pills.childCount > 0) col.addView(pills, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
+
         col.addView(TextView(context).apply {
             text = "${txn.date} ${txn.time}".trim()
             textSize = 12f
             setTextColor(Palette.INK_3)
-            setPadding(0, dp(2), 0, 0)
+            setPadding(0, dp(4), 0, 0)
         })
         row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
@@ -214,7 +228,51 @@ object TransactionActionSheet {
         row.addView(right, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = dp(12)
         })
-        return row
+        wrap.addView(row)
+
+        // 补充字段：交易类型 / 协议 / 终端号（详情页同名行的子集；协议只在这里显示，不再出药丸）
+        val facts = listOf(
+            R.string.txn_row_type to TransitLabels.transactionType(txn),
+            R.string.txn_row_protocol to txn.protocols.joinToString(" / "),
+            R.string.txn_row_terminal to txn.terminal
+        ).filter { known(it.second) != null }
+        if (facts.isNotEmpty()) {
+            val box = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(6), dp(14), dp(6))
+                background = GradientDrawable().apply {
+                    cornerRadius = 14f * context.resources.displayMetrics.density
+                    setColor(ColorUtils.blendARGB(Palette.SURFACE, Palette.INK, 0.05f))
+                }
+            }
+            facts.forEach { (label, value) ->
+                box.addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(5), 0, dp(5))
+                    addView(TextView(context).apply {
+                        text = context.getString(label)
+                        textSize = 13f
+                        setTextColor(Palette.INK_3)
+                    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        marginEnd = dp(16)
+                    })
+                    addView(TextView(context).apply {
+                        text = value
+                        textSize = 13f
+                        gravity = Gravity.END
+                        setTextColor(Palette.INK)
+                        if (label == R.string.txn_row_terminal) typeface = Typeface.MONOSPACE
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                })
+            }
+            wrap.addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(14)
+                marginStart = dp(20)
+                marginEnd = dp(20)
+            })
+        }
+        return wrap
     }
 
     /** 复制用的纯文本摘要 */

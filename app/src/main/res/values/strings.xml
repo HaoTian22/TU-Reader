@@ -217,6 +217,8 @@
     <string name="station_db_version">Current version %s</string>
     <string name="station_db_version_unknown">Current version unknown</string>
     <string name="card_sorting">Card order</string>
+    <string name="show_total_balance">Show total balance</string>
+    <string name="show_total_balance_desc">Display the combined balance on the home page</string>
     <string name="data_and_privacy">Data &amp; privacy</string>
     <string name="local_data_storage">Local data storage</string>
     <string name="manage_overrides">Manage local mappings</string>

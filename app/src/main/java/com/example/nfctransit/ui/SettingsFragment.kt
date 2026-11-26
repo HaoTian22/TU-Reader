@@ -33,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import com.example.nfctransit.util.AppLanguage
 import com.example.nfctransit.util.AppTheme
+import com.example.nfctransit.util.HomePrefs
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
@@ -108,7 +109,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         // 主题色跟随卡片的只有返回按钮；选项行首图标统一中性色，仅危险操作（清除全部数据）用红色，
         // 颜色只在有含义时出现
         val optionIcons = intArrayOf(
-            R.id.iconCardCount, R.id.iconUpdateStationMap, R.id.iconCardSort,
+            R.id.iconCardCount, R.id.iconShowTotalBalance, R.id.iconUpdateStationMap, R.id.iconCardSort,
             R.id.iconLocalStorage, R.id.iconDatabaseViewer, R.id.iconTransitOverrides,
             R.id.iconDataExport, R.id.iconImportData,
             R.id.iconClearCache,
@@ -420,6 +421,17 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             toggle.setOnCheckedChangeListener { _, checked ->
                 if (checked != viewModel.debugMode.value) viewModel.setDebugMode(checked)
             }
+        }
+
+        // 首页显示总余额（卡片管理）
+        binding.root.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchShowTotalBalance)?.let { toggle ->
+            toggle.isChecked = HomePrefs.showTotalBalance(requireContext())
+            toggle.tintAccent(viewModel.mainAccent.value?.toInt() ?: Palette.ACCENT)
+            viewModel.mainAccent.observe(viewLifecycleOwner) { c -> toggle.tintAccent(c.toInt()) }
+            toggle.setOnCheckedChangeListener { _, checked ->
+                HomePrefs.setShowTotalBalance(requireContext(), checked)
+            }
+            binding.root.findViewById<View>(R.id.rowShowTotalBalance)?.setOnClickListener { toggle.toggle() }
         }
 
         // 深色模式：跟随系统 / 浅色 / 深色（AppCompat 重建 Activity 生效）

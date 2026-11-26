@@ -18,7 +18,7 @@ object SampleData {
         gradientEndColor = 0xFF0D47A1
     )
 
-    val cardLingnanTong = UiCard(
+    val cardLingnanPass = UiCard(
         id = "lnt_7294",
         name = "岭南通",
         cardType = "岭南通",
@@ -28,7 +28,7 @@ object SampleData {
         gradientEndColor = 0xFF1B5E20
     )
 
-    val allCards = listOf(cardShenzhenTong, cardLingnanTong)
+    val allCards = listOf(cardShenzhenTong, cardLingnanPass)
 
     /**
      * All transactions matching the design mockup, sorted newest first.

@@ -296,20 +296,7 @@ class TransactionDetailFragment : Fragment(R.layout.fragment_transaction_detail)
         val fa = Typeface.createFromAsset(requireContext().assets, "fonts/fa-solid-900.otf")
         val isEntry = txn.direction == TransitDirection.ENTRY
         val isExit = txn.direction == TransitDirection.EXIT
-        val transactionType = if (txn.ticketProcessing) {
-            getString(R.string.amount_ticket_processing)
-        } else {
-            when (txn.transitType) {
-                "地铁" -> getString(
-                    if (isEntry) R.string.txn_type_metro_entry
-                    else if (isExit) R.string.txn_type_metro_exit
-                    else R.string.transit_metro
-                )
-                "公交" -> getString(R.string.txn_type_bus_ride)
-                "消费" -> getString(R.string.txn_type_small_purchase)
-                else -> TransitLabels.type(txn.transitType)
-            }
-        }
+        val transactionType = TransitLabels.transactionType(txn)
         fun known(v: String?) = v?.trim()?.takeIf { it.isNotEmpty() && it != "-" && it != "—" && it != "未知" }
         // 站名保持原样，进出站方向由独立字段提供；未命中站点库（stationId 为空）时不显示站名
         val station = known(txn.stationName)?.takeIf { txn.stationId != null }

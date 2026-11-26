@@ -1877,18 +1877,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             second?.let { appInfo("TU", it, tuCardNumber) },
             octopus
         )
-        // 卡上全部可用应用：主应用在前，其余按应用快照/原始记录出现顺序；PSE 等目录不计入。
-        val appProtocols = (listOf(primaryProtocol) +
-            apps.map { CardProfiles.protocolForAid(it.selectedAid) } +
-            records.map { it.protocol })
-            .filter { it.isNotBlank() }
-            .distinct()
         return UiCardMetadata(
             issuerCity = applications.firstNotNullOfOrNull { it.issuerCity },
-            appProtocols = appProtocols,
+            appProtocols = appProtocolsOf(primaryProtocol, apps, records),
             applications = applications
         )
     }
+
+    /** 首页卡面：卡上全部可用应用的协议（与卡片信息页「卡片类型」一致） */
+    fun appProtocols(cardId: String): List<String> {
+        val entity = cardEntities.firstOrNull { it.cardId == cardId } ?: return emptyList()
+        return appProtocolsOf(
+            primaryProtocolOf(entity.cardType),
+            cardAppsByCard[cardId].orEmpty(),
+            rawRecordsByCard[cardId].orEmpty()
+        )
+    }
+
+    /** 卡上全部可用应用：主应用在前，其余按应用快照/原始记录出现顺序；PSE 等目录不计入。 */
+    private fun appProtocolsOf(
+        primaryProtocol: String,
+        apps: List<CardAppEntity>,
+        records: List<RawRecord>
+    ): List<String> = (listOf(primaryProtocol) +
+        apps.map { CardProfiles.protocolForAid(it.selectedAid) } +
+        records.map { it.protocol })
+        .filter { it.isNotBlank() }
+        .distinct()
 
     /** 应用分区标题：卡名不翻译；TU 为标准名，随界面语言。 */
     private fun applicationName(protocol: String): String? = when (protocol) {

@@ -34,7 +34,7 @@ body:
         - TU（交通联合） / TU (China T-Union)
         - CU（住建部） / CU (MoHURD)
         - SZT（深圳通） / SZT (Shenzhen Tong)
-        - LNT（岭南通/羊城通） / LNT (Lingnan Tong/Yangcheng Tong)
+        - LNP（岭南通/羊城通） / LNP (Lingnan Pass/Yangcheng Tong)
     validations:
       required: true
 

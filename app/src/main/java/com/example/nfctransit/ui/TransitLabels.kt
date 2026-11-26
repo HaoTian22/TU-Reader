@@ -33,6 +33,30 @@ object TransitLabels {
     /** 站名位置可能是兜底的类型串（充值 / 轨道交通 / 公共交通…），这些按类型翻译；真实站名原样返回 */
     fun station(name: String): String = if (name in TYPE_RES) type(name) else name
 
+    /** 交易类型显示名（详情页「交易类型」行与长按抽屉共用）：票务处理 / 地铁进出站 / 公交乘车 / 小额消费 / 其余按类型 */
+    fun transactionType(txn: com.example.nfctransit.model.UiTransaction): String {
+        if (txn.ticketProcessing) return L10n.str(R.string.amount_ticket_processing)
+        return when (txn.transitType) {
+            "地铁" -> L10n.str(when (txn.direction) {
+                com.example.nfctransit.model.TransitDirection.ENTRY -> R.string.txn_type_metro_entry
+                com.example.nfctransit.model.TransitDirection.EXIT -> R.string.txn_type_metro_exit
+                else -> R.string.transit_metro
+            })
+            "公交" -> L10n.str(R.string.txn_type_bus_ride)
+            "消费" -> L10n.str(R.string.txn_type_small_purchase)
+            else -> type(txn.transitType)
+        }
+    }
+
+    /**
+     * 协议/应用代码 -> 显示代码。岭南通对外称 Lingnan Pass，显示为 LNP；
+     * 内部数据键仍为 "LNT"（用户库 raw_records、transit.db protocol_city_code、line_rules、CSV 均以此为键），不改。
+     */
+    fun protocol(code: String): String = when (code) {
+        "LNT" -> "LNP"
+        else -> code
+    }
+
     /** 中文城市名 -> 显示名 */
     fun city(cityZh: String?): String = TransitData.cityLabel(cityZh.orEmpty())
 }

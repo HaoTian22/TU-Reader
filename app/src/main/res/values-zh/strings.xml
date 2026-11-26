@@ -212,6 +212,8 @@
     <string name="station_db_version">当前版本 %s</string>
     <string name="station_db_version_unknown">当前版本未知</string>
     <string name="card_sorting">卡片排序</string>
+    <string name="show_total_balance">显示总余额</string>
+    <string name="show_total_balance_desc">在首页显示所有卡片的余额合计</string>
     <string name="data_and_privacy">数据与隐私</string>
     <string name="local_data_storage">本地数据存储</string>
     <string name="manage_overrides">管理本地映射数据</string>
