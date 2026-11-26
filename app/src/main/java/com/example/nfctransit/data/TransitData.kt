@@ -298,10 +298,12 @@ object TransitData {
             val family = target.family ?: expectedFamily
             var match: CityMatch? = null
             for ((prefix, pool) in targetBuckets(target, family)) {
-                val m = if (target.stationPrefix) {
-                    stationPrefixMatch(prefix, pool ?: candidatesByCityAndFamily[prefix to family].orEmpty(), target.types, rawCode)
-                } else {
-                    matchInCity(prefix, terminal, rawCode, family, pool)
+                val m = when {
+                    target.keyMode ->
+                        keyMatch(prefix, pool ?: candidatesByCityAndFamily[prefix to family].orEmpty(), target.types, target.key)
+                    target.stationPrefix ->
+                        stationPrefixMatch(prefix, pool ?: candidatesByCityAndFamily[prefix to family].orEmpty(), target.types, rawCode)
+                    else -> matchInCity(prefix, terminal, rawCode, family, pool)
                 } ?: continue
                 if (match == null || m.isBetterThan(match)) match = m
             }
@@ -352,6 +354,24 @@ object TransitData {
             .maxByOrNull { it.deviceCode.length } ?: return null
         val pattern = hit.deviceCode.drop(4)
         return CityMatch(hit, prefix.length, pattern.length, true, pattern.count { it != '0' })
+    }
+
+    /**
+     * 查找键精确匹配：设备码去前缀后须等于规则从记录切片拼出的键（线路、站点字段不相邻时用，如贵阳地铁）。
+     * 同键多行（类型 / 站点不同）不猜测。
+     */
+    private fun keyMatch(
+        prefix: String,
+        candidates: List<StationResolution>,
+        types: Set<String>?,
+        key: String?
+    ): CityMatch? {
+        if (key.isNullOrEmpty()) return null
+        val hit = candidates
+            .filter { (types == null || it.transitType in types) && it.deviceCode.length > 4 && it.deviceCode.drop(4) == key }
+            .distinctBy { Triple(it.lineId, it.stationId, it.transitType) }
+            .singleOrNull() ?: return null
+        return CityMatch(hit, prefix.length, key.length, true, key.count { it != '0' })
     }
 
     internal data class CityMatch(

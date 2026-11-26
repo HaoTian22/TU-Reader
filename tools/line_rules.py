@@ -37,7 +37,7 @@ FORMAT = 2
 
 RULE_KEYS = {"id", "note", "when", "any", "then", "samples"}
 THEN_KEYS = {"targets", "city", "family", "line"}
-TARGET_KEYS = {"prefix", "city", "family", "mode", "types", "fallbackBelow"}
+TARGET_KEYS = {"prefix", "city", "family", "mode", "types", "fallbackBelow", "key"}
 COND_KEYS = {"rec", "bytes", "nibbles", "eq", "in", "regex", "range", "radix", "not"}
 LINE_KEYS = {"rec", "nibbles", "radix", "ops", "min", "max", "prefix", "append"}
 SAMPLE_KEYS = {"1E", "18", "expect"}
@@ -195,16 +195,32 @@ def parse_target(o):
     if not isinstance(code, str) or not CITY_RE.fullmatch(code):
         raise ValueError("bad target code")
     mode = o.get("mode", "overlap")
-    if mode not in ("overlap", "stationPrefix"):
+    if mode not in ("overlap", "stationPrefix", "key"):
         raise ValueError(f"unknown mode {mode}")
+    key = None
+    if mode == "key":
+        key = o.get("key")
+        if not isinstance(key, list) or not key:
+            raise ValueError("mode key needs key slices")
+        for k in key:
+            if not isinstance(k, list) or len(k) != 2 or not (0 <= k[0] < k[1]):
+                raise ValueError(f"bad key slice {k}")
+    elif "key" in o:
+        raise ValueError("key needs mode key")
     types = o.get("types")
-    if types is not None and (mode != "stationPrefix" or not types):
-        raise ValueError("types needs mode stationPrefix")
+    if types is not None and (mode == "overlap" or not types):
+        raise ValueError("types needs mode stationPrefix / key")
     fb = o.get("fallbackBelow")
     if fb is not None and (not isinstance(fb, int) or fb <= 0):
         raise ValueError("bad fallbackBelow")
     return {"code": code, "byCity": by_city, "family": parse_family(o), "mode": mode, "types": types,
-            "fallbackBelow": fb}
+            "fallbackBelow": fb, "key": key}
+
+
+def key_of(target, recs):
+    """key 模式：按记录切片拼查找键；切片缺失 / 含未知半字节为 None（与 Kotlin Target.bind 一致）。"""
+    parts = [slice_known(recs["1E"], a, b) for a, b in target.get("key") or []]
+    return None if not parts or None in parts else "".join(parts)
 
 
 def parse_sample(s):
@@ -383,7 +399,8 @@ def check_db(rules, db_path):
                     continue
                 plan = solve(rules, s["recs"])
                 reachable = plan and any(
-                    (t["code"] in device_cities) if t["byCity"] else (device[:4] == t["code"])
+                    ((t["code"] in device_cities) if t["byCity"] else (device[:4] == t["code"]))
+                    and (t.get("mode") != "key" or key_of(t, s["recs"]) == device[4:])
                     for t in plan["targets"])
                 if not reachable:
                     problems.append(f"{r['label']}: 样本设备 {device} 不在计划目标内")

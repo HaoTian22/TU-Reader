@@ -33,9 +33,13 @@ import com.google.gson.JsonParser
  * Target = { "prefix": "5880" | "city": "4610",  // prefix = 设备前缀桶（device_code 前 4 位 = 卡上写的码）；
  *                                                // city = 按 city_id 查所有含该城市 TU 设备的前缀桶，只取该城市设备
  *            "family": "bus" | "rail",           // 可选：覆盖本目标的交通族
- *            "mode": "overlap" | "stationPrefix",// 缺省 overlap（最长重叠评分）；stationPrefix = 设备码去前缀后须为
- *                                                //   line+station 段（8 位）的前缀，取最长
- *            "types": ["城际"],                  // 仅 stationPrefix：限定 transit_type（精确）
+ *            "mode": "overlap" | "stationPrefix" | "key",
+ *                                                // 缺省 overlap（最长重叠评分）；stationPrefix = 设备码去前缀后须为
+ *                                                //   line+station 段（8 位）的前缀，取最长；key = 设备码去前缀后须
+ *                                                //   等于 `key` 切片拼成的查找键（线路、站点不相邻，如贵阳地铁）
+ *            "key": [[22, 24], [26, 28]],        // 仅 key 模式：1E 记录 hex 串的字符下标 [a, b) 列表，按序拼接；
+ *                                                //   任一切片缺失 / 含未知半字节则本目标不查
+ *            "types": ["城际"],                  // 仅 stationPrefix / key：限定 transit_type（精确）
  *            "fallbackBelow": 8 }                // 可选：前面目标最佳重叠 < n 才查，命中即取代
  * Cond   = { "rec": "1E" | "18", "bytes": [a, b] | "nibbles": [a, b],
  *            以下之一: "eq": "0101" | "in": ["0", "1"] | "regex": "^[01]" | "range": [lo, hi], "radix": 10,
@@ -109,8 +113,24 @@ internal object TuLineRules {
         val family: TransitData.TuTransitFamily? = null,
         val stationPrefix: Boolean = false,
         val types: Set<String>? = null,
-        val fallbackBelow: Int? = null
-    )
+        val fallbackBelow: Int? = null,
+        /** key 模式：1E 记录 hex 切片 [a, b)，按序拼成查找键；null = 非 key 模式 */
+        val keySlices: List<IntRange>? = null,
+        /** key 模式求解时由记录算出的查找键；切片不可得时为 null（本目标不查） */
+        val key: String? = null
+    ) {
+        val keyMode: Boolean get() = keySlices != null
+
+        /** key 模式：按本笔记录算出查找键（[solve] 时调用）；其他模式原样返回。 */
+        internal fun bind(records: Records): Target {
+            val slices = keySlices ?: return this
+            val journey = records.journey
+            val value = journey?.let { j ->
+                slices.map { j.sliceKnown(it.first, it.last + 1) ?: return@let null }.joinToString("")
+            }
+            return Target(code, byCity, family, stationPrefix, types, fallbackBelow, slices, value)
+        }
+    }
 
     /**
      * 一条交易的查找计划。
@@ -172,7 +192,7 @@ internal object TuLineRules {
             family = family ?: rule.family
         }
         val recordCity = records.recordCity
-        val searched = targets ?: recordCity?.let { listOf(Target(it)) } ?: return null
+        val searched = targets?.map { it.bind(records) } ?: recordCity?.let { listOf(Target(it)) } ?: return null
         return Plan(recordCity, city, family, searched, fired)
     }
 
@@ -330,7 +350,7 @@ internal object TuLineRules {
     private const val REC_FARE = "18"
     private val RULE_KEYS = setOf("id", "note", "when", "any", "then", "samples")
     private val THEN_KEYS = setOf("targets", "city", "family", "line")
-    private val TARGET_KEYS = setOf("prefix", "city", "family", "mode", "types", "fallbackBelow")
+    private val TARGET_KEYS = setOf("prefix", "city", "family", "mode", "types", "fallbackBelow", "key")
     private val COND_KEYS = setOf("rec", "bytes", "nibbles", "eq", "in", "regex", "range", "radix", "not")
     private val LINE_KEYS = setOf("rec", "nibbles", "radix", "ops", "min", "max", "prefix", "append")
     private val SAMPLE_KEYS = setOf(REC_JOURNEY, REC_FARE, "expect")
@@ -381,15 +401,26 @@ internal object TuLineRules {
         require(o.has("prefix") != o.has("city")) { "target needs exactly one of prefix / city" }
         val byCity = o.has("city")
         val code = o.str(if (byCity) "city" else "prefix")?.takeIf { it.matches(CITY_CODE) } ?: error("bad target code")
-        val stationPrefix = when (val mode = o.str("mode") ?: "overlap") {
-            "overlap" -> false
-            "stationPrefix" -> true
-            else -> error("unknown mode $mode")
+        val mode = o.str("mode") ?: "overlap"
+        require(mode in setOf("overlap", "stationPrefix", "key")) { "unknown mode $mode" }
+        val stationPrefix = mode == "stationPrefix"
+        val keySlices = if (mode == "key") {
+            o.get("key")?.arr("key")?.map { el ->
+                val a = el.arr("key slice")
+                require(a.size() == 2) { "key slice needs [start, end]" }
+                val start = a[0].asInt
+                val end = a[1].asInt
+                require(start in 0 until end) { "bad key slice [$start, $end]" }
+                start until end
+            }?.takeIf { it.isNotEmpty() } ?: error("mode key needs key slices")
+        } else {
+            require(!o.has("key")) { "key needs mode key" }
+            null
         }
         val types = o.get("types")?.arr("types")?.map { it.asString }?.toSet()
-        require(types == null || (stationPrefix && types.isNotEmpty())) { "types needs mode stationPrefix" }
+        require(types == null || (mode != "overlap" && types.isNotEmpty())) { "types needs mode stationPrefix / key" }
         val fallbackBelow = o.get("fallbackBelow")?.asInt?.also { require(it > 0) { "bad fallbackBelow" } }
-        return Target(code, byCity, parseFamily(o), stationPrefix, types, fallbackBelow)
+        return Target(code, byCity, parseFamily(o), stationPrefix, types, fallbackBelow, keySlices)
     }
 
     private fun parseFamily(o: JsonObject): TransitData.TuTransitFamily? = when (val f = o.str("family")) {

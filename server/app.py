@@ -7,7 +7,10 @@ Run with `python app.py` (see Dockerfile); tests live in tests/test_app.py.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import csv
+import hmac
 import io
 import json
 import logging
@@ -304,6 +307,31 @@ class FeedbackHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok"})
         elif path == "/v1/feedback-policy":
             self._send_json(200, load_policy())
+        elif path == "/v1/overrides":
+            username = os.getenv("FEEDBACK_GET_USERNAME", "")
+            password = os.getenv("FEEDBACK_GET_PASSWORD", "")
+            authorization = self.headers.get("Authorization", "")
+            try:
+                scheme, token = authorization.split(" ", 1)
+                decoded = base64.b64decode(token, validate=True)
+            except (ValueError, binascii.Error):
+                scheme, decoded = "", b""
+            expected = (username + ":" + password).encode("utf-8")
+            if not username or not password or scheme.lower() != "basic" or not hmac.compare_digest(decoded, expected):
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="TU-Reader feedback", charset="UTF-8"')
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            try:
+                with WRITE_LOCK:
+                    entries = _read_entries()
+            except (OSError, ValueError):
+                LOGGER.exception("failed to read overrides")
+                self._send_json(500, {"detail": "failed to read overrides"})
+                return
+            self._send_json(200, entries)
         else:
             self._send_json(404, {"detail": "Not Found"})
 
@@ -400,6 +428,7 @@ class FeedbackHandler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: dict, *, close: bool = False) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         if close:

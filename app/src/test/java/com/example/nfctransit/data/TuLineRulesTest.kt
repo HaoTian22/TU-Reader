@@ -211,6 +211,29 @@ class TuLineRulesTest {
         assertEquals(setOf("a", "b", "c", "d", "e", "f"), set.droppedIds.keys)
     }
 
+    @Test
+    fun keyTargetBindsLookupKeyFromRecordSlices() {
+        val set = TuLineRules.parse(bundled.readText())
+        val rule = set.rules.single { it.id == "guiyang-metro" }
+        // 贵阳实卡反馈：线路站点字段 05010117000000，城市码 7010；其余半字节未知
+        val journey = "????????????????????05010117000000??????????????????????????????7010????????????????????????????"
+        val bound = rule.targets!!.map { it.bind(TuLineRules.Records(journey, null)) }
+        assertEquals(listOf("0117", "01"), bound.map { it.key })
+        // 切片含未知半字节：键为 null，目标不查
+        val unknown = "????????????????????05??0117000000??????????????????????????????7010????????????????????????????"
+        assertNull(rule.targets!!.first().bind(TuLineRules.Records(unknown, null)).key)
+    }
+
+    @Test
+    fun keyModeNeedsSlicesAndKeyNeedsKeyMode() {
+        val keyRule = { target: String -> """{"id": "k", "when": [{"rec": "1E", "bytes": [32, 34], "eq": "7010"}],
+            "then": {"targets": [$target]}}""" }
+        assertEquals(1, TuLineRules.parse(ruleFile(keyRule("""{"prefix": "7010", "mode": "key"}"""))).dropped.size)
+        assertEquals(1, TuLineRules.parse(ruleFile(keyRule("""{"prefix": "7010", "key": [[22, 24]]}"""))).dropped.size)
+        assertEquals(1, TuLineRules.parse(ruleFile(keyRule("""{"prefix": "7010", "mode": "key", "key": [[24, 22]]}"""))).dropped.size)
+        assertTrue(TuLineRules.parse(ruleFile(keyRule("""{"prefix": "7010", "mode": "key", "key": [[22, 24]], "types": ["地铁"]}"""))).dropped.isEmpty())
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun otherFormatIsRejectedWhole() {
         TuLineRules.parse(ruleFile(dongguanLine(), format = 1))

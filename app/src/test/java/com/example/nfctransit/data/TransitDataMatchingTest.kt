@@ -3,6 +3,7 @@ package com.example.nfctransit.data
 import com.example.nfctransit.data.db.StationResolution
 import com.example.nfctransit.ApduUtil
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TransitDataMatchingTest {
@@ -249,6 +250,43 @@ class TransitDataMatchingTest {
         body: String,
         family: TransitData.TuTransitFamily?
     ) = TransitData.longestTuMatch("3320", body, family, null, candidates = candidates)?.resolution
+
+    @Test
+    fun keyTargetMatchesSplitLineStationExactlyAndFallsBackToLineRow() {
+        val loaded = TransitData::class.java.getDeclaredField("loaded").apply { isAccessible = true }
+        val cachedField = TransitData::class.java.getDeclaredField("candidatesByCityAndFamily").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val cached = cachedField.get(TransitData) as MutableMap<Pair<String, TransitData.TuTransitFamily?>, List<StationResolution>>
+        val oldCached = cached.toMap()
+        val wasLoaded = loaded.getBoolean(TransitData)
+        // 贵阳地铁实卡反馈：线路站点字段 05010117000000 = 1号线 中山西路（库码 0117）；最长重叠会同长命中 0101 窦官
+        fun gy(code: String, station: String?) = resolution(code, "地铁", "1号线", station)
+            .copy(cityCode = "7010", deviceCode = "7010$code", stationId = station?.let { it.length.toLong() })
+        val rows = listOf(gy("01", null), gy("0101", "窦官"), gy("0117", "中山西路"))
+        val rawCode = "05010117000000"
+        fun plan(station: String, line: String) = TuLineRules.Plan("7010", null, null, listOf(
+            TuLineRules.Target("7010", keySlices = listOf(22 until 24, 26 until 28), key = station),
+            TuLineRules.Target("7010", fallbackBelow = 4, keySlices = listOf(22 until 24), key = line)
+        ), listOf("guiyang-metro"))
+        try {
+            loaded.setBoolean(TransitData, true)
+            cached["7010" to TransitData.TuTransitFamily.RAIL] = rows
+            val hit = TransitData.resolveTuPlan(plan("0117", "01"), "", rawCode, TransitData.TuTransitFamily.RAIL)
+            assertEquals("70100117", hit?.code)
+            assertEquals("(SP Rule: guiyang-metro)", hit?.spRule)
+            // 站点不在库：退到 2 位线路行，不按重叠猜站
+            assertEquals("701001", TransitData.resolveTuPlan(plan("0199", "01"), "", rawCode,
+                TransitData.TuTransitFamily.RAIL)?.code)
+            // 切片不可得（key = null）：目标不查
+            assertNull(TransitData.resolveTuPlan(plan("0117", "01").let {
+                TuLineRules.Plan("7010", null, null, it.targets.map { t ->
+                    TuLineRules.Target(t.code, fallbackBelow = t.fallbackBelow, keySlices = t.keySlices) }, it.ruleIds)
+            }, "", rawCode, TransitData.TuTransitFamily.RAIL))
+        } finally {
+            cached.clear(); cached.putAll(oldCached)
+            loaded.setBoolean(TransitData, wasLoaded)
+        }
+    }
 
     private fun resolution(code: String, type: String, line: String, station: String?) = StationResolution(
         cityId = 1, cityCode = "3320", cityName = "宁波", cityNameEn = "Ningbo",
